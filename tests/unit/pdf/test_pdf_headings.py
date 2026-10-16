@@ -181,6 +181,7 @@ def test_two_line_title_is_merged():
         ("Results of Operations", 2),
     ]
     assert found[0].line_index == 0
+    assert [h.line_count for h in found] == [2, 1]
     assert lines[found[1].line_index].text == "Results of Operations"
 
 

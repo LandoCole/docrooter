@@ -238,3 +238,113 @@ def test_cli_toc_encrypted_pdf_is_an_error_message(tmp_path):
     pdf.close()
     result = runner.invoke(app, ["toc", str(path)])
     assert result.exit_code == 1 and "error: " in result.output and "Traceback" not in result.output
+
+
+def test_wrapped_title_is_joined_and_body_starts_after_it(tmp_path):
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=612, height=792)
+    page.insert_text((72, 90), "Annual Review of the", fontsize=22, fontname="hebo")
+    page.insert_text((72, 116), "Operating Results", fontsize=22, fontname="hebo")
+    y = 160
+    for k in range(4):
+        page.insert_text((72, y), f"{BODY} Line {k}.", fontsize=11, fontname="helv")
+        y += 15
+    doc = load_pdf(_write(pdf, tmp_path / "wrap.pdf"), engine="pymupdf")
+    assert [e.title for e in doc.toc()] == ["Annual Review of the Operating Results"]
+    section = doc.section("s1")
+    assert section.text.splitlines()[0] == f"{BODY} Line 0."
+    assert "Operating" not in section.text and "Annual" not in section.text
+
+
+def _line(page, text, y, *, size=11.0, bold=False):
+    from docrooter.pdf.lines import Line
+
+    return Line(
+        page=page, text=text, size=size, bold=bold, font="f", x0=72, y0=y, x1=300, y1=y + size,
+        page_height=792, page_width=612, gap_above=5.0, gap_below=5.0, block=0,
+    )  # fmt: skip
+
+
+def test_merge_adds_a_high_scoring_other_only_heading_with_its_line_count():
+    from docrooter.pdf.headings import HeadingCandidate
+    from docrooter.pdf.load import _merge_engines
+
+    def cand(i, text, page, score, count=1):
+        return HeadingCandidate(
+            line_index=i, line_count=count, text=text, page=page, size=14, bold=True,
+            score=score, level=1,
+        )  # fmt: skip
+
+    primary_lines = [
+        _line(1, "Shared Heading", 100), _line(1, "body one", 120), _line(1, "body two", 140),
+        _line(1, "Wrapped Title Part", 160), _line(1, "Two Of Three", 180),
+        _line(1, "body three", 200), _line(2, "Late Heading", 100),
+    ]  # fmt: skip
+    other_lines = [
+        _line(1, "Shared Heading", 100), _line(1, "x", 120), _line(1, "Wrapped Title Part", 160),
+        _line(1, "Two Of Three", 180), _line(1, "y", 200), _line(2, "Late Heading", 100),
+    ]  # fmt: skip
+    primary = [cand(0, "Shared Heading", 1, 0.6)]
+    other = [
+        cand(0, "Shared Heading", 1, 0.6),
+        cand(2, "Wrapped Title Part Two Of Three", 1, 0.9, count=2),
+        cand(5, "Late Heading", 2, 0.9),
+        cand(1, "Not In Primary At All", 1, 0.95),
+    ]
+    kept = _merge_engines(primary, other, primary_lines, other_lines)
+    assert [(h.text, h.line_index, h.line_count) for h in kept] == [
+        ("Shared Heading", 0, 1),
+        ("Wrapped Title Part Two Of Three", 3, 2),
+        ("Late Heading", 6, 1),
+    ]
+    assert all(h.level == 1 for h in kept)
+    assert [h.line_index for h in primary] == [0]  # inputs untouched
+
+
+def test_both_engines_agree_on_wrapped_title_bodies(tmp_path):
+    pytest.importorskip("pdfplumber")
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=612, height=792)
+    page.insert_text((72, 90), "Annual Review of the", fontsize=22, fontname="hebo")
+    page.insert_text((72, 116), "Operating Results", fontsize=22, fontname="hebo")
+    for k in range(4):
+        page.insert_text((72, 160 + 15 * k), f"{BODY} Line {k}.", fontsize=11, fontname="helv")
+    path = _write(pdf, tmp_path / "wrap2.pdf")
+    both = load_pdf(path, engine="both")
+    ref = load_pdf(path, engine="pymupdf")
+    assert both.section("s1").text == ref.section("s1").text
+
+
+def _cover_pdf(tmp_path, name, *, metadata_title=None):
+    pdf = pymupdf.open()
+    page = _page(pdf, [("h1", "A N N U A L R E P O R T"), ("p", BODY), ("h2", "Overview"),
+                       ("p", BODY)])  # fmt: skip
+    if metadata_title:
+        pdf.set_metadata({"title": metadata_title})
+    assert page is not None
+    return _write(pdf, tmp_path / name)
+
+
+def test_letter_spaced_heading_is_not_the_document_title(tmp_path):
+    doc = load_pdf(_cover_pdf(tmp_path, "cover.pdf", metadata_title="Acme 1997"), engine="pymupdf")
+    assert doc.toc()[0].title == "A N N U A L R E P O R T"  # still a section
+    assert doc.title == "Acme 1997"
+    assert load_pdf(_cover_pdf(tmp_path, "stemmed.pdf"), engine="pymupdf").title == "stemmed"
+
+
+def test_pymupdf4llm_defaults_to_the_v01_score(monkeypatch, toc_pdf):
+    import docrooter.document.pdf as legacy
+
+    seen = {}
+
+    def fake(path, *, min_heading_score, repair):
+        seen["score"] = min_heading_score
+        raise DocrooterError("stop")
+
+    monkeypatch.setattr(legacy, "_load_pdf_pymupdf4llm", fake)
+    with pytest.raises(DocrooterError):
+        load_pdf(toc_pdf, engine="pymupdf4llm")
+    assert seen["score"] == 0.5
+    with pytest.raises(DocrooterError):
+        load_pdf(toc_pdf, engine="pymupdf4llm", min_heading_score=0.7)
+    assert seen["score"] == 0.7

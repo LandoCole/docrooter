@@ -48,9 +48,11 @@ _P_NO_BODY = 0.15
 
 class HeadingCandidate(BaseModel):
     """A detected heading. ``line_index`` is the index (into the ``lines`` given to
-    :func:`find_headings`) of its first line; multi-line titles are joined with spaces."""
+    :func:`find_headings`) of its first line; a multi-line title spans ``line_count`` consecutive
+    lines and is joined with spaces."""
 
     line_index: int
+    line_count: int = 1
     text: str
     page: int
     size: float
@@ -289,8 +291,8 @@ def find_headings(
         if score < min_score:
             continue
         heading = HeadingCandidate(
-            line_index=run.start, text=run.text, page=line.page, size=line.size,
-            bold=line.bold, score=score,
+            line_index=run.start, line_count=run.end - run.start + 1, text=run.text,
+            page=line.page, size=line.size, bold=line.bold, score=score,
         )  # fmt: skip
         kept.append((heading, bookmark_level))
     _assign_levels(kept)

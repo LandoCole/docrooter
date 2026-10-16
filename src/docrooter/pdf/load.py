@@ -26,6 +26,8 @@ __all__ = ["ENGINES", "load_pdf"]
 
 ENGINES = ("auto", "pymupdf", "pdfplumber", "both", "pymupdf4llm")
 
+_DEFAULT_SCORE = 0.55
+_END_SLACK = 2  # extra primary lines searched for the end of a multi-line title
 _KEEP_SCORE = 0.8  # `both`: a heading this confident in either engine survives alone
 _TIMING_KEYS = ("extract", "signals", "headings", "assemble")
 # Metadata titles that are really file names ("Microsoft Word - draft.docx", "report.pdf").
@@ -34,6 +36,10 @@ _FILENAME_TITLE = re.compile(
     r"|[/\\]",
     re.IGNORECASE,
 )
+
+
+# "A N N U A L  R E P O R T": a cover title set with letter-spacing, unusable as a title.
+_LETTER_SPACED = re.compile(r"(?<![A-Za-z])(?:[A-Za-z] ){3,}[A-Za-z](?![A-Za-z])")
 
 
 @dataclass
@@ -51,7 +57,7 @@ def load_pdf(
     path: str | os.PathLike[str],
     *,
     engine: str = "auto",
-    min_heading_score: float = 0.55,
+    min_heading_score: float | None = None,
     use_bookmarks: bool = True,
     use_printed_toc: bool = True,
     repair: bool = True,
@@ -61,6 +67,7 @@ def load_pdf(
     ``engine`` is ``auto`` (pymupdf if installed, else pdfplumber), ``pymupdf`` (extra ``pdf``),
     ``pdfplumber`` (extra ``pdf-mit``), ``both`` (pymupdf headings kept when pdfplumber agrees or
     either engine is at least 0.8 confident) or ``pymupdf4llm`` (the v0.1 Markdown path).
+    ``min_heading_score`` defaults to 0.55 (0.5 for ``pymupdf4llm``, as in v0.1).
     Headings already carry repaired levels, so ``repair`` only affects the ``pymupdf4llm`` path.
 
     ``Document.meta`` holds ``engine``, ``n_pages``, ``timings`` (seconds for ``extract``,
@@ -73,14 +80,15 @@ def load_pdf(
         raise DocrooterError(f"unknown PDF engine {engine!r}; use one of {', '.join(ENGINES)}")
     path = Path(path)
     if engine == "pymupdf4llm":
+        score = 0.5 if min_heading_score is None else min_heading_score
         from docrooter.document.pdf import _load_pdf_pymupdf4llm
 
-        return _load_pdf_pymupdf4llm(path, min_heading_score=min_heading_score, repair=repair)
+        return _load_pdf_pymupdf4llm(path, min_heading_score=score, repair=repair)
     if engine == "auto":
         engine = _auto_engine()
 
     options: dict[str, Any] = {
-        "min_score": min_heading_score,
+        "min_score": _DEFAULT_SCORE if min_heading_score is None else min_heading_score,
         "use_bookmarks": use_bookmarks,
         "use_printed_toc": use_printed_toc,
     }
@@ -101,7 +109,9 @@ def load_pdf(
 
     start = time.perf_counter()
     raw = _assemble(primary.lines, primary.signals, headings, primary.n_pages)
-    title = next((h.title for h in raw if h.level == 1), None) or _metadata_title(path)
+    title = next(
+        (h.title for h in raw if h.level == 1 and not _LETTER_SPACED.search(h.title)), None
+    ) or _metadata_title(path)
     doc = build_document(raw, source=str(path), title=title or path.stem)
     timings["assemble"] = time.perf_counter() - start
 
@@ -200,8 +210,11 @@ def _merge_engines(
             continue
         index = _locate(heading, primary_lines, other_lines, taken | set(skip))
         if index is not None:
-            taken.add(index)
-            kept.append(heading.model_copy(update={"line_index": index}, deep=True))
+            count = _locate_count(heading, index, primary_lines, other_lines)
+            taken.update(range(index, index + count))
+            kept.append(
+                heading.model_copy(update={"line_index": index, "line_count": count}, deep=True)
+            )
 
     kept.sort(key=lambda h: h.line_index)
     repaired = repair_levels(
@@ -230,17 +243,24 @@ def _locate(
     return None
 
 
-def _span(lines: Sequence[Line], heading: HeadingCandidate) -> int:
-    """Number of lines the heading's title was joined from (``find_headings`` joins stripped line
-    texts with single spaces); 1 when they cannot be reconstructed."""
-    joined = ""
-    for index in range(heading.line_index, len(lines)):
-        piece = lines[index].text.strip()
-        joined = f"{joined} {piece}" if joined else piece
-        if joined == heading.text:
-            return index - heading.line_index + 1
-        if len(joined) > len(heading.text):
+def _locate_count(
+    heading: HeadingCandidate,
+    start: int,
+    primary_lines: Sequence[Line],
+    other_lines: Sequence[Line],
+) -> int:
+    """Line count of ``heading`` in the primary lines: from ``start`` to the first primary line
+    on the same page matching the heading's last line in the other engine. 1 when unmatched."""
+    last = heading.line_index + heading.line_count - 1
+    if heading.line_count <= 1 or last >= len(other_lines):
+        return 1
+    final = other_lines[last].text
+    stop = min(len(primary_lines), start + heading.line_count + _END_SLACK)
+    for index in range(start + 1, stop):
+        if primary_lines[index].page != heading.page:
             break
+        if is_fuzzy_match(final, primary_lines[index].text):
+            return index - start + 1
     return 1
 
 
@@ -274,7 +294,7 @@ def _assemble(
         )
     for position, heading in enumerate(ordered):
         stop = ordered[position + 1].line_index if position + 1 < len(ordered) else len(lines)
-        begin = min(heading.line_index + _span(lines, heading), stop)
+        begin = min(heading.line_index + heading.line_count, stop)
         raw.append(
             RawHeading(
                 title=heading.text,

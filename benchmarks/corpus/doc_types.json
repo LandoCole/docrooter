@@ -1,0 +1,154 @@
+{
+  "nodes": [
+    {
+      "id": "financial",
+      "label": "Financial",
+      "description": "Documents issued by or about companies and funds that report results or offer securities.",
+      "children": [
+        {
+          "id": "financial.annual_report",
+          "label": "Annual report",
+          "description": "A yearly report to shareholders covering a whole fiscal year, either a Form 10-K filing or a glossy annual report, with business overview, management discussion and audited financial statements. Not a 10-Q (partial year) or a standalone shareholder letter (a few pages of narrative only).",
+          "children": []
+        },
+        {
+          "id": "financial.quarterly_report",
+          "label": "Quarterly report",
+          "description": "An interim report covering a single quarter or half-year, such as a Form 10-Q or a quarterly or half-year report, with unaudited or reviewed financial statements and short management discussion. Not a press-release style earnings_release and not a full-year annual_report.",
+          "children": []
+        },
+        {
+          "id": "financial.shareholder_letter",
+          "label": "Shareholder letter",
+          "description": "A letter from a company's management or an investment manager addressed to shareholders or investors that reviews performance and outlook in narrative prose, typically signed by the CEO, chairman or fund manager. Not a full annual_report with financial statements.",
+          "children": []
+        },
+        {
+          "id": "financial.earnings_release",
+          "label": "Earnings release",
+          "description": "A short press release announcing quarterly or annual financial results, with headline figures, a business summary and condensed financial tables, usually 3 to 15 pages. Not a full quarterly_report or an investor_presentation slide deck.",
+          "children": []
+        },
+        {
+          "id": "financial.prospectus",
+          "label": "Prospectus",
+          "description": "A formal securities-offering or fund document describing an investment's objectives, risks, fees, and terms so investors can decide whether to buy, such as a mutual fund, ETF or IPO prospectus. Not an annual_report and not a marketing white_paper.",
+          "children": []
+        },
+        {
+          "id": "financial.proxy_statement",
+          "label": "Proxy statement",
+          "description": "A document sent to shareholders ahead of a shareholder meeting that describes the items to be voted on, the board nominees, executive compensation and governance, such as a Schedule 14A or DEF 14A. Not an annual_report even when it is bundled with one.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "legal",
+      "label": "Legal",
+      "description": "Documents that create, state or interpret legal rights and obligations.",
+      "children": [
+        {
+          "id": "legal.contract",
+          "label": "Contract",
+          "description": "A legally binding agreement between named parties, with recitals, defined terms, numbered clauses and signature blocks, such as a services, license, lease, employment or supply agreement. Not a public terms_policy that is posted unilaterally for all users.",
+          "children": []
+        },
+        {
+          "id": "legal.terms_policy",
+          "label": "Terms and policies",
+          "description": "A unilaterally published set of terms of service, terms of use, privacy policy, cookie policy or acceptable-use policy that governs the public's use of a product or service. Not a negotiated contract between named parties.",
+          "children": []
+        },
+        {
+          "id": "legal.court_opinion",
+          "label": "Court opinion",
+          "description": "A judicial decision issued by a court, including the syllabus, the majority opinion and any concurring or dissenting opinions, with case caption, docket number, holdings and reasoning. Not legislation and not a legal brief filed by a party.",
+          "children": []
+        },
+        {
+          "id": "legal.legislation",
+          "label": "Legislation",
+          "description": "The text of enacted or proposed law, such as a statute, bill, act, treaty or administrative regulation, organized in titles, sections and subsections with enacting clauses. Not a court_opinion interpreting the law and not a government_report about it.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "research",
+      "label": "Research",
+      "description": "Documents that report original research or formally specify technology.",
+      "children": [
+        {
+          "id": "research.research_paper",
+          "label": "Research paper",
+          "description": "A scholarly paper reporting original research, with an abstract, introduction, methods, results and references, typically from arXiv, journals or conferences. Not an industry white_paper or a technical_standard.",
+          "children": []
+        },
+        {
+          "id": "research.technical_standard",
+          "label": "Technical standard",
+          "description": "A normative technical standard or specification, such as an RFC, IETF, W3C, ISO or IEEE document, that uses requirement keywords (MUST, SHOULD) to define a protocol, format or interface precisely. Not a vendor datasheet or a user_manual.",
+          "children": []
+        },
+        {
+          "id": "research.white_paper",
+          "label": "White paper",
+          "description": "An industry, vendor, consultancy or think-tank report that argues for a position, explains a topic or presents analysis aimed at a professional audience, without being peer-reviewed or normative. Not a research_paper (academic) or a government_report (issued by an agency).",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "technical",
+      "label": "Technical",
+      "description": "Product documentation describing how to use or select a hardware or software product.",
+      "children": [
+        {
+          "id": "technical.user_manual",
+          "label": "User manual",
+          "description": "Task-oriented documentation that guides an end user or administrator through installing, configuring, operating and troubleshooting a product, with chapters, procedures and a table of contents. Not a datasheet, which lists specifications rather than procedures.",
+          "children": []
+        },
+        {
+          "id": "technical.datasheet",
+          "label": "Datasheet",
+          "description": "A concise specification document for a hardware component or product, with features, pin or port descriptions, electrical or performance characteristics, ordering information and package details, normally from the manufacturer. Not a procedural user_manual.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "government",
+      "label": "Government",
+      "description": "Documents published by public institutions in their official capacity.",
+      "children": [
+        {
+          "id": "government.government_report",
+          "label": "Government report",
+          "description": "A report published by a government agency, central bank, legislative office or audit office, presenting analysis, findings, monetary policy, oversight results or recommendations to policymakers and the public. Not legislation itself and not a think-tank white_paper.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "corporate",
+      "label": "Corporate",
+      "description": "Documents a company publishes to communicate non-statutory information about itself.",
+      "children": [
+        {
+          "id": "corporate.sustainability_report",
+          "label": "Sustainability report",
+          "description": "A company report on environmental, social and governance (ESG), sustainability, climate or impact performance, with metrics, targets and frameworks such as GRI, SASB or TCFD. Not a financial annual_report, although the two are sometimes combined.",
+          "children": []
+        },
+        {
+          "id": "corporate.investor_presentation",
+          "label": "Investor presentation",
+          "description": "A slide deck prepared for investors and analysts, such as an earnings call presentation or investor day deck, laid out as landscape slides with short bullets, charts and forward-looking-statement disclaimers. Not a prose earnings_release.",
+          "children": []
+        }
+      ]
+    }
+  ]
+}

@@ -15,6 +15,7 @@ import datetime
 import json
 import os
 import platform
+import subprocess
 import sys
 import time
 from collections.abc import Sequence
@@ -259,6 +260,23 @@ def collect_env() -> dict[str, Any]:
     }
 
 
+def git_revision() -> str | None:
+    """Short commit of the checkout, with ``+dirty`` when ``src/`` has uncommitted changes."""
+    root = Path(__file__).parent.parent
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=root, capture_output=True, text=True,
+            check=True,
+        ).stdout.strip()  # fmt: skip
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--", "src"], cwd=root, capture_output=True,
+            text=True, check=True,
+        ).stdout.strip()  # fmt: skip
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return f"{sha}+dirty" if dirty else sha
+
+
 # --- Markdown report --------------------------------------------------------------------
 
 DOCS_PATH = Path(__file__).parent.parent / "docs" / "benchmarks-pdf.md"
@@ -301,10 +319,21 @@ def render_tables(result: dict[str, Any]) -> str:
         f"Environment: Python {env['python']}, {env['machine']}, {env['cpu_count']} CPUs, "
         f"pymupdf {versions.get('pymupdf')}, pdfplumber {versions.get('pdfplumber')}, "
         f"pymupdf4llm {versions.get('pymupdf4llm')}. `os.getloadavg()` was {loadavg} (1/5/15 min) "
-        "when the run started. The machine was shared with other jobs, so seconds per document "
-        "are noisy upper bounds; each engine ran one untimed warm-up document first. Seconds are "
-        "wall-clock for one `load_pdf` call."
+        "when the latest run started. The machine was shared with other jobs, so seconds per "
+        "document are noisy upper bounds; each engine ran one untimed warm-up document first. "
+        "Seconds are wall-clock for one `load_pdf` call."
     )
+    runs = [
+        f"`{name}` {entry.get('date', 'n/a')} at `{entry.get('commit') or 'unknown'}`"
+        + (
+            f" (load {', '.join(f'{x:.1f}' for x in entry['loadavg_start'])})"
+            if entry.get("loadavg_start")
+            else ""
+        )
+        for name, entry in engines.items()
+    ]
+    if any("commit" in entry or "date" in entry for entry in engines.values()):
+        environment += " Each engine's row keeps the run that produced it: " + "; ".join(runs) + "."
     out = [
         intro,
         "",
@@ -424,7 +453,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     if path.exists():  # keep engines from earlier invocations; --engines replaces only its own
         result = json.loads(path.read_text(encoding="utf-8"))
     else:
-        result = {"env": collect_env(), "engines": {}}
+        result = {"engines": {}}
+    result["env"] = collect_env()  # this invocation's; each engine keeps its own run metadata
     result |= {"min_bookmarks": args.min_bookmarks, "match": {"ratio": 0.85, "page_tol": 1}}
     for engine in [e.strip() for e in args.engines.split(",") if e.strip()]:
         subset = docs
@@ -436,6 +466,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         entry = run_engine(engine, subset, cache=CACHE)
         entry |= {
             "note": note,
+            "date": datetime.date.today().isoformat(),
+            "commit": git_revision(),
             "loadavg_start": loadavg_start,
             "loadavg_end": list(os.getloadavg()),
         }

@@ -257,3 +257,47 @@ def test_numbered_contents_stops_where_the_document_starts_on_the_same_page():
               for k in range(2)]  # fmt: skip
     s = compute_signals(lines, 20)
     assert s.toc_page_lines == set(range(len(entries)))
+
+
+def test_numbered_openers_in_the_top_band_are_not_running_lines():
+    # "Chapter 1" .. "Chapter 3" and "Item 1" .. "Item 3" (no period) differ only in their
+    # number, which is part of the title, not a page number.
+    lines = []
+    for page in range(1, 41):
+        if page % 10 == 1:
+            lines.append(mk(page, f"Chapter {page // 10 + 1}", y0=30))
+        if page % 10 == 5:
+            lines.append(mk(page, f"Item {page // 10 + 1}", y0=30))
+        lines += body_page(page)
+    assert compute_signals(lines, 40).excluded == set()
+
+
+def test_footer_with_a_year_and_a_page_number_is_still_a_running_line():
+    lines, footer_idx = [], set()
+    for page in range(1, 41):
+        lines += body_page(page)
+        if 11 <= page <= 15:
+            footer_idx.add(len(lines))
+            lines.append(mk(page, f"Annual Report 2023 {page}", size=8.0, y0=H - 40))
+    assert compute_signals(lines, 40).excluded == footer_idx
+
+
+def test_repeated_slide_titles_at_different_heights_are_not_running_lines():
+    # A 30-slide deck repeats a bold title near the top of three slides, each at its own height.
+    lines = []
+    for page in range(1, 31):
+        if page in (5, 12, 20):
+            lines.append(mk(page, "Market Overview", size=24.0, bold=True, y0=10.0 + page))
+        lines += body_page(page)
+    assert compute_signals(lines, 30).excluded == set()
+
+
+def test_same_height_bold_section_footer_is_a_running_line():
+    # Large bold, so a heading candidate by size, but at the same height on 5 of 40 pages.
+    lines, footer_idx = [], set()
+    for page in range(1, 41):
+        lines += body_page(page)
+        if 11 <= page <= 15:
+            footer_idx.add(len(lines))
+            lines.append(mk(page, "2.2. Address Map", size=14.0, bold=True, y0=H - 40))
+    assert compute_signals(lines, 40).excluded == footer_idx

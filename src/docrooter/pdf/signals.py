@@ -30,8 +30,14 @@ _RECURRENCE_FRACTION = 0.30
 _RECURRENCE_MINIMUM = 3
 # A section running line (the current section's title printed in the edge band of each of its
 # pages) recurs on far fewer than 30% of a long document's pages. Matched on its exact text
-# minus a leading/trailing page number, so "Item 1." and "Item 2." stay distinct (P5b).
+# minus a leading/trailing page number, so "Item 1." and "Item 2." stay distinct (P5b). It must
+# recur on 3 pages; a line that is a heading candidate by size (bold and >= 1.15 x body, e.g. a
+# repeated slide title) counts only when it sits at the same height (+/- 2 pt) on 3 pages, as
+# running lines do. No share-of-pages floor: a datasheet's sections span 3-10 of 642 pages, and
+# max(3, 10% of pages) cut TOC micro F1 from 0.702 to 0.580 (P5b fix round 1).
 _SECTION_RECURRENCE_MINIMUM = 3
+_SECTION_SAME_Y_TOLERANCE = 2.0  # pt
+_HEADING_SIZE_FACTOR = 1.15  # same as the heading pre-filter
 _TOC_MIN_LINES = 5
 _TOC_HEADED_MIN_LINES = 3
 # Contents pages that the leader regex misses (P5b): the page number is a separate line on the
@@ -60,7 +66,14 @@ _TOC_LEADERS = re.compile(r"^(.*?[^\W\d_].*?)\s*(?:[.·…_]\s?){5,}$")  # not a
 _TOC_NUMBERED = re.compile(r"^(\d{1,3}(?:\.\d{1,3})*)\.?\s+\S")
 _TOC_HEADINGS = frozenset({"contents", "table of contents"})
 _DIGITS = re.compile(r"\d+")
-_EDGE_PAGE_NUMBER = re.compile(r"^\d{1,4}\s+|\s+\d{1,4}$")
+_EDGE_LEADING_NUMBER = re.compile(r"^\d{1,4}\s+")
+_EDGE_TRAILING_NUMBER = re.compile(r"\s+\d{1,4}$")
+# A trailing number after one of these words is the title's own number ("Chapter 2"), not a
+# page number.
+_NUMBERING_WORD = re.compile(
+    r"\b(?:chapter|part|section|item|appendix|article|schedule|exhibit|annex|table|figure)$",
+    re.IGNORECASE,
+)
 _SPACE = re.compile(r"\s+")
 _LEADING_NUMBER = re.compile(
     r"^(?:(?:chapter|section|part|item|article|appendix)\s+)?"
@@ -116,13 +129,21 @@ def _running_key(text: str) -> str:
     return _SPACE.sub(" ", _DIGITS.sub("#", text.casefold())).strip()
 
 
+def _strip_page_number(text: str) -> str:
+    """``text`` (whitespace collapsed) without a leading or trailing page number. A trailing
+    number that follows a numbering word ("Chapter 2", "Item 3") belongs to the title and stays."""
+    text = _EDGE_LEADING_NUMBER.sub("", _SPACE.sub(" ", text).strip())
+    stripped = _EDGE_TRAILING_NUMBER.sub("", text)
+    return text if _NUMBERING_WORD.search(stripped) else stripped
+
+
 def _section_running_key(text: str) -> str:
-    return _EDGE_PAGE_NUMBER.sub("", _SPACE.sub(" ", text.casefold()).strip())
+    return _strip_page_number(text.casefold())
 
 
 def _edge_copy_key(text: str) -> str:
     """Title of a possible running copy of a heading: page number and numbering stripped."""
-    return normalize_title(_EDGE_PAGE_NUMBER.sub("", _SPACE.sub(" ", text).strip()))
+    return normalize_title(_strip_page_number(text))
 
 
 def _in_edge_zone(line: Line) -> bool:
@@ -143,23 +164,36 @@ def _body_size(lines: Sequence[Line]) -> float:
 def _find_excluded(lines: Sequence[Line], n_pages: int) -> set[int]:
     excluded = {i for i, line in enumerate(lines) if _is_page_number(line.text)}
     pages_by_key: defaultdict[str, set[int]] = defaultdict(set)
-    pages_by_section_key: defaultdict[str, set[int]] = defaultdict(set)
+    copies_by_section_key: defaultdict[str, list[Line]] = defaultdict(list)
     edge: list[tuple[int, str, str]] = []
     for i, line in enumerate(lines):
         if i in excluded or not _in_edge_zone(line):
             continue
         key, section_key = _running_key(line.text), _section_running_key(line.text)
         pages_by_key[key].add(line.page)
-        pages_by_section_key[section_key].add(line.page)
+        copies_by_section_key[section_key].append(line)
         edge.append((i, key, section_key))
     needed = max(_RECURRENCE_MINIMUM, math.ceil(_RECURRENCE_FRACTION * n_pages))
+    body = _body_size(lines)
     excluded.update(
         i
         for i, key, section_key in edge
         if len(pages_by_key[key]) >= needed
-        or len(pages_by_section_key[section_key]) >= _SECTION_RECURRENCE_MINIMUM
+        or _is_section_running_line(lines[i], copies_by_section_key[section_key], body)
     )
     return excluded
+
+
+def _is_section_running_line(line: Line, copies: Sequence[Line], body: float) -> bool:
+    """Whether an edge-band line whose text recurs as ``copies`` is a section running line: on
+    at least 3 pages, and either not a heading candidate by size (bold and >= 1.15 x body) or
+    at the same height on at least 3 pages, as running lines are (P5b)."""
+    if len({copy.page for copy in copies}) < _SECTION_RECURRENCE_MINIMUM:
+        return False
+    if not (line.bold and body > 0 and line.size >= _HEADING_SIZE_FACTOR * body):
+        return True
+    same_y = {copy.page for copy in copies if abs(copy.y0 - line.y0) <= _SECTION_SAME_Y_TOLERANCE}
+    return len(same_y) >= _SECTION_RECURRENCE_MINIMUM
 
 
 def _same_row(a: Line, b: Line) -> bool:

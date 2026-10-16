@@ -447,3 +447,19 @@ def test_section_title_repeated_in_smaller_overview_type_stays_a_heading():
         ("Environmental Report", 1), ("Water Stewardship", 5), ("Circular Economy", 6),
         ("Net Zero Carbon", 7),
     ]  # fmt: skip
+
+
+def test_numbered_chapter_openers_at_the_page_top_are_headings():
+    pages = []
+    for n in (1, 2, 3):
+        pages += [[item(f"Chapter {n}", size=18, bold=True), *para(5)], *[[*para(5)]] * 3]
+    lines = layout(pages)
+    for i, line in enumerate(lines):
+        if line.text.startswith("Chapter"):  # top band, as a chapter opener often sits
+            lines[i] = line.model_copy(update={"y0": 20.0, "y1": 41.6})
+    found = find_headings(lines, compute_signals(lines, len(pages)))
+    assert [(h.text, h.page) for h in found] == [
+        ("Chapter 1", 1),
+        ("Chapter 2", 5),
+        ("Chapter 3", 9),
+    ]

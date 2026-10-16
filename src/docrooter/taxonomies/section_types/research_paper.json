@@ -4,78 +4,165 @@
       "id": "abstract",
       "label": "Abstract",
       "description": "A short self-contained summary of the problem, approach, and main findings placed at the start of the paper.",
+      "examples": [
+        "Abstract",
+        "Summary",
+        "Synopsis"
+      ],
       "children": []
     },
     {
       "id": "introduction",
       "label": "Introduction",
       "description": "The opening section that motivates the problem, states the research questions or contributions, and outlines the paper.",
+      "examples": [
+        "1 Introduction",
+        "Introduction",
+        "Motivation",
+        "Overview"
+      ],
       "children": []
     },
     {
       "id": "related_work",
       "label": "Related work",
       "description": "A survey of prior literature that positions the paper against existing approaches.",
+      "examples": [
+        "Related Work",
+        "Prior Work",
+        "Literature Review",
+        "Previous Work",
+        "Related Literature"
+      ],
       "children": []
     },
     {
       "id": "background",
       "label": "Background",
       "description": "Preliminary definitions, notation, and technical context the reader needs before the method, distinct from the review of competing work.",
+      "examples": [
+        "Background",
+        "Preliminaries",
+        "Problem Formulation",
+        "Notation",
+        "Problem Setup"
+      ],
       "children": []
     },
     {
       "id": "method",
       "label": "Method",
       "description": "The description of the proposed approach, model, algorithm, or study design, including how data were collected or processed.",
+      "examples": [
+        "Method",
+        "Methods",
+        "Methodology",
+        "Approach",
+        "Proposed Method",
+        "Model Architecture",
+        "Materials and Methods"
+      ],
       "children": []
     },
     {
       "id": "experiments",
       "label": "Experiments",
       "description": "The experimental setup: datasets, baselines, metrics, implementation details, and evaluation protocol, before the numbers are discussed.",
+      "examples": [
+        "Experiments",
+        "Experimental Setup",
+        "Evaluation",
+        "Datasets",
+        "Implementation Details",
+        "Training"
+      ],
       "children": []
     },
     {
       "id": "results",
       "label": "Results",
       "description": "The reported measurements and findings of the experiments or analyses, presented in tables and figures, without broader interpretation (which belongs to discussion).",
+      "examples": [
+        "Results",
+        "Main Results",
+        "Experimental Results",
+        "Ablation Study",
+        "Findings"
+      ],
       "children": []
     },
     {
       "id": "discussion",
       "label": "Discussion",
       "description": "The interpretation of the results: their implications, possible explanations, and comparisons with prior work or expectations, rather than the reported numbers themselves (which belong to results).",
+      "examples": [
+        "Discussion",
+        "Analysis",
+        "Implications",
+        "General Discussion"
+      ],
       "children": []
     },
     {
       "id": "limitations",
       "label": "Limitations",
       "description": "An explicit statement of the weaknesses, assumptions, threats to validity, and scope boundaries of the work.",
+      "examples": [
+        "Limitations",
+        "Threats to Validity",
+        "Limitations and Future Work",
+        "Broader Impact"
+      ],
       "children": []
     },
     {
       "id": "conclusion",
       "label": "Conclusion",
       "description": "The closing summary of what was shown, with future directions.",
+      "examples": [
+        "Conclusion",
+        "Conclusions",
+        "Concluding Remarks",
+        "Conclusion and Future Work",
+        "Summary and Outlook"
+      ],
       "children": []
     },
     {
       "id": "acknowledgements",
       "label": "Acknowledgments",
       "description": "Thanks to funders, colleagues, and reviewers, including funding statements and author contributions.",
+      "examples": [
+        "Acknowledgments",
+        "Acknowledgements",
+        "Funding",
+        "Author Contributions"
+      ],
       "children": []
     },
     {
       "id": "references",
       "label": "References",
       "description": "The bibliography listing the cited works.",
+      "examples": [
+        "References",
+        "Bibliography",
+        "Works Cited",
+        "Literature Cited"
+      ],
       "children": []
     },
     {
       "id": "appendix",
       "label": "Appendix",
       "description": "Supplementary material placed after the main body, such as extra proofs, tables, derivations, and additional experiments.",
+      "examples": [
+        "Appendix",
+        "Appendix A",
+        "Supplementary Material",
+        "Additional Experiments",
+        "Proofs"
+      ],
       "children": []
     }
   ]

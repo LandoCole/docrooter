@@ -4,84 +4,185 @@
       "id": "parties_recitals",
       "label": "Parties and recitals",
       "description": "The preamble that names the contracting parties, the effective date, and the background recitals (the whereas clauses) that explain the purpose.",
+      "examples": [
+        "Parties",
+        "Recitals",
+        "Background",
+        "Whereas",
+        "Preamble"
+      ],
       "children": []
     },
     {
       "id": "definitions",
       "label": "Definitions",
       "description": "Clauses that define capitalized terms and rules of interpretation used throughout the agreement.",
+      "examples": [
+        "Definitions",
+        "Definitions and Interpretation",
+        "Defined Terms",
+        "Article 1. Definitions",
+        "Interpretation"
+      ],
       "children": []
     },
     {
       "id": "scope_services",
       "label": "Scope and services",
       "description": "The clauses describing the work, services, products, or deliverables that a party is to provide and the standards for providing them.",
+      "examples": [
+        "Services",
+        "Scope of Services",
+        "Scope of Work",
+        "Statement of Work",
+        "Deliverables",
+        "Obligations of the Supplier"
+      ],
       "children": []
     },
     {
       "id": "term",
       "label": "Term",
       "description": "The clauses fixing the duration of the agreement, its effective period, and renewal or extension mechanics.",
+      "examples": [
+        "Term",
+        "Term of Agreement",
+        "Duration",
+        "Renewal",
+        "Commencement and Term"
+      ],
       "children": []
     },
     {
       "id": "payment",
       "label": "Payment",
       "description": "The clauses on fees, prices, invoicing, payment timing, expenses, taxes, and late-payment consequences.",
+      "examples": [
+        "Payment",
+        "Fees and Payment",
+        "Compensation",
+        "Payment Terms",
+        "Invoicing",
+        "Taxes",
+        "Expenses"
+      ],
       "children": []
     },
     {
       "id": "confidentiality",
       "label": "Confidentiality",
       "description": "The clauses obliging the parties to protect each other's non-public information and limiting its use and disclosure.",
+      "examples": [
+        "Confidentiality",
+        "Confidential Information",
+        "Non-Disclosure",
+        "Nondisclosure Obligations"
+      ],
       "children": []
     },
     {
       "id": "intellectual_property",
       "label": "Intellectual property",
       "description": "The clauses on ownership and assignment of, and licenses to, intellectual property such as inventions, work product, trademarks, and software.",
+      "examples": [
+        "Intellectual Property",
+        "Intellectual Property Rights",
+        "Ownership of Work Product",
+        "License Grant",
+        "Proprietary Rights"
+      ],
       "children": []
     },
     {
       "id": "warranties",
       "label": "Warranties",
       "description": "The clauses in which parties represent facts and promise quality or performance standards, together with disclaimers of other warranties.",
+      "examples": [
+        "Warranties",
+        "Representations and Warranties",
+        "Disclaimer of Warranties",
+        "Covenants"
+      ],
       "children": []
     },
     {
       "id": "indemnification",
       "label": "Indemnification",
       "description": "The clauses requiring one party to compensate the other for specified third-party claims, losses, or damages.",
+      "examples": [
+        "Indemnification",
+        "Indemnity",
+        "Indemnification Procedures",
+        "Hold Harmless"
+      ],
       "children": []
     },
     {
       "id": "limitation_of_liability",
       "label": "Limitation of liability",
       "description": "The clauses capping or excluding damages and defining which types of loss each party cannot recover.",
+      "examples": [
+        "Limitation of Liability",
+        "Limitations of Liability",
+        "Exclusion of Damages",
+        "Liability Cap"
+      ],
       "children": []
     },
     {
       "id": "termination",
       "label": "Termination",
       "description": "The clauses stating how and when either party may end the agreement early, for cause or convenience, and what happens afterwards.",
+      "examples": [
+        "Termination",
+        "Termination for Cause",
+        "Termination for Convenience",
+        "Effect of Termination",
+        "Survival"
+      ],
       "children": []
     },
     {
       "id": "governing_law_disputes",
       "label": "Governing law and disputes",
       "description": "The clauses selecting the governing law, jurisdiction or venue, and dispute-resolution method such as arbitration or mediation.",
+      "examples": [
+        "Governing Law",
+        "Governing Law and Jurisdiction",
+        "Dispute Resolution",
+        "Arbitration",
+        "Venue"
+      ],
       "children": []
     },
     {
       "id": "general_provisions",
       "label": "General provisions",
       "description": "Boilerplate clauses such as notices, assignment, amendment, severability, entire agreement, force majeure, and counterparts.",
+      "examples": [
+        "General Provisions",
+        "Miscellaneous",
+        "Notices",
+        "Assignment",
+        "Entire Agreement",
+        "Severability",
+        "Force Majeure",
+        "Counterparts"
+      ],
       "children": []
     },
     {
       "id": "signatures_exhibits",
       "label": "Signatures and exhibits",
       "description": "The signature blocks and the attached schedules, exhibits, or annexes that complete the agreement.",
+      "examples": [
+        "Signatures",
+        "In Witness Whereof",
+        "Signature Page",
+        "Exhibit A",
+        "Schedule 1",
+        "Annex"
+      ],
       "children": []
     }
   ]

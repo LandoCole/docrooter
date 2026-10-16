@@ -106,3 +106,15 @@ def test_section_definitions_use_american_spelling(name):
     text = " ".join(n.description for n in builtin_taxonomy(name).nodes.values()).lower()
     for british in ("licence", "capitalised", "organised", "behaviour", "recognis"):
         assert british not in text
+
+
+@pytest.mark.parametrize("name", SECTION_NAMES)
+def test_section_nodes_carry_heading_synonyms(name):
+    taxonomy = builtin_taxonomy(name)
+    seen: dict[str, str] = {}
+    for node in taxonomy.nodes.values():
+        assert 3 <= len(node.examples) <= 8, node.id
+        for example in node.examples:
+            assert example.strip() == example and example, node.id
+            # one heading string never names two nodes of the same taxonomy
+            assert seen.setdefault(example.casefold(), node.id) == node.id, example

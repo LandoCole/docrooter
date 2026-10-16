@@ -4,48 +4,108 @@
       "id": "overview",
       "label": "Overview",
       "description": "A high-level introduction to what the product or system is, its features, purpose, and intended audience.",
+      "examples": [
+        "Overview",
+        "Introduction",
+        "Features",
+        "General Description",
+        "About This Manual",
+        "Product Description"
+      ],
       "children": []
     },
     {
       "id": "installation_getting_started",
       "label": "Installation and getting started",
       "description": "Instructions for installing, setting up, or first running the product, including requirements and quick-start steps.",
+      "examples": [
+        "Installation",
+        "Getting Started",
+        "Quick Start",
+        "Setup",
+        "System Requirements",
+        "Installing the Software"
+      ],
       "children": []
     },
     {
       "id": "configuration",
       "label": "Configuration",
       "description": "Explanation of settings, options, parameters, and environment needed to tailor the product's behavior.",
+      "examples": [
+        "Configuration",
+        "Settings",
+        "Options",
+        "Configuring the System",
+        "Environment Variables"
+      ],
       "children": []
     },
     {
       "id": "usage",
       "label": "Usage",
       "description": "Task-oriented instructions and examples showing how to operate the product in normal use.",
+      "examples": [
+        "Usage",
+        "Operation",
+        "User Guide",
+        "Examples",
+        "How to Use",
+        "Tutorial"
+      ],
       "children": []
     },
     {
       "id": "reference",
       "label": "Reference",
       "description": "Lookup material such as API, command, register, message, or function descriptions, organized for consultation rather than reading in order.",
+      "examples": [
+        "Reference",
+        "API Reference",
+        "Command Reference",
+        "Register Description",
+        "Function Reference"
+      ],
       "children": []
     },
     {
       "id": "specifications",
       "label": "Specifications",
       "description": "Quantitative technical data such as electrical characteristics, ratings, dimensions, timing, and performance limits, typically in tables.",
+      "examples": [
+        "Specifications",
+        "Electrical Characteristics",
+        "Technical Data",
+        "Absolute Maximum Ratings",
+        "Dimensions",
+        "Performance Characteristics"
+      ],
       "children": []
     },
     {
       "id": "troubleshooting",
       "label": "Troubleshooting",
       "description": "Guidance on diagnosing problems, including error messages, symptoms, causes, fixes, and frequently asked questions.",
+      "examples": [
+        "Troubleshooting",
+        "FAQ",
+        "Frequently Asked Questions",
+        "Error Messages",
+        "Known Issues"
+      ],
       "children": []
     },
     {
       "id": "appendix",
       "label": "Appendix",
       "description": "Supplementary material placed after the main body, such as glossaries, revision history, ordering information, legal notices, and extra tables, as opposed to the lookup material in reference.",
+      "examples": [
+        "Appendix",
+        "Glossary",
+        "Revision History",
+        "Ordering Information",
+        "Legal Notices"
+      ],
       "children": []
     }
   ]

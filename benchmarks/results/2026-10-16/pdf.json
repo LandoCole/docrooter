@@ -11,10 +11,10 @@
             "financial.shareholder_letter": 0.01,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 3.3136625410006673,
-          "classify_s": 0.04194409375008945,
-          "view_sha": "6da25d7062bc",
-          "tokens": 2154,
+          "parse_s": 3.052549457999703,
+          "classify_s": 0.053661604124954465,
+          "view_sha": "97b893ad7928",
+          "tokens": 2126,
           "tokens_estimated": false,
           "gold": "financial.annual_report",
           "correct": true
@@ -28,8 +28,8 @@
             "financial.quarterly_report": 0.0,
             "financial.shareholder_letter": 0.0
           },
-          "parse_s": 2.339350917000047,
-          "classify_s": 0.04194409375008945,
+          "parse_s": 2.220245750000686,
+          "classify_s": 0.053661604124954465,
           "view_sha": "98f37d24ee4c",
           "tokens": 2463,
           "tokens_estimated": false,
@@ -39,14 +39,14 @@
         {
           "doc_id": "doc_003",
           "pred": "financial.annual_report",
-          "confidence": 0.95,
+          "confidence": 0.94,
           "leaf_probs_top3": {
-            "financial.annual_report": 0.95,
-            "financial.shareholder_letter": 0.05,
+            "financial.annual_report": 0.94,
+            "financial.shareholder_letter": 0.06,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 1.6697422500001267,
-          "classify_s": 0.04194409375008945,
+          "parse_s": 1.6862513750002108,
+          "classify_s": 0.053661604124954465,
           "view_sha": "3a96acb00bbc",
           "tokens": 2310,
           "tokens_estimated": false,
@@ -62,8 +62,8 @@
             "financial.annual_report": 0.0,
             "financial.shareholder_letter": 0.0
           },
-          "parse_s": 1.0108450830002766,
-          "classify_s": 0.04194409375008945,
+          "parse_s": 1.0716912500010949,
+          "classify_s": 0.053661604124954465,
           "view_sha": "1578c76080e8",
           "tokens": 2149,
           "tokens_estimated": false,
@@ -79,8 +79,8 @@
             "financial.annual_report": 0.0,
             "financial.shareholder_letter": 0.0
           },
-          "parse_s": 1.0748530419996314,
-          "classify_s": 0.04194409375008945,
+          "parse_s": 1.0330970840004738,
+          "classify_s": 0.053661604124954465,
           "view_sha": "d56bf477244a",
           "tokens": 2121,
           "tokens_estimated": false,
@@ -90,14 +90,14 @@
         {
           "doc_id": "doc_006",
           "pred": "financial.shareholder_letter",
-          "confidence": 0.91,
+          "confidence": 0.9,
           "leaf_probs_top3": {
-            "financial.shareholder_letter": 0.91,
+            "financial.shareholder_letter": 0.9,
             "research.white_paper": 0.07,
             "financial.annual_report": 0.01
           },
-          "parse_s": 0.25591187500049273,
-          "classify_s": 0.04194409375008945,
+          "parse_s": 0.2358837500014488,
+          "classify_s": 0.053661604124954465,
           "view_sha": "cf48fec61a83",
           "tokens": 1763,
           "tokens_estimated": false,
@@ -107,14 +107,14 @@
         {
           "doc_id": "doc_007",
           "pred": "financial.shareholder_letter",
-          "confidence": 0.77,
+          "confidence": 0.7,
           "leaf_probs_top3": {
-            "financial.shareholder_letter": 0.77,
-            "financial.annual_report": 0.23,
+            "financial.shareholder_letter": 0.7,
+            "financial.annual_report": 0.3,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.49904158400022425,
-          "classify_s": 0.04194409375008945,
+          "parse_s": 0.4308813330007979,
+          "classify_s": 0.053661604124954465,
           "view_sha": "ba317aefb94f",
           "tokens": 1744,
           "tokens_estimated": false,
@@ -124,14 +124,14 @@
         {
           "doc_id": "doc_008",
           "pred": "financial.shareholder_letter",
-          "confidence": 0.99,
+          "confidence": 1.0,
           "leaf_probs_top3": {
-            "financial.shareholder_letter": 0.99,
-            "financial.annual_report": 0.01,
+            "financial.shareholder_letter": 1.0,
+            "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.18256724999992002,
-          "classify_s": 0.04194409375008945,
+          "parse_s": 0.16857566600083373,
+          "classify_s": 0.053661604124954465,
           "view_sha": "6a612a0b11f6",
           "tokens": 1762,
           "tokens_estimated": false,
@@ -147,8 +147,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.18131149999953777,
-          "classify_s": 0.03945414587496998,
+          "parse_s": 0.1619961249998596,
+          "classify_s": 0.0583802291248503,
           "view_sha": "3cd98a69d245",
           "tokens": 1807,
           "tokens_estimated": false,
@@ -164,8 +164,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.17519883300064976,
-          "classify_s": 0.03945414587496998,
+          "parse_s": 0.17350558299949626,
+          "classify_s": 0.0583802291248503,
           "view_sha": "bc7b73c646de",
           "tokens": 1810,
           "tokens_estimated": false,
@@ -181,8 +181,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 2.8112117919999946,
-          "classify_s": 0.03945414587496998,
+          "parse_s": 2.446819292001237,
+          "classify_s": 0.0583802291248503,
           "view_sha": "bd7b050896e7",
           "tokens": 2228,
           "tokens_estimated": false,
@@ -198,8 +198,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 3.938620916999753,
-          "classify_s": 0.03945414587496998,
+          "parse_s": 3.6618062500001543,
+          "classify_s": 0.0583802291248503,
           "view_sha": "338942d5b2fb",
           "tokens": 2009,
           "tokens_estimated": false,
@@ -215,10 +215,10 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 1.1106005419997018,
-          "classify_s": 0.03945414587496998,
-          "view_sha": "3fece4e0f1cc",
-          "tokens": 2238,
+          "parse_s": 1.1005055829991761,
+          "classify_s": 0.0583802291248503,
+          "view_sha": "60383143673a",
+          "tokens": 2243,
           "tokens_estimated": false,
           "gold": "financial.proxy_statement",
           "correct": true
@@ -232,10 +232,10 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 3.347950958999718,
-          "classify_s": 0.03945414587496998,
-          "view_sha": "6c939ffa93b2",
-          "tokens": 2243,
+          "parse_s": 3.0993350409989944,
+          "classify_s": 0.0583802291248503,
+          "view_sha": "2ada6bfea74e",
+          "tokens": 2238,
           "tokens_estimated": false,
           "gold": "financial.proxy_statement",
           "correct": true
@@ -246,11 +246,11 @@
           "confidence": 0.58,
           "leaf_probs_top3": {
             "technical.user_manual": 0.58,
-            "legal.contract": 0.27,
-            "government.government_report": 0.09
+            "legal.contract": 0.25,
+            "government.government_report": 0.11
           },
-          "parse_s": 0.05045425000025716,
-          "classify_s": 0.03945414587496998,
+          "parse_s": 0.04767833299956692,
+          "classify_s": 0.0583802291248503,
           "view_sha": "d6ac5442d44e",
           "tokens": 1957,
           "tokens_estimated": false,
@@ -266,8 +266,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.16240879199995106,
-          "classify_s": 0.03945414587496998,
+          "parse_s": 0.1505375840006309,
+          "classify_s": 0.0583802291248503,
           "view_sha": "4b2cb79a7c9d",
           "tokens": 1962,
           "tokens_estimated": false,
@@ -283,8 +283,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.1577551249993121,
-          "classify_s": 0.04294640112493653,
+          "parse_s": 0.14547841700004938,
+          "classify_s": 0.04651543750014753,
           "view_sha": "33cd1ccb1ff6",
           "tokens": 1851,
           "tokens_estimated": false,
@@ -300,8 +300,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.2235309170000619,
-          "classify_s": 0.04294640112493653,
+          "parse_s": 0.20556837500043912,
+          "classify_s": 0.04651543750014753,
           "view_sha": "a39509706ad6",
           "tokens": 1890,
           "tokens_estimated": false,
@@ -311,14 +311,14 @@
         {
           "doc_id": "doc_019",
           "pred": "legal.terms_policy",
-          "confidence": 0.99,
+          "confidence": 1.0,
           "leaf_probs_top3": {
-            "legal.terms_policy": 0.99,
-            "legal.contract": 0.01,
-            "financial.annual_report": 0.0
+            "legal.terms_policy": 1.0,
+            "financial.annual_report": 0.0,
+            "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.1920713749996139,
-          "classify_s": 0.04294640112493653,
+          "parse_s": 0.1654603329989186,
+          "classify_s": 0.04651543750014753,
           "view_sha": "7d7cd5f1d29f",
           "tokens": 1863,
           "tokens_estimated": false,
@@ -334,8 +334,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 2.3613713329996244,
-          "classify_s": 0.04294640112493653,
+          "parse_s": 1.9070502079994185,
+          "classify_s": 0.04651543750014753,
           "view_sha": "1f0d44c8d223",
           "tokens": 2301,
           "tokens_estimated": false,
@@ -351,8 +351,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.18732804199953534,
-          "classify_s": 0.04294640112493653,
+          "parse_s": 0.16902837500128953,
+          "classify_s": 0.04651543750014753,
           "view_sha": "e31e1f9a97e9",
           "tokens": 1794,
           "tokens_estimated": false,
@@ -368,8 +368,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.054516167000656424,
-          "classify_s": 0.04294640112493653,
+          "parse_s": 0.05117983299896878,
+          "classify_s": 0.04651543750014753,
           "view_sha": "eb767f21440c",
           "tokens": 1853,
           "tokens_estimated": false,
@@ -385,8 +385,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.11932529200021236,
-          "classify_s": 0.04294640112493653,
+          "parse_s": 0.11120254100023885,
+          "classify_s": 0.04651543750014753,
           "view_sha": "583228f6d461",
           "tokens": 1833,
           "tokens_estimated": false,
@@ -402,8 +402,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 5.510934083999928,
-          "classify_s": 0.04294640112493653,
+          "parse_s": 4.894392875001358,
+          "classify_s": 0.04651543750014753,
           "view_sha": "93056677f6de",
           "tokens": 2937,
           "tokens_estimated": false,
@@ -419,8 +419,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.6028415410000889,
-          "classify_s": 0.04342223437515713,
+          "parse_s": 0.4986107910008286,
+          "classify_s": 0.06240292187499108,
           "view_sha": "6fc6a98fa5d4",
           "tokens": 2643,
           "tokens_estimated": false,
@@ -436,8 +436,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.02334762500049692,
-          "classify_s": 0.04342223437515713,
+          "parse_s": 0.016010082999855513,
+          "classify_s": 0.06240292187499108,
           "view_sha": "2c183b1bd169",
           "tokens": 1810,
           "tokens_estimated": false,
@@ -453,8 +453,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.24292604099991877,
-          "classify_s": 0.04342223437515713,
+          "parse_s": 0.23537149999901885,
+          "classify_s": 0.06240292187499108,
           "view_sha": "b7c02bc88118",
           "tokens": 1969,
           "tokens_estimated": false,
@@ -470,8 +470,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.373631166999985,
-          "classify_s": 0.04342223437515713,
+          "parse_s": 0.30297920900011377,
+          "classify_s": 0.06240292187499108,
           "view_sha": "f11df4f2fe72",
           "tokens": 1998,
           "tokens_estimated": false,
@@ -487,8 +487,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 1.7642552079996676,
-          "classify_s": 0.04342223437515713,
+          "parse_s": 1.1790814160012815,
+          "classify_s": 0.06240292187499108,
           "view_sha": "66393b67df60",
           "tokens": 2126,
           "tokens_estimated": false,
@@ -504,8 +504,8 @@
             "research.white_paper": 0.3,
             "financial.annual_report": 0.0
           },
-          "parse_s": 4.968262583000069,
-          "classify_s": 0.04342223437515713,
+          "parse_s": 4.1004583750000165,
+          "classify_s": 0.06240292187499108,
           "view_sha": "3ad62b19fe2d",
           "tokens": 2127,
           "tokens_estimated": false,
@@ -521,10 +521,10 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 2.4024995830004627,
-          "classify_s": 0.04342223437515713,
-          "view_sha": "7b52bb5b2020",
-          "tokens": 2181,
+          "parse_s": 2.22772941599942,
+          "classify_s": 0.06240292187499108,
+          "view_sha": "13a714ffdc81",
+          "tokens": 2180,
           "tokens_estimated": false,
           "gold": "research.technical_standard",
           "correct": true
@@ -538,9 +538,9 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 1.9040097500001139,
-          "classify_s": 0.04342223437515713,
-          "view_sha": "eac9f26938c5",
+          "parse_s": 1.7405080000007729,
+          "classify_s": 0.06240292187499108,
+          "view_sha": "6f3b89f70bbe",
           "tokens": 2132,
           "tokens_estimated": false,
           "gold": "research.technical_standard",
@@ -555,8 +555,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.1715160419998938,
-          "classify_s": 0.041943650999883175,
+          "parse_s": 0.1490022920006595,
+          "classify_s": 0.05505719787493035,
           "view_sha": "8ee509f70074",
           "tokens": 1948,
           "tokens_estimated": false,
@@ -572,8 +572,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.17112325000016426,
-          "classify_s": 0.041943650999883175,
+          "parse_s": 0.15172325000094133,
+          "classify_s": 0.05505719787493035,
           "view_sha": "29442e9d353a",
           "tokens": 1950,
           "tokens_estimated": false,
@@ -589,8 +589,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.32292791700001544,
-          "classify_s": 0.041943650999883175,
+          "parse_s": 0.2893508750003093,
+          "classify_s": 0.05505719787493035,
           "view_sha": "05e229afced6",
           "tokens": 1831,
           "tokens_estimated": false,
@@ -606,9 +606,9 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 6.630210332999923,
-          "classify_s": 0.041943650999883175,
-          "view_sha": "663373ffd899",
+          "parse_s": 5.8246715829991444,
+          "classify_s": 0.05505719787493035,
+          "view_sha": "92763f6083ee",
           "tokens": 1934,
           "tokens_estimated": false,
           "gold": "research.white_paper",
@@ -623,8 +623,8 @@
             "research.research_paper": 0.4,
             "research.technical_standard": 0.02
           },
-          "parse_s": 0.1280395839994526,
-          "classify_s": 0.041943650999883175,
+          "parse_s": 0.10700554199866019,
+          "classify_s": 0.05505719787493035,
           "view_sha": "8d9e7ce624f0",
           "tokens": 1812,
           "tokens_estimated": false,
@@ -634,14 +634,14 @@
         {
           "doc_id": "doc_038",
           "pred": "technical.user_manual",
-          "confidence": 1.0,
+          "confidence": 0.99,
           "leaf_probs_top3": {
-            "technical.user_manual": 1.0,
-            "financial.annual_report": 0.0,
-            "financial.quarterly_report": 0.0
+            "technical.user_manual": 0.99,
+            "research.technical_standard": 0.01,
+            "financial.annual_report": 0.0
           },
-          "parse_s": 2.992846415999338,
-          "classify_s": 0.041943650999883175,
+          "parse_s": 2.717925875000219,
+          "classify_s": 0.05505719787493035,
           "view_sha": "0ffcf3255d87",
           "tokens": 2079,
           "tokens_estimated": false,
@@ -657,8 +657,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 4.347039625000434,
-          "classify_s": 0.041943650999883175,
+          "parse_s": 3.9682523749997927,
+          "classify_s": 0.05505719787493035,
           "view_sha": "38e2b1f3e520",
           "tokens": 2191,
           "tokens_estimated": false,
@@ -674,8 +674,8 @@
             "technical.datasheet": 0.02,
             "financial.annual_report": 0.0
           },
-          "parse_s": 0.9948767500000031,
-          "classify_s": 0.041943650999883175,
+          "parse_s": 0.9440412500007369,
+          "classify_s": 0.05505719787493035,
           "view_sha": "bed68e77b10a",
           "tokens": 2255,
           "tokens_estimated": false,
@@ -691,8 +691,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.5034415840000293,
-          "classify_s": 0.04867613024998718,
+          "parse_s": 0.38803291600015655,
+          "classify_s": 0.05582315100014057,
           "view_sha": "f6262cc1d198",
           "tokens": 2176,
           "tokens_estimated": false,
@@ -702,14 +702,14 @@
         {
           "doc_id": "doc_042",
           "pred": "technical.datasheet",
-          "confidence": 0.91,
+          "confidence": 0.9,
           "leaf_probs_top3": {
-            "technical.datasheet": 0.91,
-            "technical.user_manual": 0.08,
+            "technical.datasheet": 0.9,
+            "technical.user_manual": 0.09,
             "research.technical_standard": 0.01
           },
-          "parse_s": 7.0207510840000396,
-          "classify_s": 0.04867613024998718,
+          "parse_s": 6.407060958999864,
+          "classify_s": 0.05582315100014057,
           "view_sha": "e13f5830ccb1",
           "tokens": 2194,
           "tokens_estimated": false,
@@ -725,8 +725,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.055243040999812365,
-          "classify_s": 0.04867613024998718,
+          "parse_s": 0.0405233750007028,
+          "classify_s": 0.05582315100014057,
           "view_sha": "1bb44a5614b2",
           "tokens": 1863,
           "tokens_estimated": false,
@@ -742,8 +742,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.06782933399972535,
-          "classify_s": 0.04867613024998718,
+          "parse_s": 0.058185416000924306,
+          "classify_s": 0.05582315100014057,
           "view_sha": "7c497462243a",
           "tokens": 1926,
           "tokens_estimated": false,
@@ -759,10 +759,10 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 1.0098065410002164,
-          "classify_s": 0.04867613024998718,
-          "view_sha": "44cbdf6bc809",
-          "tokens": 1988,
+          "parse_s": 0.9647134579990961,
+          "classify_s": 0.05582315100014057,
+          "view_sha": "5f832805fd45",
+          "tokens": 2005,
           "tokens_estimated": false,
           "gold": "government.government_report",
           "correct": true
@@ -776,8 +776,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.8735258750002686,
-          "classify_s": 0.04867613024998718,
+          "parse_s": 0.6588597499994648,
+          "classify_s": 0.05582315100014057,
           "view_sha": "daeece38fa20",
           "tokens": 1847,
           "tokens_estimated": false,
@@ -793,8 +793,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 9.096643582999604,
-          "classify_s": 0.04867613024998718,
+          "parse_s": 9.326514041998962,
+          "classify_s": 0.05582315100014057,
           "view_sha": "5a0ae11d3f11",
           "tokens": 2382,
           "tokens_estimated": false,
@@ -810,8 +810,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 3.1096678329995484,
-          "classify_s": 0.04867613024998718,
+          "parse_s": 3.1378246669992222,
+          "classify_s": 0.05582315100014057,
           "view_sha": "af0e52db0d4a",
           "tokens": 2069,
           "tokens_estimated": false,
@@ -827,8 +827,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.5766073750000942,
-          "classify_s": 0.2084908193331406,
+          "parse_s": 0.5423290840008121,
+          "classify_s": 0.09768302766618338,
           "view_sha": "14cbf1e82db4",
           "tokens": 2085,
           "tokens_estimated": false,
@@ -838,14 +838,14 @@
         {
           "doc_id": "doc_050",
           "pred": "financial.quarterly_report",
-          "confidence": 0.47,
+          "confidence": 0.5,
           "leaf_probs_top3": {
-            "financial.quarterly_report": 0.47,
-            "financial.earnings_release": 0.44,
+            "financial.quarterly_report": 0.5,
+            "financial.earnings_release": 0.41,
             "corporate.investor_presentation": 0.09
           },
-          "parse_s": 0.271586333000414,
-          "classify_s": 0.2084908193331406,
+          "parse_s": 0.2429206670003623,
+          "classify_s": 0.09768302766618338,
           "view_sha": "8be3df713be8",
           "tokens": 1742,
           "tokens_estimated": false,
@@ -861,8 +861,8 @@
             "financial.annual_report": 0.0,
             "financial.quarterly_report": 0.0
           },
-          "parse_s": 0.20768829099961295,
-          "classify_s": 0.2084908193331406,
+          "parse_s": 0.15544654199948127,
+          "classify_s": 0.09768302766618338,
           "view_sha": "ddcc43154027",
           "tokens": 2084,
           "tokens_estimated": false,
@@ -870,8 +870,8 @@
           "correct": true
         }
       ],
-      "load_s": 0.594139417000406,
-      "batch_s": 2.6925657089996093,
+      "load_s": 0.5648214169996209,
+      "batch_s": 2.9477734149986645,
       "view_counter": "estimate_tokens",
       "views_differing_from_own_counter": 0,
       "what": "Jev jev-1.13.0, DocumentView as state, one Choice over 18 leaves",
@@ -879,16 +879,16 @@
       "mode": "view",
       "device": "n/a",
       "date": "2026-10-16",
-      "commit": "196d4d0+dirty",
+      "commit": "53090c0",
       "loadavg_start": [
-        7.19873046875,
-        7.4111328125,
-        6.89599609375
+        23.60107421875,
+        15.0537109375,
+        11.89453125
       ],
       "loadavg_end": [
-        7.3974609375,
-        7.4345703125,
-        6.91552734375
+        19.818359375,
+        14.64111328125,
+        11.80224609375
       ],
       "metrics": {
         "n": 51,
@@ -1069,12 +1069,12 @@
             "technical.user_manual": 3
           }
         },
-        "avg_parse_s": 1.60320997550979,
-        "avg_classify_s": 0.05279540605881587,
-        "avg_total_s": 1.6560053815686058,
-        "jev_input_tokens": 104384,
+        "avg_parse_s": 1.4659971200393307,
+        "avg_classify_s": 0.05779947872546401,
+        "avg_total_s": 1.5237965987647948,
+        "jev_input_tokens": 104372,
         "jev_tokens_estimated": false,
-        "jev_cost_usd": 0.004384128000000001
+        "jev_cost_usd": 0.004383624000000001
       }
     },
     "jev-chunks": {
@@ -2157,16 +2157,16 @@
       "rows": [
         {
           "doc_id": "doc_001",
-          "pred": "financial.shareholder_letter",
-          "confidence": 0.2,
+          "pred": "financial.proxy_statement",
+          "confidence": 0.1996,
           "leaf_probs_top3": {
-            "financial.shareholder_letter": 0.2,
-            "financial.proxy_statement": 0.1859,
-            "financial.annual_report": 0.1554
+            "financial.proxy_statement": 0.1996,
+            "financial.shareholder_letter": 0.189,
+            "financial.annual_report": 0.1683
           },
-          "parse_s": 3.3136625410006673,
-          "classify_s": 0.07676289705883463,
-          "view_sha": "6da25d7062bc",
+          "parse_s": 3.052549457999703,
+          "classify_s": 0.03397297711764587,
+          "view_sha": "97b893ad7928",
           "gold": "financial.annual_report",
           "correct": false
         },
@@ -2179,8 +2179,8 @@
             "financial.earnings_release": 0.1643,
             "financial.annual_report": 0.144
           },
-          "parse_s": 2.339350917000047,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 2.220245750000686,
+          "classify_s": 0.03397297711764587,
           "view_sha": "98f37d24ee4c",
           "gold": "financial.annual_report",
           "correct": false
@@ -2194,8 +2194,8 @@
             "financial.annual_report": 0.2382,
             "financial.proxy_statement": 0.157
           },
-          "parse_s": 1.6697422500001267,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 1.6862513750002108,
+          "classify_s": 0.03397297711764587,
           "view_sha": "3a96acb00bbc",
           "gold": "financial.annual_report",
           "correct": false
@@ -2209,8 +2209,8 @@
             "financial.annual_report": 0.2438,
             "financial.earnings_release": 0.102
           },
-          "parse_s": 1.0108450830002766,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 1.0716912500010949,
+          "classify_s": 0.03397297711764587,
           "view_sha": "1578c76080e8",
           "gold": "financial.quarterly_report",
           "correct": false
@@ -2224,8 +2224,8 @@
             "financial.annual_report": 0.2367,
             "financial.earnings_release": 0.1039
           },
-          "parse_s": 1.0748530419996314,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 1.0330970840004738,
+          "classify_s": 0.03397297711764587,
           "view_sha": "d56bf477244a",
           "gold": "financial.quarterly_report",
           "correct": false
@@ -2239,8 +2239,8 @@
             "financial.annual_report": 0.1532,
             "corporate.investor_presentation": 0.1286
           },
-          "parse_s": 0.25591187500049273,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.2358837500014488,
+          "classify_s": 0.03397297711764587,
           "view_sha": "cf48fec61a83",
           "gold": "financial.shareholder_letter",
           "correct": true
@@ -2254,8 +2254,8 @@
             "financial.annual_report": 0.162,
             "financial.proxy_statement": 0.1358
           },
-          "parse_s": 0.49904158400022425,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.4308813330007979,
+          "classify_s": 0.03397297711764587,
           "view_sha": "ba317aefb94f",
           "gold": "financial.shareholder_letter",
           "correct": false
@@ -2269,8 +2269,8 @@
             "financial.annual_report": 0.1912,
             "financial.proxy_statement": 0.148
           },
-          "parse_s": 0.18256724999992002,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.16857566600083373,
+          "classify_s": 0.03397297711764587,
           "view_sha": "6a612a0b11f6",
           "gold": "financial.shareholder_letter",
           "correct": true
@@ -2284,8 +2284,8 @@
             "financial.quarterly_report": 0.1639,
             "financial.annual_report": 0.1437
           },
-          "parse_s": 0.18131149999953777,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.1619961249998596,
+          "classify_s": 0.03397297711764587,
           "view_sha": "3cd98a69d245",
           "gold": "financial.earnings_release",
           "correct": true
@@ -2299,8 +2299,8 @@
             "financial.annual_report": 0.1433,
             "financial.quarterly_report": 0.1208
           },
-          "parse_s": 0.17519883300064976,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.17350558299949626,
+          "classify_s": 0.03397297711764587,
           "view_sha": "bc7b73c646de",
           "gold": "financial.earnings_release",
           "correct": true
@@ -2314,8 +2314,8 @@
             "financial.proxy_statement": 0.0977,
             "financial.earnings_release": 0.0562
           },
-          "parse_s": 2.8112117919999946,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 2.446819292001237,
+          "classify_s": 0.03397297711764587,
           "view_sha": "bd7b050896e7",
           "gold": "financial.prospectus",
           "correct": true
@@ -2329,8 +2329,8 @@
             "financial.proxy_statement": 0.1844,
             "corporate.sustainability_report": 0.1121
           },
-          "parse_s": 3.938620916999753,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 3.6618062500001543,
+          "classify_s": 0.03397297711764587,
           "view_sha": "338942d5b2fb",
           "gold": "financial.prospectus",
           "correct": true
@@ -2338,30 +2338,30 @@
         {
           "doc_id": "doc_013",
           "pred": "financial.proxy_statement",
-          "confidence": 0.7642,
+          "confidence": 0.78,
           "leaf_probs_top3": {
-            "financial.proxy_statement": 0.7642,
-            "financial.earnings_release": 0.0525,
-            "financial.annual_report": 0.0519
+            "financial.proxy_statement": 0.78,
+            "financial.annual_report": 0.0524,
+            "financial.earnings_release": 0.0488
           },
-          "parse_s": 1.1106005419997018,
-          "classify_s": 0.07676289705883463,
-          "view_sha": "3fece4e0f1cc",
+          "parse_s": 1.1005055829991761,
+          "classify_s": 0.03397297711764587,
+          "view_sha": "60383143673a",
           "gold": "financial.proxy_statement",
           "correct": true
         },
         {
           "doc_id": "doc_014",
           "pred": "financial.proxy_statement",
-          "confidence": 0.547,
+          "confidence": 0.57,
           "leaf_probs_top3": {
-            "financial.proxy_statement": 0.547,
-            "financial.earnings_release": 0.1133,
-            "financial.annual_report": 0.0966
+            "financial.proxy_statement": 0.57,
+            "financial.annual_report": 0.1042,
+            "financial.earnings_release": 0.0999
           },
-          "parse_s": 3.347950958999718,
-          "classify_s": 0.07676289705883463,
-          "view_sha": "6c939ffa93b2",
+          "parse_s": 3.0993350409989944,
+          "classify_s": 0.03397297711764587,
+          "view_sha": "2ada6bfea74e",
           "gold": "financial.proxy_statement",
           "correct": true
         },
@@ -2374,8 +2374,8 @@
             "research.technical_standard": 0.1491,
             "financial.earnings_release": 0.1041
           },
-          "parse_s": 0.05045425000025716,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.04767833299956692,
+          "classify_s": 0.03397297711764587,
           "view_sha": "d6ac5442d44e",
           "gold": "legal.contract",
           "correct": false
@@ -2389,8 +2389,8 @@
             "research.white_paper": 0.099,
             "technical.user_manual": 0.0947
           },
-          "parse_s": 0.16240879199995106,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.1505375840006309,
+          "classify_s": 0.03397297711764587,
           "view_sha": "4b2cb79a7c9d",
           "gold": "legal.contract",
           "correct": false
@@ -2404,8 +2404,8 @@
             "financial.earnings_release": 0.1297,
             "financial.proxy_statement": 0.1155
           },
-          "parse_s": 0.1577551249993121,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.14547841700004938,
+          "classify_s": 0.03397297711764587,
           "view_sha": "33cd1ccb1ff6",
           "gold": "legal.terms_policy",
           "correct": true
@@ -2419,8 +2419,8 @@
             "financial.proxy_statement": 0.1172,
             "research.technical_standard": 0.0938
           },
-          "parse_s": 0.2235309170000619,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.20556837500043912,
+          "classify_s": 0.03397297711764587,
           "view_sha": "a39509706ad6",
           "gold": "legal.terms_policy",
           "correct": true
@@ -2434,8 +2434,8 @@
             "legal.terms_policy": 0.1299,
             "financial.annual_report": 0.097
           },
-          "parse_s": 0.1920713749996139,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.1654603329989186,
+          "classify_s": 0.03397297711764587,
           "view_sha": "7d7cd5f1d29f",
           "gold": "legal.terms_policy",
           "correct": false
@@ -2449,8 +2449,8 @@
             "financial.proxy_statement": 0.0645,
             "legal.legislation": 0.0453
           },
-          "parse_s": 2.3613713329996244,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 1.9070502079994185,
+          "classify_s": 0.03397297711764587,
           "view_sha": "1f0d44c8d223",
           "gold": "legal.court_opinion",
           "correct": true
@@ -2464,8 +2464,8 @@
             "financial.proxy_statement": 0.1414,
             "financial.earnings_release": 0.0901
           },
-          "parse_s": 0.18732804199953534,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.16902837500128953,
+          "classify_s": 0.03397297711764587,
           "view_sha": "e31e1f9a97e9",
           "gold": "legal.court_opinion",
           "correct": true
@@ -2479,8 +2479,8 @@
             "financial.proxy_statement": 0.1272,
             "financial.quarterly_report": 0.0943
           },
-          "parse_s": 0.054516167000656424,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.05117983299896878,
+          "classify_s": 0.03397297711764587,
           "view_sha": "eb767f21440c",
           "gold": "legal.court_opinion",
           "correct": false
@@ -2494,8 +2494,8 @@
             "legal.court_opinion": 0.1317,
             "financial.earnings_release": 0.1215
           },
-          "parse_s": 0.11932529200021236,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.11120254100023885,
+          "classify_s": 0.03397297711764587,
           "view_sha": "583228f6d461",
           "gold": "legal.court_opinion",
           "correct": false
@@ -2509,8 +2509,8 @@
             "financial.proxy_statement": 0.1065,
             "government.government_report": 0.1026
           },
-          "parse_s": 5.510934083999928,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 4.894392875001358,
+          "classify_s": 0.03397297711764587,
           "view_sha": "93056677f6de",
           "gold": "legal.legislation",
           "correct": true
@@ -2524,8 +2524,8 @@
             "government.government_report": 0.1829,
             "financial.earnings_release": 0.1006
           },
-          "parse_s": 0.6028415410000889,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.4986107910008286,
+          "classify_s": 0.03397297711764587,
           "view_sha": "6fc6a98fa5d4",
           "gold": "legal.legislation",
           "correct": true
@@ -2539,8 +2539,8 @@
             "financial.proxy_statement": 0.1178,
             "research.technical_standard": 0.0827
           },
-          "parse_s": 0.02334762500049692,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.016010082999855513,
+          "classify_s": 0.03397297711764587,
           "view_sha": "2c183b1bd169",
           "gold": "legal.legislation",
           "correct": true
@@ -2554,8 +2554,8 @@
             "technical.user_manual": 0.12,
             "financial.earnings_release": 0.087
           },
-          "parse_s": 0.24292604099991877,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.23537149999901885,
+          "classify_s": 0.03397297711764587,
           "view_sha": "b7c02bc88118",
           "gold": "research.research_paper",
           "correct": false
@@ -2569,8 +2569,8 @@
             "technical.datasheet": 0.1036,
             "financial.earnings_release": 0.0928
           },
-          "parse_s": 0.373631166999985,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.30297920900011377,
+          "classify_s": 0.03397297711764587,
           "view_sha": "f11df4f2fe72",
           "gold": "research.research_paper",
           "correct": false
@@ -2584,8 +2584,8 @@
             "corporate.investor_presentation": 0.124,
             "research.technical_standard": 0.0911
           },
-          "parse_s": 1.7642552079996676,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 1.1790814160012815,
+          "classify_s": 0.03397297711764587,
           "view_sha": "66393b67df60",
           "gold": "research.research_paper",
           "correct": false
@@ -2599,8 +2599,8 @@
             "research.research_paper": 0.1546,
             "financial.prospectus": 0.0823
           },
-          "parse_s": 4.968262583000069,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 4.1004583750000165,
+          "classify_s": 0.03397297711764587,
           "view_sha": "3ad62b19fe2d",
           "gold": "research.research_paper",
           "correct": false
@@ -2608,15 +2608,15 @@
         {
           "doc_id": "doc_031",
           "pred": "research.technical_standard",
-          "confidence": 0.6585,
+          "confidence": 0.6575,
           "leaf_probs_top3": {
-            "research.technical_standard": 0.6585,
-            "technical.datasheet": 0.0522,
-            "financial.proxy_statement": 0.0476
+            "research.technical_standard": 0.6575,
+            "technical.datasheet": 0.0533,
+            "financial.proxy_statement": 0.045
           },
-          "parse_s": 2.4024995830004627,
-          "classify_s": 0.07676289705883463,
-          "view_sha": "7b52bb5b2020",
+          "parse_s": 2.22772941599942,
+          "classify_s": 0.03397297711764587,
+          "view_sha": "13a714ffdc81",
           "gold": "research.technical_standard",
           "correct": true
         },
@@ -2629,9 +2629,9 @@
             "technical.datasheet": 0.0754,
             "financial.proxy_statement": 0.061
           },
-          "parse_s": 1.9040097500001139,
-          "classify_s": 0.07676289705883463,
-          "view_sha": "eac9f26938c5",
+          "parse_s": 1.7405080000007729,
+          "classify_s": 0.03397297711764587,
+          "view_sha": "6f3b89f70bbe",
           "gold": "research.technical_standard",
           "correct": true
         },
@@ -2644,8 +2644,8 @@
             "corporate.sustainability_report": 0.0415,
             "technical.datasheet": 0.0347
           },
-          "parse_s": 0.1715160419998938,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.1490022920006595,
+          "classify_s": 0.03397297711764587,
           "view_sha": "8ee509f70074",
           "gold": "research.technical_standard",
           "correct": true
@@ -2659,8 +2659,8 @@
             "technical.datasheet": 0.07,
             "corporate.sustainability_report": 0.0559
           },
-          "parse_s": 0.17112325000016426,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.15172325000094133,
+          "classify_s": 0.03397297711764587,
           "view_sha": "29442e9d353a",
           "gold": "research.technical_standard",
           "correct": true
@@ -2674,8 +2674,8 @@
             "technical.user_manual": 0.1459,
             "financial.prospectus": 0.0973
           },
-          "parse_s": 0.32292791700001544,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.2893508750003093,
+          "classify_s": 0.03397297711764587,
           "view_sha": "05e229afced6",
           "gold": "research.white_paper",
           "correct": false
@@ -2683,15 +2683,15 @@
         {
           "doc_id": "doc_036",
           "pred": "research.white_paper",
-          "confidence": 0.2411,
+          "confidence": 0.2418,
           "leaf_probs_top3": {
-            "research.white_paper": 0.2411,
-            "corporate.sustainability_report": 0.1366,
-            "research.research_paper": 0.0878
+            "research.white_paper": 0.2418,
+            "corporate.sustainability_report": 0.1362,
+            "research.research_paper": 0.0876
           },
-          "parse_s": 6.630210332999923,
-          "classify_s": 0.07676289705883463,
-          "view_sha": "663373ffd899",
+          "parse_s": 5.8246715829991444,
+          "classify_s": 0.03397297711764587,
+          "view_sha": "92763f6083ee",
           "gold": "research.white_paper",
           "correct": true
         },
@@ -2704,8 +2704,8 @@
             "legal.contract": 0.1069,
             "corporate.investor_presentation": 0.1047
           },
-          "parse_s": 0.1280395839994526,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.10700554199866019,
+          "classify_s": 0.03397297711764587,
           "view_sha": "8d9e7ce624f0",
           "gold": "research.white_paper",
           "correct": false
@@ -2719,8 +2719,8 @@
             "technical.datasheet": 0.2781,
             "research.technical_standard": 0.0726
           },
-          "parse_s": 2.992846415999338,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 2.717925875000219,
+          "classify_s": 0.03397297711764587,
           "view_sha": "0ffcf3255d87",
           "gold": "technical.user_manual",
           "correct": true
@@ -2734,8 +2734,8 @@
             "financial.earnings_release": 0.1452,
             "financial.proxy_statement": 0.0938
           },
-          "parse_s": 4.347039625000434,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 3.9682523749997927,
+          "classify_s": 0.03397297711764587,
           "view_sha": "38e2b1f3e520",
           "gold": "technical.user_manual",
           "correct": false
@@ -2749,8 +2749,8 @@
             "technical.user_manual": 0.155,
             "financial.quarterly_report": 0.0904
           },
-          "parse_s": 0.9948767500000031,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.9440412500007369,
+          "classify_s": 0.03397297711764587,
           "view_sha": "bed68e77b10a",
           "gold": "technical.user_manual",
           "correct": false
@@ -2764,8 +2764,8 @@
             "research.technical_standard": 0.2548,
             "technical.user_manual": 0.0591
           },
-          "parse_s": 0.5034415840000293,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.38803291600015655,
+          "classify_s": 0.03397297711764587,
           "view_sha": "f6262cc1d198",
           "gold": "technical.datasheet",
           "correct": true
@@ -2779,8 +2779,8 @@
             "financial.proxy_statement": 0.0824,
             "research.technical_standard": 0.0664
           },
-          "parse_s": 7.0207510840000396,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 6.407060958999864,
+          "classify_s": 0.03397297711764587,
           "view_sha": "e13f5830ccb1",
           "gold": "technical.datasheet",
           "correct": true
@@ -2794,8 +2794,8 @@
             "financial.proxy_statement": 0.0929,
             "research.technical_standard": 0.0916
           },
-          "parse_s": 0.055243040999812365,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.0405233750007028,
+          "classify_s": 0.03397297711764587,
           "view_sha": "1bb44a5614b2",
           "gold": "technical.datasheet",
           "correct": true
@@ -2809,8 +2809,8 @@
             "research.technical_standard": 0.0891,
             "corporate.sustainability_report": 0.0769
           },
-          "parse_s": 0.06782933399972535,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.058185416000924306,
+          "classify_s": 0.03397297711764587,
           "view_sha": "7c497462243a",
           "gold": "technical.datasheet",
           "correct": true
@@ -2818,15 +2818,15 @@
         {
           "doc_id": "doc_045",
           "pred": "government.government_report",
-          "confidence": 0.3963,
+          "confidence": 0.3812,
           "leaf_probs_top3": {
-            "government.government_report": 0.3963,
-            "financial.earnings_release": 0.1049,
-            "financial.annual_report": 0.0865
+            "government.government_report": 0.3812,
+            "financial.earnings_release": 0.1088,
+            "financial.annual_report": 0.0917
           },
-          "parse_s": 1.0098065410002164,
-          "classify_s": 0.07676289705883463,
-          "view_sha": "44cbdf6bc809",
+          "parse_s": 0.9647134579990961,
+          "classify_s": 0.03397297711764587,
+          "view_sha": "5f832805fd45",
           "gold": "government.government_report",
           "correct": true
         },
@@ -2839,8 +2839,8 @@
             "corporate.sustainability_report": 0.0997,
             "financial.annual_report": 0.0994
           },
-          "parse_s": 0.8735258750002686,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.6588597499994648,
+          "classify_s": 0.03397297711764587,
           "view_sha": "daeece38fa20",
           "gold": "government.government_report",
           "correct": true
@@ -2854,8 +2854,8 @@
             "financial.proxy_statement": 0.1454,
             "research.white_paper": 0.121
           },
-          "parse_s": 9.096643582999604,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 9.326514041998962,
+          "classify_s": 0.03397297711764587,
           "view_sha": "5a0ae11d3f11",
           "gold": "government.government_report",
           "correct": true
@@ -2869,8 +2869,8 @@
             "financial.annual_report": 0.0362,
             "research.white_paper": 0.0339
           },
-          "parse_s": 3.1096678329995484,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 3.1378246669992222,
+          "classify_s": 0.03397297711764587,
           "view_sha": "af0e52db0d4a",
           "gold": "corporate.sustainability_report",
           "correct": true
@@ -2884,8 +2884,8 @@
             "research.white_paper": 0.0677,
             "financial.annual_report": 0.0623
           },
-          "parse_s": 0.5766073750000942,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.5423290840008121,
+          "classify_s": 0.03397297711764587,
           "view_sha": "14cbf1e82db4",
           "gold": "corporate.sustainability_report",
           "correct": true
@@ -2899,8 +2899,8 @@
             "financial.annual_report": 0.14,
             "financial.proxy_statement": 0.1232
           },
-          "parse_s": 0.271586333000414,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.2429206670003623,
+          "classify_s": 0.03397297711764587,
           "view_sha": "8be3df713be8",
           "gold": "corporate.investor_presentation",
           "correct": false
@@ -2914,32 +2914,32 @@
             "financial.earnings_release": 0.2494,
             "financial.prospectus": 0.0655
           },
-          "parse_s": 0.20768829099961295,
-          "classify_s": 0.07676289705883463,
+          "parse_s": 0.15544654199948127,
+          "classify_s": 0.03397297711764587,
           "view_sha": "ddcc43154027",
           "gold": "corporate.investor_presentation",
           "correct": true
         }
       ],
-      "load_s": 2.3380038750001404,
-      "batch_s": 3.914907750000566,
+      "load_s": 2.0253972499995143,
+      "batch_s": 1.7326218329999392,
       "view_counter": "estimate_tokens",
-      "views_differing_from_own_counter": 18,
+      "views_differing_from_own_counter": 16,
       "what": "bge-small-en-v1.5, DocumentView, Flat (zero-shot)",
       "backend": "embedding:BAAI/bge-small-en-v1.5",
       "mode": "view",
       "device": "mps",
       "date": "2026-10-16",
-      "commit": "196d4d0+dirty",
+      "commit": "53090c0",
       "loadavg_start": [
-        5.3935546875,
-        6.25732421875,
-        6.490234375
+        4.1162109375,
+        9.38232421875,
+        10.17236328125
       ],
       "loadavg_end": [
-        5.654296875,
-        6.27587890625,
-        6.49267578125
+        4.1064453125,
+        9.29296875,
+        10.1357421875
       ],
       "metrics": {
         "n": 51,
@@ -2949,9 +2949,9 @@
           0.7450980392156863
         ],
         "level1_accuracy": 0.7843137254901961,
-        "macro_p": 0.576058201058201,
+        "macro_p": 0.5837742504409171,
         "macro_r": 0.6111111111111112,
-        "macro_f1": 0.5379188712522046,
+        "macro_f1": 0.5411896745230078,
         "per_class": {
           "corporate.investor_presentation": {
             "p": 0.3333333333333333,
@@ -2984,9 +2984,9 @@
             "n": 2
           },
           "financial.proxy_statement": {
-            "p": 0.25,
+            "p": 0.2222222222222222,
             "r": 1.0,
-            "f1": 0.4,
+            "f1": 0.3636363636363636,
             "n": 2
           },
           "financial.quarterly_report": {
@@ -2996,9 +2996,9 @@
             "n": 2
           },
           "financial.shareholder_letter": {
-            "p": 0.5,
+            "p": 0.6666666666666666,
             "r": 0.6666666666666666,
-            "f1": 0.5714285714285715,
+            "f1": 0.6666666666666666,
             "n": 3
           },
           "government.government_report": {
@@ -3071,8 +3071,8 @@
             "corporate.sustainability_report": 2
           },
           "financial.annual_report": {
-            "financial.proxy_statement": 1,
-            "financial.shareholder_letter": 2
+            "financial.proxy_statement": 2,
+            "financial.shareholder_letter": 1
           },
           "financial.earnings_release": {
             "financial.earnings_release": 2
@@ -3130,9 +3130,9 @@
             "technical.user_manual": 1
           }
         },
-        "avg_parse_s": 1.60320997550979,
-        "avg_classify_s": 0.07676289705883463,
-        "avg_total_s": 1.6799728725686245,
+        "avg_parse_s": 1.4659971200393307,
+        "avg_classify_s": 0.03397297711764587,
+        "avg_total_s": 1.4999700971569765,
         "jev_input_tokens": null,
         "jev_tokens_estimated": null,
         "jev_cost_usd": null
@@ -3143,15 +3143,15 @@
         {
           "doc_id": "doc_001",
           "pred": "financial.annual_report",
-          "confidence": 0.1911,
+          "confidence": 0.1952,
           "leaf_probs_top3": {
-            "financial.annual_report": 0.1911,
-            "financial.earnings_release": 0.1814,
-            "financial.shareholder_letter": 0.1576
+            "financial.annual_report": 0.1952,
+            "financial.earnings_release": 0.186,
+            "financial.shareholder_letter": 0.1476
           },
-          "parse_s": 3.3136625410006673,
-          "classify_s": 0.753739043294106,
-          "view_sha": "6da25d7062bc",
+          "parse_s": 3.052549457999703,
+          "classify_s": 0.6160710000000179,
+          "view_sha": "97b893ad7928",
           "gold": "financial.annual_report",
           "correct": true
         },
@@ -3164,8 +3164,8 @@
             "financial.annual_report": 0.1027,
             "corporate.investor_presentation": 0.0913
           },
-          "parse_s": 2.339350917000047,
-          "classify_s": 0.753739043294106,
+          "parse_s": 2.220245750000686,
+          "classify_s": 0.6160710000000179,
           "view_sha": "98f37d24ee4c",
           "gold": "financial.annual_report",
           "correct": false
@@ -3179,8 +3179,8 @@
             "financial.annual_report": 0.2467,
             "financial.proxy_statement": 0.0554
           },
-          "parse_s": 1.6697422500001267,
-          "classify_s": 0.753739043294106,
+          "parse_s": 1.6862513750002108,
+          "classify_s": 0.6160710000000179,
           "view_sha": "3a96acb00bbc",
           "gold": "financial.annual_report",
           "correct": false
@@ -3194,8 +3194,8 @@
             "financial.annual_report": 0.1471,
             "financial.earnings_release": 0.0735
           },
-          "parse_s": 1.0108450830002766,
-          "classify_s": 0.753739043294106,
+          "parse_s": 1.0716912500010949,
+          "classify_s": 0.6160710000000179,
           "view_sha": "1578c76080e8",
           "gold": "financial.quarterly_report",
           "correct": true
@@ -3209,8 +3209,8 @@
             "financial.annual_report": 0.1438,
             "financial.earnings_release": 0.0744
           },
-          "parse_s": 1.0748530419996314,
-          "classify_s": 0.753739043294106,
+          "parse_s": 1.0330970840004738,
+          "classify_s": 0.6160710000000179,
           "view_sha": "d56bf477244a",
           "gold": "financial.quarterly_report",
           "correct": true
@@ -3224,8 +3224,8 @@
             "financial.shareholder_letter": 0.1425,
             "financial.earnings_release": 0.1135
           },
-          "parse_s": 0.25591187500049273,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.2358837500014488,
+          "classify_s": 0.6160710000000179,
           "view_sha": "cf48fec61a83",
           "gold": "financial.shareholder_letter",
           "correct": false
@@ -3239,8 +3239,8 @@
             "financial.earnings_release": 0.1415,
             "corporate.sustainability_report": 0.1363
           },
-          "parse_s": 0.49904158400022425,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.4308813330007979,
+          "classify_s": 0.6160710000000179,
           "view_sha": "ba317aefb94f",
           "gold": "financial.shareholder_letter",
           "correct": false
@@ -3254,8 +3254,8 @@
             "financial.annual_report": 0.0859,
             "financial.proxy_statement": 0.0567
           },
-          "parse_s": 0.18256724999992002,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.16857566600083373,
+          "classify_s": 0.6160710000000179,
           "view_sha": "6a612a0b11f6",
           "gold": "financial.shareholder_letter",
           "correct": true
@@ -3269,8 +3269,8 @@
             "financial.annual_report": 0.1608,
             "financial.quarterly_report": 0.1307
           },
-          "parse_s": 0.18131149999953777,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.1619961249998596,
+          "classify_s": 0.6160710000000179,
           "view_sha": "3cd98a69d245",
           "gold": "financial.earnings_release",
           "correct": true
@@ -3284,8 +3284,8 @@
             "financial.annual_report": 0.163,
             "financial.quarterly_report": 0.0971
           },
-          "parse_s": 0.17519883300064976,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.17350558299949626,
+          "classify_s": 0.6160710000000179,
           "view_sha": "bc7b73c646de",
           "gold": "financial.earnings_release",
           "correct": true
@@ -3299,8 +3299,8 @@
             "financial.proxy_statement": 0.022,
             "legal.legislation": 0.0214
           },
-          "parse_s": 2.8112117919999946,
-          "classify_s": 0.753739043294106,
+          "parse_s": 2.446819292001237,
+          "classify_s": 0.6160710000000179,
           "view_sha": "bd7b050896e7",
           "gold": "financial.prospectus",
           "correct": true
@@ -3314,8 +3314,8 @@
             "financial.proxy_statement": 0.0438,
             "legal.legislation": 0.0378
           },
-          "parse_s": 3.938620916999753,
-          "classify_s": 0.753739043294106,
+          "parse_s": 3.6618062500001543,
+          "classify_s": 0.6160710000000179,
           "view_sha": "338942d5b2fb",
           "gold": "financial.prospectus",
           "correct": true
@@ -3323,30 +3323,30 @@
         {
           "doc_id": "doc_013",
           "pred": "financial.proxy_statement",
-          "confidence": 0.9858,
+          "confidence": 0.9881,
           "leaf_probs_top3": {
-            "financial.proxy_statement": 0.9858,
-            "financial.shareholder_letter": 0.0026,
-            "corporate.investor_presentation": 0.0022
+            "financial.proxy_statement": 0.9881,
+            "financial.shareholder_letter": 0.0021,
+            "financial.annual_report": 0.0019
           },
-          "parse_s": 1.1106005419997018,
-          "classify_s": 0.753739043294106,
-          "view_sha": "3fece4e0f1cc",
+          "parse_s": 1.1005055829991761,
+          "classify_s": 0.6160710000000179,
+          "view_sha": "60383143673a",
           "gold": "financial.proxy_statement",
           "correct": true
         },
         {
           "doc_id": "doc_014",
           "pred": "financial.proxy_statement",
-          "confidence": 0.8137,
+          "confidence": 0.8172,
           "leaf_probs_top3": {
-            "financial.proxy_statement": 0.8137,
-            "corporate.investor_presentation": 0.0376,
-            "financial.shareholder_letter": 0.036
+            "financial.proxy_statement": 0.8172,
+            "corporate.investor_presentation": 0.0389,
+            "financial.shareholder_letter": 0.0327
           },
-          "parse_s": 3.347950958999718,
-          "classify_s": 0.753739043294106,
-          "view_sha": "6c939ffa93b2",
+          "parse_s": 3.0993350409989944,
+          "classify_s": 0.6160710000000179,
+          "view_sha": "2ada6bfea74e",
           "gold": "financial.proxy_statement",
           "correct": true
         },
@@ -3359,8 +3359,8 @@
             "legal.terms_policy": 0.1099,
             "legal.contract": 0.0797
           },
-          "parse_s": 0.05045425000025716,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.04767833299956692,
+          "classify_s": 0.6160710000000179,
           "view_sha": "d6ac5442d44e",
           "gold": "legal.contract",
           "correct": false
@@ -3374,8 +3374,8 @@
             "research.research_paper": 0.1407,
             "legal.contract": 0.0506
           },
-          "parse_s": 0.16240879199995106,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.1505375840006309,
+          "classify_s": 0.6160710000000179,
           "view_sha": "4b2cb79a7c9d",
           "gold": "legal.contract",
           "correct": false
@@ -3389,8 +3389,8 @@
             "research.research_paper": 0.035,
             "technical.datasheet": 0.0335
           },
-          "parse_s": 0.1577551249993121,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.14547841700004938,
+          "classify_s": 0.6160710000000179,
           "view_sha": "33cd1ccb1ff6",
           "gold": "legal.terms_policy",
           "correct": true
@@ -3404,8 +3404,8 @@
             "legal.contract": 0.0698,
             "technical.user_manual": 0.05
           },
-          "parse_s": 0.2235309170000619,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.20556837500043912,
+          "classify_s": 0.6160710000000179,
           "view_sha": "a39509706ad6",
           "gold": "legal.terms_policy",
           "correct": true
@@ -3419,8 +3419,8 @@
             "research.technical_standard": 0.0926,
             "technical.user_manual": 0.066
           },
-          "parse_s": 0.1920713749996139,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.1654603329989186,
+          "classify_s": 0.6160710000000179,
           "view_sha": "7d7cd5f1d29f",
           "gold": "legal.terms_policy",
           "correct": true
@@ -3434,8 +3434,8 @@
             "legal.legislation": 0.1626,
             "legal.terms_policy": 0.0225
           },
-          "parse_s": 2.3613713329996244,
-          "classify_s": 0.753739043294106,
+          "parse_s": 1.9070502079994185,
+          "classify_s": 0.6160710000000179,
           "view_sha": "1f0d44c8d223",
           "gold": "legal.court_opinion",
           "correct": true
@@ -3449,8 +3449,8 @@
             "research.white_paper": 0.0786,
             "legal.legislation": 0.0578
           },
-          "parse_s": 0.18732804199953534,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.16902837500128953,
+          "classify_s": 0.6160710000000179,
           "view_sha": "e31e1f9a97e9",
           "gold": "legal.court_opinion",
           "correct": true
@@ -3464,8 +3464,8 @@
             "financial.prospectus": 0.118,
             "government.government_report": 0.0988
           },
-          "parse_s": 0.054516167000656424,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.05117983299896878,
+          "classify_s": 0.6160710000000179,
           "view_sha": "eb767f21440c",
           "gold": "legal.court_opinion",
           "correct": true
@@ -3479,8 +3479,8 @@
             "legal.court_opinion": 0.1825,
             "government.government_report": 0.0766
           },
-          "parse_s": 0.11932529200021236,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.11120254100023885,
+          "classify_s": 0.6160710000000179,
           "view_sha": "583228f6d461",
           "gold": "legal.court_opinion",
           "correct": false
@@ -3494,8 +3494,8 @@
             "government.government_report": 0.0537,
             "research.research_paper": 0.0408
           },
-          "parse_s": 5.510934083999928,
-          "classify_s": 0.753739043294106,
+          "parse_s": 4.894392875001358,
+          "classify_s": 0.6160710000000179,
           "view_sha": "93056677f6de",
           "gold": "legal.legislation",
           "correct": true
@@ -3509,8 +3509,8 @@
             "government.government_report": 0.0775,
             "financial.earnings_release": 0.0532
           },
-          "parse_s": 0.6028415410000889,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.4986107910008286,
+          "classify_s": 0.6160710000000179,
           "view_sha": "6fc6a98fa5d4",
           "gold": "legal.legislation",
           "correct": true
@@ -3524,8 +3524,8 @@
             "government.government_report": 0.0526,
             "financial.proxy_statement": 0.0484
           },
-          "parse_s": 0.02334762500049692,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.016010082999855513,
+          "classify_s": 0.6160710000000179,
           "view_sha": "2c183b1bd169",
           "gold": "legal.legislation",
           "correct": true
@@ -3539,8 +3539,8 @@
             "research.white_paper": 0.0786,
             "research.technical_standard": 0.0706
           },
-          "parse_s": 0.24292604099991877,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.23537149999901885,
+          "classify_s": 0.6160710000000179,
           "view_sha": "b7c02bc88118",
           "gold": "research.research_paper",
           "correct": true
@@ -3554,8 +3554,8 @@
             "research.technical_standard": 0.0621,
             "financial.earnings_release": 0.043
           },
-          "parse_s": 0.373631166999985,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.30297920900011377,
+          "classify_s": 0.6160710000000179,
           "view_sha": "f11df4f2fe72",
           "gold": "research.research_paper",
           "correct": true
@@ -3569,8 +3569,8 @@
             "research.white_paper": 0.0929,
             "research.technical_standard": 0.0887
           },
-          "parse_s": 1.7642552079996676,
-          "classify_s": 0.753739043294106,
+          "parse_s": 1.1790814160012815,
+          "classify_s": 0.6160710000000179,
           "view_sha": "66393b67df60",
           "gold": "research.research_paper",
           "correct": true
@@ -3584,8 +3584,8 @@
             "research.technical_standard": 0.0882,
             "financial.prospectus": 0.0753
           },
-          "parse_s": 4.968262583000069,
-          "classify_s": 0.753739043294106,
+          "parse_s": 4.1004583750000165,
+          "classify_s": 0.6160710000000179,
           "view_sha": "3ad62b19fe2d",
           "gold": "research.research_paper",
           "correct": true
@@ -3593,30 +3593,30 @@
         {
           "doc_id": "doc_031",
           "pred": "research.technical_standard",
-          "confidence": 0.7144,
+          "confidence": 0.7118,
           "leaf_probs_top3": {
-            "research.technical_standard": 0.7144,
-            "research.research_paper": 0.151,
-            "technical.datasheet": 0.0273
+            "research.technical_standard": 0.7118,
+            "research.research_paper": 0.1548,
+            "technical.datasheet": 0.0271
           },
-          "parse_s": 2.4024995830004627,
-          "classify_s": 0.753739043294106,
-          "view_sha": "7b52bb5b2020",
+          "parse_s": 2.22772941599942,
+          "classify_s": 0.6160710000000179,
+          "view_sha": "13a714ffdc81",
           "gold": "research.technical_standard",
           "correct": true
         },
         {
           "doc_id": "doc_032",
           "pred": "research.technical_standard",
-          "confidence": 0.7246,
+          "confidence": 0.7242,
           "leaf_probs_top3": {
-            "research.technical_standard": 0.7246,
-            "research.research_paper": 0.0977,
-            "technical.datasheet": 0.0544
+            "research.technical_standard": 0.7242,
+            "research.research_paper": 0.0979,
+            "technical.datasheet": 0.0543
           },
-          "parse_s": 1.9040097500001139,
-          "classify_s": 0.753739043294106,
-          "view_sha": "eac9f26938c5",
+          "parse_s": 1.7405080000007729,
+          "classify_s": 0.6160710000000179,
+          "view_sha": "6f3b89f70bbe",
           "gold": "research.technical_standard",
           "correct": true
         },
@@ -3629,8 +3629,8 @@
             "research.research_paper": 0.1328,
             "technical.datasheet": 0.0445
           },
-          "parse_s": 0.1715160419998938,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.1490022920006595,
+          "classify_s": 0.6160710000000179,
           "view_sha": "8ee509f70074",
           "gold": "research.technical_standard",
           "correct": true
@@ -3644,8 +3644,8 @@
             "research.research_paper": 0.2058,
             "technical.datasheet": 0.0633
           },
-          "parse_s": 0.17112325000016426,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.15172325000094133,
+          "classify_s": 0.6160710000000179,
           "view_sha": "29442e9d353a",
           "gold": "research.technical_standard",
           "correct": true
@@ -3659,8 +3659,8 @@
             "corporate.sustainability_report": 0.102,
             "technical.user_manual": 0.083
           },
-          "parse_s": 0.32292791700001544,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.2893508750003093,
+          "classify_s": 0.6160710000000179,
           "view_sha": "05e229afced6",
           "gold": "research.white_paper",
           "correct": false
@@ -3668,15 +3668,15 @@
         {
           "doc_id": "doc_036",
           "pred": "government.government_report",
-          "confidence": 0.2215,
+          "confidence": 0.2192,
           "leaf_probs_top3": {
-            "government.government_report": 0.2215,
-            "corporate.sustainability_report": 0.159,
-            "research.white_paper": 0.123
+            "government.government_report": 0.2192,
+            "corporate.sustainability_report": 0.1624,
+            "research.white_paper": 0.12
           },
-          "parse_s": 6.630210332999923,
-          "classify_s": 0.753739043294106,
-          "view_sha": "663373ffd899",
+          "parse_s": 5.8246715829991444,
+          "classify_s": 0.6160710000000179,
+          "view_sha": "92763f6083ee",
           "gold": "research.white_paper",
           "correct": false
         },
@@ -3689,8 +3689,8 @@
             "research.technical_standard": 0.1081,
             "financial.prospectus": 0.0974
           },
-          "parse_s": 0.1280395839994526,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.10700554199866019,
+          "classify_s": 0.6160710000000179,
           "view_sha": "8d9e7ce624f0",
           "gold": "research.white_paper",
           "correct": false
@@ -3704,8 +3704,8 @@
             "research.technical_standard": 0.1999,
             "research.research_paper": 0.1519
           },
-          "parse_s": 2.992846415999338,
-          "classify_s": 0.753739043294106,
+          "parse_s": 2.717925875000219,
+          "classify_s": 0.6160710000000179,
           "view_sha": "0ffcf3255d87",
           "gold": "technical.user_manual",
           "correct": true
@@ -3719,8 +3719,8 @@
             "research.technical_standard": 0.1229,
             "technical.datasheet": 0.0907
           },
-          "parse_s": 4.347039625000434,
-          "classify_s": 0.753739043294106,
+          "parse_s": 3.9682523749997927,
+          "classify_s": 0.6160710000000179,
           "view_sha": "38e2b1f3e520",
           "gold": "technical.user_manual",
           "correct": true
@@ -3734,8 +3734,8 @@
             "technical.datasheet": 0.2122,
             "research.research_paper": 0.1253
           },
-          "parse_s": 0.9948767500000031,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.9440412500007369,
+          "classify_s": 0.6160710000000179,
           "view_sha": "bed68e77b10a",
           "gold": "technical.user_manual",
           "correct": true
@@ -3749,8 +3749,8 @@
             "technical.user_manual": 0.1878,
             "research.technical_standard": 0.0514
           },
-          "parse_s": 0.5034415840000293,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.38803291600015655,
+          "classify_s": 0.6160710000000179,
           "view_sha": "f6262cc1d198",
           "gold": "technical.datasheet",
           "correct": true
@@ -3764,8 +3764,8 @@
             "technical.datasheet": 0.2595,
             "research.research_paper": 0.1281
           },
-          "parse_s": 7.0207510840000396,
-          "classify_s": 0.753739043294106,
+          "parse_s": 6.407060958999864,
+          "classify_s": 0.6160710000000179,
           "view_sha": "e13f5830ccb1",
           "gold": "technical.datasheet",
           "correct": false
@@ -3779,8 +3779,8 @@
             "technical.user_manual": 0.1753,
             "research.technical_standard": 0.0551
           },
-          "parse_s": 0.055243040999812365,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.0405233750007028,
+          "classify_s": 0.6160710000000179,
           "view_sha": "1bb44a5614b2",
           "gold": "technical.datasheet",
           "correct": true
@@ -3794,8 +3794,8 @@
             "technical.user_manual": 0.1251,
             "research.research_paper": 0.0525
           },
-          "parse_s": 0.06782933399972535,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.058185416000924306,
+          "classify_s": 0.6160710000000179,
           "view_sha": "7c497462243a",
           "gold": "technical.datasheet",
           "correct": true
@@ -3803,15 +3803,15 @@
         {
           "doc_id": "doc_045",
           "pred": "government.government_report",
-          "confidence": 0.7381,
+          "confidence": 0.7555,
           "leaf_probs_top3": {
-            "government.government_report": 0.7381,
-            "financial.quarterly_report": 0.0598,
-            "financial.annual_report": 0.0372
+            "government.government_report": 0.7555,
+            "financial.quarterly_report": 0.0487,
+            "financial.annual_report": 0.0357
           },
-          "parse_s": 1.0098065410002164,
-          "classify_s": 0.753739043294106,
-          "view_sha": "44cbdf6bc809",
+          "parse_s": 0.9647134579990961,
+          "classify_s": 0.6160710000000179,
+          "view_sha": "5f832805fd45",
           "gold": "government.government_report",
           "correct": true
         },
@@ -3824,8 +3824,8 @@
             "financial.quarterly_report": 0.1254,
             "financial.annual_report": 0.1146
           },
-          "parse_s": 0.8735258750002686,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.6588597499994648,
+          "classify_s": 0.6160710000000179,
           "view_sha": "daeece38fa20",
           "gold": "government.government_report",
           "correct": true
@@ -3839,8 +3839,8 @@
             "research.white_paper": 0.0948,
             "legal.legislation": 0.0623
           },
-          "parse_s": 9.096643582999604,
-          "classify_s": 0.753739043294106,
+          "parse_s": 9.326514041998962,
+          "classify_s": 0.6160710000000179,
           "view_sha": "5a0ae11d3f11",
           "gold": "government.government_report",
           "correct": true
@@ -3854,8 +3854,8 @@
             "financial.annual_report": 0.0176,
             "research.research_paper": 0.0077
           },
-          "parse_s": 3.1096678329995484,
-          "classify_s": 0.753739043294106,
+          "parse_s": 3.1378246669992222,
+          "classify_s": 0.6160710000000179,
           "view_sha": "af0e52db0d4a",
           "gold": "corporate.sustainability_report",
           "correct": true
@@ -3869,8 +3869,8 @@
             "financial.annual_report": 0.0545,
             "research.research_paper": 0.0285
           },
-          "parse_s": 0.5766073750000942,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.5423290840008121,
+          "classify_s": 0.6160710000000179,
           "view_sha": "14cbf1e82db4",
           "gold": "corporate.sustainability_report",
           "correct": true
@@ -3884,8 +3884,8 @@
             "financial.quarterly_report": 0.1321,
             "financial.annual_report": 0.106
           },
-          "parse_s": 0.271586333000414,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.2429206670003623,
+          "classify_s": 0.6160710000000179,
           "view_sha": "8be3df713be8",
           "gold": "corporate.investor_presentation",
           "correct": false
@@ -3899,15 +3899,15 @@
             "financial.earnings_release": 0.0873,
             "financial.annual_report": 0.0731
           },
-          "parse_s": 0.20768829099961295,
-          "classify_s": 0.753739043294106,
+          "parse_s": 0.15544654199948127,
+          "classify_s": 0.6160710000000179,
           "view_sha": "ddcc43154027",
           "gold": "corporate.investor_presentation",
           "correct": true
         }
       ],
-      "load_s": 17.565579041998717,
-      "batch_s": 38.44069120799941,
+      "load_s": 12.180595042000277,
+      "batch_s": 31.419621000000916,
       "view_counter": "estimate_tokens",
       "views_differing_from_own_counter": 25,
       "what": "UltraBERT-Embed-150M, DocumentView, Flat (zero-shot)",
@@ -3915,16 +3915,16 @@
       "mode": "view",
       "device": "mps",
       "date": "2026-10-16",
-      "commit": "196d4d0+dirty",
+      "commit": "53090c0",
       "loadavg_start": [
-        7.3974609375,
-        7.4345703125,
-        6.91552734375
+        19.818359375,
+        14.64111328125,
+        11.80224609375
       ],
       "loadavg_end": [
-        5.27490234375,
-        6.8212890625,
-        6.72021484375
+        12.580078125,
+        13.45849609375,
+        11.51220703125
       ],
       "metrics": {
         "n": 51,
@@ -4112,9 +4112,9 @@
             "technical.user_manual": 3
           }
         },
-        "avg_parse_s": 1.60320997550979,
-        "avg_classify_s": 0.753739043294106,
-        "avg_total_s": 2.356949018803896,
+        "avg_parse_s": 1.4659971200393307,
+        "avg_classify_s": 0.6160710000000179,
+        "avg_total_s": 2.0820681200393487,
         "jev_input_tokens": null,
         "jev_tokens_estimated": null,
         "jev_cost_usd": null
@@ -6200,15 +6200,15 @@
         {
           "doc_id": "doc_001",
           "pred": "financial.annual_report",
-          "confidence": 0.1663,
+          "confidence": 0.1681,
           "leaf_probs_top3": {
-            "financial.annual_report": 0.1663,
-            "financial.earnings_release": 0.1477,
-            "corporate.investor_presentation": 0.1333
+            "financial.annual_report": 0.1681,
+            "financial.proxy_statement": 0.1483,
+            "financial.earnings_release": 0.1362
           },
-          "parse_s": 3.3136625410006673,
-          "classify_s": 5.406614707509802,
-          "view_sha": "6da25d7062bc",
+          "parse_s": 3.052549457999703,
+          "classify_s": 3.0936216168431523,
+          "view_sha": "97b893ad7928",
           "gold": "financial.annual_report",
           "correct": true
         },
@@ -6221,8 +6221,8 @@
             "financial.proxy_statement": 0.1407,
             "corporate.investor_presentation": 0.0815
           },
-          "parse_s": 2.339350917000047,
-          "classify_s": 5.406614707509802,
+          "parse_s": 2.220245750000686,
+          "classify_s": 3.0936216168431523,
           "view_sha": "98f37d24ee4c",
           "gold": "financial.annual_report",
           "correct": true
@@ -6236,8 +6236,8 @@
             "financial.annual_report": 0.2356,
             "financial.proxy_statement": 0.0803
           },
-          "parse_s": 1.6697422500001267,
-          "classify_s": 5.406614707509802,
+          "parse_s": 1.6862513750002108,
+          "classify_s": 3.0936216168431523,
           "view_sha": "3a96acb00bbc",
           "gold": "financial.annual_report",
           "correct": false
@@ -6251,8 +6251,8 @@
             "financial.annual_report": 0.1381,
             "financial.earnings_release": 0.1188
           },
-          "parse_s": 1.0108450830002766,
-          "classify_s": 5.406614707509802,
+          "parse_s": 1.0716912500010949,
+          "classify_s": 3.0936216168431523,
           "view_sha": "1578c76080e8",
           "gold": "financial.quarterly_report",
           "correct": true
@@ -6266,8 +6266,8 @@
             "financial.annual_report": 0.1735,
             "financial.earnings_release": 0.1122
           },
-          "parse_s": 1.0748530419996314,
-          "classify_s": 5.406614707509802,
+          "parse_s": 1.0330970840004738,
+          "classify_s": 3.0936216168431523,
           "view_sha": "d56bf477244a",
           "gold": "financial.quarterly_report",
           "correct": true
@@ -6281,8 +6281,8 @@
             "financial.shareholder_letter": 0.1435,
             "financial.proxy_statement": 0.1172
           },
-          "parse_s": 0.25591187500049273,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.2358837500014488,
+          "classify_s": 3.0936216168431523,
           "view_sha": "cf48fec61a83",
           "gold": "financial.shareholder_letter",
           "correct": false
@@ -6296,8 +6296,8 @@
             "financial.earnings_release": 0.1232,
             "corporate.investor_presentation": 0.1179
           },
-          "parse_s": 0.49904158400022425,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.4308813330007979,
+          "classify_s": 3.0936216168431523,
           "view_sha": "ba317aefb94f",
           "gold": "financial.shareholder_letter",
           "correct": false
@@ -6311,8 +6311,8 @@
             "financial.proxy_statement": 0.1005,
             "financial.annual_report": 0.0794
           },
-          "parse_s": 0.18256724999992002,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.16857566600083373,
+          "classify_s": 3.0936216168431523,
           "view_sha": "6a612a0b11f6",
           "gold": "financial.shareholder_letter",
           "correct": true
@@ -6326,8 +6326,8 @@
             "financial.annual_report": 0.1146,
             "corporate.sustainability_report": 0.0975
           },
-          "parse_s": 0.18131149999953777,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.1619961249998596,
+          "classify_s": 3.0936216168431523,
           "view_sha": "3cd98a69d245",
           "gold": "financial.earnings_release",
           "correct": true
@@ -6341,8 +6341,8 @@
             "financial.annual_report": 0.1158,
             "corporate.sustainability_report": 0.0997
           },
-          "parse_s": 0.17519883300064976,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.17350558299949626,
+          "classify_s": 3.0936216168431523,
           "view_sha": "bc7b73c646de",
           "gold": "financial.earnings_release",
           "correct": true
@@ -6356,8 +6356,8 @@
             "legal.contract": 0.0634,
             "legal.terms_policy": 0.0584
           },
-          "parse_s": 2.8112117919999946,
-          "classify_s": 5.406614707509802,
+          "parse_s": 2.446819292001237,
+          "classify_s": 3.0936216168431523,
           "view_sha": "bd7b050896e7",
           "gold": "financial.prospectus",
           "correct": true
@@ -6371,8 +6371,8 @@
             "financial.proxy_statement": 0.0468,
             "corporate.investor_presentation": 0.0338
           },
-          "parse_s": 3.938620916999753,
-          "classify_s": 5.406614707509802,
+          "parse_s": 3.6618062500001543,
+          "classify_s": 3.0936216168431523,
           "view_sha": "338942d5b2fb",
           "gold": "financial.prospectus",
           "correct": true
@@ -6380,30 +6380,30 @@
         {
           "doc_id": "doc_013",
           "pred": "financial.proxy_statement",
-          "confidence": 0.7185,
+          "confidence": 0.7131,
           "leaf_probs_top3": {
-            "financial.proxy_statement": 0.7185,
-            "financial.shareholder_letter": 0.0494,
-            "financial.annual_report": 0.0341
+            "financial.proxy_statement": 0.7131,
+            "financial.shareholder_letter": 0.0511,
+            "corporate.sustainability_report": 0.0338
           },
-          "parse_s": 1.1106005419997018,
-          "classify_s": 5.406614707509802,
-          "view_sha": "3fece4e0f1cc",
+          "parse_s": 1.1005055829991761,
+          "classify_s": 3.0936216168431523,
+          "view_sha": "60383143673a",
           "gold": "financial.proxy_statement",
           "correct": true
         },
         {
           "doc_id": "doc_014",
           "pred": "financial.proxy_statement",
-          "confidence": 0.6109,
+          "confidence": 0.6135,
           "leaf_probs_top3": {
-            "financial.proxy_statement": 0.6109,
-            "corporate.investor_presentation": 0.0612,
-            "financial.shareholder_letter": 0.0574
+            "financial.proxy_statement": 0.6135,
+            "corporate.investor_presentation": 0.062,
+            "financial.shareholder_letter": 0.0555
           },
-          "parse_s": 3.347950958999718,
-          "classify_s": 5.406614707509802,
-          "view_sha": "6c939ffa93b2",
+          "parse_s": 3.0993350409989944,
+          "classify_s": 3.0936216168431523,
+          "view_sha": "2ada6bfea74e",
           "gold": "financial.proxy_statement",
           "correct": true
         },
@@ -6416,8 +6416,8 @@
             "government.government_report": 0.1223,
             "legal.contract": 0.1084
           },
-          "parse_s": 0.05045425000025716,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.04767833299956692,
+          "classify_s": 3.0936216168431523,
           "view_sha": "d6ac5442d44e",
           "gold": "legal.contract",
           "correct": false
@@ -6431,8 +6431,8 @@
             "research.research_paper": 0.122,
             "legal.legislation": 0.0735
           },
-          "parse_s": 0.16240879199995106,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.1505375840006309,
+          "classify_s": 3.0936216168431523,
           "view_sha": "4b2cb79a7c9d",
           "gold": "legal.contract",
           "correct": false
@@ -6446,8 +6446,8 @@
             "research.research_paper": 0.0538,
             "research.white_paper": 0.0538
           },
-          "parse_s": 0.1577551249993121,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.14547841700004938,
+          "classify_s": 3.0936216168431523,
           "view_sha": "33cd1ccb1ff6",
           "gold": "legal.terms_policy",
           "correct": true
@@ -6461,8 +6461,8 @@
             "legal.contract": 0.091,
             "research.technical_standard": 0.0485
           },
-          "parse_s": 0.2235309170000619,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.20556837500043912,
+          "classify_s": 3.0936216168431523,
           "view_sha": "a39509706ad6",
           "gold": "legal.terms_policy",
           "correct": true
@@ -6476,8 +6476,8 @@
             "legal.contract": 0.1134,
             "research.technical_standard": 0.0854
           },
-          "parse_s": 0.1920713749996139,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.1654603329989186,
+          "classify_s": 3.0936216168431523,
           "view_sha": "7d7cd5f1d29f",
           "gold": "legal.terms_policy",
           "correct": true
@@ -6491,8 +6491,8 @@
             "legal.legislation": 0.2525,
             "legal.contract": 0.0325
           },
-          "parse_s": 2.3613713329996244,
-          "classify_s": 5.406614707509802,
+          "parse_s": 1.9070502079994185,
+          "classify_s": 3.0936216168431523,
           "view_sha": "1f0d44c8d223",
           "gold": "legal.court_opinion",
           "correct": true
@@ -6506,8 +6506,8 @@
             "research.white_paper": 0.1035,
             "legal.legislation": 0.0614
           },
-          "parse_s": 0.18732804199953534,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.16902837500128953,
+          "classify_s": 3.0936216168431523,
           "view_sha": "e31e1f9a97e9",
           "gold": "legal.court_opinion",
           "correct": true
@@ -6521,8 +6521,8 @@
             "government.government_report": 0.1223,
             "financial.prospectus": 0.1006
           },
-          "parse_s": 0.054516167000656424,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.05117983299896878,
+          "classify_s": 3.0936216168431523,
           "view_sha": "eb767f21440c",
           "gold": "legal.court_opinion",
           "correct": true
@@ -6536,8 +6536,8 @@
             "legal.legislation": 0.1664,
             "government.government_report": 0.1092
           },
-          "parse_s": 0.11932529200021236,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.11120254100023885,
+          "classify_s": 3.0936216168431523,
           "view_sha": "583228f6d461",
           "gold": "legal.court_opinion",
           "correct": true
@@ -6551,8 +6551,8 @@
             "research.research_paper": 0.073,
             "government.government_report": 0.0715
           },
-          "parse_s": 5.510934083999928,
-          "classify_s": 5.406614707509802,
+          "parse_s": 4.894392875001358,
+          "classify_s": 3.0936216168431523,
           "view_sha": "93056677f6de",
           "gold": "legal.legislation",
           "correct": true
@@ -6566,8 +6566,8 @@
             "government.government_report": 0.0896,
             "financial.earnings_release": 0.0495
           },
-          "parse_s": 0.6028415410000889,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.4986107910008286,
+          "classify_s": 3.0936216168431523,
           "view_sha": "6fc6a98fa5d4",
           "gold": "legal.legislation",
           "correct": true
@@ -6581,8 +6581,8 @@
             "government.government_report": 0.0539,
             "financial.proxy_statement": 0.0423
           },
-          "parse_s": 0.02334762500049692,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.016010082999855513,
+          "classify_s": 3.0936216168431523,
           "view_sha": "2c183b1bd169",
           "gold": "legal.legislation",
           "correct": true
@@ -6596,8 +6596,8 @@
             "research.white_paper": 0.0739,
             "research.technical_standard": 0.0734
           },
-          "parse_s": 0.24292604099991877,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.23537149999901885,
+          "classify_s": 3.0936216168431523,
           "view_sha": "b7c02bc88118",
           "gold": "research.research_paper",
           "correct": true
@@ -6611,8 +6611,8 @@
             "research.technical_standard": 0.0632,
             "research.white_paper": 0.0415
           },
-          "parse_s": 0.373631166999985,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.30297920900011377,
+          "classify_s": 3.0936216168431523,
           "view_sha": "f11df4f2fe72",
           "gold": "research.research_paper",
           "correct": true
@@ -6626,8 +6626,8 @@
             "research.white_paper": 0.0979,
             "research.technical_standard": 0.0797
           },
-          "parse_s": 1.7642552079996676,
-          "classify_s": 5.406614707509802,
+          "parse_s": 1.1790814160012815,
+          "classify_s": 3.0936216168431523,
           "view_sha": "66393b67df60",
           "gold": "research.research_paper",
           "correct": true
@@ -6641,8 +6641,8 @@
             "research.technical_standard": 0.0893,
             "research.white_paper": 0.0777
           },
-          "parse_s": 4.968262583000069,
-          "classify_s": 5.406614707509802,
+          "parse_s": 4.1004583750000165,
+          "classify_s": 3.0936216168431523,
           "view_sha": "3ad62b19fe2d",
           "gold": "research.research_paper",
           "correct": true
@@ -6650,30 +6650,30 @@
         {
           "doc_id": "doc_031",
           "pred": "research.technical_standard",
-          "confidence": 0.5626,
+          "confidence": 0.5617,
           "leaf_probs_top3": {
-            "research.technical_standard": 0.5626,
-            "research.research_paper": 0.1798,
-            "technical.datasheet": 0.0415
+            "research.technical_standard": 0.5617,
+            "research.research_paper": 0.1824,
+            "technical.datasheet": 0.0414
           },
-          "parse_s": 2.4024995830004627,
-          "classify_s": 5.406614707509802,
-          "view_sha": "7b52bb5b2020",
+          "parse_s": 2.22772941599942,
+          "classify_s": 3.0936216168431523,
+          "view_sha": "13a714ffdc81",
           "gold": "research.technical_standard",
           "correct": true
         },
         {
           "doc_id": "doc_032",
           "pred": "research.technical_standard",
-          "confidence": 0.5597,
+          "confidence": 0.5588,
           "leaf_probs_top3": {
-            "research.technical_standard": 0.5597,
-            "research.research_paper": 0.1477,
-            "technical.datasheet": 0.0714
+            "research.technical_standard": 0.5588,
+            "research.research_paper": 0.1473,
+            "technical.datasheet": 0.0715
           },
-          "parse_s": 1.9040097500001139,
-          "classify_s": 5.406614707509802,
-          "view_sha": "eac9f26938c5",
+          "parse_s": 1.7405080000007729,
+          "classify_s": 3.0936216168431523,
+          "view_sha": "6f3b89f70bbe",
           "gold": "research.technical_standard",
           "correct": true
         },
@@ -6686,8 +6686,8 @@
             "research.research_paper": 0.1548,
             "technical.datasheet": 0.049
           },
-          "parse_s": 0.1715160419998938,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.1490022920006595,
+          "classify_s": 3.0936216168431523,
           "view_sha": "8ee509f70074",
           "gold": "research.technical_standard",
           "correct": true
@@ -6701,8 +6701,8 @@
             "research.research_paper": 0.2052,
             "technical.datasheet": 0.0624
           },
-          "parse_s": 0.17112325000016426,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.15172325000094133,
+          "classify_s": 3.0936216168431523,
           "view_sha": "29442e9d353a",
           "gold": "research.technical_standard",
           "correct": true
@@ -6716,8 +6716,8 @@
             "corporate.sustainability_report": 0.0964,
             "technical.user_manual": 0.0925
           },
-          "parse_s": 0.32292791700001544,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.2893508750003093,
+          "classify_s": 3.0936216168431523,
           "view_sha": "05e229afced6",
           "gold": "research.white_paper",
           "correct": false
@@ -6725,15 +6725,15 @@
         {
           "doc_id": "doc_036",
           "pred": "government.government_report",
-          "confidence": 0.168,
+          "confidence": 0.1664,
           "leaf_probs_top3": {
-            "government.government_report": 0.168,
-            "corporate.sustainability_report": 0.1497,
-            "research.white_paper": 0.1309
+            "government.government_report": 0.1664,
+            "corporate.sustainability_report": 0.1526,
+            "research.white_paper": 0.1294
           },
-          "parse_s": 6.630210332999923,
-          "classify_s": 5.406614707509802,
-          "view_sha": "663373ffd899",
+          "parse_s": 5.8246715829991444,
+          "classify_s": 3.0936216168431523,
+          "view_sha": "92763f6083ee",
           "gold": "research.white_paper",
           "correct": false
         },
@@ -6746,8 +6746,8 @@
             "research.technical_standard": 0.1111,
             "financial.prospectus": 0.0949
           },
-          "parse_s": 0.1280395839994526,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.10700554199866019,
+          "classify_s": 3.0936216168431523,
           "view_sha": "8d9e7ce624f0",
           "gold": "research.white_paper",
           "correct": false
@@ -6761,8 +6761,8 @@
             "research.research_paper": 0.1759,
             "research.technical_standard": 0.1723
           },
-          "parse_s": 2.992846415999338,
-          "classify_s": 5.406614707509802,
+          "parse_s": 2.717925875000219,
+          "classify_s": 3.0936216168431523,
           "view_sha": "0ffcf3255d87",
           "gold": "technical.user_manual",
           "correct": true
@@ -6776,8 +6776,8 @@
             "research.research_paper": 0.1228,
             "research.technical_standard": 0.1132
           },
-          "parse_s": 4.347039625000434,
-          "classify_s": 5.406614707509802,
+          "parse_s": 3.9682523749997927,
+          "classify_s": 3.0936216168431523,
           "view_sha": "38e2b1f3e520",
           "gold": "technical.user_manual",
           "correct": true
@@ -6791,8 +6791,8 @@
             "technical.datasheet": 0.1592,
             "research.research_paper": 0.1357
           },
-          "parse_s": 0.9948767500000031,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.9440412500007369,
+          "classify_s": 3.0936216168431523,
           "view_sha": "bed68e77b10a",
           "gold": "technical.user_manual",
           "correct": true
@@ -6806,8 +6806,8 @@
             "technical.user_manual": 0.1817,
             "research.technical_standard": 0.0752
           },
-          "parse_s": 0.5034415840000293,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.38803291600015655,
+          "classify_s": 3.0936216168431523,
           "view_sha": "f6262cc1d198",
           "gold": "technical.datasheet",
           "correct": true
@@ -6821,8 +6821,8 @@
             "technical.user_manual": 0.2683,
             "research.technical_standard": 0.1288
           },
-          "parse_s": 7.0207510840000396,
-          "classify_s": 5.406614707509802,
+          "parse_s": 6.407060958999864,
+          "classify_s": 3.0936216168431523,
           "view_sha": "e13f5830ccb1",
           "gold": "technical.datasheet",
           "correct": true
@@ -6836,8 +6836,8 @@
             "technical.user_manual": 0.153,
             "research.technical_standard": 0.0591
           },
-          "parse_s": 0.055243040999812365,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.0405233750007028,
+          "classify_s": 3.0936216168431523,
           "view_sha": "1bb44a5614b2",
           "gold": "technical.datasheet",
           "correct": true
@@ -6851,8 +6851,8 @@
             "technical.user_manual": 0.1234,
             "research.research_paper": 0.0568
           },
-          "parse_s": 0.06782933399972535,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.058185416000924306,
+          "classify_s": 3.0936216168431523,
           "view_sha": "7c497462243a",
           "gold": "technical.datasheet",
           "correct": true
@@ -6860,15 +6860,15 @@
         {
           "doc_id": "doc_045",
           "pred": "government.government_report",
-          "confidence": 0.5497,
+          "confidence": 0.5506,
           "leaf_probs_top3": {
-            "government.government_report": 0.5497,
-            "financial.quarterly_report": 0.0766,
-            "financial.earnings_release": 0.0682
+            "government.government_report": 0.5506,
+            "financial.quarterly_report": 0.072,
+            "financial.earnings_release": 0.0719
           },
-          "parse_s": 1.0098065410002164,
-          "classify_s": 5.406614707509802,
-          "view_sha": "44cbdf6bc809",
+          "parse_s": 0.9647134579990961,
+          "classify_s": 3.0936216168431523,
+          "view_sha": "5f832805fd45",
           "gold": "government.government_report",
           "correct": true
         },
@@ -6881,8 +6881,8 @@
             "financial.quarterly_report": 0.1184,
             "financial.annual_report": 0.1063
           },
-          "parse_s": 0.8735258750002686,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.6588597499994648,
+          "classify_s": 3.0936216168431523,
           "view_sha": "daeece38fa20",
           "gold": "government.government_report",
           "correct": true
@@ -6896,8 +6896,8 @@
             "research.white_paper": 0.1093,
             "research.research_paper": 0.0798
           },
-          "parse_s": 9.096643582999604,
-          "classify_s": 5.406614707509802,
+          "parse_s": 9.326514041998962,
+          "classify_s": 3.0936216168431523,
           "view_sha": "5a0ae11d3f11",
           "gold": "government.government_report",
           "correct": true
@@ -6911,8 +6911,8 @@
             "research.research_paper": 0.0561,
             "research.white_paper": 0.0247
           },
-          "parse_s": 3.1096678329995484,
-          "classify_s": 5.406614707509802,
+          "parse_s": 3.1378246669992222,
+          "classify_s": 3.0936216168431523,
           "view_sha": "af0e52db0d4a",
           "gold": "corporate.sustainability_report",
           "correct": true
@@ -6926,8 +6926,8 @@
             "research.research_paper": 0.0635,
             "financial.annual_report": 0.0511
           },
-          "parse_s": 0.5766073750000942,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.5423290840008121,
+          "classify_s": 3.0936216168431523,
           "view_sha": "14cbf1e82db4",
           "gold": "corporate.sustainability_report",
           "correct": true
@@ -6941,8 +6941,8 @@
             "financial.quarterly_report": 0.1515,
             "financial.annual_report": 0.1171
           },
-          "parse_s": 0.271586333000414,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.2429206670003623,
+          "classify_s": 3.0936216168431523,
           "view_sha": "8be3df713be8",
           "gold": "corporate.investor_presentation",
           "correct": false
@@ -6956,15 +6956,15 @@
             "financial.earnings_release": 0.0937,
             "financial.annual_report": 0.0777
           },
-          "parse_s": 0.20768829099961295,
-          "classify_s": 5.406614707509802,
+          "parse_s": 0.15544654199948127,
+          "classify_s": 3.0936216168431523,
           "view_sha": "ddcc43154027",
           "gold": "corporate.investor_presentation",
           "correct": true
         }
       ],
-      "load_s": 2.352234416999636,
-      "batch_s": 275.7373500829999,
+      "load_s": 2.636688167000102,
+      "batch_s": 157.77470245900076,
       "view_counter": "estimate_tokens",
       "views_differing_from_own_counter": 25,
       "what": "UltraBERT-Embed-150M, 0.6 view + 0.4 sections (zero-shot)",
@@ -6972,16 +6972,16 @@
       "mode": "hybrid",
       "device": "mps",
       "date": "2026-10-16",
-      "commit": "196d4d0+dirty",
+      "commit": "53090c0",
       "loadavg_start": [
-        5.27490234375,
-        6.8212890625,
-        6.72021484375
+        12.580078125,
+        13.45849609375,
+        11.51220703125
       ],
       "loadavg_end": [
-        5.3935546875,
-        6.25732421875,
-        6.490234375
+        4.1162109375,
+        9.38232421875,
+        10.17236328125
       ],
       "metrics": {
         "n": 51,
@@ -7166,9 +7166,9 @@
             "technical.user_manual": 3
           }
         },
-        "avg_parse_s": 1.60320997550979,
-        "avg_classify_s": 5.406614707509802,
-        "avg_total_s": 7.009824683019592,
+        "avg_parse_s": 1.4659971200393307,
+        "avg_classify_s": 3.0936216168431523,
+        "avg_total_s": 4.5596187368824825,
         "jev_input_tokens": null,
         "jev_tokens_estimated": null,
         "jev_cost_usd": null
@@ -9259,7 +9259,7 @@
       "pymupdf": "1.28.2"
     },
     "device": "mps",
-    "device_note": "MPS probe matmul took 1.13 s"
+    "device_note": "MPS probe matmul took 0.64 s"
   },
   "documents": [
     {
@@ -9571,59 +9571,59 @@
   ],
   "parse": {
     "engine": "auto",
-    "avg_parse_s": 1.60320997550979,
+    "avg_parse_s": 1.4659971200393307,
     "per_doc_s": {
-      "doc_001": 3.3137,
-      "doc_002": 2.3394,
-      "doc_003": 1.6697,
-      "doc_004": 1.0108,
-      "doc_005": 1.0749,
-      "doc_006": 0.2559,
-      "doc_007": 0.499,
-      "doc_008": 0.1826,
-      "doc_009": 0.1813,
-      "doc_010": 0.1752,
-      "doc_011": 2.8112,
-      "doc_012": 3.9386,
-      "doc_013": 1.1106,
-      "doc_014": 3.348,
-      "doc_015": 0.0505,
-      "doc_016": 0.1624,
-      "doc_017": 0.1578,
-      "doc_018": 0.2235,
-      "doc_019": 0.1921,
-      "doc_020": 2.3614,
-      "doc_021": 0.1873,
-      "doc_022": 0.0545,
-      "doc_023": 0.1193,
-      "doc_024": 5.5109,
-      "doc_025": 0.6028,
-      "doc_026": 0.0233,
-      "doc_027": 0.2429,
-      "doc_028": 0.3736,
-      "doc_029": 1.7643,
-      "doc_030": 4.9683,
-      "doc_031": 2.4025,
-      "doc_032": 1.904,
-      "doc_033": 0.1715,
-      "doc_034": 0.1711,
-      "doc_035": 0.3229,
-      "doc_036": 6.6302,
-      "doc_037": 0.128,
-      "doc_038": 2.9928,
-      "doc_039": 4.347,
-      "doc_040": 0.9949,
-      "doc_041": 0.5034,
-      "doc_042": 7.0208,
-      "doc_043": 0.0552,
-      "doc_044": 0.0678,
-      "doc_045": 1.0098,
-      "doc_046": 0.8735,
-      "doc_047": 9.0966,
-      "doc_048": 3.1097,
-      "doc_049": 0.5766,
-      "doc_050": 0.2716,
-      "doc_051": 0.2077
+      "doc_001": 3.0525,
+      "doc_002": 2.2202,
+      "doc_003": 1.6863,
+      "doc_004": 1.0717,
+      "doc_005": 1.0331,
+      "doc_006": 0.2359,
+      "doc_007": 0.4309,
+      "doc_008": 0.1686,
+      "doc_009": 0.162,
+      "doc_010": 0.1735,
+      "doc_011": 2.4468,
+      "doc_012": 3.6618,
+      "doc_013": 1.1005,
+      "doc_014": 3.0993,
+      "doc_015": 0.0477,
+      "doc_016": 0.1505,
+      "doc_017": 0.1455,
+      "doc_018": 0.2056,
+      "doc_019": 0.1655,
+      "doc_020": 1.9071,
+      "doc_021": 0.169,
+      "doc_022": 0.0512,
+      "doc_023": 0.1112,
+      "doc_024": 4.8944,
+      "doc_025": 0.4986,
+      "doc_026": 0.016,
+      "doc_027": 0.2354,
+      "doc_028": 0.303,
+      "doc_029": 1.1791,
+      "doc_030": 4.1005,
+      "doc_031": 2.2277,
+      "doc_032": 1.7405,
+      "doc_033": 0.149,
+      "doc_034": 0.1517,
+      "doc_035": 0.2894,
+      "doc_036": 5.8247,
+      "doc_037": 0.107,
+      "doc_038": 2.7179,
+      "doc_039": 3.9683,
+      "doc_040": 0.944,
+      "doc_041": 0.388,
+      "doc_042": 6.4071,
+      "doc_043": 0.0405,
+      "doc_044": 0.0582,
+      "doc_045": 0.9647,
+      "doc_046": 0.6589,
+      "doc_047": 9.3265,
+      "doc_048": 3.1378,
+      "doc_049": 0.5423,
+      "doc_050": 0.2429,
+      "doc_051": 0.1554
     }
   },
   "experiments": {
@@ -12193,7 +12193,7 @@
     "counter": "estimate_tokens",
     "sha256_12": {
       "default": {
-        "doc_001": "6da25d7062bc",
+        "doc_001": "97b893ad7928",
         "doc_002": "98f37d24ee4c",
         "doc_003": "3a96acb00bbc",
         "doc_004": "1578c76080e8",
@@ -12205,8 +12205,8 @@
         "doc_010": "bc7b73c646de",
         "doc_011": "bd7b050896e7",
         "doc_012": "338942d5b2fb",
-        "doc_013": "3fece4e0f1cc",
-        "doc_014": "6c939ffa93b2",
+        "doc_013": "60383143673a",
+        "doc_014": "2ada6bfea74e",
         "doc_015": "d6ac5442d44e",
         "doc_016": "4b2cb79a7c9d",
         "doc_017": "33cd1ccb1ff6",
@@ -12223,12 +12223,12 @@
         "doc_028": "f11df4f2fe72",
         "doc_029": "66393b67df60",
         "doc_030": "3ad62b19fe2d",
-        "doc_031": "7b52bb5b2020",
-        "doc_032": "eac9f26938c5",
+        "doc_031": "13a714ffdc81",
+        "doc_032": "6f3b89f70bbe",
         "doc_033": "8ee509f70074",
         "doc_034": "29442e9d353a",
         "doc_035": "05e229afced6",
-        "doc_036": "663373ffd899",
+        "doc_036": "92763f6083ee",
         "doc_037": "8d9e7ce624f0",
         "doc_038": "0ffcf3255d87",
         "doc_039": "38e2b1f3e520",
@@ -12237,7 +12237,7 @@
         "doc_042": "e13f5830ccb1",
         "doc_043": "1bb44a5614b2",
         "doc_044": "7c497462243a",
-        "doc_045": "44cbdf6bc809",
+        "doc_045": "5f832805fd45",
         "doc_046": "daeece38fa20",
         "doc_047": "5a0ae11d3f11",
         "doc_048": "af0e52db0d4a",

@@ -118,7 +118,7 @@ The spec §2.3 score weights and the 0.55 default threshold were not changed.
 
 ## Document-type classification
 
-**Headline.** On 51 real PDFs and 18 defined leaf types, TypeSafe Jev given docrooter's DocumentView (`jev-view`) is the most accurate system: 49/51 correct (leaf accuracy 0.961, macro F1 0.944), at 1.66 s/doc end to end and $0.0044 for the whole corpus. Jev on naive raw-text chunks (`jev-chunks`) gets 47/51 (0.922) using 10.7x the input tokens. Every view-based system now receives the same view text, rendered once with a shared word-based token counter (see *Views* below).
+**Headline.** On 51 real PDFs and 18 defined leaf types, TypeSafe Jev given docrooter's DocumentView (`jev-view`) is the most accurate system: 49/51 correct (leaf accuracy 0.961, macro F1 0.944), at 1.52 s/doc end to end and $0.0044 for the whole corpus. Jev on naive raw-text chunks (`jev-chunks`) gets 47/51 (0.922) using 10.7x the input tokens. Every view-based system now receives the same view text, rendered once with a shared word-based token counter (see *Views* below). The `jev-view`, `ultrabert-view`, `ultrabert-hybrid` and `bge-view` rows were re-run after the v0.2 contents-page fix (dot-leader tables no longer delete body text); no accuracy changed (see *Provenance*).
 
 With no API:
 
@@ -132,7 +132,7 @@ The gap from the best local system to Jev is 6-7 documents (12-14 points). These
 <!-- doctype-benchmark:begin -->
 Corpus: 51 real PDFs from `benchmarks/corpus/` with gold labels from the manifest, 18 leaf types in 6 groups (`builtin:doc_types`; every label has a definition, see `benchmarks/corpus/README.md`). Classes have 2-4 documents each, so per-class numbers are anecdotal and one document moves leaf accuracy by 2.0 points. The 95% intervals are percentile bootstraps over documents (1000 resamples, seed 0). Every system labels every document (threshold 0).
 
-Environment: Python 3.12.13, arm64, 8 CPUs, device `mps` (MPS probe matmul took 1.13 s), torch 2.14.1, sentence-transformers 6.1.0, scikit-learn 1.9.1, typesafe-sdk 0.7.5, pymupdf 1.28.2, Jev `jev-1.13.0`. The load average at the start of each system is listed below; the machine was shared with another benchmark, so seconds are noisy upper bounds.
+Environment: Python 3.12.13, arm64, 8 CPUs, device `mps` (MPS probe matmul took 0.64 s), torch 2.14.1, sentence-transformers 6.1.0, scikit-learn 1.9.1, typesafe-sdk 0.7.5, pymupdf 1.28.2, Jev `jev-1.13.0`. The load average at the start of each system is listed below; the machine was shared with another benchmark, so seconds are noisy upper bounds.
 
 Timing: *parse* is one `load_pdf` call with the default engine (pymupdf), cached and shared by every system except `jev-chunks`, whose parse is pymupdf `page.get_text()` over all pages. *Classify* for the `classify_documents` systems (`*-view`, `ultrabert-hybrid`) is batch throughput: the wall time of the classify calls divided by the number of documents (local backends: one call over all documents; Jev: chunks of 8 documents with 8 concurrent requests, so each chunk's rows are saved before the next is paid for). For the leave-one-out systems (`*-loo`) it is view rendering, embedding and zero-shot scoring divided by the number of documents; the fit per fold (with its inner leave-one-out tuning) is listed separately. For `jev-chunks` it is per-document latency: the wall time of each document's concurrent chunk requests. The table marks each figure as `(batch)` or `(latency)`. *Load* is a warm-up excluded from the averages: model load plus one classification of a tiny synthetic document (the label vectors are encoded there). Jev cost is input tokens x $0.042/M (output tokens are free), with tokens as reported by the API (`usage.input_tokens`).
 
@@ -142,11 +142,11 @@ Views: every `*-view` system, `ultrabert-hybrid` (its view half), the leave-one-
 
 | System | What | Leaf acc | 95% CI | Level-1 acc | Macro P | Macro R | Macro F1 | Parse s/doc | Classify s/doc | Total s/doc | Load s | Jev input tokens | Jev cost |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `ultrabert-view` | UltraBERT-Embed-150M, DocumentView, Flat (zero-shot) | 0.765 | 0.65-0.86 | 0.902 | 0.689 | 0.759 | 0.709 | 1.60 | 0.754 (batch) | 2.36 | 17.6 | - | - |
-| `ultrabert-hybrid` | UltraBERT-Embed-150M, 0.6 view + 0.4 sections (zero-shot) | 0.824 | 0.73-0.92 | 0.922 | 0.739 | 0.806 | 0.765 | 1.60 | 5.407 (batch) | 7.01 | 2.4 | - | - |
-| `bge-view` | bge-small-en-v1.5, DocumentView, Flat (zero-shot) | 0.608 | 0.47-0.75 | 0.784 | 0.576 | 0.611 | 0.538 | 1.60 | 0.077 (batch) | 1.68 | 2.3 | - | - |
+| `ultrabert-view` | UltraBERT-Embed-150M, DocumentView, Flat (zero-shot) | 0.765 | 0.65-0.86 | 0.902 | 0.689 | 0.759 | 0.709 | 1.47 | 0.616 (batch) | 2.08 | 12.2 | - | - |
+| `ultrabert-hybrid` | UltraBERT-Embed-150M, 0.6 view + 0.4 sections (zero-shot) | 0.824 | 0.73-0.92 | 0.922 | 0.739 | 0.806 | 0.765 | 1.47 | 3.094 (batch) | 4.56 | 2.6 | - | - |
+| `bge-view` | bge-small-en-v1.5, DocumentView, Flat (zero-shot) | 0.608 | 0.47-0.75 | 0.784 | 0.584 | 0.611 | 0.541 | 1.47 | 0.034 (batch) | 1.50 | 2.0 | - | - |
 | `nli-view` | deberta-v3-base-zeroshot-v2.0 NLI, DocumentView, Flat (zero-shot) | 0.569 | 0.43-0.69 | 0.765 | 0.510 | 0.532 | 0.485 | 1.60 | 15.076 (batch) | 16.68 | 5.2 | - | - |
-| `jev-view` | Jev jev-1.13.0, DocumentView as state, one Choice over 18 leaves | 0.961 | 0.90-1.00 | 0.961 | 0.968 | 0.944 | 0.944 | 1.60 | 0.053 (batch) | 1.66 | 0.6 | 104,384 | $0.0044 |
+| `jev-view` | Jev jev-1.13.0, DocumentView as state, one Choice over 18 leaves | 0.961 | 0.90-1.00 | 0.961 | 0.968 | 0.944 | 0.944 | 1.47 | 0.058 (batch) | 1.52 | 0.6 | 104,372 | $0.0044 |
 | `jev-chunks` | Jev jev-1.13.0, raw page text, <=8 chunks of ~1,500 tokens, mean of per-chunk Choices (no docrooter) | 0.922 | 0.84-0.98 | 0.961 | 0.947 | 0.912 | 0.911 | 0.49 | 0.320 (latency) | 0.81 | 0.0 | 1,121,481 | $0.0471 |
 | `ultrabert-view-tuned` | UltraBERT-Embed-150M, lead-first DocumentView (1,024 tokens, 400 lead words), Flat (zero-shot; view chosen on this corpus, dev-tuned) | 0.843 | 0.73-0.94 | 0.941 | 0.818 | 0.833 | 0.808 | 1.60 | 1.039 (batch) | 2.64 | 2.8 | - | - |
 | `ultrabert-loo` | UltraBERT-Embed-150M view embeddings + logistic regression, C in {1, 10, 100, 1000} by inner leave-one-out (trained, leave-one-out) | 0.706 | 0.59-0.82 | 0.902 | 0.615 | 0.690 | 0.647 | 1.60 | 0.474 (batch) | 2.08 | 1.6 | - | - |
@@ -154,11 +154,11 @@ Views: every `*-view` system, `ultrabert-hybrid` (its view half), the leave-one-
 
 Run metadata per system:
 
-- `ultrabert-view`: 2026-10-16 at `196d4d0+dirty`, device `mps`, load average 7.4, 7.4, 6.9 at start; views differing from the backend's own counter: 25 of 51.
-- `ultrabert-hybrid`: 2026-10-16 at `196d4d0+dirty`, device `mps`, load average 5.3, 6.8, 6.7 at start; views differing from the backend's own counter: 25 of 51.
-- `bge-view`: 2026-10-16 at `196d4d0+dirty`, device `mps`, load average 5.4, 6.3, 6.5 at start; views differing from the backend's own counter: 18 of 51.
+- `ultrabert-view`: 2026-10-16 at `53090c0`, device `mps`, load average 19.8, 14.6, 11.8 at start; views differing from the backend's own counter: 25 of 51.
+- `ultrabert-hybrid`: 2026-10-16 at `53090c0`, device `mps`, load average 12.6, 13.5, 11.5 at start; views differing from the backend's own counter: 25 of 51.
+- `bge-view`: 2026-10-16 at `53090c0`, device `mps`, load average 4.1, 9.4, 10.2 at start; views differing from the backend's own counter: 16 of 51.
 - `nli-view`: 2026-10-16 at `196d4d0+dirty`, device `mps`, load average 5.7, 6.3, 6.5 at start; views differing from the backend's own counter: 13 of 51.
-- `jev-view`: 2026-10-16 at `196d4d0+dirty`, device `n/a`, load average 7.2, 7.4, 6.9 at start; views differing from the backend's own counter: 0 of 51.
+- `jev-view`: 2026-10-16 at `53090c0`, device `n/a`, load average 23.6, 15.1, 11.9 at start; views differing from the backend's own counter: 0 of 51.
 - `jev-chunks`: 2026-10-16 at `3bd85f2`, device `n/a`, load average 4.4, 6.5, 13.9 at start; 331 chunks sent (6.5 per document).
 - `ultrabert-view-tuned`: 2026-10-16 at `aad5b3f`, device `mps`, load average 4.7, 7.0, 7.3 at start; views differing from the backend's own counter: 20 of 51.
 - `ultrabert-loo`: 2026-10-16 at `aad5b3f`, device `mps`, load average 4.6, 6.5, 7.1 at start; mean fit 3.29 s per fold (inner LOO included); hyperparameter chosen per fold: 1000.0 x50, 100.0 x1; views differing from the backends' own counters: UltraBERT 25 of 51.
@@ -324,7 +324,7 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 
 | Doc | Title | Pages | Gold | `ultrabert-view` | `ultrabert-hybrid` | `bge-view` | `nli-view` | `jev-view` | `jev-chunks` | `ultrabert-view-tuned` | `ultrabert-loo` | `ultrabert-bge-loo` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| doc_001 | Berkshire Hathaway Inc. 2023 Annual Report | 152 | annual_report | annual_report ✓ | annual_report ✓ | shareholder_letter ✗ | investor_presentation ✗ | annual_report ✓ | annual_report ✓ | annual_report ✓ | shareholder_letter ✗ | shareholder_letter ✗ |
+| doc_001 | Berkshire Hathaway Inc. 2023 Annual Report | 152 | annual_report | annual_report ✓ | annual_report ✓ | proxy_statement ✗ | investor_presentation ✗ | annual_report ✓ | annual_report ✓ | annual_report ✓ | shareholder_letter ✗ | shareholder_letter ✗ |
 | doc_002 | Tesla, Inc. Annual Report on Form 10-K for fi... | 130 | annual_report | proxy_statement ✗ | annual_report ✓ | proxy_statement ✗ | annual_report ✓ | annual_report ✓ | annual_report ✓ | proxy_statement ✗ | quarterly_report ✗ | proxy_statement ✗ |
 | doc_003 | Amazon.com, Inc. 2023 Annual Report | 92 | annual_report | shareholder_letter ✗ | shareholder_letter ✗ | shareholder_letter ✗ | shareholder_letter ✗ | annual_report ✓ | annual_report ✓ | shareholder_letter ✗ | shareholder_letter ✗ | shareholder_letter ✗ |
 | doc_004 | Berkshire Hathaway Inc. Form 10-Q for the qua... | 56 | quarterly_report | quarterly_report ✓ | quarterly_report ✓ | proxy_statement ✗ | quarterly_report ✓ | quarterly_report ✓ | quarterly_report ✓ | quarterly_report ✓ | quarterly_report ✓ | quarterly_report ✓ |
@@ -436,7 +436,7 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 - **Other `ultrabert-view` errors.**
   - doc_023 (a per-curiam court opinion) is predicted as `legislation` (0.22 against 0.18 for `court_opinion`). Dobbs (doc_020) is now right (`court_opinion` 0.63); under the old rendering `ultrabert-view` predicted `legislation`.
   - The RP2040 datasheet (doc_042) is predicted as `user_manual` (0.32 against 0.26 for `datasheet`).
-  - `ultrabert-hybrid` fixes doc_002, doc_023 and doc_042 and breaks nothing. The cost is about 7x the classify time (5.4 vs 0.75 s/doc in this run), because it embeds every leaf section.
+  - `ultrabert-hybrid` fixes doc_002, doc_023 and doc_042 and breaks nothing. The cost is about 5x the classify time (3.1 vs 0.62 s/doc in the contents-page re-run; 5.4 vs 0.75 in the shared-view run), because it embeds every leaf section.
 
 `bge-view` (0.608) is limited by bge-small's 512-token window: the view plus the query prompt does not fit, so the end of the view is truncated. It also sends documents of several groups to `proxy_statement` and `earnings_release`. `nli-view` (0.569) is both the least accurate zero-shot system and by far the slowest (15.1 s/doc), because it runs 18 premise-hypothesis pairs of up to 512 tokens per document through DeBERTa on MPS.
 
@@ -482,19 +482,19 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 
 **Cost and speed.**
 
-- **Parsing dominates the local pipeline.** The default `load_pdf` takes 1.60 s/doc on average (0.02-9.1 s, roughly proportional to pages).
-- **Classification times are noisy.** The machine was shared with other benchmark jobs (load average 5-8, peaking near 20 during the experiments), so these are upper bounds. In this run, classification took 0.08 s/doc for `bge-view` and 0.75 s/doc for `ultrabert-view` (0.18 s/doc in the quieter P9 run). The figures are batch throughput.
-- **`jev-chunks` is the fastest end to end (0.81 s/doc)** because it skips structure: `page.get_text()` is 0.49 s/doc. It pays for that in tokens: 1,121,481 input tokens ($0.047, about $0.92 per 1,000 documents) against 104,384 for `jev-view`. That is about 2,050 per document, of which roughly 1,500 are the fixed instruction and 18 definitions, since the smallest request was 1,742 tokens ($0.0044, about $0.09 per 1,000 documents).
+- **Parsing dominates the local pipeline.** The default `load_pdf` takes 1.47 s/doc on average (0.02-9.3 s, roughly proportional to pages) in the contents-page re-run; it was 1.60 s/doc in the shared-view run.
+- **Classification times are noisy.** The machine was shared with other benchmark jobs (load average 5-8, peaking near 20 during the experiments), so these are upper bounds. In the contents-page re-run (load average 4-24 at the systems' starts), classification took 0.03 s/doc for `bge-view` and 0.62 s/doc for `ultrabert-view` (0.08 and 0.75 in the shared-view run; 0.18 s/doc for `ultrabert-view` in the quieter P9 run). The figures are batch throughput.
+- **`jev-chunks` is the fastest end to end (0.81 s/doc)** because it skips structure: `page.get_text()` is 0.49 s/doc. It pays for that in tokens: 1,121,481 input tokens ($0.047, about $0.92 per 1,000 documents) against 104,372 for `jev-view`. That is about 2,050 per document, of which roughly 1,500 are the fixed instruction and 18 definitions, since the smallest request was 1,742 tokens ($0.0044, about $0.09 per 1,000 documents).
 - **Both Jev costs are small in absolute terms.** The view's real advantages are 10.7x fewer tokens per document, a bounded request size whatever the page count, and robustness to boilerplate chunks. Its accuracy edge over chunks is not significant on this corpus.
 - **Jev timings are network-bound.**
-  - `jev-view` now runs in chunks of 8 documents with 8 concurrent requests, so each chunk's rows are saved before the next is paid for. Its classify time is batch throughput over 51 documents, 2.7 s in total.
+  - `jev-view` now runs in chunks of 8 documents with 8 concurrent requests, so each chunk's rows are saved before the next is paid for. Its classify time is batch throughput over 51 documents, 3.0 s in total (2.7 s in the shared-view run).
   - `jev-chunks` reports per-document latency.
 
 **Honest comparison.** For document-type gating with written definitions, Jev is clearly better than any local system tested here: by 6-7 documents (12-14 points) over the best local systems and by up to 20 points over the plain `ultrabert-view`. docrooter's contribution in that pairing is the compact, budgeted DocumentView: Jev reads it as well as or better than eight raw chunks at a tenth of the tokens.
 
 When no API is allowed:
 
-- **The honest local choice is `ultrabert-hybrid`** (0.824, 0.92 group accuracy). It is a P9 configuration fixed before P9b, at about 7x the classify time of `ultrabert-view`.
+- **The honest local choice is `ultrabert-hybrid`** (0.824, 0.92 group accuracy). It is a P9 configuration fixed before P9b, at about 5x the classify time of `ultrabert-view` (7x in the shared-view run).
 - **`ultrabert-view-tuned`** is a single pass at 0.843, but it was tuned on these documents. Its leave-one-out estimate (0.843) is a lower bound on that optimism, not an unbiased figure, and it should be confirmed on held-out documents.
 - **`ultrabert-bge-loo`** (0.745) was promoted from a result that did not survive the shared-view re-run. Its pairing, mixing method and "best honest" label were all chosen after seeing these 51 documents.
 - **Routing:** `confidence` is available for sending low-confidence documents to review.
@@ -510,11 +510,17 @@ When no API is allowed:
 
 **Provenance.**
 
-- **Runs.** The P9 runs, the first P9b run and the shared-view re-run were all on 2026-10-16. Parsed documents are cached in `benchmarks/.cache/docs/`, so every system and run used the same parses. Raw rows, including the top-3 probabilities, per-document tokens and each row's `view_sha`, are in `benchmarks/results/2026-10-16/pdf.json`. The experiment rows, with per-document predictions and the hyperparameter chosen per fold, are under `experiments`.
+- **Runs.** The P9 runs, the first P9b run and the shared-view re-run were all on 2026-10-16. Parsed documents are cached in `benchmarks/.cache/docs/`, so every system within a run uses the same parses. The cache was deleted and rebuilt for the contents-page re-run (below), so its four systems saw the post-fix parses and the other rows the pre-fix ones. Raw rows, including the top-3 probabilities, per-document tokens and each row's `view_sha`, are in `benchmarks/results/2026-10-16/pdf.json`. The experiment rows, with per-document predictions and the hyperparameter chosen per fold, are under `experiments`.
 - **The shared-view re-run.** The command was `python -m benchmarks.pdf_bench --systems jev-view,ultrabert-view,ultrabert-hybrid,bge-view,nli-view,ultrabert-view-tuned,ultrabert-loo,ultrabert-bge-loo --experiments`, with the harness at commit `196d4d0`. `jev-chunks` does not use DocumentView and was not re-run; its row is from P9 at `3bd85f2`.
 - **Recorded commits.** Each system's commit is HEAD at its start. It is marked `+dirty` when tracked files under `src/` or `benchmarks/` (results excluded) had uncommitted changes. Other agents committed during the run, hence `aad5b3f` and `6d0a6eb` for the later systems.
-  - The `+dirty` on the first five systems was another agent's uncommitted change to `render_budgeted` in `src/docrooter/views.py`.
+  - The `+dirty` on the first five systems of the shared-view run (now only `nli-view`'s row still carries it) was another agent's uncommitted change to `render_budgeted` in `src/docrooter/views.py`, later committed as `8cc9f10`. It cuts each view line to 4 x `max_tokens` words before the token counter sees it, so a whole section is never tokenised. No other file under `src/` or `benchmarks/` was dirty.
   - All 255 shared view texts (5 view configs x 51 documents) were re-rendered with HEAD's `views.py` afterwards and are byte-identical.
+- **Contents-page re-run (after the v0.2 dot-leader fix, `e72fca6`).** The fix changes the body text, and for doc_001 the headings, of some PDFs. So `jev-view`, `ultrabert-view`, `ultrabert-hybrid` and `bge-view` were re-run on all 51 documents at `53090c0`, after deleting the cached parses: `python -m benchmarks.pdf_bench --systems jev-view,ultrabert-view,ultrabert-hybrid,bge-view --docs docs/benchmarks-pdf.md`.
+  - The default view text changed for 7 documents (doc_001, doc_013, doc_014, doc_031, doc_032, doc_036, doc_045).
+  - No leaf or level-1 accuracy changed. The only prediction that changed is `bge-view` on doc_001 (gold `annual_report`): `shareholder_letter` became `proxy_statement`, still wrong. That moves bge's macro P from 0.576 to 0.584 and macro F1 from 0.538 to 0.541.
+  - `jev-view` used 104,372 input tokens instead of 104,384, still $0.0044.
+  - Parse and classify seconds moved with machine load.
+  - **Not re-run:** `nli-view`, `ultrabert-view-tuned`, `ultrabert-loo`, `ultrabert-bge-loo`, the P9b experiment tables and the *Analysis* comparisons that use them. They are still on the pre-fix parses, and `pdf.json` keeps the pre-fix view hashes for their view configs. `jev-chunks` does not read parsed text.
 - **Environment line.** It is from the re-run (MPS).
 
 ## Section normalisation

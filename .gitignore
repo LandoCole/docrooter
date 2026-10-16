@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local secrets and scratch
+.env
+.superpowers/
+
+# Benchmark artifacts that are downloaded, not committed
+benchmarks/corpus/pdfs/
+benchmarks/.cache/
+
+# OS
+.DS_Store

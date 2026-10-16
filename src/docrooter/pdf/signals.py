@@ -28,6 +28,10 @@ __all__ = [
 _EDGE_FRACTION = 0.08  # top/bottom share of the page where running headers/footers sit
 _RECURRENCE_FRACTION = 0.30
 _RECURRENCE_MINIMUM = 3
+# A section running line (the current section's title printed in the edge band of each of its
+# pages) recurs on far fewer than 30% of a long document's pages. Matched on its exact text
+# minus a leading/trailing page number, so "Item 1." and "Item 2." stay distinct (P5b).
+_SECTION_RECURRENCE_MINIMUM = 3
 _TOC_MIN_LINES = 5
 _TOC_HEADED_MIN_LINES = 3
 _MIN_POSITIVE_GAP = 0.5  # gaps at or below this (pt) are line-box overlap, not spacing
@@ -42,6 +46,7 @@ _TOC_LINE = re.compile(r"^(.*?)[\s.·…_-]{2,}(\d{1,4})$")
 _TOC_TRAILING = re.compile(r"[\s.·…_-]+$")
 _TOC_HEADINGS = frozenset({"contents", "table of contents"})
 _DIGITS = re.compile(r"\d+")
+_EDGE_PAGE_NUMBER = re.compile(r"^\d{1,4}\s+|\s+\d{1,4}$")
 _SPACE = re.compile(r"\s+")
 _LEADING_NUMBER = re.compile(
     r"^(?:(?:chapter|section|part|item|article|appendix)\s+)?"
@@ -97,6 +102,10 @@ def _running_key(text: str) -> str:
     return _SPACE.sub(" ", _DIGITS.sub("#", text.casefold())).strip()
 
 
+def _section_running_key(text: str) -> str:
+    return _EDGE_PAGE_NUMBER.sub("", _SPACE.sub(" ", text.casefold()).strip())
+
+
 def _in_edge_zone(line: Line) -> bool:
     centre = (line.y0 + line.y1) / 2
     return (
@@ -115,15 +124,22 @@ def _body_size(lines: Sequence[Line]) -> float:
 def _find_excluded(lines: Sequence[Line], n_pages: int) -> set[int]:
     excluded = {i for i, line in enumerate(lines) if _is_page_number(line.text)}
     pages_by_key: defaultdict[str, set[int]] = defaultdict(set)
-    edge: list[tuple[int, str]] = []
+    pages_by_section_key: defaultdict[str, set[int]] = defaultdict(set)
+    edge: list[tuple[int, str, str]] = []
     for i, line in enumerate(lines):
         if i in excluded or not _in_edge_zone(line):
             continue
-        key = _running_key(line.text)
+        key, section_key = _running_key(line.text), _section_running_key(line.text)
         pages_by_key[key].add(line.page)
-        edge.append((i, key))
+        pages_by_section_key[section_key].add(line.page)
+        edge.append((i, key, section_key))
     needed = max(_RECURRENCE_MINIMUM, math.ceil(_RECURRENCE_FRACTION * n_pages))
-    excluded.update(i for i, key in edge if len(pages_by_key[key]) >= needed)
+    excluded.update(
+        i
+        for i, key, section_key in edge
+        if len(pages_by_key[key]) >= needed
+        or len(pages_by_section_key[section_key]) >= _SECTION_RECURRENCE_MINIMUM
+    )
     return excluded
 
 

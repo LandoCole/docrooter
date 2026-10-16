@@ -150,3 +150,36 @@ def test_fuzzy_match():
     assert fuzzy_match("Risk Factors", "Risk Factor") >= 0.85
     assert fuzzy_match("Risk Factors", "Governance") < 0.5
     assert fuzzy_match("", "x") == 0.0
+
+
+def test_section_running_footer_on_three_pages_of_a_long_document_is_excluded():
+    # The current section's title in the footer band of each of its pages: far below 30% of a
+    # long document, but an edge line repeated on three pages is a running line.
+    lines, footer_idx = [], set()
+    for page in range(1, 41):
+        lines += body_page(page)
+        if 11 <= page <= 13:
+            footer_idx.add(len(lines))
+            lines.append(mk(page, "1.4. Pinout Reference", size=8.0, y0=H - 40))
+    s = compute_signals(lines, 40)
+    assert s.excluded == footer_idx
+
+
+def test_numbered_page_top_headings_are_not_section_running_lines():
+    # "Item 1." .. "Item 4." at the top of pages differ only in their numbers: not a running line.
+    lines = []
+    for page in range(1, 41):
+        if page % 10 == 1:
+            lines.append(mk(page, f"Item {page // 10 + 1}.", y0=30))
+        lines += body_page(page)
+    assert compute_signals(lines, 40).excluded == set()
+
+
+def test_section_running_header_with_changing_page_number_is_excluded():
+    lines, header_idx = [], set()
+    for page in range(1, 41):
+        if 6 <= page <= 9:
+            header_idx.add(len(lines))
+            lines.append(mk(page, f"{page} Part 1: Recent Developments", y0=20))
+        lines += body_page(page)
+    assert compute_signals(lines, 40).excluded == header_idx

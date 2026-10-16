@@ -1,0 +1,158 @@
+{"_meta": {"kind": "silver", "labeller": "agent-assigned (Claude Opus 5.5), not human-verified", "labelled_at": "2026-10-16T19:55:59-04:00", "src_commit": "42c1f33", "engine": "auto (pymupdf)", "levels": [1, 2], "method": "level-1/2 sections of load_pdf(engine='auto'); each heading and ~300 chars of its body read against the node definitions of the doc type's mapped section taxonomy; written before any model run on the held-out corpus (same procedure as benchmarks/corpus/section_gold.jsonl, P10)", "junk": "canonical null = parser junk or not a section; excluded from accuracy, counted separately", "selection": "the held-out set's only 2 research.research_paper docs (ho_023, ho_024); financial.annual_report ho_001 (98 level-1/2 sections; ho_002 has 151); legal.contract ho_013 (ho_014 parses to only 2 sections). Chosen by type and section count only, before any model output was seen.", "documents": ["ho_023", "ho_024", "ho_001", "ho_013"]}}
+{"doc_id": "ho_023", "section_title": "Generative Adversarial Nets", "page": 1, "level": 1, "canonical": null, "note": "not a section: title and author block"}
+{"doc_id": "ho_023", "section_title": "Abstract", "page": 1, "level": 1, "canonical": "abstract"}
+{"doc_id": "ho_023", "section_title": "1 Introduction", "page": 1, "level": 1, "canonical": "introduction"}
+{"doc_id": "ho_023", "section_title": "2 Related work", "page": 2, "level": 1, "canonical": "related_work"}
+{"doc_id": "ho_023", "section_title": "3 Adversarial nets", "page": 2, "level": 1, "canonical": "method"}
+{"doc_id": "ho_023", "section_title": "4 Theoretical Results", "page": 3, "level": 1, "canonical": "method", "note": "theoretical analysis of the proposed method (proofs); could be results"}
+{"doc_id": "ho_023", "section_title": "4.1 Global Optimality of pg = pdata", "page": 4, "level": 2, "canonical": "method", "note": "proof about the proposed method; could be results"}
+{"doc_id": "ho_023", "section_title": "4.2 Convergence of Algorithm 1", "page": 5, "level": 2, "canonical": "method", "note": "proof about the proposed method; could be results"}
+{"doc_id": "ho_023", "section_title": "5 Experiments", "page": 5, "level": 1, "canonical": "experiments", "note": "datasets and setup, then the reported log-likelihoods; could be results"}
+{"doc_id": "ho_023", "section_title": "6 Advantages and disadvantages", "page": 7, "level": 1, "canonical": "discussion", "note": "interpretation of strengths and weaknesses; could be limitations"}
+{"doc_id": "ho_023", "section_title": "7 Conclusions and future work", "page": 7, "level": 1, "canonical": "conclusion"}
+{"doc_id": "ho_023", "section_title": "References", "page": 8, "level": 1, "canonical": "references"}
+{"doc_id": "ho_024", "section_title": "A Mathematical Theory of Communication", "page": 1, "level": 1, "canonical": "introduction", "note": "paper title detected as the heading; its body (after the byline) is the unheaded INTRODUCTION"}
+{"doc_id": "ho_024", "section_title": "PART I: DISCRETE NOISELESS SYSTEMS", "page": 3, "level": 2, "canonical": "method", "note": "theoretical body of the paper (no experiments); the theory is the contribution"}
+{"doc_id": "ho_024", "section_title": "PART II: THE DISCRETE CHANNEL WITH NOISE", "page": 19, "level": 2, "canonical": "method", "note": "theoretical body of the paper"}
+{"doc_id": "ho_024", "section_title": "∑Pi", "page": 31, "level": 1, "canonical": null, "note": "not a section: formula fragment detected as a heading"}
+{"doc_id": "ho_024", "section_title": "PART III: MATHEMATICAL PRELIMINARIES", "page": 32, "level": 2, "canonical": "background", "note": "mathematical preliminaries for the continuous case (Parts IV-V); could be method"}
+{"doc_id": "ho_024", "section_title": "PART IV: THE CONTINUOUS CHANNEL", "page": 41, "level": 2, "canonical": "method", "note": "theoretical body of the paper"}
+{"doc_id": "ho_024", "section_title": "PART V: THE RATE FOR A CONTINUOUS SOURCE", "page": 47, "level": 2, "canonical": "method", "note": "theoretical body of the paper"}
+{"doc_id": "ho_001", "section_title": "Contents", "page": 2, "level": 1, "canonical": "other", "note": "table of contents"}
+{"doc_id": "ho_001", "section_title": "2023 year in review", "page": 2, "level": 1, "canonical": null, "note": "not a section: line of the printed contents page"}
+{"doc_id": "ho_001", "section_title": "$54.0bn", "page": 3, "level": 2, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "2023 year in review", "page": 3, "level": 1, "canonical": "other", "note": "year-in-review highlight figures; could be management_discussion"}
+{"doc_id": "ho_001", "section_title": "$10.1bn", "page": 3, "level": 2, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "At a glance", "page": 4, "level": 1, "canonical": "business_overview", "note": "own body empty; heads 'Our business'"}
+{"doc_id": "ho_001", "section_title": "Our business", "page": 4, "level": 2, "canonical": "business_overview"}
+{"doc_id": "ho_001", "section_title": "Chair’s statement", "page": 6, "level": 1, "canonical": "shareholder_letter"}
+{"doc_id": "ho_001", "section_title": "Q&A with Jakob Stausholm", "page": 8, "level": 2, "canonical": "shareholder_letter", "note": "Chief Executive's Q&A reviewing the year"}
+{"doc_id": "ho_001", "section_title": "$15.2bn", "page": 8, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "$10.1bn", "page": 8, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading (body continues the Chief Executive's statement)"}
+{"doc_id": "ho_001", "section_title": "$7.1bn", "page": 8, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "Creating value by living our purpose", "page": 10, "level": 2, "canonical": "business_overview", "note": "purpose and strategy"}
+{"doc_id": "ho_001", "section_title": "Finding better ways™ in 2023", "page": 12, "level": 2, "canonical": "business_overview", "note": "own body empty; strategy highlight pages; could be other"}
+{"doc_id": "ho_001", "section_title": "Our purpose in action", "page": 12, "level": 2, "canonical": "business_overview", "note": "operational improvement examples; could be sustainability"}
+{"doc_id": "ho_001", "section_title": "5Mt", "page": 13, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "Our stakeholders", "page": 14, "level": 1, "canonical": "sustainability", "note": "stakeholder engagement (communities, workforce) and the Section 172 statement; could be corporate_governance or business_overview"}
+{"doc_id": "ho_001", "section_title": "A$725m", "page": 14, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "$76bn", "page": 14, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "$4.6bn²", "page": 14, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "$4.1bn²", "page": 14, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "$20.8bn $7.1bn", "page": 15, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "$54.0bn", "page": 15, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "26Mt CO2e", "page": 15, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "543Mt CO2e", "page": 15, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "Strategic context", "page": 16, "level": 1, "canonical": "business_overview"}
+{"doc_id": "ho_001", "section_title": "Our strategy", "page": 18, "level": 2, "canonical": "business_overview"}
+{"doc_id": "ho_001", "section_title": "Progressing our strategy", "page": 19, "level": 1, "canonical": "business_overview"}
+{"doc_id": "ho_001", "section_title": "Progressing our four objectives", "page": 20, "level": 1, "canonical": "business_overview", "note": "own body empty"}
+{"doc_id": "ho_001", "section_title": "Best operator", "page": 20, "level": 2, "canonical": "business_overview", "note": "strategic objective and operating performance; could be management_discussion"}
+{"doc_id": "ho_001", "section_title": "Key performance indicators", "page": 22, "level": 1, "canonical": "management_discussion", "note": "group performance metrics; could be other"}
+{"doc_id": "ho_001", "section_title": "Chief Financial Officer’s statement", "page": 25, "level": 1, "canonical": "management_discussion", "note": "CFO's narrative on financial results; could be shareholder_letter"}
+{"doc_id": "ho_001", "section_title": "$15.2 billion", "page": 25, "level": 2, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "Financial review", "page": 26, "level": 1, "canonical": "management_discussion"}
+{"doc_id": "ho_001", "section_title": "60% payout ratio on the ordinary dividend delivers an eight-year track record", "page": 31, "level": 2, "canonical": "market_for_equity", "note": "dividend paragraph inside the financial review; could be management_discussion"}
+{"doc_id": "ho_001", "section_title": "Portfolio management", "page": 32, "level": 1, "canonical": "management_discussion", "note": "capital projects and portfolio changes; could be business_overview"}
+{"doc_id": "ho_001", "section_title": "Iron Ore", "page": 34, "level": 1, "canonical": "business_overview", "note": "product group review; also carries segment financials, could be management_discussion"}
+{"doc_id": "ho_001", "section_title": "$20.0bn $32.2bn", "page": 34, "level": 2, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "Aluminium", "page": 36, "level": 1, "canonical": "business_overview", "note": "product group review; could be management_discussion"}
+{"doc_id": "ho_001", "section_title": "$2.3bn $12.3bn", "page": 36, "level": 2, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "Copper", "page": 38, "level": 1, "canonical": "business_overview", "note": "product group review; could be management_discussion"}
+{"doc_id": "ho_001", "section_title": "$1.9bn $6.7bn", "page": 38, "level": 2, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "Minerals", "page": 40, "level": 1, "canonical": "business_overview", "note": "product group review; could be management_discussion"}
+{"doc_id": "ho_001", "section_title": "$1.4bn $5.9bn", "page": 40, "level": 2, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "Our approach to ESG", "page": 42, "level": 1, "canonical": "sustainability"}
+{"doc_id": "ho_001", "section_title": "Our ESG framework", "page": 43, "level": 2, "canonical": "sustainability"}
+{"doc_id": "ho_001", "section_title": "Environmental performance", "page": 46, "level": 1, "canonical": "sustainability"}
+{"doc_id": "ho_001", "section_title": "Climate change", "page": 46, "level": 2, "canonical": "sustainability"}
+{"doc_id": "ho_001", "section_title": "Environmental stewardship", "page": 61, "level": 2, "canonical": "sustainability", "note": "own body empty"}
+{"doc_id": "ho_001", "section_title": "Mining and metals practices", "page": 66, "level": 2, "canonical": "sustainability", "note": "tailings and closure"}
+{"doc_id": "ho_001", "section_title": "$17.2bn", "page": 66, "level": 1, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "Social performance", "page": 68, "level": 1, "canonical": "sustainability"}
+{"doc_id": "ho_001", "section_title": "Community engagement and social investment", "page": 68, "level": 2, "canonical": "sustainability"}
+{"doc_id": "ho_001", "section_title": "Health, safety and wellbeing", "page": 73, "level": 2, "canonical": "sustainability"}
+{"doc_id": "ho_001", "section_title": "Talent, diversity and inclusion", "page": 75, "level": 2, "canonical": "sustainability"}
+{"doc_id": "ho_001", "section_title": "Human rights", "page": 77, "level": 2, "canonical": "sustainability"}
+{"doc_id": "ho_001", "section_title": "Governance performance", "page": 78, "level": 1, "canonical": "corporate_governance", "note": "ESG governance pillar: business integrity and compliance; could be sustainability"}
+{"doc_id": "ho_001", "section_title": "25,187 employees", "page": 78, "level": 2, "canonical": null, "note": "not a section: KPI figure split off as a heading"}
+{"doc_id": "ho_001", "section_title": "Our approach to risk", "page": 80, "level": 2, "canonical": "risk_factors", "note": "risk appetite; could be corporate_governance"}
+{"doc_id": "ho_001", "section_title": "Our approach to risk management", "page": 81, "level": 2, "canonical": "risk_factors", "note": "risk management framework; could be corporate_governance"}
+{"doc_id": "ho_001", "section_title": "Principal risks and uncertainties", "page": 83, "level": 2, "canonical": "risk_factors"}
+{"doc_id": "ho_001", "section_title": "Five-year review", "page": 91, "level": 1, "canonical": "other", "note": "selected five-year financial data; could be management_discussion"}
+{"doc_id": "ho_001", "section_title": "Chair’s introduction", "page": 93, "level": 2, "canonical": "corporate_governance", "note": "introduction to the governance report"}
+{"doc_id": "ho_001", "section_title": "Board of Directors", "page": 94, "level": 2, "canonical": "corporate_governance"}
+{"doc_id": "ho_001", "section_title": "Executive Committee", "page": 96, "level": 2, "canonical": "corporate_governance"}
+{"doc_id": "ho_001", "section_title": "Our stakeholders", "page": 98, "level": 2, "canonical": "corporate_governance", "note": "the Board's Section 172 stakeholder statement in the governance report"}
+{"doc_id": "ho_001", "section_title": "How the Board monitors culture", "page": 103, "level": 2, "canonical": "corporate_governance"}
+{"doc_id": "ho_001", "section_title": "Board activities in 2023", "page": 104, "level": 2, "canonical": "corporate_governance"}
+{"doc_id": "ho_001", "section_title": "Governance framework", "page": 105, "level": 2, "canonical": "corporate_governance"}
+{"doc_id": "ho_001", "section_title": "Evaluating our performance", "page": 106, "level": 2, "canonical": "corporate_governance", "note": "board evaluation"}
+{"doc_id": "ho_001", "section_title": "Nominations Committee report", "page": 107, "level": 2, "canonical": "corporate_governance"}
+{"doc_id": "ho_001", "section_title": "Audit & Risk Committee report", "page": 109, "level": 2, "canonical": "corporate_governance"}
+{"doc_id": "ho_001", "section_title": "Sustainability Committee report", "page": 113, "level": 2, "canonical": "corporate_governance", "note": "board committee report on sustainability oversight; could be sustainability"}
+{"doc_id": "ho_001", "section_title": "Sustainability Committee members", "page": 114, "level": 2, "canonical": "corporate_governance", "note": "board committee membership and activities; could be sustainability"}
+{"doc_id": "ho_001", "section_title": "Remuneration report", "page": 115, "level": 2, "canonical": "executive_compensation", "note": "own body empty"}
+{"doc_id": "ho_001", "section_title": "Additional statutory disclosure", "page": 148, "level": 2, "canonical": "other", "note": "Directors' report statutory disclosures; could be corporate_governance"}
+{"doc_id": "ho_001", "section_title": "Compliance with governance codes and standards", "page": 154, "level": 2, "canonical": "corporate_governance"}
+{"doc_id": "ho_001", "section_title": "2023 Financial Statements", "page": 159, "level": 2, "canonical": "financial_statements", "note": "opens the financial statements; body is their contents list; could be other"}
+{"doc_id": "ho_001", "section_title": "About Rio Tinto", "page": 160, "level": 2, "canonical": "notes_to_financial_statements", "note": "basis of consolidation (accounting policies)"}
+{"doc_id": "ho_001", "section_title": "About the presentation of our financial statements", "page": 160, "level": 2, "canonical": "notes_to_financial_statements", "note": "basis of presentation (accounting policies)"}
+{"doc_id": "ho_001", "section_title": "Group Income Statement", "page": 170, "level": 2, "canonical": "financial_statements"}
+{"doc_id": "ho_001", "section_title": "Group Statement of Comprehensive Income", "page": 171, "level": 2, "canonical": "financial_statements"}
+{"doc_id": "ho_001", "section_title": "Group Cash Flow Statement", "page": 172, "level": 2, "canonical": "financial_statements"}
+{"doc_id": "ho_001", "section_title": "Group Balance Sheet", "page": 173, "level": 2, "canonical": "financial_statements"}
+{"doc_id": "ho_001", "section_title": "Group Statement of Changes in Equity", "page": 174, "level": 2, "canonical": "financial_statements"}
+{"doc_id": "ho_001", "section_title": "Australian Corporations Act – Summary of ASIC Relief", "page": 267, "level": 2, "canonical": "other", "note": "ASIC relief statement after the statements; could be notes_to_financial_statements"}
+{"doc_id": "ho_001", "section_title": "Directors’ declaration", "page": 268, "level": 2, "canonical": "financial_statements", "note": "directors' responsibility statement and declaration on the statements; could be corporate_governance or other"}
+{"doc_id": "ho_001", "section_title": "Rio Tinto Financial Information by Business Unit", "page": 288, "level": 2, "canonical": "other", "note": "supplementary segment tables; could be management_discussion"}
+{"doc_id": "ho_001", "section_title": "Financial summary 2014-2023", "page": 297, "level": 2, "canonical": "other", "note": "ten-year financial summary; could be management_discussion"}
+{"doc_id": "ho_001", "section_title": "Production, Ore Reserves, Mineral Resources and Operations", "page": 298, "level": 2, "canonical": "properties", "note": "mining properties, reserves and production; body is a list of its sub-sections; could be business_overview"}
+{"doc_id": "ho_001", "section_title": "Metals and minerals production", "page": 299, "level": 2, "canonical": "properties", "note": "production by mine; could be business_overview or other"}
+{"doc_id": "ho_001", "section_title": "Mineral Resources and Ore Reserves", "page": 301, "level": 2, "canonical": "properties", "note": "reserves disclosure (mining properties)"}
+{"doc_id": "ho_001", "section_title": "Ore Reserves", "page": 302, "level": 2, "canonical": "properties", "note": "reserves disclosure (mining properties)"}
+{"doc_id": "ho_001", "section_title": "Mineral Resources", "page": 314, "level": 2, "canonical": "properties", "note": "resources disclosure (mining properties)"}
+{"doc_id": "ho_001", "section_title": "Competent Persons", "page": 325, "level": 2, "canonical": "properties", "note": "competent persons for the reserves disclosure; could be other"}
+{"doc_id": "ho_001", "section_title": "Mines and production facilities", "page": 326, "level": 2, "canonical": "properties"}
+{"doc_id": "ho_001", "section_title": "Additional information", "page": 345, "level": 1, "canonical": "other", "note": "body lists its sub-sections"}
+{"doc_id": "ho_001", "section_title": "Shareholder information", "page": 349, "level": 2, "canonical": "market_for_equity", "note": "listings, organisational structure and shareholder information; could be other"}
+{"doc_id": "ho_013", "section_title": "SECTION A - PRELIMINARIES", "page": 5, "level": 1, "canonical": "definitions", "note": "body is clause 1 Definitions and interpretation"}
+{"doc_id": "ho_013", "section_title": "SECTION B – THE SERVICES", "page": 8, "level": 1, "canonical": "scope_services", "note": "Section B (the services) opens with clause 4 Term; could be term"}
+{"doc_id": "ho_013", "section_title": "SECTION C – PAYMENT, TAXATION AND VALUE FOR MONEY PROVISIONS", "page": 15, "level": 1, "canonical": "payment"}
+{"doc_id": "ho_013", "section_title": "SECTION D - CONTRACT GOVERNANCE 11 GOVERNANCE", "page": 20, "level": 1, "canonical": "general_provisions", "note": "contract management and representatives; no dedicated node; could be scope_services"}
+{"doc_id": "ho_013", "section_title": "12 RECORDS, REPORTS, AUDITS & OPEN BOOK DATA Audit Rights", "page": 20, "level": 1, "canonical": "general_provisions", "note": "records and audit rights; no dedicated node; could be scope_services"}
+{"doc_id": "ho_013", "section_title": "13 CHANGE Change Control Procedure", "page": 24, "level": 1, "canonical": "general_provisions", "note": "change control (amendment)"}
+{"doc_id": "ho_013", "section_title": "SECTION E – SUPPLIER PERSONNEL AND SUPPLY CHAIN 14 SUPPLIER PERSONNEL", "page": 24, "level": 1, "canonical": "scope_services", "note": "obligations on the supplier's staff; could be general_provisions"}
+{"doc_id": "ho_013", "section_title": "15 SUPPLY CHAIN RIGHTS AND PROTECTIONS", "page": 26, "level": 1, "canonical": "general_provisions", "note": "sub-contracting; could be scope_services"}
+{"doc_id": "ho_013", "section_title": "SECTION F - INTELLECTUAL PROPERTY, DATA AND CONFIDENTIALITY 16 INTELLECTUAL PROPERTY RIGHTS", "page": 28, "level": 1, "canonical": "intellectual_property"}
+{"doc_id": "ho_013", "section_title": "17.1 The Supplier hereby grants to the Authority and the Government Controlled Company", "page": 28, "level": 2, "canonical": "intellectual_property", "note": "clause 17.1 text promoted to a heading (licences granted by the supplier)"}
+{"doc_id": "ho_013", "section_title": "21 CONFIDENTIALITY", "page": 33, "level": 1, "canonical": "confidentiality"}
+{"doc_id": "ho_013", "section_title": "22 TRANSPARENCY AND FREEDOM OF INFORMATION", "page": 35, "level": 1, "canonical": "confidentiality", "note": "disclosure of the agreement and FOIA requests; could be general_provisions"}
+{"doc_id": "ho_013", "section_title": "23 PROTECTION OF PERSONAL DATA", "page": 36, "level": 1, "canonical": "confidentiality", "note": "data protection, own body empty; no dedicated node; could be general_provisions"}
+{"doc_id": "ho_013", "section_title": "23.1 The Parties shall comply with Schedule 2.8 (Data Processing and List of Sub-", "page": 36, "level": 2, "canonical": "confidentiality", "note": "clause 23.1 text promoted to a heading (personal data); body runs into 24 Publicity and branding, could be general_provisions"}
+{"doc_id": "ho_013", "section_title": "SECTION G - LIABILITY, INDEMNITIES AND INSURANCE", "page": 37, "level": 1, "canonical": "limitation_of_liability"}
+{"doc_id": "ho_013", "section_title": "25.2 Subject to Clause 25.1 (Unlimited Liability) and Clauses 25.5 and 25.6", "page": 38, "level": 2, "canonical": "limitation_of_liability", "note": "clause 25.2 text promoted to a heading (liability caps)"}
+{"doc_id": "ho_013", "section_title": "25.4 Subject to Clause 25.1 (Unlimited Liability) and Clause 25.5 (Consequential Losses)", "page": 39, "level": 2, "canonical": "limitation_of_liability", "note": "clause 25.4 text promoted to a heading (authority's liability cap)"}
+{"doc_id": "ho_013", "section_title": "26 INSURANCE", "page": 40, "level": 1, "canonical": "general_provisions", "note": "insurance; no dedicated node; could be indemnification"}
+{"doc_id": "ho_013", "section_title": "SECTION H – REMEDIES AND RELIEF", "page": 40, "level": 1, "canonical": "scope_services", "note": "rectification of supplier performance failures; no dedicated node; could be warranties or termination"}
+{"doc_id": "ho_013", "section_title": "27.3 If:", "page": 41, "level": 2, "canonical": "scope_services", "note": "clause 27.3 text promoted to a heading (rectification plan); could be warranties or termination"}
+{"doc_id": "ho_013", "section_title": "28.2 If in any Service Period:", "page": 42, "level": 2, "canonical": "payment", "note": "service credits deducted from the charges; could be scope_services"}
+{"doc_id": "ho_013", "section_title": "29 ESCALATION PROCESS", "page": 43, "level": 1, "canonical": "governing_law_disputes", "note": "escalation of performance failures to executives; could be general_provisions"}
+{"doc_id": "ho_013", "section_title": "31 AUTHORITY CAUSE", "page": 45, "level": 1, "canonical": "general_provisions", "note": "supplier relief when the authority causes a failure; could be limitation_of_liability"}
+{"doc_id": "ho_013", "section_title": "32 FORCE MAJEURE", "page": 46, "level": 1, "canonical": "general_provisions"}
+{"doc_id": "ho_013", "section_title": "SECTION I – TERMINATION AND EXIT MANAGEMENT", "page": 48, "level": 1, "canonical": "termination"}
+{"doc_id": "ho_013", "section_title": "33.2 Where the Authority:", "page": 48, "level": 2, "canonical": "termination", "note": "clause 33.2 text promoted to a heading"}
+{"doc_id": "ho_013", "section_title": "34.1 The provisions of Clauses  10.9 and 10.17 (Promoting Tax Compliance), 10.6 (Set-off", "page": 50, "level": 2, "canonical": "termination", "note": "clause 34.1 text promoted to a heading (survival after termination)"}
+{"doc_id": "ho_013", "section_title": "SECTION J - MISCELLANEOUS AND GOVERNING LAW 35 COMPLIANCE Health and Safety", "page": 51, "level": 1, "canonical": "general_provisions", "note": "clause 35 compliance with law (health and safety); could be scope_services"}
+{"doc_id": "ho_013", "section_title": "36 ASSIGNMENT AND NOVATION", "page": 52, "level": 1, "canonical": "general_provisions"}
+{"doc_id": "ho_013", "section_title": "40 SEVERANCE", "page": 55, "level": 1, "canonical": "general_provisions"}
+{"doc_id": "ho_013", "section_title": "41 FURTHER ASSURANCES", "page": 55, "level": 1, "canonical": "general_provisions"}
+{"doc_id": "ho_013", "section_title": "42 ENTIRE AGREEMENT", "page": 55, "level": 1, "canonical": "general_provisions"}
+{"doc_id": "ho_013", "section_title": "44 NOTICES", "page": 56, "level": 1, "canonical": "general_provisions"}
+{"doc_id": "ho_013", "section_title": "46 DISPUTES", "page": 58, "level": 1, "canonical": "governing_law_disputes"}
+{"doc_id": "ho_013", "section_title": "47.2 Subject to Clause 45 (Disputes) and Schedule 8.4 (Dispute Resolution Procedure)", "page": 58, "level": 2, "canonical": "governing_law_disputes", "note": "clause 47.2 text promoted to a heading (jurisdiction)"}
+{"doc_id": "ho_013", "section_title": "“Authority Cause”", "page": 61, "level": 1, "canonical": "definitions", "note": "entry of Schedule 1 (Definitions) promoted to a heading"}
+{"doc_id": "ho_013", "section_title": "“Intellectual Property Rights” or", "page": 75, "level": 1, "canonical": "definitions", "note": "entry of Schedule 1 (Definitions) promoted to a heading"}
+{"doc_id": "ho_013", "section_title": "“Rectification Plan Process”", "page": 82, "level": 1, "canonical": "definitions", "note": "entry of Schedule 1 (Definitions) promoted to a heading"}
+{"doc_id": "ho_013", "section_title": "“Services”", "page": 84, "level": 1, "canonical": "definitions", "note": "entry of Schedule 1 (Definitions) promoted to a heading"}
+{"doc_id": "ho_013", "section_title": "“Supplier Personnel”", "page": 87, "level": 1, "canonical": "definitions", "note": "entry of Schedule 1 (Definitions) promoted to a heading"}

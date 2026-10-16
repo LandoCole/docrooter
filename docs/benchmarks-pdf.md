@@ -517,112 +517,119 @@ When no API is allowed:
 **Headline.** These are scores on 145 scored sections from 6 real PDFs. The labels are agent-assigned silver labels (see below), and the same set was used to choose the defaults. Two package changes in P10b improve the local backends:
 
 - heading synonyms, added as `examples` on every node of the 5 built-in section taxonomies;
-- a headings-only default view, `path + title` (previously `title + lead` at 96 tokens).
+- a headings-only default view, `path + title`, used when the chosen taxonomy has examples.
+
+If no node of the chosen taxonomy (for example, a custom one) has `examples`, `normalize_sections` keeps the previous `title + lead` view at 96 tokens, because without synonyms `path + title` was worse for UltraBERT (0.262 vs 0.345). An explicit `view=` always wins.
+
+39 scored sections have a heading that equals one of the synonyms (see *Synonym overlap* below), so each cell gives *all* (out of 145) and *non-overlap* (out of 106):
 
 | System | P10 | P10b | Change |
 | --- | --- | --- | --- |
-| UltraBERT (default backend) | 50/145 (0.345) | 87/145 (0.600) | +25.5 points |
-| bge-small | 33/145 (0.228) | 67/145 (0.462) | +23.4 points |
-| Jev | 102/145 (0.703) | 106/145 (0.731) | +2.8 points |
-| Auto doc-type path | 0.303 | 0.566 | +26.2 points |
+| UltraBERT (default backend) | 50/145 (0.345); 18/106 (0.170) | 71/145 (0.490); 34/106 (0.321) | +14.5; +15.1 points |
+| bge-small | 33/145 (0.228); 17/106 (0.160) | 57/145 (0.393); 20/106 (0.189) | +16.6; +2.8 points |
+| Jev | 102/145 (0.703); 65/106 | 103/145 (0.710); 65/106 | +0.7 points |
+| Auto doc-type path | 0.303; 0.132 | 0.455; 0.292 | +15.2; +16.0 points |
 
-Jev's change is within its run-to-run variation: two runs of one configuration gave 0.697 and 0.703. Jev now costs $0.0086 instead of $0.0064, because the synonyms are sent with every candidate.
+- **Most of the gain needs a heading the synonyms already list.** This is especially true for bge: on the non-overlap rows it gains only 3 sections.
+- **Jev's change is within noise.** Re-running the P10 configuration today gave 101/145 (0.697) against P10's 102.
+- **Jev costs more.** $0.0085 instead of $0.0064, because the synonyms are sent with every candidate.
 
 **How the default was chosen.** Read this before trusting the numbers above.
 
-- **The silver set served as the dev set.** The selection therefore flatters the chosen default.
-- **The synonyms were fixed before any results.**
-  - There are 3 to 8 per node, written from general domain knowledge: 10-K item titles, IMRaD headings, contract boilerplate and manual chapters.
-  - They were committed in `da38a07` before any silver-set title was viewed and before any model run, and they were not edited afterwards.
-  - The only silver content seen beforehand was the two examples quoted in the P10 report: "2 Background" and the Exhibit 97 clawback policy.
-- **Eight configurations were run.** Each of 4 views was run with and without synonyms on both local backends; Jev was run on 2 of them. All results are in the table below.
-- **`path+title+syn` came out best of the 8 for both local backends.** Its margin over the alternatives is therefore optimistic.
-  - Against synonyms with the old view, it gains 10.3 points with UltraBERT and 14.5 with bge.
-  - Synonyms alone, with the old view, give +15.2 and +9.0 points.
-  - Without synonyms, `path + title` hurts UltraBERT (0.262), so for that backend the two changes help only together.
-- **Per document, the gain comes mostly from the research papers.** UltraBERT on doc_027 goes from 0.364 to 0.864. On the Berkshire report, UltraBERT loses 3 sections against synonyms with the old view.
+- **The silver set served as the dev set.**
+  - The labels, the P10 runs and the P10 per-section tables for doc_027 and doc_002 were committed before the synonyms. Those tables show some silver titles.
+  - Git proves only that the synonyms (`da38a07`) came before any run that used them, not that they were written blind to those tables.
+- **The synonyms were changed once afterwards, at review.** `b9cf84b` removed six entries: "Model Architecture", "Training", "Chapter 2", "Item 1B. Unresolved Staff Comments", "Item 4. Mine Safety Disclosures" and "Item 16. Form 10-K Summary". These are removals only. After them, UltraBERT's overall score fell from 0.600 to 0.490, mostly on doc_027 (19 → 12 of 22). That document's level-2 sections sit under "3 Model Architecture" and "5 Training", which the path view puts into every one of them.
+- **Eight configurations were run.** Each of 4 views was run with and without synonyms on both local backends; Jev was run on 3 of them. All results are in the table below.
+- **`path+title+syn` is the best of the 8 for UltraBERT on both row sets.** For bge it is one section behind `title+syn` on all rows and level with it on non-overlap rows. Against synonyms with the old view, it gains:
+  - UltraBERT: +5.5 points on all rows, +8.5 on non-overlap rows;
+  - bge: +9.0 on all rows, but −0.9 (one section) on non-overlap rows.
+
+  So for bge the view change helps only on headings the synonyms already list.
+- **Synonyms alone, with the old view, give +9.0 (UltraBERT) and +7.6 (bge).**
+
+**Synonym overlap.** The non-overlap rule compares each heading with its gold taxonomy's examples. The comparison ignores case and punctuation and drops one leading number, such as "3.1", "Item 1A." or "Note 2.". Under this rule, 39 scored sections (28 distinct headings) match an example. The review count of 47 rows was made before `b9cf84b` and may have used a different rule.
 
 **Collapse.** The P10 collapse onto a few labels is smaller but still present.
 
-- **Top predictions.** UltraBERT's most frequent prediction changes from `introduction` (39) to `experiments` (22). bge's stays `experiments`, but drops from 54 to 29.
+- **Top predictions.** UltraBERT's most frequent prediction changes from `introduction` (39) to `experiments` (18). bge's stays `experiments`, but drops from 54 to 27.
 - **Remaining errors.**
-  - Research-paper appendices labelled `experiments`: 9 for UltraBERT, 7 for bge.
-  - bge labels `method` as `experiments` (10 sections) and `results` as `background` (9).
-  - Tesla's Exhibit 97 clawback policy, gold `exhibits`: 2 of 14 sections right for every system.
+  - UltraBERT labels annual-report `other` sections as `business_overview` (7).
+  - bge labels `method` as `experiments` (11) and `results` as `background` (9).
+  - Research appendices go to `experiments`.
 
-**Label sensitivity.** 124 of the scored rows have no "could be X" note. On those rows the scores are UltraBERT 80 (0.645), bge 61 (0.492) and Jev 94 (0.758). All numbers here are single runs on 6 documents.
+**Label sensitivity.** 124 of the scored rows have no "could be X" note. On those rows the scores are UltraBERT 66 (0.532), bge 53 (0.427) and Jev 90 (0.726). All numbers here are single runs on 6 documents.
 
-**Speed.** *s/section* rose: UltraBERT went from 0.037 to 0.096 and bge from 0.013 to 0.025.
-
-- **Cause.** On first use, each backend now encodes about 40 to 100 example strings per taxonomy, and the timing includes this one-off cost. UltraBERT's first annual report took 6.0 s instead of 1.5 s, and its first contract 5.1 s instead of 0.9 s. Research-paper documents ran at the P10 speed, because the warm-up had already encoded that taxonomy.
-- **Conditions.** The machine was shared, with a load average of about 7 to 9.
+**Speed.** Each system now runs one untimed warm-up that encodes every section taxonomy it can use, so *s/section* no longer includes the one-off encoding of the examples. Under the same rule, the P10 runs warmed only the research-paper taxonomy. This run's *s/section*: UltraBERT 0.019, bge 0.004 and Jev 0.028.
 
 **View rendering.** `render_budgeted` now cuts each line to 4 × `max_tokens` words before the token counter sees it, so a whole section is never tokenised. P10 had logged 8521- and 5243-token sequences.
 
-- **Same output.** Views were identical before and after for all 204 sections of the 6 documents, with both local tokenizers and 4 views.
+- **Same output.** Views were identical before and after for all 204 sections of the 6 documents, with both local tokenizers and 4 views. A seeded differential unit test guards this.
 - **Remaining warning.** Garbled PDF text can still exceed bge's 512-token limit; the longest seen was 1084 tokens for 384 words. When that happens, transformers logs one harmless warning.
 
 <!-- normalize-benchmark:begin -->
 Silver set: `benchmarks/corpus/section_gold.jsonl`, 163 level-1/2 sections of 6 documents (18 marked as parser junk, i.e. not a real section, and excluded from accuracy). **These are agent-assigned silver labels, not human gold:** an agent (Claude Opus 5.5) read each heading and the first ~300 characters of its body and chose the best node of the doc type's section taxonomy from the node definitions, before any model was run (labelled 2026-10-16T14:41:44-04:00, documents loaded at `0dd70bc`). Ambiguous cases carry a `note` in the file. Expect a few points of label noise.
 
-Run 2026-10-16 at `8cc9f10`, device `mps` (MPS probe matmul took 1.15 s). Each system calls `normalize_sections(doc, doc_type=<gold type>, backend=...)` once per document with the package defaults: Flat, view path + title at 96 tokens, with the taxonomies' heading synonyms. *Macro F1* averages over the gold classes (per document over that document's classes; overall over all classes, qualified by taxonomy). *s/section* is the summed wall time of the per-document calls (view rendering and label encoding included) divided by the sections labelled, junk included; model load is excluded (*Load s*). Jev cost is input tokens x $0.042/M as reported by the API.
+Run 2026-10-16 at `ae6b037`, device `mps` (MPS probe matmul took 0.21 s). Each system calls `normalize_sections(doc, doc_type=<gold type>, backend=...)` once per document with the package defaults: Flat, view path + title at 96 tokens, with the taxonomies' heading synonyms. *Macro F1* averages over the gold classes (per document over that document's classes; overall over all classes, qualified by taxonomy). *s/section* is the summed wall time of the per-document calls (view rendering and label encoding included) divided by the sections labelled, junk included. Model load and the label encoding of every section taxonomy the run can use (one untimed warm-up per doc type) are excluded (*Load s*). Jev cost is input tokens x $0.042/M as reported by the API.
+
+**Synonym overlap.** 39 of the 145 scored sections have a heading equal to a heading-synonym example of their taxonomy (28 distinct headings; compared case- and punctuation-insensitively after dropping one leading number such as "3.1", "Item 1A." or "Note 2."). For those, the synonyms can hand the model the answer, so every accuracy below is also given on the other 106 (*non-overlap*), as *all; non-overlap*.
 
 ### Before / after
 
-*Baseline (P10)* is the original run (2026-10-16 at `6d3ee70`: view title + lead at 96 tokens, without the taxonomies' heading synonyms); *after* is this run.
+*Baseline (P10)* is the original run (2026-10-16 at `6d3ee70`: view title + lead at 96 tokens, without the taxonomies' heading synonyms); *after* is this run. Accuracy cells are *all; non-overlap*.
 
-| System | Baseline (P10) accuracy | After accuracy | Change | Baseline macro F1 | After macro F1 |
-| --- | --- | --- | --- | --- | --- |
-| `ultrabert` | 0.345 (50/145) | 0.600 (87/145) | +25.5 pts | 0.456 | 0.583 |
-| `bge-small` | 0.228 (33/145) | 0.462 (67/145) | +23.4 pts | 0.308 | 0.567 |
-| `jev` | 0.703 (102/145) | 0.731 (106/145) | +2.8 pts | 0.755 | 0.758 |
-| `auto_doc_type` | 0.303 (44/145) | 0.566 (82/145) | +26.2 pts | 0.344 | 0.508 |
+| System | Baseline (P10) accuracy | After accuracy | Change (all) | Change (non-overlap) | Baseline macro F1 | After macro F1 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ultrabert` | 0.345 (50/145); 0.170 (18/106) | 0.490 (71/145); 0.321 (34/106) | +14.5 pts | +15.1 pts | 0.456 | 0.540 |
+| `bge-small` | 0.228 (33/145); 0.160 (17/106) | 0.393 (57/145); 0.189 (20/106) | +16.6 pts | +2.8 pts | 0.308 | 0.532 |
+| `jev` | 0.703 (102/145); 0.613 (65/106) | 0.710 (103/145); 0.613 (65/106) | +0.7 pts | +0.0 pts | 0.755 | 0.734 |
+| `auto_doc_type` | 0.303 (44/145); 0.132 (14/106) | 0.455 (66/145); 0.292 (31/106) | +15.2 pts | +16.0 pts | 0.344 | 0.465 |
 
 ### Configurations tried (the silver set used as a dev set)
 
-Every configuration that was run, all on the same 145 scored sections, so the chosen default (`path+title+syn`) is selected on the evaluation data and its margin over the others is optimistic. *Top prediction* is the most frequent predicted label over the scored sections and its count (a collapse onto one label shows up here).
+Every configuration that was run, all on the same scored sections, so the chosen default (`path+title+syn`) is selected on the evaluation data and its margin over the others is optimistic. Accuracy cells are *all; non-overlap*. *Top prediction* is the most frequent predicted label over the scored sections and its count (a collapse onto one label shows up here).
 
 | Config | View | Synonyms | `ultrabert` accuracy | `bge-small` accuracy | `jev` accuracy | `ultrabert` top prediction | `bge-small` top prediction | `jev` top prediction |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `title+lead@96` | title + lead @ 96 | no | 0.345 (50/145) | 0.228 (33/145) | - | `introduction` (39) | `experiments` (54) | - |
-| `title` | title @ 96 | no | 0.262 (38/145) | 0.310 (45/145) | - | `introduction` (62) | `experiments` (33) | - |
-| `path+title` | path + title @ 96 | no | 0.262 (38/145) | 0.352 (51/145) | - | `introduction` (54) | `experiments` (32) | - |
-| `title+lead@48` | title + lead @ 48 | no | 0.324 (47/145) | 0.262 (38/145) | - | `introduction` (42) | `experiments` (48) | - |
-| `title+lead@96+syn` | title + lead @ 96 | yes | 0.497 (72/145) | 0.317 (46/145) | 0.703 (102/145) | `experiments` (35) | `experiments` (63) | `other` (20) |
-| `title+syn` | title @ 96 | yes | 0.462 (67/145) | 0.441 (64/145) | - | `experiments` (31) | `experiments` (33) | - |
-| `path+title+syn` (default) | path + title @ 96 | yes | 0.600 (87/145) | 0.462 (67/145) | 0.731 (106/145) | `experiments` (22) | `experiments` (29) | `other` (26) |
-| `title+lead@48+syn` | title + lead @ 48 | yes | 0.517 (75/145) | 0.352 (51/145) | - | `experiments` (32) | `experiments` (60) | - |
+| `title+lead@96` | title + lead @ 96 | no | 0.345 (50/145); 0.170 (18/106) | 0.228 (33/145); 0.160 (17/106) | 0.697 (101/145); 0.604 (64/106) | `introduction` (39) | `experiments` (54) | `experiments` (19) |
+| `title` | title @ 96 | no | 0.262 (38/145); 0.104 (11/106) | 0.310 (45/145); 0.160 (17/106) | - | `introduction` (62) | `experiments` (33) | - |
+| `path+title` | path + title @ 96 | no | 0.262 (38/145); 0.113 (12/106) | 0.352 (51/145); 0.189 (20/106) | - | `introduction` (54) | `experiments` (32) | - |
+| `title+lead@48` | title + lead @ 48 | no | 0.324 (47/145); 0.160 (17/106) | 0.262 (38/145); 0.151 (16/106) | - | `introduction` (42) | `experiments` (48) | - |
+| `title+lead@96+syn` | title + lead @ 96 | yes | 0.434 (63/145); 0.236 (25/106) | 0.303 (44/145); 0.198 (21/106) | 0.676 (98/145); 0.566 (60/106) | `experiments` (32) | `experiments` (60) | `experiments` (20) |
+| `title+syn` | title @ 96 | yes | 0.393 (57/145); 0.189 (20/106) | 0.400 (58/145); 0.189 (20/106) | - | `experiments` (20) | `experiments` (36) | - |
+| `path+title+syn` (default) | path + title @ 96 | yes | 0.490 (71/145); 0.321 (34/106) | 0.393 (57/145); 0.189 (20/106) | 0.710 (103/145); 0.613 (65/106) | `experiments` (18) | `experiments` (27) | `other` (25) |
+| `title+lead@48+syn` | title + lead @ 48 | yes | 0.441 (64/145); 0.255 (27/106) | 0.310 (45/145); 0.189 (20/106) | - | `experiments` (28) | `experiments` (54) | - |
 
 ### Aggregate
 
 | System | Backend | Accuracy | Correct | Macro F1 | s/section | Load s | Jev tokens | Jev cost |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `ultrabert` | `embedding:dmis-lab/UltraBERT-Embed-150M` | 0.600 | 87/145 | 0.583 | 0.0957 | 19.8 | - | - |
-| `bge-small` | `embedding:BAAI/bge-small-en-v1.5` | 0.462 | 67/145 | 0.567 | 0.0253 | 6.0 | - | - |
-| `jev` | `jev:jev-1.13.0` | 0.731 | 106/145 | 0.758 | 0.0268 | 0.6 | 205,724 | $0.0086 |
+| `ultrabert` | `embedding:dmis-lab/UltraBERT-Embed-150M` | 0.490 | 71/145 | 0.540 | 0.0185 | 14.6 | - | - |
+| `bge-small` | `embedding:BAAI/bge-small-en-v1.5` | 0.393 | 57/145 | 0.532 | 0.0037 | 5.9 | - | - |
+| `jev` | `jev:jev-1.13.0` | 0.710 | 103/145 | 0.734 | 0.0277 | 1.1 | 202,823 | $0.0085 |
 
 ### Per document (accuracy / macro F1)
 
 | Document | Type | Sections | Junk | Unmatched | `ultrabert` | `bge-small` | `jev` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| doc_027 Attention Is All You Need | `research.research_paper` | 23 | 1 | 0 | 0.864 / 0.722 | 0.500 / 0.549 | 0.909 / 0.765 |
-| doc_028 Deep Residual Learning for Image Recognition | `research.research_paper` | 16 | 2 | 0 | 0.643 / 0.670 | 0.429 / 0.545 | 0.714 / 0.683 |
-| doc_029 Language Models are Few-Shot Learners | `research.research_paper` | 38 | 2 | 0 | 0.667 / 0.751 | 0.361 / 0.619 | 0.722 / 0.749 |
-| doc_001 Berkshire Hathaway Inc. 2023 Annual Report | `financial.annual_report` | 29 | 5 | 0 | 0.375 / 0.328 | 0.458 / 0.367 | 0.583 / 0.474 |
-| doc_002 Tesla, Inc. Annual Report on Form 10-K for fiscal year 2023 | `financial.annual_report` | 45 | 7 | 0 | 0.553 / 0.706 | 0.500 / 0.658 | 0.658 / 0.739 |
+| doc_027 Attention Is All You Need | `research.research_paper` | 23 | 1 | 0 | 0.545 / 0.604 | 0.409 / 0.504 | 0.818 / 0.724 |
+| doc_028 Deep Residual Learning for Image Recognition | `research.research_paper` | 16 | 2 | 0 | 0.500 / 0.571 | 0.429 / 0.550 | 0.714 / 0.683 |
+| doc_029 Language Models are Few-Shot Learners | `research.research_paper` | 38 | 2 | 0 | 0.694 / 0.745 | 0.361 / 0.618 | 0.722 / 0.711 |
+| doc_001 Berkshire Hathaway Inc. 2023 Annual Report | `financial.annual_report` | 29 | 5 | 0 | 0.250 / 0.268 | 0.333 / 0.304 | 0.583 / 0.471 |
+| doc_002 Tesla, Inc. Annual Report on Form 10-K for fiscal year 2023 | `financial.annual_report` | 45 | 7 | 0 | 0.421 / 0.614 | 0.368 / 0.536 | 0.632 / 0.726 |
 | doc_016 NIST Cooperative Research and Development Agreement (CRADA) template, 2018 | `legal.contract` | 12 | 1 | 0 | 0.455 / 0.352 | 0.636 / 0.553 | 1.000 / 1.000 |
 
 ### Auto doc type (`doc_type=None`)
 
-One run of `normalize_sections(doc)` with the default backend (`embedding:dmis-lab/UltraBERT-Embed-150M`), so `classify_document` picks the doc type and hence the section taxonomy. The doc type matched the gold type on **5/6** documents; section accuracy 0.566 (82/145), macro F1 0.508 (a wrong doc type usually means a different taxonomy, so its sections all count as wrong).
+One run of `normalize_sections(doc)` with the default backend (`embedding:dmis-lab/UltraBERT-Embed-150M`), so `classify_document` picks the doc type and hence the section taxonomy. The doc type matched the gold type on **5/6** documents; section accuracy 0.455 (66/145), macro F1 0.465 (a wrong doc type usually means a different taxonomy, so its sections all count as wrong).
 
 | Document | Gold type | Auto type | Confidence | Taxonomy | Accuracy |
 | --- | --- | --- | --- | --- | --- |
-| doc_027 | `research.research_paper` | ✓ `research.research_paper` | 0.627 | `section_types/research_paper` | 0.864 |
-| doc_028 | `research.research_paper` | ✓ `research.research_paper` | 0.662 | `section_types/research_paper` | 0.643 |
-| doc_029 | `research.research_paper` | ✓ `research.research_paper` | 0.372 | `section_types/research_paper` | 0.667 |
-| doc_001 | `financial.annual_report` | ✓ `financial.annual_report` | 0.196 | `section_types/annual_report` | 0.375 |
-| doc_002 | `financial.annual_report` | ✓ `financial.annual_report` | 0.121 | `section_types/annual_report` | 0.553 |
+| doc_027 | `research.research_paper` | ✓ `research.research_paper` | 0.627 | `section_types/research_paper` | 0.545 |
+| doc_028 | `research.research_paper` | ✓ `research.research_paper` | 0.662 | `section_types/research_paper` | 0.500 |
+| doc_029 | `research.research_paper` | ✓ `research.research_paper` | 0.372 | `section_types/research_paper` | 0.694 |
+| doc_001 | `financial.annual_report` | ✓ `financial.annual_report` | 0.196 | `section_types/annual_report` | 0.250 |
+| doc_002 | `financial.annual_report` | ✓ `financial.annual_report` | 0.121 | `section_types/annual_report` | 0.421 |
 | doc_016 | `legal.contract` | ✗ `research.technical_standard` | 0.500 | `section_types/generic` | 0.000 |
 
 ### Per entry: doc_027 Attention Is All You Need
@@ -633,21 +640,21 @@ One run of `normalize_sections(doc)` with the default backend (`embedding:dmis-l
 | 1 | 1 | Abstract | `abstract` | ✓ `abstract` | ✓ `abstract` | ✓ `abstract` |
 | 2 | 1 | 1 Introduction | `introduction` | ✓ `introduction` | ✓ `introduction` | ✓ `introduction` |
 | 2 | 1 | 2 Background | `related_work` | ✗ `background` | ✗ `background` | ✗ `background` |
-| 2 | 1 | 3 Model Architecture | `method` | ✓ `method` | ✓ `method` | ✓ `method` |
-| 3 | 2 | 3.1 Encoder and Decoder Stacks | `method` | ✓ `method` | ✗ `experiments` | ✓ `method` |
-| 3 | 2 | 3.2 Attention | `method` | ✓ `method` | ✗ `experiments` | ✓ `method` |
-| 5 | 2 | 3.3 Position-wise Feed-Forward Networks | `method` | ✓ `method` | ✗ `experiments` | ✓ `method` |
-| 5 | 2 | 3.4 Embeddings and Softmax | `method` | ✓ `method` | ✗ `experiments` | ✓ `method` |
-| 6 | 2 | 3.5 Positional Encoding | `method` | ✓ `method` | ✗ `experiments` | ✓ `method` |
+| 2 | 1 | 3 Model Architecture | `method` | ✓ `method` | ✗ `experiments` | ✓ `method` |
+| 3 | 2 | 3.1 Encoder and Decoder Stacks | `method` | ✗ `experiments` | ✗ `experiments` | ✓ `method` |
+| 3 | 2 | 3.2 Attention | `method` | ✗ `background` | ✗ `experiments` | ✓ `method` |
+| 5 | 2 | 3.3 Position-wise Feed-Forward Networks | `method` | ✗ `background` | ✗ `experiments` | ✓ `method` |
+| 5 | 2 | 3.4 Embeddings and Softmax | `method` | ✗ `experiments` | ✗ `experiments` | ✓ `method` |
+| 6 | 2 | 3.5 Positional Encoding | `method` | ✗ `background` | ✗ `experiments` | ✓ `method` |
 | 6 | 1 | 4 Why Self-Attention | `method` | ✗ `introduction` | ✗ `introduction` | ✓ `method` |
-| 7 | 1 | 5 Training | `experiments` | ✓ `experiments` | ✓ `experiments` | ✓ `experiments` |
+| 7 | 1 | 5 Training | `experiments` | ✗ `method` | ✗ `background` | ✓ `experiments` |
 | 7 | 2 | 5.1 Training Data and Batching | `experiments` | ✓ `experiments` | ✓ `experiments` | ✓ `experiments` |
 | 7 | 2 | 5.2 Hardware and Schedule | `experiments` | ✓ `experiments` | ✓ `experiments` | ✓ `experiments` |
-| 7 | 2 | 5.3 Optimizer | `experiments` | ✓ `experiments` | ✓ `experiments` | ✓ `experiments` |
-| 7 | 2 | 5.4 Regularization | `experiments` | ✓ `experiments` | ✓ `experiments` | ✓ `experiments` |
+| 7 | 2 | 5.3 Optimizer | `experiments` | ✓ `experiments` | ✓ `experiments` | ✗ `method` |
+| 7 | 2 | 5.4 Regularization | `experiments` | ✗ `background` | ✓ `experiments` | ✗ `method` |
 | 8 | 1 | 6 Results | `results` | ✓ `results` | ✓ `results` | ✓ `results` |
 | 8 | 2 | 6.1 Machine Translation | `results` | ✓ `results` | ✗ `background` | ✓ `results` |
-| 8 | 2 | 6.2 Model Variations | `results` | ✓ `results` | ✗ `background` | ✓ `results` |
+| 8 | 2 | 6.2 Model Variations | `results` | ✓ `results` | ✗ `experiments` | ✓ `results` |
 | 9 | 2 | 6.3 English Constituency Parsing | `results` | ✓ `results` | ✗ `background` | ✓ `results` |
 | 10 | 1 | 7 Conclusion | `conclusion` | ✓ `conclusion` | ✓ `conclusion` | ✓ `conclusion` |
 | 10 | 1 | References | `references` | ✓ `references` | ✓ `references` | ✓ `references` |
@@ -658,18 +665,18 @@ One run of `normalize_sections(doc)` with the default backend (`embedding:dmis-l
 | Page | Level | Section | Gold | `ultrabert` | `bge-small` | `jev` |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 1 | UNITED STATES SECURITIES AND EXCHANGE COMMISSION | *(junk)* | `notes_to_financial_statements` | `management_discussion` | `other` |
-| 1 | 1 | Washington, D.C. 20549 | *(junk)* | `properties` | `exhibits` | `other` |
-| 1 | 1 | FORM 10-K | `other` | ✗ `business_overview` | ✓ `other` | ✓ `other` |
+| 1 | 1 | Washington, D.C. 20549 | *(junk)* | `properties` | `other` | `other` |
+| 1 | 1 | FORM 10-K | `other` | ✗ `business_overview` | ✗ `notes_to_financial_statements` | ✓ `other` |
 | 1 | 1 | Tesla, Inc. | `other` | ✗ `business_overview` | ✗ `business_overview` | ✓ `other` |
 | 3 | 2 | PART I. | *(junk)* | `business_overview` | `business_overview` | `other` |
 | 3 | 2 | PART II. | *(junk)* | `management_discussion` | `management_discussion` | `other` |
 | 3 | 2 | PART III. | *(junk)* | `business_overview` | `management_discussion` | `other` |
-| 3 | 2 | PART IV. | *(junk)* | `other` | `management_discussion` | `other` |
+| 3 | 2 | PART IV. | *(junk)* | `business_overview` | `management_discussion` | `other` |
 | 15 | 2 | ITEM 1A. RISK FACTORS | `risk_factors` | ✓ `risk_factors` | ✓ `risk_factors` | ✓ `risk_factors` |
-| 29 | 2 | ITEM 1B. UNRESOLVED STAFF COMMENTS | `other` | ✓ `other` | ✓ `other` | ✓ `other` |
+| 29 | 2 | ITEM 1B. UNRESOLVED STAFF COMMENTS | `other` | ✗ `notes_to_financial_statements` | ✗ `management_discussion` | ✓ `other` |
 | 31 | 2 | ITEM 2. PROPERTIES | `properties` | ✓ `properties` | ✓ `properties` | ✓ `properties` |
 | 31 | 2 | ITEM 3. LEGAL PROCEEDINGS | `legal_proceedings` | ✓ `legal_proceedings` | ✓ `legal_proceedings` | ✓ `legal_proceedings` |
-| 31 | 2 | ITEM 4. MINE SAFETY DISCLOSURES | `other` | ✓ `other` | ✓ `other` | ✓ `other` |
+| 31 | 2 | ITEM 4. MINE SAFETY DISCLOSURES | `other` | ✗ `management_discussion` | ✗ `management_discussion` | ✓ `other` |
 | 32 | 2 | ITEM 5. MARKET FOR REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MAT | `market_for_equity` | ✓ `market_for_equity` | ✓ `market_for_equity` | ✓ `market_for_equity` |
 | 34 | 2 | ITEM 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AN | `management_discussion` | ✓ `management_discussion` | ✓ `management_discussion` | ✓ `management_discussion` |
 | 48 | 2 | Report of Independent Registered Public Accounting Firm | `financial_statements` | ✓ `financial_statements` | ✓ `financial_statements` | ✓ `financial_statements` |
@@ -681,25 +688,25 @@ One run of `normalize_sections(doc)` with the default backend (`embedding:dmis-l
 | 84 | 2 | 2018 CEO Performance Award | `notes_to_financial_statements` | ✗ `shareholder_letter` | ✗ `shareholder_letter` | ✗ `executive_compensation` |
 | 95 | 2 | ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AN | `other` | ✗ `controls_and_procedures` | ✗ `management_discussion` | ✓ `other` |
 | 95 | 2 | ITEM 9A. CONTROLS AND PROCEDURES | `controls_and_procedures` | ✓ `controls_and_procedures` | ✓ `controls_and_procedures` | ✓ `controls_and_procedures` |
-| 96 | 2 | ITEM 9B. OTHER INFORMATION | `other` | ✓ `other` | ✗ `business_overview` | ✓ `other` |
-| 96 | 2 | ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPE | `other` | ✓ `other` | ✓ `other` | ✓ `other` |
+| 96 | 2 | ITEM 9B. OTHER INFORMATION | `other` | ✗ `business_overview` | ✗ `business_overview` | ✓ `other` |
+| 96 | 2 | ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPE | `other` | ✗ `controls_and_procedures` | ✗ `controls_and_procedures` | ✓ `other` |
 | 97 | 2 | ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE | `corporate_governance` | ✓ `corporate_governance` | ✓ `corporate_governance` | ✓ `corporate_governance` |
 | 97 | 2 | ITEM 11. EXECUTIVE COMPENSATION | `executive_compensation` | ✓ `executive_compensation` | ✓ `executive_compensation` | ✓ `executive_compensation` |
 | 97 | 2 | ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMEN | `corporate_governance` | ✓ `corporate_governance` | ✗ `market_for_equity` | ✗ `market_for_equity` |
 | 97 | 2 | ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS AND DIRECTOR I | `corporate_governance` | ✗ `notes_to_financial_statements` | ✗ `market_for_equity` | ✓ `corporate_governance` |
 | 97 | 2 | ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES | `other` | ✗ `financial_statements` | ✗ `notes_to_financial_statements` | ✓ `other` |
 | 98 | 2 | ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES | `exhibits` | ✓ `exhibits` | ✓ `exhibits` | ✓ `exhibits` |
-| 113 | 2 | ITEM 16. SUMMARY | `exhibits` | ✓ `exhibits` | ✓ `exhibits` | ✓ `exhibits` |
+| 113 | 2 | ITEM 16. SUMMARY | `exhibits` | ✗ `business_overview` | ✗ `management_discussion` | ✗ `other` |
 | 124 | 2 | SECTION 1350 CERTIFICATIONS | `exhibits` | ✗ `notes_to_financial_statements` | ✗ `corporate_governance` | ✗ `controls_and_procedures` |
 | 125 | 1 | CLAWBACK POLICY | `exhibits` | ✗ `sustainability` | ✗ `market_for_equity` | ✗ `corporate_governance` |
-| 125 | 1 | 1. Definitions | `exhibits` | ✗ `other` | ✗ `business_overview` | ✗ `other` |
+| 125 | 1 | 1. Definitions | `exhibits` | ✗ `business_overview` | ✗ `business_overview` | ✗ `other` |
 | 127 | 1 | 2. Recoupment of Erroneously Awarded Compensation | `exhibits` | ✗ `executive_compensation` | ✗ `executive_compensation` | ✗ `executive_compensation` |
 | 127 | 1 | 3. Means of Repayment | `exhibits` | ✗ `notes_to_financial_statements` | ✗ `notes_to_financial_statements` | ✗ `other` |
-| 128 | 1 | 4. No Indemnification | `exhibits` | ✗ `other` | ✗ `other` | ✗ `other` |
-| 128 | 1 | 5. Miscellaneous | `exhibits` | ✗ `other` | ✗ `other` | ✗ `other` |
-| 129 | 1 | 6. Amendment and Termination | `exhibits` | ✗ `management_discussion` | ✗ `other` | ✗ `other` |
-| 129 | 1 | 7. Successors | `exhibits` | ✗ `corporate_governance` | ✗ `other` | ✗ `management_discussion` |
+| 128 | 1 | 4. No Indemnification | `exhibits` | ✗ `notes_to_financial_statements` | ✗ `other` | ✗ `other` |
+| 128 | 1 | 5. Miscellaneous | `exhibits` | ✗ `notes_to_financial_statements` | ✗ `other` | ✗ `other` |
+| 129 | 1 | 6. Amendment and Termination | `exhibits` | ✗ `management_discussion` | ✗ `management_discussion` | ✗ `other` |
+| 129 | 1 | 7. Successors | `exhibits` | ✗ `corporate_governance` | ✗ `management_discussion` | ✗ `management_discussion` |
 | 129 | 1 | 8. Agreement to Arbitrate; Governing Law; Venue | `exhibits` | ✗ `legal_proceedings` | ✗ `legal_proceedings` | ✗ `other` |
-| 130 | 1 | CLAWBACK POLICY ACKNOWLEDGMENT, CONSENT AND AGREEMENT | `exhibits` | ✗ `notes_to_financial_statements` | ✗ `other` | ✗ `corporate_governance` |
+| 130 | 1 | CLAWBACK POLICY ACKNOWLEDGMENT, CONSENT AND AGREEMENT | `exhibits` | ✗ `notes_to_financial_statements` | ✗ `notes_to_financial_statements` | ✗ `corporate_governance` |
 | 130 | 1 | Signed: Print Name: Date: | *(junk)* | `exhibits` | `exhibits` | `exhibits` |
 <!-- normalize-benchmark:end -->

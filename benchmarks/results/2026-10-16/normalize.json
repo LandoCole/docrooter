@@ -3,13 +3,13 @@
     "ultrabert": {
       "backend": "embedding:dmis-lab/UltraBERT-Embed-150M",
       "config": "path+title+syn",
-      "load_s": 19.80477054199946,
-      "seconds": 15.602381001002868,
+      "load_s": 14.648197500000606,
+      "seconds": 3.0160277920003864,
       "n_labelled": 163,
-      "s_per_section": 0.0957201288405084,
+      "s_per_section": 0.018503237987732433,
       "per_doc": {
         "doc_027": {
-          "seconds": 0.6882932089993119,
+          "seconds": 0.27724783299890987,
           "n_labelled": 23,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -19,12 +19,12 @@
           "unlabelled_sections": [],
           "n_scored": 22,
           "n_junk": 1,
-          "n_correct": 19,
-          "accuracy": 0.8636363636363636,
-          "macro_f1": 0.722092722092722
+          "n_correct": 12,
+          "accuracy": 0.5454545454545454,
+          "macro_f1": 0.6038159371492705
         },
         "doc_028": {
-          "seconds": 0.44516283300072246,
+          "seconds": 0.2761081250009738,
           "n_labelled": 16,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -34,12 +34,12 @@
           "unlabelled_sections": [],
           "n_scored": 14,
           "n_junk": 2,
-          "n_correct": 9,
-          "accuracy": 0.6428571428571429,
-          "macro_f1": 0.6696428571428571
+          "n_correct": 7,
+          "accuracy": 0.5,
+          "macro_f1": 0.5708333333333333
         },
         "doc_029": {
-          "seconds": 1.089359958001296,
+          "seconds": 0.5096537079989503,
           "n_labelled": 38,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -49,12 +49,12 @@
           "unlabelled_sections": [],
           "n_scored": 36,
           "n_junk": 2,
-          "n_correct": 24,
-          "accuracy": 0.6666666666666666,
-          "macro_f1": 0.7511303511303512
+          "n_correct": 25,
+          "accuracy": 0.6944444444444444,
+          "macro_f1": 0.7453042328042327
         },
         "doc_001": {
-          "seconds": 5.995382291999704,
+          "seconds": 0.5587209170007554,
           "n_labelled": 29,
           "doc_type": "financial.annual_report",
           "doc_type_confidence": null,
@@ -64,12 +64,12 @@
           "unlabelled_sections": [],
           "n_scored": 24,
           "n_junk": 5,
-          "n_correct": 9,
-          "accuracy": 0.375,
-          "macro_f1": 0.3276094276094276
+          "n_correct": 6,
+          "accuracy": 0.25,
+          "macro_f1": 0.2677248677248677
         },
         "doc_002": {
-          "seconds": 2.306245375000799,
+          "seconds": 1.0813294170002337,
           "n_labelled": 45,
           "doc_type": "financial.annual_report",
           "doc_type_confidence": null,
@@ -79,12 +79,12 @@
           "unlabelled_sections": [],
           "n_scored": 38,
           "n_junk": 7,
-          "n_correct": 21,
-          "accuracy": 0.5526315789473685,
-          "macro_f1": 0.7055555555555556
+          "n_correct": 16,
+          "accuracy": 0.42105263157894735,
+          "macro_f1": 0.6137566137566137
         },
         "doc_016": {
-          "seconds": 5.077937334001035,
+          "seconds": 0.31296779200056335,
           "n_labelled": 12,
           "doc_type": "legal.contract",
           "doc_type_confidence": null,
@@ -102,9 +102,9 @@
       "overall": {
         "n_scored": 145,
         "n_junk": 18,
-        "n_correct": 87,
-        "accuracy": 0.6,
-        "macro_f1": 0.5830854330854331
+        "n_correct": 71,
+        "accuracy": 0.4896551724137931,
+        "macro_f1": 0.5400167703995455
       },
       "rows": [
         {
@@ -116,7 +116,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "introduction",
-          "score": 0.1916
+          "score": 0.2029
         },
         {
           "doc_id": "doc_027",
@@ -127,7 +127,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "abstract",
           "pred": "abstract",
-          "score": 0.54
+          "score": 0.5575
         },
         {
           "doc_id": "doc_027",
@@ -138,7 +138,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "introduction",
           "pred": "introduction",
-          "score": 0.8472
+          "score": 0.8545
         },
         {
           "doc_id": "doc_027",
@@ -149,7 +149,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "related_work",
           "pred": "background",
-          "score": 0.3657
+          "score": 0.3804
         },
         {
           "doc_id": "doc_027",
@@ -160,7 +160,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.3095
+          "score": 0.1507
         },
         {
           "doc_id": "doc_027",
@@ -170,8 +170,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
-          "pred": "method",
-          "score": 0.2133
+          "pred": "experiments",
+          "score": 0.162
         },
         {
           "doc_id": "doc_027",
@@ -181,8 +181,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
-          "pred": "method",
-          "score": 0.2142
+          "pred": "background",
+          "score": 0.1258
         },
         {
           "doc_id": "doc_027",
@@ -192,8 +192,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
-          "pred": "method",
-          "score": 0.1603
+          "pred": "background",
+          "score": 0.148
         },
         {
           "doc_id": "doc_027",
@@ -203,8 +203,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
-          "pred": "method",
-          "score": 0.1628
+          "pred": "experiments",
+          "score": 0.1205
         },
         {
           "doc_id": "doc_027",
@@ -214,8 +214,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
-          "pred": "method",
-          "score": 0.1966
+          "pred": "background",
+          "score": 0.1597
         },
         {
           "doc_id": "doc_027",
@@ -226,7 +226,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "introduction",
-          "score": 0.2238
+          "score": 0.237
         },
         {
           "doc_id": "doc_027",
@@ -236,8 +236,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
-          "pred": "experiments",
-          "score": 0.2791
+          "pred": "method",
+          "score": 0.1794
         },
         {
           "doc_id": "doc_027",
@@ -248,7 +248,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.448
+          "score": 0.2666
         },
         {
           "doc_id": "doc_027",
@@ -259,7 +259,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.3424
+          "score": 0.2061
         },
         {
           "doc_id": "doc_027",
@@ -270,7 +270,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.2821
+          "score": 0.1761
         },
         {
           "doc_id": "doc_027",
@@ -280,8 +280,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
-          "pred": "experiments",
-          "score": 0.1858
+          "pred": "background",
+          "score": 0.1545
         },
         {
           "doc_id": "doc_027",
@@ -292,7 +292,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.6492
+          "score": 0.6557
         },
         {
           "doc_id": "doc_027",
@@ -303,7 +303,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.2521
+          "score": 0.2675
         },
         {
           "doc_id": "doc_027",
@@ -314,7 +314,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.2991
+          "score": 0.3157
         },
         {
           "doc_id": "doc_027",
@@ -325,7 +325,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.3893
+          "score": 0.4056
         },
         {
           "doc_id": "doc_027",
@@ -336,7 +336,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "conclusion",
           "pred": "conclusion",
-          "score": 0.6678
+          "score": 0.6763
         },
         {
           "doc_id": "doc_027",
@@ -347,7 +347,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "references",
           "pred": "references",
-          "score": 0.694
+          "score": 0.7039
         },
         {
           "doc_id": "doc_027",
@@ -358,7 +358,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.1832
+          "score": 0.1533
         },
         {
           "doc_id": "doc_028",
@@ -369,7 +369,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "experiments",
-          "score": 0.1738
+          "score": 0.1422
         },
         {
           "doc_id": "doc_028",
@@ -380,7 +380,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "abstract",
           "pred": "abstract",
-          "score": 0.54
+          "score": 0.5575
         },
         {
           "doc_id": "doc_028",
@@ -391,7 +391,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "introduction",
           "pred": "introduction",
-          "score": 0.851
+          "score": 0.8585
         },
         {
           "doc_id": "doc_028",
@@ -402,7 +402,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "related_work",
           "pred": "related_work",
-          "score": 0.6718
+          "score": 0.6825
         },
         {
           "doc_id": "doc_028",
@@ -413,7 +413,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.1783
+          "score": 0.1442
         },
         {
           "doc_id": "doc_028",
@@ -423,8 +423,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
-          "pred": "experiments",
-          "score": 0.133
+          "pred": "appendix",
+          "score": 0.1123
         },
         {
           "doc_id": "doc_028",
@@ -434,8 +434,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
-          "pred": "method",
-          "score": 0.1606
+          "pred": "experiments",
+          "score": 0.1303
         },
         {
           "doc_id": "doc_028",
@@ -445,8 +445,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
-          "pred": "method",
-          "score": 0.1362
+          "pred": "abstract",
+          "score": 0.1437
         },
         {
           "doc_id": "doc_028",
@@ -457,7 +457,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.6123
+          "score": 0.6287
         },
         {
           "doc_id": "doc_028",
@@ -468,7 +468,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "experiments",
-          "score": 0.363
+          "score": 0.3489
         },
         {
           "doc_id": "doc_028",
@@ -479,7 +479,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.244
+          "score": 0.2047
         },
         {
           "doc_id": "doc_028",
@@ -490,7 +490,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "experiments",
-          "score": 0.3468
+          "score": 0.3386
         },
         {
           "doc_id": "doc_028",
@@ -501,7 +501,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "references",
           "pred": "references",
-          "score": 0.694
+          "score": 0.7039
         },
         {
           "doc_id": "doc_028",
@@ -512,7 +512,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "background",
-          "score": 0.1582
+          "score": 0.1727
         },
         {
           "doc_id": "doc_028",
@@ -523,7 +523,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.1996
+          "score": 0.1676
         },
         {
           "doc_id": "doc_028",
@@ -534,7 +534,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.1732
+          "score": 0.1487
         },
         {
           "doc_id": "doc_029",
@@ -544,8 +544,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
-          "pred": "method",
-          "score": 0.1746
+          "pred": "abstract",
+          "score": 0.1536
         },
         {
           "doc_id": "doc_029",
@@ -556,7 +556,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "abstract",
           "pred": "abstract",
-          "score": 0.54
+          "score": 0.5575
         },
         {
           "doc_id": "doc_029",
@@ -567,7 +567,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "introduction",
-          "score": 0.155
+          "score": 0.1636
         },
         {
           "doc_id": "doc_029",
@@ -578,7 +578,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "introduction",
           "pred": "introduction",
-          "score": 0.8472
+          "score": 0.8545
         },
         {
           "doc_id": "doc_029",
@@ -589,7 +589,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.2833
+          "score": 0.2601
         },
         {
           "doc_id": "doc_029",
@@ -600,7 +600,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.3691
+          "score": 0.2162
         },
         {
           "doc_id": "doc_029",
@@ -611,7 +611,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "experiments",
-          "score": 0.4198
+          "score": 0.3147
         },
         {
           "doc_id": "doc_029",
@@ -622,7 +622,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.3028
+          "score": 0.3254
         },
         {
           "doc_id": "doc_029",
@@ -633,7 +633,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.2771
+          "score": 0.2585
         },
         {
           "doc_id": "doc_029",
@@ -644,7 +644,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.6438
+          "score": 0.6506
         },
         {
           "doc_id": "doc_029",
@@ -655,7 +655,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.1882
+          "score": 0.2039
         },
         {
           "doc_id": "doc_029",
@@ -666,7 +666,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.2492
+          "score": 0.2611
         },
         {
           "doc_id": "doc_029",
@@ -677,7 +677,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.2714
+          "score": 0.2828
         },
         {
           "doc_id": "doc_029",
@@ -688,7 +688,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.3053
+          "score": 0.3192
         },
         {
           "doc_id": "doc_029",
@@ -699,7 +699,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.2206
+          "score": 0.2291
         },
         {
           "doc_id": "doc_029",
@@ -710,7 +710,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.2469
+          "score": 0.2549
         },
         {
           "doc_id": "doc_029",
@@ -721,7 +721,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.4095
+          "score": 0.4191
         },
         {
           "doc_id": "doc_029",
@@ -732,7 +732,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.495
+          "score": 0.5034
         },
         {
           "doc_id": "doc_029",
@@ -743,7 +743,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.2499
+          "score": 0.2608
         },
         {
           "doc_id": "doc_029",
@@ -754,7 +754,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "limitations",
           "pred": "experiments",
-          "score": 0.1787
+          "score": 0.1425
         },
         {
           "doc_id": "doc_029",
@@ -765,7 +765,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "limitations",
           "pred": "limitations",
-          "score": 0.7266
+          "score": 0.7386
         },
         {
           "doc_id": "doc_029",
@@ -776,7 +776,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "discussion",
           "pred": "limitations",
-          "score": 0.217
+          "score": 0.2231
         },
         {
           "doc_id": "doc_029",
@@ -787,7 +787,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "discussion",
           "pred": "limitations",
-          "score": 0.1585
+          "score": 0.1745
         },
         {
           "doc_id": "doc_029",
@@ -798,7 +798,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "discussion",
           "pred": "discussion",
-          "score": 0.1359
+          "score": 0.1419
         },
         {
           "doc_id": "doc_029",
@@ -808,8 +808,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "discussion",
-          "pred": "experiments",
-          "score": 0.1375
+          "pred": "discussion",
+          "score": 0.1191
         },
         {
           "doc_id": "doc_029",
@@ -820,7 +820,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "related_work",
           "pred": "related_work",
-          "score": 0.645
+          "score": 0.6554
         },
         {
           "doc_id": "doc_029",
@@ -831,7 +831,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "conclusion",
           "pred": "conclusion",
-          "score": 0.7012
+          "score": 0.7102
         },
         {
           "doc_id": "doc_029",
@@ -842,7 +842,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "acknowledgements",
           "pred": "acknowledgements",
-          "score": 0.7989
+          "score": 0.8058
         },
         {
           "doc_id": "doc_029",
@@ -853,7 +853,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "acknowledgements",
           "pred": "acknowledgements",
-          "score": 0.3583
+          "score": 0.3717
         },
         {
           "doc_id": "doc_029",
@@ -863,8 +863,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
-          "pred": "experiments",
-          "score": 0.1456
+          "pred": "method",
+          "score": 0.1236
         },
         {
           "doc_id": "doc_029",
@@ -875,7 +875,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.2676
+          "score": 0.1574
         },
         {
           "doc_id": "doc_029",
@@ -886,7 +886,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.2702
+          "score": 0.2494
         },
         {
           "doc_id": "doc_029",
@@ -897,7 +897,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.2965
+          "score": 0.2394
         },
         {
           "doc_id": "doc_029",
@@ -907,8 +907,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
-          "pred": "experiments",
-          "score": 0.1587
+          "pred": "abstract",
+          "score": 0.13
         },
         {
           "doc_id": "doc_029",
@@ -919,7 +919,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "appendix",
-          "score": 0.2298
+          "score": 0.241
         },
         {
           "doc_id": "doc_029",
@@ -929,8 +929,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
-          "pred": "experiments",
-          "score": 0.1979
+          "pred": "background",
+          "score": 0.1682
         },
         {
           "doc_id": "doc_029",
@@ -941,7 +941,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "results",
-          "score": 0.2371
+          "score": 0.2522
         },
         {
           "doc_id": "doc_029",
@@ -952,7 +952,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "references",
           "pred": "references",
-          "score": 0.694
+          "score": 0.7039
         },
         {
           "doc_id": "doc_001",
@@ -963,7 +963,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "business_overview",
-          "score": 0.2359
+          "score": 0.2514
         },
         {
           "doc_id": "doc_001",
@@ -974,7 +974,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.2685
+          "score": 0.2933
         },
         {
           "doc_id": "doc_001",
@@ -985,7 +985,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "other",
-          "score": 0.1847
+          "score": 0.1626
         },
         {
           "doc_id": "doc_001",
@@ -996,7 +996,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "management_discussion",
-          "score": 0.3018
+          "score": 0.3287
         },
         {
           "doc_id": "doc_001",
@@ -1007,7 +1007,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "business_overview",
-          "score": 0.2627
+          "score": 0.2764
         },
         {
           "doc_id": "doc_001",
@@ -1017,8 +1017,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
-          "pred": "other",
-          "score": 0.2163
+          "pred": "business_overview",
+          "score": 0.1747
         },
         {
           "doc_id": "doc_001",
@@ -1029,7 +1029,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "business_overview",
-          "score": 0.1969
+          "score": 0.2191
         },
         {
           "doc_id": "doc_001",
@@ -1040,7 +1040,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "market_for_equity",
           "pred": "business_overview",
-          "score": 0.1879
+          "score": 0.1979
         },
         {
           "doc_id": "doc_001",
@@ -1051,7 +1051,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "business_overview",
-          "score": 0.1982
+          "score": 0.2278
         },
         {
           "doc_id": "doc_001",
@@ -1062,7 +1062,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "market_for_equity",
-          "score": 0.6819
+          "score": 0.7065
         },
         {
           "doc_id": "doc_001",
@@ -1073,7 +1073,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "corporate_governance",
-          "score": 0.6151
+          "score": 0.6327
         },
         {
           "doc_id": "doc_001",
@@ -1084,7 +1084,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "exhibits",
-          "score": 0.8383
+          "score": 0.8363
         },
         {
           "doc_id": "doc_001",
@@ -1095,7 +1095,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "business_overview",
           "pred": "business_overview",
-          "score": 0.2369
+          "score": 0.2583
         },
         {
           "doc_id": "doc_001",
@@ -1106,7 +1106,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "risk_factors",
           "pred": "risk_factors",
-          "score": 0.803
+          "score": 0.831
         },
         {
           "doc_id": "doc_001",
@@ -1116,8 +1116,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.4122
+          "pred": "business_overview",
+          "score": 0.1532
         },
         {
           "doc_id": "doc_001",
@@ -1128,7 +1128,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "risk_factors",
           "pred": "business_overview",
-          "score": 0.1845
+          "score": 0.2163
         },
         {
           "doc_id": "doc_001",
@@ -1138,8 +1138,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.3856
+          "pred": "sustainability",
+          "score": 0.126
         },
         {
           "doc_id": "doc_001",
@@ -1150,7 +1150,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "market_for_equity",
           "pred": "market_for_equity",
-          "score": 0.6291
+          "score": 0.6554
         },
         {
           "doc_id": "doc_001",
@@ -1161,7 +1161,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "management_discussion",
           "pred": "market_for_equity",
-          "score": 0.1403
+          "score": 0.1514
         },
         {
           "doc_id": "doc_001",
@@ -1172,7 +1172,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "market_for_equity",
-          "score": 0.1403
+          "score": 0.1514
         },
         {
           "doc_id": "doc_001",
@@ -1183,7 +1183,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "management_discussion",
           "pred": "business_overview",
-          "score": 0.185
+          "score": 0.2074
         },
         {
           "doc_id": "doc_001",
@@ -1194,7 +1194,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "business_overview",
-          "score": 0.185
+          "score": 0.2074
         },
         {
           "doc_id": "doc_001",
@@ -1205,7 +1205,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "management_discussion",
           "pred": "management_discussion",
-          "score": 0.3541
+          "score": 0.3767
         },
         {
           "doc_id": "doc_001",
@@ -1216,7 +1216,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "controls_and_procedures",
-          "score": 0.1878
+          "score": 0.2073
         },
         {
           "doc_id": "doc_001",
@@ -1227,7 +1227,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "controls_and_procedures",
           "pred": "controls_and_procedures",
-          "score": 0.7811
+          "score": 0.7978
         },
         {
           "doc_id": "doc_001",
@@ -1238,7 +1238,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "business_overview",
-          "score": 0.2011
+          "score": 0.2345
         },
         {
           "doc_id": "doc_001",
@@ -1248,8 +1248,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.1965
+          "pred": "controls_and_procedures",
+          "score": 0.2109
         },
         {
           "doc_id": "doc_001",
@@ -1260,7 +1260,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
           "pred": "business_overview",
-          "score": 0.1573
+          "score": 0.1745
         },
         {
           "doc_id": "doc_001",
@@ -1270,8 +1270,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "other",
-          "score": 0.1973
+          "pred": "business_overview",
+          "score": 0.1945
         },
         {
           "doc_id": "doc_002",
@@ -1282,7 +1282,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "notes_to_financial_statements",
-          "score": 0.1114
+          "score": 0.1226
         },
         {
           "doc_id": "doc_002",
@@ -1293,7 +1293,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "properties",
-          "score": 0.2255
+          "score": 0.2413
         },
         {
           "doc_id": "doc_002",
@@ -1304,7 +1304,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "business_overview",
-          "score": 0.1695
+          "score": 0.1914
         },
         {
           "doc_id": "doc_002",
@@ -1315,7 +1315,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "business_overview",
-          "score": 0.2423
+          "score": 0.2507
         },
         {
           "doc_id": "doc_002",
@@ -1326,7 +1326,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "business_overview",
-          "score": 0.2069
+          "score": 0.2227
         },
         {
           "doc_id": "doc_002",
@@ -1337,7 +1337,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "management_discussion",
-          "score": 0.127
+          "score": 0.1353
         },
         {
           "doc_id": "doc_002",
@@ -1348,7 +1348,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "business_overview",
-          "score": 0.1328
+          "score": 0.1417
         },
         {
           "doc_id": "doc_002",
@@ -1358,8 +1358,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
-          "pred": "other",
-          "score": 0.1428
+          "pred": "business_overview",
+          "score": 0.1427
         },
         {
           "doc_id": "doc_002",
@@ -1370,7 +1370,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "risk_factors",
           "pred": "risk_factors",
-          "score": 0.83
+          "score": 0.85
         },
         {
           "doc_id": "doc_002",
@@ -1380,8 +1380,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.4169
+          "pred": "notes_to_financial_statements",
+          "score": 0.1509
         },
         {
           "doc_id": "doc_002",
@@ -1392,7 +1392,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "properties",
           "pred": "properties",
-          "score": 0.4947
+          "score": 0.5157
         },
         {
           "doc_id": "doc_002",
@@ -1403,7 +1403,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "legal_proceedings",
           "pred": "legal_proceedings",
-          "score": 0.6474
+          "score": 0.6638
         },
         {
           "doc_id": "doc_002",
@@ -1413,8 +1413,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.3239
+          "pred": "management_discussion",
+          "score": 0.1571
         },
         {
           "doc_id": "doc_002",
@@ -1425,7 +1425,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "market_for_equity",
           "pred": "market_for_equity",
-          "score": 0.6307
+          "score": 0.6506
         },
         {
           "doc_id": "doc_002",
@@ -1436,7 +1436,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "management_discussion",
           "pred": "management_discussion",
-          "score": 0.7466
+          "score": 0.7595
         },
         {
           "doc_id": "doc_002",
@@ -1447,7 +1447,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "financial_statements",
           "pred": "financial_statements",
-          "score": 0.3185
+          "score": 0.3282
         },
         {
           "doc_id": "doc_002",
@@ -1458,7 +1458,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "financial_statements",
           "pred": "financial_statements",
-          "score": 0.5869
+          "score": 0.6001
         },
         {
           "doc_id": "doc_002",
@@ -1469,7 +1469,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "financial_statements",
           "pred": "financial_statements",
-          "score": 0.4276
+          "score": 0.4405
         },
         {
           "doc_id": "doc_002",
@@ -1480,7 +1480,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "financial_statements",
           "pred": "financial_statements",
-          "score": 0.2513
+          "score": 0.2615
         },
         {
           "doc_id": "doc_002",
@@ -1491,7 +1491,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "notes_to_financial_statements",
           "pred": "notes_to_financial_statements",
-          "score": 0.5534
+          "score": 0.5634
         },
         {
           "doc_id": "doc_002",
@@ -1502,7 +1502,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "notes_to_financial_statements",
           "pred": "notes_to_financial_statements",
-          "score": 0.3421
+          "score": 0.3633
         },
         {
           "doc_id": "doc_002",
@@ -1513,7 +1513,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "notes_to_financial_statements",
           "pred": "shareholder_letter",
-          "score": 0.204
+          "score": 0.2094
         },
         {
           "doc_id": "doc_002",
@@ -1524,7 +1524,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "controls_and_procedures",
-          "score": 0.1817
+          "score": 0.195
         },
         {
           "doc_id": "doc_002",
@@ -1535,7 +1535,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "controls_and_procedures",
           "pred": "controls_and_procedures",
-          "score": 0.5755
+          "score": 0.594
         },
         {
           "doc_id": "doc_002",
@@ -1545,8 +1545,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.1766
+          "pred": "business_overview",
+          "score": 0.1624
         },
         {
           "doc_id": "doc_002",
@@ -1556,8 +1556,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.1878
+          "pred": "controls_and_procedures",
+          "score": 0.184
         },
         {
           "doc_id": "doc_002",
@@ -1568,7 +1568,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
           "pred": "corporate_governance",
-          "score": 0.4818
+          "score": 0.4956
         },
         {
           "doc_id": "doc_002",
@@ -1579,7 +1579,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "executive_compensation",
           "pred": "executive_compensation",
-          "score": 0.3646
+          "score": 0.3836
         },
         {
           "doc_id": "doc_002",
@@ -1590,7 +1590,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
           "pred": "corporate_governance",
-          "score": 0.1384
+          "score": 0.1465
         },
         {
           "doc_id": "doc_002",
@@ -1601,7 +1601,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
           "pred": "notes_to_financial_statements",
-          "score": 0.1149
+          "score": 0.1243
         },
         {
           "doc_id": "doc_002",
@@ -1612,7 +1612,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "financial_statements",
-          "score": 0.1837
+          "score": 0.1929
         },
         {
           "doc_id": "doc_002",
@@ -1623,7 +1623,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "exhibits",
-          "score": 0.508
+          "score": 0.4528
         },
         {
           "doc_id": "doc_002",
@@ -1633,8 +1633,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "exhibits",
-          "score": 0.1838
+          "pred": "business_overview",
+          "score": 0.1649
         },
         {
           "doc_id": "doc_002",
@@ -1645,7 +1645,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "notes_to_financial_statements",
-          "score": 0.1331
+          "score": 0.1416
         },
         {
           "doc_id": "doc_002",
@@ -1656,7 +1656,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "sustainability",
-          "score": 0.1166
+          "score": 0.1252
         },
         {
           "doc_id": "doc_002",
@@ -1666,8 +1666,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "other",
-          "score": 0.1927
+          "pred": "business_overview",
+          "score": 0.2097
         },
         {
           "doc_id": "doc_002",
@@ -1678,7 +1678,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "executive_compensation",
-          "score": 0.3469
+          "score": 0.3693
         },
         {
           "doc_id": "doc_002",
@@ -1689,7 +1689,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "notes_to_financial_statements",
-          "score": 0.1494
+          "score": 0.1595
         },
         {
           "doc_id": "doc_002",
@@ -1699,8 +1699,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "other",
-          "score": 0.1692
+          "pred": "notes_to_financial_statements",
+          "score": 0.1764
         },
         {
           "doc_id": "doc_002",
@@ -1710,8 +1710,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "other",
-          "score": 0.1807
+          "pred": "notes_to_financial_statements",
+          "score": 0.1558
         },
         {
           "doc_id": "doc_002",
@@ -1722,7 +1722,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "management_discussion",
-          "score": 0.1166
+          "score": 0.1268
         },
         {
           "doc_id": "doc_002",
@@ -1733,7 +1733,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "corporate_governance",
-          "score": 0.1312
+          "score": 0.1375
         },
         {
           "doc_id": "doc_002",
@@ -1744,7 +1744,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "legal_proceedings",
-          "score": 0.1935
+          "score": 0.2073
         },
         {
           "doc_id": "doc_002",
@@ -1755,7 +1755,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "notes_to_financial_statements",
-          "score": 0.1611
+          "score": 0.1757
         },
         {
           "doc_id": "doc_002",
@@ -1766,7 +1766,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "exhibits",
-          "score": 0.1838
+          "score": 0.1643
         },
         {
           "doc_id": "doc_016",
@@ -1902,21 +1902,21 @@
         }
       ],
       "loadavg_end": [
-        8.14208984375,
-        8.73193359375,
-        7.869140625
+        10.8193359375,
+        10.98095703125,
+        9.51904296875
       ]
     },
     "bge-small": {
       "backend": "embedding:BAAI/bge-small-en-v1.5",
       "config": "path+title+syn",
-      "load_s": 6.008059999998295,
-      "seconds": 4.118180916000711,
+      "load_s": 5.928471458999411,
+      "seconds": 0.5975637080009619,
       "n_labelled": 163,
-      "s_per_section": 0.025264913595096385,
+      "s_per_section": 0.0036660350184108095,
       "per_doc": {
         "doc_027": {
-          "seconds": 0.15837020899925847,
+          "seconds": 0.0676737920002779,
           "n_labelled": 23,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -1926,12 +1926,12 @@
           "unlabelled_sections": [],
           "n_scored": 22,
           "n_junk": 1,
-          "n_correct": 11,
-          "accuracy": 0.5,
-          "macro_f1": 0.549074074074074
+          "n_correct": 9,
+          "accuracy": 0.4090909090909091,
+          "macro_f1": 0.5041394335511983
         },
         "doc_028": {
-          "seconds": 0.07169095800054492,
+          "seconds": 0.04680816700056312,
           "n_labelled": 16,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -1943,10 +1943,10 @@
           "n_junk": 2,
           "n_correct": 6,
           "accuracy": 0.42857142857142855,
-          "macro_f1": 0.5454545454545454
+          "macro_f1": 0.55
         },
         "doc_029": {
-          "seconds": 0.22828641600062838,
+          "seconds": 0.11026791599942953,
           "n_labelled": 38,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -1958,10 +1958,10 @@
           "n_junk": 2,
           "n_correct": 13,
           "accuracy": 0.3611111111111111,
-          "macro_f1": 0.6187169312169313
+          "macro_f1": 0.6176485551485552
         },
         "doc_001": {
-          "seconds": 2.21385566599929,
+          "seconds": 0.12415450000116834,
           "n_labelled": 29,
           "doc_type": "financial.annual_report",
           "doc_type_confidence": null,
@@ -1971,12 +1971,12 @@
           "unlabelled_sections": [],
           "n_scored": 24,
           "n_junk": 5,
-          "n_correct": 11,
-          "accuracy": 0.4583333333333333,
-          "macro_f1": 0.3671957671957672
+          "n_correct": 8,
+          "accuracy": 0.3333333333333333,
+          "macro_f1": 0.30398428731762067
         },
         "doc_002": {
-          "seconds": 0.22077366700068524,
+          "seconds": 0.1845467919993098,
           "n_labelled": 45,
           "doc_type": "financial.annual_report",
           "doc_type_confidence": null,
@@ -1986,12 +1986,12 @@
           "unlabelled_sections": [],
           "n_scored": 38,
           "n_junk": 7,
-          "n_correct": 19,
-          "accuracy": 0.5,
-          "macro_f1": 0.6582633053221288
+          "n_correct": 14,
+          "accuracy": 0.3684210526315789,
+          "macro_f1": 0.5356481481481482
         },
         "doc_016": {
-          "seconds": 1.2252040000003035,
+          "seconds": 0.06411254100021324,
           "n_labelled": 12,
           "doc_type": "legal.contract",
           "doc_type_confidence": null,
@@ -2009,9 +2009,9 @@
       "overall": {
         "n_scored": 145,
         "n_junk": 18,
-        "n_correct": 67,
-        "accuracy": 0.46206896551724136,
-        "macro_f1": 0.5674491276764004
+        "n_correct": 57,
+        "accuracy": 0.3931034482758621,
+        "macro_f1": 0.5323277024233962
       },
       "rows": [
         {
@@ -2023,7 +2023,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "background",
-          "score": 0.2128
+          "score": 0.2185
         },
         {
           "doc_id": "doc_027",
@@ -2034,7 +2034,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "abstract",
           "pred": "abstract",
-          "score": 0.4491
+          "score": 0.4577
         },
         {
           "doc_id": "doc_027",
@@ -2045,7 +2045,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "introduction",
           "pred": "introduction",
-          "score": 0.7241
+          "score": 0.7305
         },
         {
           "doc_id": "doc_027",
@@ -2056,7 +2056,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "related_work",
           "pred": "background",
-          "score": 0.3999
+          "score": 0.4076
         },
         {
           "doc_id": "doc_027",
@@ -2066,8 +2066,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
-          "pred": "method",
-          "score": 0.2637
+          "pred": "experiments",
+          "score": 0.2206
         },
         {
           "doc_id": "doc_027",
@@ -2078,7 +2078,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "experiments",
-          "score": 0.28
+          "score": 0.2827
         },
         {
           "doc_id": "doc_027",
@@ -2089,7 +2089,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "experiments",
-          "score": 0.1991
+          "score": 0.2067
         },
         {
           "doc_id": "doc_027",
@@ -2100,7 +2100,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "experiments",
-          "score": 0.3235
+          "score": 0.3017
         },
         {
           "doc_id": "doc_027",
@@ -2111,7 +2111,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "experiments",
-          "score": 0.4072
+          "score": 0.39
         },
         {
           "doc_id": "doc_027",
@@ -2122,7 +2122,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "experiments",
-          "score": 0.2765
+          "score": 0.2695
         },
         {
           "doc_id": "doc_027",
@@ -2133,7 +2133,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "introduction",
-          "score": 0.2621
+          "score": 0.2673
         },
         {
           "doc_id": "doc_027",
@@ -2143,8 +2143,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
-          "pred": "experiments",
-          "score": 0.3619
+          "pred": "background",
+          "score": 0.2395
         },
         {
           "doc_id": "doc_027",
@@ -2155,7 +2155,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.5356
+          "score": 0.4097
         },
         {
           "doc_id": "doc_027",
@@ -2166,7 +2166,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.434
+          "score": 0.3063
         },
         {
           "doc_id": "doc_027",
@@ -2177,7 +2177,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.4117
+          "score": 0.2693
         },
         {
           "doc_id": "doc_027",
@@ -2188,7 +2188,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.4035
+          "score": 0.2785
         },
         {
           "doc_id": "doc_027",
@@ -2199,7 +2199,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.2866
+          "score": 0.291
         },
         {
           "doc_id": "doc_027",
@@ -2210,7 +2210,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "background",
-          "score": 0.206
+          "score": 0.214
         },
         {
           "doc_id": "doc_027",
@@ -2220,8 +2220,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
-          "pred": "background",
-          "score": 0.1888
+          "pred": "experiments",
+          "score": 0.2092
         },
         {
           "doc_id": "doc_027",
@@ -2232,7 +2232,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "background",
-          "score": 0.1811
+          "score": 0.1873
         },
         {
           "doc_id": "doc_027",
@@ -2243,7 +2243,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "conclusion",
           "pred": "conclusion",
-          "score": 0.5603
+          "score": 0.5654
         },
         {
           "doc_id": "doc_027",
@@ -2254,7 +2254,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "references",
           "pred": "references",
-          "score": 0.5373
+          "score": 0.5423
         },
         {
           "doc_id": "doc_027",
@@ -2265,7 +2265,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.1811
+          "score": 0.1721
         },
         {
           "doc_id": "doc_028",
@@ -2276,7 +2276,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "experiments",
-          "score": 0.397
+          "score": 0.3344
         },
         {
           "doc_id": "doc_028",
@@ -2287,7 +2287,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "abstract",
           "pred": "abstract",
-          "score": 0.4491
+          "score": 0.4577
         },
         {
           "doc_id": "doc_028",
@@ -2298,7 +2298,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "introduction",
           "pred": "introduction",
-          "score": 0.7119
+          "score": 0.7178
         },
         {
           "doc_id": "doc_028",
@@ -2309,7 +2309,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "related_work",
           "pred": "related_work",
-          "score": 0.5515
+          "score": 0.5579
         },
         {
           "doc_id": "doc_028",
@@ -2320,7 +2320,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "experiments",
-          "score": 0.349
+          "score": 0.2834
         },
         {
           "doc_id": "doc_028",
@@ -2331,7 +2331,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "experiments",
-          "score": 0.3281
+          "score": 0.2597
         },
         {
           "doc_id": "doc_028",
@@ -2342,7 +2342,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "experiments",
-          "score": 0.3735
+          "score": 0.3372
         },
         {
           "doc_id": "doc_028",
@@ -2353,7 +2353,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "experiments",
-          "score": 0.289
+          "score": 0.2685
         },
         {
           "doc_id": "doc_028",
@@ -2364,7 +2364,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.4234
+          "score": 0.4564
         },
         {
           "doc_id": "doc_028",
@@ -2375,7 +2375,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "experiments",
-          "score": 0.4239
+          "score": 0.4491
         },
         {
           "doc_id": "doc_028",
@@ -2386,7 +2386,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.28
+          "score": 0.3178
         },
         {
           "doc_id": "doc_028",
@@ -2397,7 +2397,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "experiments",
-          "score": 0.3745
+          "score": 0.3774
         },
         {
           "doc_id": "doc_028",
@@ -2408,7 +2408,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "references",
           "pred": "references",
-          "score": 0.5373
+          "score": 0.5423
         },
         {
           "doc_id": "doc_028",
@@ -2418,8 +2418,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
-          "pred": "experiments",
-          "score": 0.181
+          "pred": "background",
+          "score": 0.1676
         },
         {
           "doc_id": "doc_028",
@@ -2430,7 +2430,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.3104
+          "score": 0.2691
         },
         {
           "doc_id": "doc_028",
@@ -2441,7 +2441,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "background",
-          "score": 0.2058
+          "score": 0.2264
         },
         {
           "doc_id": "doc_029",
@@ -2451,8 +2451,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
-          "pred": "experiments",
-          "score": 0.215
+          "pred": "background",
+          "score": 0.1697
         },
         {
           "doc_id": "doc_029",
@@ -2463,7 +2463,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "abstract",
           "pred": "abstract",
-          "score": 0.4491
+          "score": 0.4577
         },
         {
           "doc_id": "doc_029",
@@ -2474,7 +2474,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "background",
-          "score": 0.2041
+          "score": 0.2075
         },
         {
           "doc_id": "doc_029",
@@ -2485,7 +2485,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "introduction",
           "pred": "introduction",
-          "score": 0.7241
+          "score": 0.7305
         },
         {
           "doc_id": "doc_029",
@@ -2496,7 +2496,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.4198
+          "score": 0.3705
         },
         {
           "doc_id": "doc_029",
@@ -2507,7 +2507,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.3859
+          "score": 0.1925
         },
         {
           "doc_id": "doc_029",
@@ -2518,7 +2518,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "experiments",
-          "score": 0.3901
+          "score": 0.331
         },
         {
           "doc_id": "doc_029",
@@ -2529,7 +2529,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.2808
+          "score": 0.2446
         },
         {
           "doc_id": "doc_029",
@@ -2540,7 +2540,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "method",
-          "score": 0.3171
+          "score": 0.2739
         },
         {
           "doc_id": "doc_029",
@@ -2551,7 +2551,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.2756
+          "score": 0.2807
         },
         {
           "doc_id": "doc_029",
@@ -2562,7 +2562,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "experiments",
-          "score": 0.1636
+          "score": 0.1575
         },
         {
           "doc_id": "doc_029",
@@ -2573,7 +2573,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "background",
-          "score": 0.1539
+          "score": 0.1596
         },
         {
           "doc_id": "doc_029",
@@ -2584,7 +2584,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "background",
-          "score": 0.1709
+          "score": 0.1784
         },
         {
           "doc_id": "doc_029",
@@ -2595,7 +2595,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "background",
-          "score": 0.1917
+          "score": 0.1982
         },
         {
           "doc_id": "doc_029",
@@ -2606,7 +2606,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "background",
-          "score": 0.1923
+          "score": 0.1993
         },
         {
           "doc_id": "doc_029",
@@ -2617,7 +2617,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "background",
-          "score": 0.1849
+          "score": 0.1884
         },
         {
           "doc_id": "doc_029",
@@ -2628,7 +2628,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "background",
-          "score": 0.156
+          "score": 0.1593
         },
         {
           "doc_id": "doc_029",
@@ -2638,8 +2638,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
-          "pred": "experiments",
-          "score": 0.1627
+          "pred": "background",
+          "score": 0.1657
         },
         {
           "doc_id": "doc_029",
@@ -2650,7 +2650,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "experiments",
-          "score": 0.2272
+          "score": 0.2107
         },
         {
           "doc_id": "doc_029",
@@ -2661,7 +2661,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "limitations",
           "pred": "experiments",
-          "score": 0.2139
+          "score": 0.1998
         },
         {
           "doc_id": "doc_029",
@@ -2672,7 +2672,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "limitations",
           "pred": "limitations",
-          "score": 0.7914
+          "score": 0.7942
         },
         {
           "doc_id": "doc_029",
@@ -2683,7 +2683,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "discussion",
           "pred": "limitations",
-          "score": 0.3099
+          "score": 0.3146
         },
         {
           "doc_id": "doc_029",
@@ -2694,7 +2694,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "discussion",
           "pred": "limitations",
-          "score": 0.2093
+          "score": 0.2184
         },
         {
           "doc_id": "doc_029",
@@ -2705,7 +2705,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "discussion",
           "pred": "limitations",
-          "score": 0.2222
+          "score": 0.2256
         },
         {
           "doc_id": "doc_029",
@@ -2716,7 +2716,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "discussion",
           "pred": "limitations",
-          "score": 0.2485
+          "score": 0.2533
         },
         {
           "doc_id": "doc_029",
@@ -2727,7 +2727,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "related_work",
           "pred": "related_work",
-          "score": 0.5364
+          "score": 0.5421
         },
         {
           "doc_id": "doc_029",
@@ -2738,7 +2738,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "conclusion",
           "pred": "conclusion",
-          "score": 0.5432
+          "score": 0.5486
         },
         {
           "doc_id": "doc_029",
@@ -2749,7 +2749,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "acknowledgements",
           "pred": "acknowledgements",
-          "score": 0.7127
+          "score": 0.7165
         },
         {
           "doc_id": "doc_029",
@@ -2760,7 +2760,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "acknowledgements",
           "pred": "acknowledgements",
-          "score": 0.3746
+          "score": 0.3808
         },
         {
           "doc_id": "doc_029",
@@ -2771,7 +2771,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "background",
-          "score": 0.1401
+          "score": 0.1455
         },
         {
           "doc_id": "doc_029",
@@ -2782,7 +2782,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.3777
+          "score": 0.2572
         },
         {
           "doc_id": "doc_029",
@@ -2793,7 +2793,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "results",
-          "score": 0.2393
+          "score": 0.2347
         },
         {
           "doc_id": "doc_029",
@@ -2804,7 +2804,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.3484
+          "score": 0.2691
         },
         {
           "doc_id": "doc_029",
@@ -2815,7 +2815,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.1956
+          "score": 0.1704
         },
         {
           "doc_id": "doc_029",
@@ -2826,7 +2826,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "appendix",
-          "score": 0.2605
+          "score": 0.2653
         },
         {
           "doc_id": "doc_029",
@@ -2837,7 +2837,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "background",
-          "score": 0.2138
+          "score": 0.2228
         },
         {
           "doc_id": "doc_029",
@@ -2847,8 +2847,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
-          "pred": "experiments",
-          "score": 0.2322
+          "pred": "results",
+          "score": 0.244
         },
         {
           "doc_id": "doc_029",
@@ -2859,7 +2859,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "references",
           "pred": "references",
-          "score": 0.5373
+          "score": 0.5423
         },
         {
           "doc_id": "doc_001",
@@ -2870,7 +2870,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "market_for_equity",
-          "score": 0.2443
+          "score": 0.2532
         },
         {
           "doc_id": "doc_001",
@@ -2881,7 +2881,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.4016
+          "score": 0.4972
         },
         {
           "doc_id": "doc_001",
@@ -2892,7 +2892,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "shareholder_letter",
-          "score": 0.1663
+          "score": 0.1754
         },
         {
           "doc_id": "doc_001",
@@ -2903,7 +2903,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "management_discussion",
-          "score": 0.385
+          "score": 0.4157
         },
         {
           "doc_id": "doc_001",
@@ -2914,7 +2914,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "management_discussion",
-          "score": 0.1851
+          "score": 0.1942
         },
         {
           "doc_id": "doc_001",
@@ -2925,7 +2925,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "other",
-          "score": 0.3874
+          "score": 0.2711
         },
         {
           "doc_id": "doc_001",
@@ -2936,7 +2936,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "business_overview",
-          "score": 0.1821
+          "score": 0.1964
         },
         {
           "doc_id": "doc_001",
@@ -2947,7 +2947,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "market_for_equity",
           "pred": "management_discussion",
-          "score": 0.2344
+          "score": 0.239
         },
         {
           "doc_id": "doc_001",
@@ -2958,7 +2958,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "business_overview",
-          "score": 0.1305
+          "score": 0.1435
         },
         {
           "doc_id": "doc_001",
@@ -2969,7 +2969,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "market_for_equity",
-          "score": 0.7892
+          "score": 0.8036
         },
         {
           "doc_id": "doc_001",
@@ -2980,7 +2980,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "corporate_governance",
-          "score": 0.6283
+          "score": 0.6468
         },
         {
           "doc_id": "doc_001",
@@ -2991,7 +2991,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "exhibits",
-          "score": 0.445
+          "score": 0.4074
         },
         {
           "doc_id": "doc_001",
@@ -3002,7 +3002,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "business_overview",
           "pred": "business_overview",
-          "score": 0.173
+          "score": 0.185
         },
         {
           "doc_id": "doc_001",
@@ -3013,7 +3013,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "risk_factors",
           "pred": "risk_factors",
-          "score": 0.6385
+          "score": 0.675
         },
         {
           "doc_id": "doc_001",
@@ -3024,7 +3024,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.5417
+          "score": 0.176
         },
         {
           "doc_id": "doc_001",
@@ -3035,7 +3035,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "risk_factors",
           "pred": "business_overview",
-          "score": 0.2153
+          "score": 0.2432
         },
         {
           "doc_id": "doc_001",
@@ -3045,8 +3045,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.4066
+          "pred": "management_discussion",
+          "score": 0.1619
         },
         {
           "doc_id": "doc_001",
@@ -3057,7 +3057,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "market_for_equity",
           "pred": "market_for_equity",
-          "score": 0.7643
+          "score": 0.7796
         },
         {
           "doc_id": "doc_001",
@@ -3068,7 +3068,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "management_discussion",
           "pred": "market_for_equity",
-          "score": 0.1758
+          "score": 0.1807
         },
         {
           "doc_id": "doc_001",
@@ -3079,7 +3079,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "market_for_equity",
-          "score": 0.1758
+          "score": 0.1807
         },
         {
           "doc_id": "doc_001",
@@ -3090,7 +3090,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "management_discussion",
           "pred": "business_overview",
-          "score": 0.2482
+          "score": 0.2765
         },
         {
           "doc_id": "doc_001",
@@ -3101,7 +3101,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "business_overview",
-          "score": 0.2482
+          "score": 0.2765
         },
         {
           "doc_id": "doc_001",
@@ -3112,7 +3112,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "management_discussion",
           "pred": "management_discussion",
-          "score": 0.3208
+          "score": 0.3539
         },
         {
           "doc_id": "doc_001",
@@ -3123,7 +3123,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "controls_and_procedures",
-          "score": 0.1981
+          "score": 0.2175
         },
         {
           "doc_id": "doc_001",
@@ -3134,7 +3134,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "controls_and_procedures",
           "pred": "controls_and_procedures",
-          "score": 0.5479
+          "score": 0.5789
         },
         {
           "doc_id": "doc_001",
@@ -3144,8 +3144,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.2029
+          "pred": "business_overview",
+          "score": 0.215
         },
         {
           "doc_id": "doc_001",
@@ -3155,8 +3155,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.2543
+          "pred": "controls_and_procedures",
+          "score": 0.2121
         },
         {
           "doc_id": "doc_001",
@@ -3167,7 +3167,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
           "pred": "business_overview",
-          "score": 0.1466
+          "score": 0.156
         },
         {
           "doc_id": "doc_001",
@@ -3177,8 +3177,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "other",
-          "score": 0.1592
+          "pred": "business_overview",
+          "score": 0.1624
         },
         {
           "doc_id": "doc_002",
@@ -3189,7 +3189,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "management_discussion",
-          "score": 0.1488
+          "score": 0.1576
         },
         {
           "doc_id": "doc_002",
@@ -3199,8 +3199,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
-          "pred": "exhibits",
-          "score": 0.186
+          "pred": "other",
+          "score": 0.1706
         },
         {
           "doc_id": "doc_002",
@@ -3210,8 +3210,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.1281
+          "pred": "notes_to_financial_statements",
+          "score": 0.138
         },
         {
           "doc_id": "doc_002",
@@ -3222,7 +3222,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "business_overview",
-          "score": 0.1648
+          "score": 0.1725
         },
         {
           "doc_id": "doc_002",
@@ -3233,7 +3233,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "business_overview",
-          "score": 0.1778
+          "score": 0.1865
         },
         {
           "doc_id": "doc_002",
@@ -3244,7 +3244,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "management_discussion",
-          "score": 0.1548
+          "score": 0.1617
         },
         {
           "doc_id": "doc_002",
@@ -3255,7 +3255,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "management_discussion",
-          "score": 0.1555
+          "score": 0.162
         },
         {
           "doc_id": "doc_002",
@@ -3266,7 +3266,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "management_discussion",
-          "score": 0.121
+          "score": 0.1297
         },
         {
           "doc_id": "doc_002",
@@ -3277,7 +3277,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "risk_factors",
           "pred": "risk_factors",
-          "score": 0.6953
+          "score": 0.7182
         },
         {
           "doc_id": "doc_002",
@@ -3287,8 +3287,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.4514
+          "pred": "management_discussion",
+          "score": 0.1451
         },
         {
           "doc_id": "doc_002",
@@ -3299,7 +3299,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "properties",
           "pred": "properties",
-          "score": 0.5653
+          "score": 0.5935
         },
         {
           "doc_id": "doc_002",
@@ -3310,7 +3310,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "legal_proceedings",
           "pred": "legal_proceedings",
-          "score": 0.5678
+          "score": 0.5928
         },
         {
           "doc_id": "doc_002",
@@ -3320,8 +3320,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.3194
+          "pred": "management_discussion",
+          "score": 0.1673
         },
         {
           "doc_id": "doc_002",
@@ -3332,7 +3332,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "market_for_equity",
           "pred": "market_for_equity",
-          "score": 0.8433
+          "score": 0.8539
         },
         {
           "doc_id": "doc_002",
@@ -3343,7 +3343,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "management_discussion",
           "pred": "management_discussion",
-          "score": 0.7218
+          "score": 0.7388
         },
         {
           "doc_id": "doc_002",
@@ -3354,7 +3354,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "financial_statements",
           "pred": "financial_statements",
-          "score": 0.2876
+          "score": 0.298
         },
         {
           "doc_id": "doc_002",
@@ -3365,7 +3365,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "financial_statements",
           "pred": "financial_statements",
-          "score": 0.3882
+          "score": 0.4068
         },
         {
           "doc_id": "doc_002",
@@ -3376,7 +3376,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "financial_statements",
           "pred": "financial_statements",
-          "score": 0.3417
+          "score": 0.3529
         },
         {
           "doc_id": "doc_002",
@@ -3387,7 +3387,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "financial_statements",
           "pred": "market_for_equity",
-          "score": 0.2647
+          "score": 0.2766
         },
         {
           "doc_id": "doc_002",
@@ -3398,7 +3398,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "notes_to_financial_statements",
           "pred": "notes_to_financial_statements",
-          "score": 0.3436
+          "score": 0.3552
         },
         {
           "doc_id": "doc_002",
@@ -3409,7 +3409,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "notes_to_financial_statements",
           "pred": "notes_to_financial_statements",
-          "score": 0.2008
+          "score": 0.2221
         },
         {
           "doc_id": "doc_002",
@@ -3420,7 +3420,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "notes_to_financial_statements",
           "pred": "shareholder_letter",
-          "score": 0.1976
+          "score": 0.2054
         },
         {
           "doc_id": "doc_002",
@@ -3431,7 +3431,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "management_discussion",
-          "score": 0.2139
+          "score": 0.2344
         },
         {
           "doc_id": "doc_002",
@@ -3442,7 +3442,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "controls_and_procedures",
           "pred": "controls_and_procedures",
-          "score": 0.5956
+          "score": 0.6244
         },
         {
           "doc_id": "doc_002",
@@ -3453,7 +3453,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "business_overview",
-          "score": 0.1436
+          "score": 0.1652
         },
         {
           "doc_id": "doc_002",
@@ -3463,8 +3463,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "other",
-          "score": 0.1719
+          "pred": "controls_and_procedures",
+          "score": 0.1604
         },
         {
           "doc_id": "doc_002",
@@ -3475,7 +3475,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
           "pred": "corporate_governance",
-          "score": 0.6038
+          "score": 0.6205
         },
         {
           "doc_id": "doc_002",
@@ -3486,7 +3486,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "executive_compensation",
           "pred": "executive_compensation",
-          "score": 0.5139
+          "score": 0.5309
         },
         {
           "doc_id": "doc_002",
@@ -3497,7 +3497,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
           "pred": "market_for_equity",
-          "score": 0.3575
+          "score": 0.3779
         },
         {
           "doc_id": "doc_002",
@@ -3508,7 +3508,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
           "pred": "market_for_equity",
-          "score": 0.1364
+          "score": 0.1488
         },
         {
           "doc_id": "doc_002",
@@ -3519,7 +3519,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "notes_to_financial_statements",
-          "score": 0.1468
+          "score": 0.1582
         },
         {
           "doc_id": "doc_002",
@@ -3530,7 +3530,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "exhibits",
-          "score": 0.5748
+          "score": 0.5398
         },
         {
           "doc_id": "doc_002",
@@ -3540,8 +3540,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "exhibits",
-          "score": 0.1818
+          "pred": "management_discussion",
+          "score": 0.161
         },
         {
           "doc_id": "doc_002",
@@ -3552,7 +3552,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "corporate_governance",
-          "score": 0.1192
+          "score": 0.1282
         },
         {
           "doc_id": "doc_002",
@@ -3563,7 +3563,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "market_for_equity",
-          "score": 0.1573
+          "score": 0.1696
         },
         {
           "doc_id": "doc_002",
@@ -3574,7 +3574,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "business_overview",
-          "score": 0.1665
+          "score": 0.1766
         },
         {
           "doc_id": "doc_002",
@@ -3585,7 +3585,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "executive_compensation",
-          "score": 0.3199
+          "score": 0.3447
         },
         {
           "doc_id": "doc_002",
@@ -3596,7 +3596,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "notes_to_financial_statements",
-          "score": 0.1822
+          "score": 0.1927
         },
         {
           "doc_id": "doc_002",
@@ -3607,7 +3607,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.3443
+          "score": 0.2368
         },
         {
           "doc_id": "doc_002",
@@ -3618,7 +3618,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.2611
+          "score": 0.2766
         },
         {
           "doc_id": "doc_002",
@@ -3628,8 +3628,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "other",
-          "score": 0.1648
+          "pred": "management_discussion",
+          "score": 0.1563
         },
         {
           "doc_id": "doc_002",
@@ -3639,8 +3639,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "other",
-          "score": 0.1782
+          "pred": "management_discussion",
+          "score": 0.1692
         },
         {
           "doc_id": "doc_002",
@@ -3651,7 +3651,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "legal_proceedings",
-          "score": 0.1421
+          "score": 0.1515
         },
         {
           "doc_id": "doc_002",
@@ -3661,8 +3661,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "other",
-          "score": 0.1394
+          "pred": "notes_to_financial_statements",
+          "score": 0.1432
         },
         {
           "doc_id": "doc_002",
@@ -3673,7 +3673,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "exhibits",
-          "score": 0.3674
+          "score": 0.2906
         },
         {
           "doc_id": "doc_016",
@@ -3809,21 +3809,21 @@
         }
       ],
       "loadavg_end": [
-        7.0458984375,
-        8.4658203125,
-        7.7890625
+        10.11279296875,
+        10.83154296875,
+        9.474609375
       ]
     },
     "jev": {
       "backend": "jev:jev-1.13.0",
       "config": "path+title+syn",
-      "load_s": 0.646920000001046,
-      "seconds": 4.365022666999721,
+      "load_s": 1.0600699589995202,
+      "seconds": 4.520171374000711,
       "n_labelled": 163,
-      "s_per_section": 0.02677928016564246,
+      "s_per_section": 0.02773111272393074,
       "per_doc": {
         "doc_027": {
-          "seconds": 0.48331299999881594,
+          "seconds": 0.7841975409992301,
           "n_labelled": 23,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -3833,14 +3833,14 @@
           "unlabelled_sections": [],
           "n_scored": 22,
           "n_junk": 1,
-          "n_correct": 20,
-          "accuracy": 0.9090909090909091,
-          "macro_f1": 0.7654320987654322,
-          "tokens": 22867,
+          "n_correct": 18,
+          "accuracy": 0.8181818181818182,
+          "macro_f1": 0.7237654320987654,
+          "tokens": 22752,
           "tokens_estimated": false
         },
         "doc_028": {
-          "seconds": 0.5410960419994808,
+          "seconds": 0.4177110830005404,
           "n_labelled": 16,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -3853,11 +3853,11 @@
           "n_correct": 10,
           "accuracy": 0.7142857142857143,
           "macro_f1": 0.6825396825396826,
-          "tokens": 15989,
+          "tokens": 15909,
           "tokens_estimated": false
         },
         "doc_029": {
-          "seconds": 1.021018790999733,
+          "seconds": 0.9445437499998661,
           "n_labelled": 38,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -3869,12 +3869,12 @@
           "n_junk": 2,
           "n_correct": 26,
           "accuracy": 0.7222222222222222,
-          "macro_f1": 0.7490079365079364,
-          "tokens": 37827,
+          "macro_f1": 0.7105820105820105,
+          "tokens": 37637,
           "tokens_estimated": false
         },
         "doc_001": {
-          "seconds": 0.8027943340002821,
+          "seconds": 0.6865170000000944,
           "n_labelled": 29,
           "doc_type": "financial.annual_report",
           "doc_type_confidence": null,
@@ -3886,12 +3886,12 @@
           "n_junk": 5,
           "n_correct": 14,
           "accuracy": 0.5833333333333334,
-          "macro_f1": 0.4740740740740741,
-          "tokens": 44851,
+          "macro_f1": 0.4712522045855379,
+          "tokens": 43865,
           "tokens_estimated": false
         },
         "doc_002": {
-          "seconds": 1.1214271250009915,
+          "seconds": 1.261343083000611,
           "n_labelled": 45,
           "doc_type": "financial.annual_report",
           "doc_type_confidence": null,
@@ -3901,14 +3901,14 @@
           "unlabelled_sections": [],
           "n_scored": 38,
           "n_junk": 7,
-          "n_correct": 25,
-          "accuracy": 0.6578947368421053,
-          "macro_f1": 0.7387806637806639,
-          "tokens": 69618,
+          "n_correct": 24,
+          "accuracy": 0.631578947368421,
+          "macro_f1": 0.7258281573498965,
+          "tokens": 68088,
           "tokens_estimated": false
         },
         "doc_016": {
-          "seconds": 0.3953733750004176,
+          "seconds": 0.4258589170003688,
           "n_labelled": 12,
           "doc_type": "legal.contract",
           "doc_type_confidence": null,
@@ -3928,9 +3928,9 @@
       "overall": {
         "n_scored": 145,
         "n_junk": 18,
-        "n_correct": 106,
-        "accuracy": 0.7310344827586207,
-        "macro_f1": 0.7584331594850529
+        "n_correct": 103,
+        "accuracy": 0.7103448275862069,
+        "macro_f1": 0.7340366487772422
       },
       "rows": [
         {
@@ -3942,7 +3942,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "introduction",
-          "score": 0.79
+          "score": 0.8081
         },
         {
           "doc_id": "doc_027",
@@ -4052,7 +4052,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.46
+          "score": 0.42
         },
         {
           "doc_id": "doc_027",
@@ -4063,7 +4063,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 1.0
+          "score": 0.73
         },
         {
           "doc_id": "doc_027",
@@ -4074,7 +4074,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.93
+          "score": 0.7
         },
         {
           "doc_id": "doc_027",
@@ -4085,7 +4085,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.99
+          "score": 0.94
         },
         {
           "doc_id": "doc_027",
@@ -4095,8 +4095,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
-          "pred": "experiments",
-          "score": 0.74
+          "pred": "method",
+          "score": 0.61
         },
         {
           "doc_id": "doc_027",
@@ -4106,8 +4106,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
-          "pred": "experiments",
-          "score": 0.62
+          "pred": "method",
+          "score": 0.87
         },
         {
           "doc_id": "doc_027",
@@ -4118,7 +4118,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.98
+          "score": 0.97
         },
         {
           "doc_id": "doc_027",
@@ -4140,7 +4140,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.88
+          "score": 0.9
         },
         {
           "doc_id": "doc_027",
@@ -4151,7 +4151,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.82
+          "score": 0.88
         },
         {
           "doc_id": "doc_027",
@@ -4184,7 +4184,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "results",
-          "score": 0.5758
+          "score": 0.6
         },
         {
           "doc_id": "doc_028",
@@ -4195,7 +4195,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "introduction",
-          "score": 0.63
+          "score": 0.7
         },
         {
           "doc_id": "doc_028",
@@ -4239,7 +4239,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.87
+          "score": 0.83
         },
         {
           "doc_id": "doc_028",
@@ -4250,7 +4250,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.97
+          "score": 0.98
         },
         {
           "doc_id": "doc_028",
@@ -4261,7 +4261,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.97
+          "score": 0.9394
         },
         {
           "doc_id": "doc_028",
@@ -4294,7 +4294,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "experiments",
-          "score": 0.9
+          "score": 0.91
         },
         {
           "doc_id": "doc_028",
@@ -4305,7 +4305,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.8
+          "score": 0.83
         },
         {
           "doc_id": "doc_028",
@@ -4316,7 +4316,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "experiments",
-          "score": 0.79
+          "score": 0.8
         },
         {
           "doc_id": "doc_028",
@@ -4338,7 +4338,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.75
+          "score": 0.87
         },
         {
           "doc_id": "doc_028",
@@ -4349,7 +4349,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "method",
-          "score": 0.8
+          "score": 0.84
         },
         {
           "doc_id": "doc_028",
@@ -4360,7 +4360,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.63
+          "score": 0.77
         },
         {
           "doc_id": "doc_029",
@@ -4371,7 +4371,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "introduction",
-          "score": 0.79
+          "score": 0.73
         },
         {
           "doc_id": "doc_029",
@@ -4393,7 +4393,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "introduction",
-          "score": 0.5
+          "score": 0.52
         },
         {
           "doc_id": "doc_029",
@@ -4437,7 +4437,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.58
+          "score": 0.68
         },
         {
           "doc_id": "doc_029",
@@ -4447,8 +4447,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
-          "pred": "experiments",
-          "score": 0.54
+          "pred": "method",
+          "score": 0.88
         },
         {
           "doc_id": "doc_029",
@@ -4459,7 +4459,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.98
+          "score": 0.99
         },
         {
           "doc_id": "doc_029",
@@ -4481,7 +4481,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.9394
+          "score": 0.78
         },
         {
           "doc_id": "doc_029",
@@ -4492,7 +4492,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.91
+          "score": 0.9495
         },
         {
           "doc_id": "doc_029",
@@ -4503,7 +4503,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.44
+          "score": 0.6
         },
         {
           "doc_id": "doc_029",
@@ -4514,7 +4514,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.66
+          "score": 0.74
         },
         {
           "doc_id": "doc_029",
@@ -4525,7 +4525,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.74
+          "score": 0.73
         },
         {
           "doc_id": "doc_029",
@@ -4536,7 +4536,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.6869
+          "score": 0.63
         },
         {
           "doc_id": "doc_029",
@@ -4547,7 +4547,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.86
+          "score": 0.84
         },
         {
           "doc_id": "doc_029",
@@ -4569,7 +4569,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.78
+          "score": 0.65
         },
         {
           "doc_id": "doc_029",
@@ -4580,7 +4580,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "limitations",
           "pred": "experiments",
-          "score": 0.67
+          "score": 0.62
         },
         {
           "doc_id": "doc_029",
@@ -4678,8 +4678,8 @@
           "taxonomy": "section_types/research_paper",
           "pred_taxonomy": "section_types/research_paper",
           "gold": "acknowledgements",
-          "pred": "acknowledgements",
-          "score": 0.5
+          "pred": "introduction",
+          "score": 0.51
         },
         {
           "doc_id": "doc_029",
@@ -4690,7 +4690,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "appendix",
-          "score": 0.96
+          "score": 0.97
         },
         {
           "doc_id": "doc_029",
@@ -4701,7 +4701,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.79
+          "score": 0.62
         },
         {
           "doc_id": "doc_029",
@@ -4712,7 +4712,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "appendix",
-          "score": 0.91
+          "score": 0.92
         },
         {
           "doc_id": "doc_029",
@@ -4723,7 +4723,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "appendix",
-          "score": 0.73
+          "score": 0.64
         },
         {
           "doc_id": "doc_029",
@@ -4734,7 +4734,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.59
+          "score": 0.64
         },
         {
           "doc_id": "doc_029",
@@ -4756,7 +4756,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "method",
-          "score": 0.4
+          "score": 0.41
         },
         {
           "doc_id": "doc_029",
@@ -4767,7 +4767,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "results",
-          "score": 0.63
+          "score": 0.62
         },
         {
           "doc_id": "doc_029",
@@ -4789,7 +4789,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.84
+          "score": 0.86
         },
         {
           "doc_id": "doc_001",
@@ -4811,7 +4811,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "other",
-          "score": 0.9
+          "score": 0.94
         },
         {
           "doc_id": "doc_001",
@@ -4844,7 +4844,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "business_overview",
-          "score": 0.72
+          "score": 0.7
         },
         {
           "doc_id": "doc_001",
@@ -4855,7 +4855,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "notes_to_financial_statements",
-          "score": 0.45
+          "score": 0.41
         },
         {
           "doc_id": "doc_001",
@@ -4866,7 +4866,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "market_for_equity",
           "pred": "market_for_equity",
-          "score": 0.49
+          "score": 0.51
         },
         {
           "doc_id": "doc_001",
@@ -4877,7 +4877,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.697
+          "score": 0.81
         },
         {
           "doc_id": "doc_001",
@@ -4921,7 +4921,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "business_overview",
           "pred": "business_overview",
-          "score": 0.56
+          "score": 0.57
         },
         {
           "doc_id": "doc_001",
@@ -4943,7 +4943,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 1.0
+          "score": 0.88
         },
         {
           "doc_id": "doc_001",
@@ -4953,8 +4953,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "risk_factors",
-          "pred": "other",
-          "score": 0.46
+          "pred": "business_overview",
+          "score": 0.38
         },
         {
           "doc_id": "doc_001",
@@ -4965,7 +4965,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 1.0
+          "score": 0.68
         },
         {
           "doc_id": "doc_001",
@@ -4998,7 +4998,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "notes_to_financial_statements",
-          "score": 0.42
+          "score": 0.44
         },
         {
           "doc_id": "doc_001",
@@ -5009,7 +5009,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "management_discussion",
           "pred": "business_overview",
-          "score": 0.62
+          "score": 0.7
         },
         {
           "doc_id": "doc_001",
@@ -5020,7 +5020,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "business_overview",
-          "score": 0.77
+          "score": 0.67
         },
         {
           "doc_id": "doc_001",
@@ -5042,7 +5042,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.84
+          "score": 0.67
         },
         {
           "doc_id": "doc_001",
@@ -5064,7 +5064,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.94
+          "score": 0.9
         },
         {
           "doc_id": "doc_001",
@@ -5075,7 +5075,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.78
+          "score": 0.7
         },
         {
           "doc_id": "doc_001",
@@ -5085,7 +5085,7 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
-          "pred": "other",
+          "pred": "business_overview",
           "score": 0.43
         },
         {
@@ -5097,7 +5097,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.44
+          "score": 0.47
         },
         {
           "doc_id": "doc_002",
@@ -5108,7 +5108,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "other",
-          "score": 0.92
+          "score": 0.9394
         },
         {
           "doc_id": "doc_002",
@@ -5119,7 +5119,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "other",
-          "score": 0.73
+          "score": 0.79
         },
         {
           "doc_id": "doc_002",
@@ -5130,7 +5130,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.86
+          "score": 0.96
         },
         {
           "doc_id": "doc_002",
@@ -5141,7 +5141,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.69
+          "score": 0.81
         },
         {
           "doc_id": "doc_002",
@@ -5152,7 +5152,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "other",
-          "score": 0.57
+          "score": 0.71
         },
         {
           "doc_id": "doc_002",
@@ -5163,7 +5163,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "other",
-          "score": 0.77
+          "score": 0.72
         },
         {
           "doc_id": "doc_002",
@@ -5174,7 +5174,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "other",
-          "score": 0.66
+          "score": 0.69
         },
         {
           "doc_id": "doc_002",
@@ -5207,7 +5207,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 1.0
+          "score": 0.97
         },
         {
           "doc_id": "doc_002",
@@ -5240,7 +5240,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 1.0
+          "score": 0.91
         },
         {
           "doc_id": "doc_002",
@@ -5328,7 +5328,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "notes_to_financial_statements",
           "pred": "notes_to_financial_statements",
-          "score": 0.97
+          "score": 0.98
         },
         {
           "doc_id": "doc_002",
@@ -5350,7 +5350,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.78
+          "score": 0.59
         },
         {
           "doc_id": "doc_002",
@@ -5372,7 +5372,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.97
+          "score": 0.9495
         },
         {
           "doc_id": "doc_002",
@@ -5383,7 +5383,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.89
+          "score": 0.8081
         },
         {
           "doc_id": "doc_002",
@@ -5416,7 +5416,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
           "pred": "market_for_equity",
-          "score": 0.5657
+          "score": 0.67
         },
         {
           "doc_id": "doc_002",
@@ -5427,7 +5427,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
           "pred": "corporate_governance",
-          "score": 0.96
+          "score": 0.97
         },
         {
           "doc_id": "doc_002",
@@ -5438,7 +5438,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.96
+          "score": 0.91
         },
         {
           "doc_id": "doc_002",
@@ -5459,8 +5459,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "exhibits",
-          "score": 0.99
+          "pred": "other",
+          "score": 0.85
         },
         {
           "doc_id": "doc_002",
@@ -5482,7 +5482,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "corporate_governance",
-          "score": 0.83
+          "score": 0.84
         },
         {
           "doc_id": "doc_002",
@@ -5493,7 +5493,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.59
+          "score": 0.5455
         },
         {
           "doc_id": "doc_002",
@@ -5504,7 +5504,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "executive_compensation",
-          "score": 0.6869
+          "score": 0.71
         },
         {
           "doc_id": "doc_002",
@@ -5526,7 +5526,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.65
+          "score": 0.52
         },
         {
           "doc_id": "doc_002",
@@ -5548,7 +5548,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.59
+          "score": 0.62
         },
         {
           "doc_id": "doc_002",
@@ -5559,7 +5559,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "management_discussion",
-          "score": 0.46
+          "score": 0.52
         },
         {
           "doc_id": "doc_002",
@@ -5581,7 +5581,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "corporate_governance",
-          "score": 0.48
+          "score": 0.46
         },
         {
           "doc_id": "doc_002",
@@ -5614,7 +5614,7 @@
           "pred_taxonomy": "section_types/contract",
           "gold": "parties_recitals",
           "pred": "parties_recitals",
-          "score": 0.91
+          "score": 0.93
         },
         {
           "doc_id": "doc_016",
@@ -5713,7 +5713,7 @@
           "pred_taxonomy": "section_types/contract",
           "gold": "signatures_exhibits",
           "pred": "signatures_exhibits",
-          "score": 0.99
+          "score": 1.0
         },
         {
           "doc_id": "doc_016",
@@ -5724,21 +5724,21 @@
           "pred_taxonomy": "section_types/contract",
           "gold": "signatures_exhibits",
           "pred": "signatures_exhibits",
-          "score": 0.68
+          "score": 0.66
         }
       ],
-      "tokens": 205724,
+      "tokens": 202823,
       "tokens_estimated": false,
-      "cost_usd": 0.008640408,
+      "cost_usd": 0.008518566,
       "loadavg_end": [
-        6.4814453125,
-        8.3251953125,
-        7.7431640625
+        9.623046875,
+        10.7177734375,
+        9.4423828125
       ]
     }
   },
   "date": "2026-10-16",
-  "commit": "8cc9f10",
+  "commit": "ae6b037",
   "env": {
     "python": "3.12.13",
     "platform": "macOS-26.5-arm64-arm-64bit",
@@ -5754,7 +5754,7 @@
       "pymupdf": "1.28.2"
     },
     "device": "mps",
-    "device_note": "MPS probe matmul took 1.15 s"
+    "device_note": "MPS probe matmul took 0.21 s"
   },
   "gold": {
     "path": "benchmarks/corpus/section_gold.jsonl",
@@ -13569,7 +13569,12 @@
         "macro_f1": 0.45627469843156115,
         "n_correct": 50,
         "n_scored": 145,
-        "s_per_section": 0.060478780668717556,
+        "non_overlap": {
+          "accuracy": 0.16981132075471697,
+          "n_correct": 18,
+          "n_scored": 106
+        },
+        "s_per_section": 0.02858389851533982,
         "top_preds": [
           [
             "introduction",
@@ -13590,7 +13595,12 @@
         "macro_f1": 0.3080153961385633,
         "n_correct": 33,
         "n_scored": 145,
-        "s_per_section": 0.01619105623927245,
+        "non_overlap": {
+          "accuracy": 0.16037735849056603,
+          "n_correct": 17,
+          "n_scored": 106
+        },
+        "s_per_section": 0.00931370092024334,
         "top_preds": [
           [
             "experiments",
@@ -13605,6 +13615,35 @@
             10
           ]
         ]
+      },
+      "jev": {
+        "accuracy": 0.696551724137931,
+        "macro_f1": 0.7559988100056302,
+        "n_correct": 101,
+        "n_scored": 145,
+        "non_overlap": {
+          "accuracy": 0.6037735849056604,
+          "n_correct": 64,
+          "n_scored": 106
+        },
+        "s_per_section": 0.05254513726380359,
+        "top_preds": [
+          [
+            "experiments",
+            19
+          ],
+          [
+            "other",
+            19
+          ],
+          [
+            "method",
+            15
+          ]
+        ],
+        "tokens": 152807,
+        "tokens_estimated": false,
+        "cost_usd": 0.006417894
       }
     },
     "title": {
@@ -13613,7 +13652,12 @@
         "macro_f1": 0.4197602610143579,
         "n_correct": 38,
         "n_scored": 145,
-        "s_per_section": 0.03197675741717897,
+        "non_overlap": {
+          "accuracy": 0.10377358490566038,
+          "n_correct": 11,
+          "n_scored": 106
+        },
+        "s_per_section": 0.011325001024538518,
         "top_preds": [
           [
             "introduction",
@@ -13634,7 +13678,12 @@
         "macro_f1": 0.3929413364003165,
         "n_correct": 45,
         "n_scored": 145,
-        "s_per_section": 0.005786817226995213,
+        "non_overlap": {
+          "accuracy": 0.16037735849056603,
+          "n_correct": 17,
+          "n_scored": 106
+        },
+        "s_per_section": 0.0032708366441712186,
         "top_preds": [
           [
             "experiments",
@@ -13657,7 +13706,12 @@
         "macro_f1": 0.36949570896939316,
         "n_correct": 38,
         "n_scored": 145,
-        "s_per_section": 0.045664058533737575,
+        "non_overlap": {
+          "accuracy": 0.11320754716981132,
+          "n_correct": 12,
+          "n_scored": 106
+        },
+        "s_per_section": 0.01884845501841103,
         "top_preds": [
           [
             "introduction",
@@ -13678,7 +13732,12 @@
         "macro_f1": 0.44419708831473537,
         "n_correct": 51,
         "n_scored": 145,
-        "s_per_section": 0.00870510658895257,
+        "non_overlap": {
+          "accuracy": 0.18867924528301888,
+          "n_correct": 20,
+          "n_scored": 106
+        },
+        "s_per_section": 0.003888466509208251,
         "top_preds": [
           [
             "experiments",
@@ -13701,7 +13760,12 @@
         "macro_f1": 0.4296219529577449,
         "n_correct": 47,
         "n_scored": 145,
-        "s_per_section": 0.04166534330061654,
+        "non_overlap": {
+          "accuracy": 0.16037735849056603,
+          "n_correct": 17,
+          "n_scored": 106
+        },
+        "s_per_section": 0.01724621241718652,
         "top_preds": [
           [
             "introduction",
@@ -13722,7 +13786,12 @@
         "macro_f1": 0.33816934699287643,
         "n_correct": 38,
         "n_scored": 145,
-        "s_per_section": 0.010282301374230704,
+        "non_overlap": {
+          "accuracy": 0.1509433962264151,
+          "n_correct": 16,
+          "n_scored": 106
+        },
+        "s_per_section": 0.004768645957064907,
         "top_preds": [
           [
             "experiments",
@@ -13741,36 +13810,46 @@
     },
     "title+lead@96+syn": {
       "ultrabert": {
-        "accuracy": 0.496551724137931,
-        "macro_f1": 0.559114344978458,
-        "n_correct": 72,
+        "accuracy": 0.43448275862068964,
+        "macro_f1": 0.5176502097625093,
+        "n_correct": 63,
         "n_scored": 145,
-        "s_per_section": 0.1213005723435523,
+        "non_overlap": {
+          "accuracy": 0.2358490566037736,
+          "n_correct": 25,
+          "n_scored": 106
+        },
+        "s_per_section": 0.02834441232514606,
         "top_preds": [
           [
             "experiments",
-            35
+            32
           ],
           [
-            "other",
-            11
+            "notes_to_financial_statements",
+            9
           ],
           [
-            "results",
-            6
+            "business_overview",
+            8
           ]
         ]
       },
       "bge-small": {
-        "accuracy": 0.31724137931034485,
-        "macro_f1": 0.4094654408994998,
-        "n_correct": 46,
+        "accuracy": 0.30344827586206896,
+        "macro_f1": 0.4003248929719518,
+        "n_correct": 44,
         "n_scored": 145,
-        "s_per_section": 0.02426440414723837,
+        "non_overlap": {
+          "accuracy": 0.19811320754716982,
+          "n_correct": 21,
+          "n_scored": 106
+        },
+        "s_per_section": 0.007641732355826045,
         "top_preds": [
           [
             "experiments",
-            63
+            60
           ],
           [
             "market_for_equity",
@@ -13778,202 +13857,242 @@
           ],
           [
             "financial_statements",
-            7
+            8
           ]
         ]
       },
       "jev": {
-        "accuracy": 0.7034482758620689,
-        "macro_f1": 0.7563778269660623,
-        "n_correct": 102,
+        "accuracy": 0.6758620689655173,
+        "macro_f1": 0.7530719152791807,
+        "n_correct": 98,
         "n_scored": 145,
-        "s_per_section": 0.028616837687118864,
+        "non_overlap": {
+          "accuracy": 0.5660377358490566,
+          "n_correct": 60,
+          "n_scored": 106
+        },
+        "s_per_section": 0.05896087142329433,
         "top_preds": [
+          [
+            "experiments",
+            20
+          ],
           [
             "other",
             20
           ],
           [
-            "experiments",
-            16
-          ],
-          [
             "method",
-            15
+            14
           ]
         ],
-        "tokens": 215714,
+        "tokens": 212813,
         "tokens_estimated": false,
-        "cost_usd": 0.009059988000000001
+        "cost_usd": 0.008938146000000001
       }
     },
     "title+syn": {
       "ultrabert": {
-        "accuracy": 0.46206896551724136,
-        "macro_f1": 0.5715770761225307,
-        "n_correct": 67,
+        "accuracy": 0.3931034482758621,
+        "macro_f1": 0.5303366568072451,
+        "n_correct": 57,
         "n_scored": 145,
-        "s_per_section": 0.054150811858908465,
+        "non_overlap": {
+          "accuracy": 0.18867924528301888,
+          "n_correct": 20,
+          "n_scored": 106
+        },
+        "s_per_section": 0.011102433785284796,
         "top_preds": [
           [
             "experiments",
-            31
+            20
           ],
           [
-            "other",
-            16
+            "background",
+            17
           ],
           [
             "business_overview",
-            9
+            17
           ]
         ]
       },
       "bge-small": {
-        "accuracy": 0.4413793103448276,
-        "macro_f1": 0.5443331671946919,
-        "n_correct": 64,
+        "accuracy": 0.4,
+        "macro_f1": 0.528337705075673,
+        "n_correct": 58,
         "n_scored": 145,
-        "s_per_section": 0.012180375760711125,
+        "non_overlap": {
+          "accuracy": 0.18867924528301888,
+          "n_correct": 20,
+          "n_scored": 106
+        },
+        "s_per_section": 0.0022389120551976416,
         "top_preds": [
           [
             "experiments",
-            33
+            36
           ],
           [
             "background",
             13
           ],
           [
-            "other",
-            13
+            "management_discussion",
+            9
+          ]
+        ]
+      }
+    },
+    "title+lead@48+syn": {
+      "ultrabert": {
+        "accuracy": 0.4413793103448276,
+        "macro_f1": 0.5308331317515229,
+        "n_correct": 64,
+        "n_scored": 145,
+        "non_overlap": {
+          "accuracy": 0.25471698113207547,
+          "n_correct": 27,
+          "n_scored": 106
+        },
+        "s_per_section": 0.017343656441724507,
+        "top_preds": [
+          [
+            "experiments",
+            28
+          ],
+          [
+            "background",
+            9
+          ],
+          [
+            "results",
+            8
+          ]
+        ]
+      },
+      "bge-small": {
+        "accuracy": 0.3103448275862069,
+        "macro_f1": 0.40819600492276015,
+        "n_correct": 45,
+        "n_scored": 145,
+        "non_overlap": {
+          "accuracy": 0.18867924528301888,
+          "n_correct": 20,
+          "n_scored": 106
+        },
+        "s_per_section": 0.004826217791404107,
+        "top_preds": [
+          [
+            "experiments",
+            54
+          ],
+          [
+            "notes_to_financial_statements",
+            10
+          ],
+          [
+            "financial_statements",
+            8
           ]
         ]
       }
     },
     "path+title+syn": {
       "ultrabert": {
-        "accuracy": 0.6,
-        "macro_f1": 0.5830854330854331,
-        "n_correct": 87,
+        "accuracy": 0.4896551724137931,
+        "macro_f1": 0.5400167703995455,
+        "n_correct": 71,
         "n_scored": 145,
-        "s_per_section": 0.0957201288405084,
+        "non_overlap": {
+          "accuracy": 0.32075471698113206,
+          "n_correct": 34,
+          "n_scored": 106
+        },
+        "s_per_section": 0.018503237987732433,
         "top_preds": [
           [
             "experiments",
-            22
+            18
+          ],
+          [
+            "business_overview",
+            18
           ],
           [
             "results",
             15
-          ],
-          [
-            "other",
-            14
           ]
         ]
       },
       "bge-small": {
-        "accuracy": 0.46206896551724136,
-        "macro_f1": 0.5674491276764004,
-        "n_correct": 67,
+        "accuracy": 0.3931034482758621,
+        "macro_f1": 0.5323277024233962,
+        "n_correct": 57,
         "n_scored": 145,
-        "s_per_section": 0.025264913595096385,
+        "non_overlap": {
+          "accuracy": 0.18867924528301888,
+          "n_correct": 20,
+          "n_scored": 106
+        },
+        "s_per_section": 0.0036660350184108095,
         "top_preds": [
           [
             "experiments",
-            29
-          ],
-          [
-            "other",
-            16
+            27
           ],
           [
             "background",
-            13
+            15
+          ],
+          [
+            "management_discussion",
+            12
           ]
         ]
       },
       "jev": {
-        "accuracy": 0.7310344827586207,
-        "macro_f1": 0.7584331594850529,
-        "n_correct": 106,
+        "accuracy": 0.7103448275862069,
+        "macro_f1": 0.7340366487772422,
+        "n_correct": 103,
         "n_scored": 145,
-        "s_per_section": 0.02677928016564246,
+        "non_overlap": {
+          "accuracy": 0.6132075471698113,
+          "n_correct": 65,
+          "n_scored": 106
+        },
+        "s_per_section": 0.02773111272393074,
         "top_preds": [
           [
             "other",
-            26
+            25
           ],
           [
             "method",
-            16
+            19
           ],
           [
             "results",
             16
           ]
         ],
-        "tokens": 205724,
+        "tokens": 202823,
         "tokens_estimated": false,
-        "cost_usd": 0.008640408
-      }
-    },
-    "title+lead@48+syn": {
-      "ultrabert": {
-        "accuracy": 0.5172413793103449,
-        "macro_f1": 0.5847386388138739,
-        "n_correct": 75,
-        "n_scored": 145,
-        "s_per_section": 0.11942791922698748,
-        "top_preds": [
-          [
-            "experiments",
-            32
-          ],
-          [
-            "other",
-            13
-          ],
-          [
-            "corporate_governance",
-            7
-          ]
-        ]
-      },
-      "bge-small": {
-        "accuracy": 0.35172413793103446,
-        "macro_f1": 0.44551052037683053,
-        "n_correct": 51,
-        "n_scored": 145,
-        "s_per_section": 0.014325925361979207,
-        "top_preds": [
-          [
-            "experiments",
-            60
-          ],
-          [
-            "notes_to_financial_statements",
-            9
-          ],
-          [
-            "other",
-            8
-          ]
-        ]
+        "cost_usd": 0.008518566
       }
     }
   },
   "auto_doc_type": {
     "backend": "embedding:dmis-lab/UltraBERT-Embed-150M",
     "config": "path+title+syn",
-    "load_s": 7.441980999999942,
-    "seconds": 18.76967866800078,
+    "load_s": 18.053004082999905,
+    "seconds": 6.308037250999405,
     "n_labelled": 163,
-    "s_per_section": 0.11515140287117043,
+    "s_per_section": 0.03869961503680616,
     "per_doc": {
       "doc_027": {
-        "seconds": 3.4761021670001355,
+        "seconds": 0.7136017079992598,
         "n_labelled": 23,
         "doc_type": "research.research_paper",
         "doc_type_confidence": 0.6265047260813298,
@@ -13983,12 +14102,12 @@
         "unlabelled_sections": [],
         "n_scored": 22,
         "n_junk": 1,
-        "n_correct": 19,
-        "accuracy": 0.8636363636363636,
-        "macro_f1": 0.722092722092722
+        "n_correct": 12,
+        "accuracy": 0.5454545454545454,
+        "macro_f1": 0.6038159371492705
       },
       "doc_028": {
-        "seconds": 0.8621981249998498,
+        "seconds": 0.698867084000085,
         "n_labelled": 16,
         "doc_type": "research.research_paper",
         "doc_type_confidence": 0.6624679945875664,
@@ -13998,12 +14117,12 @@
         "unlabelled_sections": [],
         "n_scored": 14,
         "n_junk": 2,
-        "n_correct": 9,
-        "accuracy": 0.6428571428571429,
-        "macro_f1": 0.6696428571428571
+        "n_correct": 7,
+        "accuracy": 0.5,
+        "macro_f1": 0.5708333333333333
       },
       "doc_029": {
-        "seconds": 1.450780917000884,
+        "seconds": 1.0155172089998814,
         "n_labelled": 38,
         "doc_type": "research.research_paper",
         "doc_type_confidence": 0.3721223094002722,
@@ -14013,12 +14132,12 @@
         "unlabelled_sections": [],
         "n_scored": 36,
         "n_junk": 2,
-        "n_correct": 24,
-        "accuracy": 0.6666666666666666,
-        "macro_f1": 0.7511303511303512
+        "n_correct": 25,
+        "accuracy": 0.6944444444444444,
+        "macro_f1": 0.7453042328042327
       },
       "doc_001": {
-        "seconds": 6.87496766699951,
+        "seconds": 1.162137041999813,
         "n_labelled": 29,
         "doc_type": "financial.annual_report",
         "doc_type_confidence": 0.1957273743920463,
@@ -14028,12 +14147,12 @@
         "unlabelled_sections": [],
         "n_scored": 24,
         "n_junk": 5,
-        "n_correct": 9,
-        "accuracy": 0.375,
-        "macro_f1": 0.3276094276094276
+        "n_correct": 6,
+        "accuracy": 0.25,
+        "macro_f1": 0.2677248677248677
       },
       "doc_002": {
-        "seconds": 2.7556772919997456,
+        "seconds": 1.9503649170001154,
         "n_labelled": 45,
         "doc_type": "financial.annual_report",
         "doc_type_confidence": 0.12098409356469637,
@@ -14043,12 +14162,12 @@
         "unlabelled_sections": [],
         "n_scored": 38,
         "n_junk": 7,
-        "n_correct": 21,
-        "accuracy": 0.5526315789473685,
-        "macro_f1": 0.7055555555555556
+        "n_correct": 16,
+        "accuracy": 0.42105263157894735,
+        "macro_f1": 0.6137566137566137
       },
       "doc_016": {
-        "seconds": 3.3499525000006543,
+        "seconds": 0.7675492910002504,
         "n_labelled": 12,
         "doc_type": "research.technical_standard",
         "doc_type_confidence": 0.5000303244616063,
@@ -14066,9 +14185,9 @@
     "overall": {
       "n_scored": 145,
       "n_junk": 18,
-      "n_correct": 82,
-      "accuracy": 0.5655172413793104,
-      "macro_f1": 0.5083379583379584
+      "n_correct": 66,
+      "accuracy": 0.45517241379310347,
+      "macro_f1": 0.46526929565207076
     },
     "rows": [
       {
@@ -14080,7 +14199,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": null,
         "pred": "introduction",
-        "score": 0.1916
+        "score": 0.2029
       },
       {
         "doc_id": "doc_027",
@@ -14091,7 +14210,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "abstract",
         "pred": "abstract",
-        "score": 0.54
+        "score": 0.5575
       },
       {
         "doc_id": "doc_027",
@@ -14102,7 +14221,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "introduction",
         "pred": "introduction",
-        "score": 0.8472
+        "score": 0.8545
       },
       {
         "doc_id": "doc_027",
@@ -14113,7 +14232,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "related_work",
         "pred": "background",
-        "score": 0.3657
+        "score": 0.3804
       },
       {
         "doc_id": "doc_027",
@@ -14124,7 +14243,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
         "pred": "method",
-        "score": 0.3095
+        "score": 0.1507
       },
       {
         "doc_id": "doc_027",
@@ -14134,8 +14253,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
-        "pred": "method",
-        "score": 0.2133
+        "pred": "experiments",
+        "score": 0.162
       },
       {
         "doc_id": "doc_027",
@@ -14145,8 +14264,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
-        "pred": "method",
-        "score": 0.2142
+        "pred": "background",
+        "score": 0.1258
       },
       {
         "doc_id": "doc_027",
@@ -14156,8 +14275,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
-        "pred": "method",
-        "score": 0.1603
+        "pred": "background",
+        "score": 0.148
       },
       {
         "doc_id": "doc_027",
@@ -14167,8 +14286,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
-        "pred": "method",
-        "score": 0.1628
+        "pred": "experiments",
+        "score": 0.1205
       },
       {
         "doc_id": "doc_027",
@@ -14178,8 +14297,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
-        "pred": "method",
-        "score": 0.1966
+        "pred": "background",
+        "score": 0.1597
       },
       {
         "doc_id": "doc_027",
@@ -14190,7 +14309,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
         "pred": "introduction",
-        "score": 0.2238
+        "score": 0.237
       },
       {
         "doc_id": "doc_027",
@@ -14200,8 +14319,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "experiments",
-        "pred": "experiments",
-        "score": 0.2791
+        "pred": "method",
+        "score": 0.1794
       },
       {
         "doc_id": "doc_027",
@@ -14212,7 +14331,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "experiments",
         "pred": "experiments",
-        "score": 0.448
+        "score": 0.2666
       },
       {
         "doc_id": "doc_027",
@@ -14223,7 +14342,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "experiments",
         "pred": "experiments",
-        "score": 0.3424
+        "score": 0.2061
       },
       {
         "doc_id": "doc_027",
@@ -14234,7 +14353,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "experiments",
         "pred": "experiments",
-        "score": 0.2821
+        "score": 0.1761
       },
       {
         "doc_id": "doc_027",
@@ -14244,8 +14363,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "experiments",
-        "pred": "experiments",
-        "score": 0.1858
+        "pred": "background",
+        "score": 0.1545
       },
       {
         "doc_id": "doc_027",
@@ -14256,7 +14375,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.6492
+        "score": 0.6557
       },
       {
         "doc_id": "doc_027",
@@ -14267,7 +14386,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.2521
+        "score": 0.2675
       },
       {
         "doc_id": "doc_027",
@@ -14278,7 +14397,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.2991
+        "score": 0.3157
       },
       {
         "doc_id": "doc_027",
@@ -14289,7 +14408,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.3893
+        "score": 0.4056
       },
       {
         "doc_id": "doc_027",
@@ -14300,7 +14419,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "conclusion",
         "pred": "conclusion",
-        "score": 0.6678
+        "score": 0.6763
       },
       {
         "doc_id": "doc_027",
@@ -14311,7 +14430,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "references",
         "pred": "references",
-        "score": 0.694
+        "score": 0.7039
       },
       {
         "doc_id": "doc_027",
@@ -14322,7 +14441,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "appendix",
         "pred": "experiments",
-        "score": 0.1832
+        "score": 0.1533
       },
       {
         "doc_id": "doc_028",
@@ -14333,7 +14452,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": null,
         "pred": "experiments",
-        "score": 0.1738
+        "score": 0.1422
       },
       {
         "doc_id": "doc_028",
@@ -14344,7 +14463,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "abstract",
         "pred": "abstract",
-        "score": 0.54
+        "score": 0.5575
       },
       {
         "doc_id": "doc_028",
@@ -14355,7 +14474,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "introduction",
         "pred": "introduction",
-        "score": 0.851
+        "score": 0.8585
       },
       {
         "doc_id": "doc_028",
@@ -14366,7 +14485,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "related_work",
         "pred": "related_work",
-        "score": 0.6718
+        "score": 0.6825
       },
       {
         "doc_id": "doc_028",
@@ -14377,7 +14496,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
         "pred": "method",
-        "score": 0.1783
+        "score": 0.1442
       },
       {
         "doc_id": "doc_028",
@@ -14387,8 +14506,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
-        "pred": "experiments",
-        "score": 0.133
+        "pred": "appendix",
+        "score": 0.1123
       },
       {
         "doc_id": "doc_028",
@@ -14398,8 +14517,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
-        "pred": "method",
-        "score": 0.1606
+        "pred": "experiments",
+        "score": 0.1303
       },
       {
         "doc_id": "doc_028",
@@ -14409,8 +14528,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
-        "pred": "method",
-        "score": 0.1362
+        "pred": "abstract",
+        "score": 0.1437
       },
       {
         "doc_id": "doc_028",
@@ -14421,7 +14540,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "experiments",
         "pred": "experiments",
-        "score": 0.6123
+        "score": 0.6287
       },
       {
         "doc_id": "doc_028",
@@ -14432,7 +14551,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": null,
         "pred": "experiments",
-        "score": 0.363
+        "score": 0.3489
       },
       {
         "doc_id": "doc_028",
@@ -14443,7 +14562,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "experiments",
         "pred": "experiments",
-        "score": 0.244
+        "score": 0.2047
       },
       {
         "doc_id": "doc_028",
@@ -14454,7 +14573,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "experiments",
-        "score": 0.3468
+        "score": 0.3386
       },
       {
         "doc_id": "doc_028",
@@ -14465,7 +14584,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "references",
         "pred": "references",
-        "score": 0.694
+        "score": 0.7039
       },
       {
         "doc_id": "doc_028",
@@ -14476,7 +14595,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "appendix",
         "pred": "background",
-        "score": 0.1582
+        "score": 0.1727
       },
       {
         "doc_id": "doc_028",
@@ -14487,7 +14606,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "appendix",
         "pred": "experiments",
-        "score": 0.1996
+        "score": 0.1676
       },
       {
         "doc_id": "doc_028",
@@ -14498,7 +14617,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "appendix",
         "pred": "experiments",
-        "score": 0.1732
+        "score": 0.1487
       },
       {
         "doc_id": "doc_029",
@@ -14508,8 +14627,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": null,
-        "pred": "method",
-        "score": 0.1746
+        "pred": "abstract",
+        "score": 0.1536
       },
       {
         "doc_id": "doc_029",
@@ -14520,7 +14639,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "abstract",
         "pred": "abstract",
-        "score": 0.54
+        "score": 0.5575
       },
       {
         "doc_id": "doc_029",
@@ -14531,7 +14650,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": null,
         "pred": "introduction",
-        "score": 0.155
+        "score": 0.1636
       },
       {
         "doc_id": "doc_029",
@@ -14542,7 +14661,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "introduction",
         "pred": "introduction",
-        "score": 0.8472
+        "score": 0.8545
       },
       {
         "doc_id": "doc_029",
@@ -14553,7 +14672,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
         "pred": "method",
-        "score": 0.2833
+        "score": 0.2601
       },
       {
         "doc_id": "doc_029",
@@ -14564,7 +14683,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
         "pred": "method",
-        "score": 0.3691
+        "score": 0.2162
       },
       {
         "doc_id": "doc_029",
@@ -14575,7 +14694,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
         "pred": "experiments",
-        "score": 0.4198
+        "score": 0.3147
       },
       {
         "doc_id": "doc_029",
@@ -14586,7 +14705,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "method",
         "pred": "method",
-        "score": 0.3028
+        "score": 0.3254
       },
       {
         "doc_id": "doc_029",
@@ -14597,7 +14716,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "experiments",
         "pred": "experiments",
-        "score": 0.2771
+        "score": 0.2585
       },
       {
         "doc_id": "doc_029",
@@ -14608,7 +14727,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.6438
+        "score": 0.6506
       },
       {
         "doc_id": "doc_029",
@@ -14619,7 +14738,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.1882
+        "score": 0.2039
       },
       {
         "doc_id": "doc_029",
@@ -14630,7 +14749,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.2492
+        "score": 0.2611
       },
       {
         "doc_id": "doc_029",
@@ -14641,7 +14760,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.2714
+        "score": 0.2828
       },
       {
         "doc_id": "doc_029",
@@ -14652,7 +14771,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.3053
+        "score": 0.3192
       },
       {
         "doc_id": "doc_029",
@@ -14663,7 +14782,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.2206
+        "score": 0.2291
       },
       {
         "doc_id": "doc_029",
@@ -14674,7 +14793,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.2469
+        "score": 0.2549
       },
       {
         "doc_id": "doc_029",
@@ -14685,7 +14804,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.4095
+        "score": 0.4191
       },
       {
         "doc_id": "doc_029",
@@ -14696,7 +14815,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.495
+        "score": 0.5034
       },
       {
         "doc_id": "doc_029",
@@ -14707,7 +14826,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "results",
         "pred": "results",
-        "score": 0.2499
+        "score": 0.2608
       },
       {
         "doc_id": "doc_029",
@@ -14718,7 +14837,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "limitations",
         "pred": "experiments",
-        "score": 0.1787
+        "score": 0.1425
       },
       {
         "doc_id": "doc_029",
@@ -14729,7 +14848,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "limitations",
         "pred": "limitations",
-        "score": 0.7266
+        "score": 0.7386
       },
       {
         "doc_id": "doc_029",
@@ -14740,7 +14859,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "discussion",
         "pred": "limitations",
-        "score": 0.217
+        "score": 0.2231
       },
       {
         "doc_id": "doc_029",
@@ -14751,7 +14870,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "discussion",
         "pred": "limitations",
-        "score": 0.1585
+        "score": 0.1745
       },
       {
         "doc_id": "doc_029",
@@ -14762,7 +14881,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "discussion",
         "pred": "discussion",
-        "score": 0.1359
+        "score": 0.1419
       },
       {
         "doc_id": "doc_029",
@@ -14772,8 +14891,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "discussion",
-        "pred": "experiments",
-        "score": 0.1375
+        "pred": "discussion",
+        "score": 0.1191
       },
       {
         "doc_id": "doc_029",
@@ -14784,7 +14903,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "related_work",
         "pred": "related_work",
-        "score": 0.645
+        "score": 0.6554
       },
       {
         "doc_id": "doc_029",
@@ -14795,7 +14914,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "conclusion",
         "pred": "conclusion",
-        "score": 0.7012
+        "score": 0.7102
       },
       {
         "doc_id": "doc_029",
@@ -14806,7 +14925,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "acknowledgements",
         "pred": "acknowledgements",
-        "score": 0.7989
+        "score": 0.8058
       },
       {
         "doc_id": "doc_029",
@@ -14817,7 +14936,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "acknowledgements",
         "pred": "acknowledgements",
-        "score": 0.3583
+        "score": 0.3717
       },
       {
         "doc_id": "doc_029",
@@ -14827,8 +14946,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "appendix",
-        "pred": "experiments",
-        "score": 0.1456
+        "pred": "method",
+        "score": 0.1236
       },
       {
         "doc_id": "doc_029",
@@ -14839,7 +14958,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "appendix",
         "pred": "experiments",
-        "score": 0.2676
+        "score": 0.1574
       },
       {
         "doc_id": "doc_029",
@@ -14850,7 +14969,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "appendix",
         "pred": "experiments",
-        "score": 0.2702
+        "score": 0.2494
       },
       {
         "doc_id": "doc_029",
@@ -14861,7 +14980,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "appendix",
         "pred": "experiments",
-        "score": 0.2965
+        "score": 0.2394
       },
       {
         "doc_id": "doc_029",
@@ -14871,8 +14990,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "appendix",
-        "pred": "experiments",
-        "score": 0.1587
+        "pred": "abstract",
+        "score": 0.13
       },
       {
         "doc_id": "doc_029",
@@ -14883,7 +15002,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "appendix",
         "pred": "appendix",
-        "score": 0.2298
+        "score": 0.241
       },
       {
         "doc_id": "doc_029",
@@ -14893,8 +15012,8 @@
         "taxonomy": "section_types/research_paper",
         "pred_taxonomy": "section_types/research_paper",
         "gold": "appendix",
-        "pred": "experiments",
-        "score": 0.1979
+        "pred": "background",
+        "score": 0.1682
       },
       {
         "doc_id": "doc_029",
@@ -14905,7 +15024,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "appendix",
         "pred": "results",
-        "score": 0.2371
+        "score": 0.2522
       },
       {
         "doc_id": "doc_029",
@@ -14916,7 +15035,7 @@
         "pred_taxonomy": "section_types/research_paper",
         "gold": "references",
         "pred": "references",
-        "score": 0.694
+        "score": 0.7039
       },
       {
         "doc_id": "doc_001",
@@ -14927,7 +15046,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
         "pred": "business_overview",
-        "score": 0.2359
+        "score": 0.2514
       },
       {
         "doc_id": "doc_001",
@@ -14938,7 +15057,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
         "pred": "other",
-        "score": 0.2685
+        "score": 0.2933
       },
       {
         "doc_id": "doc_001",
@@ -14949,7 +15068,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "shareholder_letter",
         "pred": "other",
-        "score": 0.1847
+        "score": 0.1626
       },
       {
         "doc_id": "doc_001",
@@ -14960,7 +15079,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "shareholder_letter",
         "pred": "management_discussion",
-        "score": 0.3018
+        "score": 0.3287
       },
       {
         "doc_id": "doc_001",
@@ -14971,7 +15090,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "shareholder_letter",
         "pred": "business_overview",
-        "score": 0.2627
+        "score": 0.2764
       },
       {
         "doc_id": "doc_001",
@@ -14981,8 +15100,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "shareholder_letter",
-        "pred": "other",
-        "score": 0.2163
+        "pred": "business_overview",
+        "score": 0.1747
       },
       {
         "doc_id": "doc_001",
@@ -14993,7 +15112,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "shareholder_letter",
         "pred": "business_overview",
-        "score": 0.1969
+        "score": 0.2191
       },
       {
         "doc_id": "doc_001",
@@ -15004,7 +15123,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "market_for_equity",
         "pred": "business_overview",
-        "score": 0.1879
+        "score": 0.1979
       },
       {
         "doc_id": "doc_001",
@@ -15015,7 +15134,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
         "pred": "business_overview",
-        "score": 0.1982
+        "score": 0.2278
       },
       {
         "doc_id": "doc_001",
@@ -15026,7 +15145,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "market_for_equity",
-        "score": 0.6819
+        "score": 0.7065
       },
       {
         "doc_id": "doc_001",
@@ -15037,7 +15156,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "corporate_governance",
-        "score": 0.6151
+        "score": 0.6327
       },
       {
         "doc_id": "doc_001",
@@ -15048,7 +15167,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "exhibits",
-        "score": 0.8383
+        "score": 0.8363
       },
       {
         "doc_id": "doc_001",
@@ -15059,7 +15178,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "business_overview",
         "pred": "business_overview",
-        "score": 0.2369
+        "score": 0.2583
       },
       {
         "doc_id": "doc_001",
@@ -15070,7 +15189,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "risk_factors",
         "pred": "risk_factors",
-        "score": 0.803
+        "score": 0.831
       },
       {
         "doc_id": "doc_001",
@@ -15080,8 +15199,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
-        "pred": "other",
-        "score": 0.4122
+        "pred": "business_overview",
+        "score": 0.1532
       },
       {
         "doc_id": "doc_001",
@@ -15092,7 +15211,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "risk_factors",
         "pred": "business_overview",
-        "score": 0.1845
+        "score": 0.2163
       },
       {
         "doc_id": "doc_001",
@@ -15102,8 +15221,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
-        "pred": "other",
-        "score": 0.3856
+        "pred": "sustainability",
+        "score": 0.126
       },
       {
         "doc_id": "doc_001",
@@ -15114,7 +15233,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "market_for_equity",
         "pred": "market_for_equity",
-        "score": 0.6291
+        "score": 0.6554
       },
       {
         "doc_id": "doc_001",
@@ -15125,7 +15244,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "management_discussion",
         "pred": "market_for_equity",
-        "score": 0.1403
+        "score": 0.1514
       },
       {
         "doc_id": "doc_001",
@@ -15136,7 +15255,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "market_for_equity",
-        "score": 0.1403
+        "score": 0.1514
       },
       {
         "doc_id": "doc_001",
@@ -15147,7 +15266,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "management_discussion",
         "pred": "business_overview",
-        "score": 0.185
+        "score": 0.2074
       },
       {
         "doc_id": "doc_001",
@@ -15158,7 +15277,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "business_overview",
-        "score": 0.185
+        "score": 0.2074
       },
       {
         "doc_id": "doc_001",
@@ -15169,7 +15288,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "management_discussion",
         "pred": "management_discussion",
-        "score": 0.3541
+        "score": 0.3767
       },
       {
         "doc_id": "doc_001",
@@ -15180,7 +15299,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
         "pred": "controls_and_procedures",
-        "score": 0.1878
+        "score": 0.2073
       },
       {
         "doc_id": "doc_001",
@@ -15191,7 +15310,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "controls_and_procedures",
         "pred": "controls_and_procedures",
-        "score": 0.7811
+        "score": 0.7978
       },
       {
         "doc_id": "doc_001",
@@ -15202,7 +15321,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
         "pred": "business_overview",
-        "score": 0.2011
+        "score": 0.2345
       },
       {
         "doc_id": "doc_001",
@@ -15212,8 +15331,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
-        "pred": "other",
-        "score": 0.1965
+        "pred": "controls_and_procedures",
+        "score": 0.2109
       },
       {
         "doc_id": "doc_001",
@@ -15224,7 +15343,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "corporate_governance",
         "pred": "business_overview",
-        "score": 0.1573
+        "score": 0.1745
       },
       {
         "doc_id": "doc_001",
@@ -15234,8 +15353,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
-        "pred": "other",
-        "score": 0.1973
+        "pred": "business_overview",
+        "score": 0.1945
       },
       {
         "doc_id": "doc_002",
@@ -15246,7 +15365,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "notes_to_financial_statements",
-        "score": 0.1114
+        "score": 0.1226
       },
       {
         "doc_id": "doc_002",
@@ -15257,7 +15376,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "properties",
-        "score": 0.2255
+        "score": 0.2413
       },
       {
         "doc_id": "doc_002",
@@ -15268,7 +15387,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
         "pred": "business_overview",
-        "score": 0.1695
+        "score": 0.1914
       },
       {
         "doc_id": "doc_002",
@@ -15279,7 +15398,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
         "pred": "business_overview",
-        "score": 0.2423
+        "score": 0.2507
       },
       {
         "doc_id": "doc_002",
@@ -15290,7 +15409,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "business_overview",
-        "score": 0.2069
+        "score": 0.2227
       },
       {
         "doc_id": "doc_002",
@@ -15301,7 +15420,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "management_discussion",
-        "score": 0.127
+        "score": 0.1353
       },
       {
         "doc_id": "doc_002",
@@ -15312,7 +15431,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "business_overview",
-        "score": 0.1328
+        "score": 0.1417
       },
       {
         "doc_id": "doc_002",
@@ -15322,8 +15441,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
-        "pred": "other",
-        "score": 0.1428
+        "pred": "business_overview",
+        "score": 0.1427
       },
       {
         "doc_id": "doc_002",
@@ -15334,7 +15453,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "risk_factors",
         "pred": "risk_factors",
-        "score": 0.83
+        "score": 0.85
       },
       {
         "doc_id": "doc_002",
@@ -15344,8 +15463,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
-        "pred": "other",
-        "score": 0.4169
+        "pred": "notes_to_financial_statements",
+        "score": 0.1509
       },
       {
         "doc_id": "doc_002",
@@ -15356,7 +15475,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "properties",
         "pred": "properties",
-        "score": 0.4947
+        "score": 0.5157
       },
       {
         "doc_id": "doc_002",
@@ -15367,7 +15486,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "legal_proceedings",
         "pred": "legal_proceedings",
-        "score": 0.6474
+        "score": 0.6638
       },
       {
         "doc_id": "doc_002",
@@ -15377,8 +15496,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
-        "pred": "other",
-        "score": 0.3239
+        "pred": "management_discussion",
+        "score": 0.1571
       },
       {
         "doc_id": "doc_002",
@@ -15389,7 +15508,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "market_for_equity",
         "pred": "market_for_equity",
-        "score": 0.6307
+        "score": 0.6506
       },
       {
         "doc_id": "doc_002",
@@ -15400,7 +15519,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "management_discussion",
         "pred": "management_discussion",
-        "score": 0.7466
+        "score": 0.7595
       },
       {
         "doc_id": "doc_002",
@@ -15411,7 +15530,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "financial_statements",
         "pred": "financial_statements",
-        "score": 0.3185
+        "score": 0.3282
       },
       {
         "doc_id": "doc_002",
@@ -15422,7 +15541,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "financial_statements",
         "pred": "financial_statements",
-        "score": 0.5869
+        "score": 0.6001
       },
       {
         "doc_id": "doc_002",
@@ -15433,7 +15552,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "financial_statements",
         "pred": "financial_statements",
-        "score": 0.4276
+        "score": 0.4405
       },
       {
         "doc_id": "doc_002",
@@ -15444,7 +15563,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "financial_statements",
         "pred": "financial_statements",
-        "score": 0.2513
+        "score": 0.2615
       },
       {
         "doc_id": "doc_002",
@@ -15455,7 +15574,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "notes_to_financial_statements",
         "pred": "notes_to_financial_statements",
-        "score": 0.5534
+        "score": 0.5634
       },
       {
         "doc_id": "doc_002",
@@ -15466,7 +15585,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "notes_to_financial_statements",
         "pred": "notes_to_financial_statements",
-        "score": 0.3421
+        "score": 0.3633
       },
       {
         "doc_id": "doc_002",
@@ -15477,7 +15596,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "notes_to_financial_statements",
         "pred": "shareholder_letter",
-        "score": 0.204
+        "score": 0.2094
       },
       {
         "doc_id": "doc_002",
@@ -15488,7 +15607,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
         "pred": "controls_and_procedures",
-        "score": 0.1817
+        "score": 0.195
       },
       {
         "doc_id": "doc_002",
@@ -15499,7 +15618,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "controls_and_procedures",
         "pred": "controls_and_procedures",
-        "score": 0.5755
+        "score": 0.594
       },
       {
         "doc_id": "doc_002",
@@ -15509,8 +15628,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
-        "pred": "other",
-        "score": 0.1766
+        "pred": "business_overview",
+        "score": 0.1624
       },
       {
         "doc_id": "doc_002",
@@ -15520,8 +15639,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
-        "pred": "other",
-        "score": 0.1878
+        "pred": "controls_and_procedures",
+        "score": 0.184
       },
       {
         "doc_id": "doc_002",
@@ -15532,7 +15651,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "corporate_governance",
         "pred": "corporate_governance",
-        "score": 0.4818
+        "score": 0.4956
       },
       {
         "doc_id": "doc_002",
@@ -15543,7 +15662,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "executive_compensation",
         "pred": "executive_compensation",
-        "score": 0.3646
+        "score": 0.3836
       },
       {
         "doc_id": "doc_002",
@@ -15554,7 +15673,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "corporate_governance",
         "pred": "corporate_governance",
-        "score": 0.1384
+        "score": 0.1465
       },
       {
         "doc_id": "doc_002",
@@ -15565,7 +15684,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "corporate_governance",
         "pred": "notes_to_financial_statements",
-        "score": 0.1149
+        "score": 0.1243
       },
       {
         "doc_id": "doc_002",
@@ -15576,7 +15695,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
         "pred": "financial_statements",
-        "score": 0.1837
+        "score": 0.1929
       },
       {
         "doc_id": "doc_002",
@@ -15587,7 +15706,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
         "pred": "exhibits",
-        "score": 0.508
+        "score": 0.4528
       },
       {
         "doc_id": "doc_002",
@@ -15597,8 +15716,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
-        "pred": "exhibits",
-        "score": 0.1838
+        "pred": "business_overview",
+        "score": 0.1649
       },
       {
         "doc_id": "doc_002",
@@ -15609,7 +15728,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
         "pred": "notes_to_financial_statements",
-        "score": 0.1331
+        "score": 0.1416
       },
       {
         "doc_id": "doc_002",
@@ -15620,7 +15739,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
         "pred": "sustainability",
-        "score": 0.1166
+        "score": 0.1252
       },
       {
         "doc_id": "doc_002",
@@ -15630,8 +15749,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
-        "pred": "other",
-        "score": 0.1927
+        "pred": "business_overview",
+        "score": 0.2097
       },
       {
         "doc_id": "doc_002",
@@ -15642,7 +15761,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
         "pred": "executive_compensation",
-        "score": 0.3469
+        "score": 0.3693
       },
       {
         "doc_id": "doc_002",
@@ -15653,7 +15772,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
         "pred": "notes_to_financial_statements",
-        "score": 0.1494
+        "score": 0.1595
       },
       {
         "doc_id": "doc_002",
@@ -15663,8 +15782,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
-        "pred": "other",
-        "score": 0.1692
+        "pred": "notes_to_financial_statements",
+        "score": 0.1764
       },
       {
         "doc_id": "doc_002",
@@ -15674,8 +15793,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
-        "pred": "other",
-        "score": 0.1807
+        "pred": "notes_to_financial_statements",
+        "score": 0.1558
       },
       {
         "doc_id": "doc_002",
@@ -15686,7 +15805,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
         "pred": "management_discussion",
-        "score": 0.1166
+        "score": 0.1268
       },
       {
         "doc_id": "doc_002",
@@ -15697,7 +15816,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
         "pred": "corporate_governance",
-        "score": 0.1312
+        "score": 0.1375
       },
       {
         "doc_id": "doc_002",
@@ -15708,7 +15827,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
         "pred": "legal_proceedings",
-        "score": 0.1935
+        "score": 0.2073
       },
       {
         "doc_id": "doc_002",
@@ -15719,7 +15838,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
         "pred": "notes_to_financial_statements",
-        "score": 0.1611
+        "score": 0.1757
       },
       {
         "doc_id": "doc_002",
@@ -15730,7 +15849,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "exhibits",
-        "score": 0.1838
+        "score": 0.1643
       },
       {
         "doc_id": "doc_016",
@@ -15740,8 +15859,8 @@
         "taxonomy": "section_types/contract",
         "pred_taxonomy": "section_types/generic",
         "gold": null,
-        "pred": "body",
-        "score": 0.2261
+        "pred": "front_matter",
+        "score": 0.2091
       },
       {
         "doc_id": "doc_016",
@@ -15752,7 +15871,7 @@
         "pred_taxonomy": "section_types/generic",
         "gold": "parties_recitals",
         "pred": "introduction",
-        "score": 0.3857
+        "score": 0.3925
       },
       {
         "doc_id": "doc_016",
@@ -15763,7 +15882,7 @@
         "pred_taxonomy": "section_types/generic",
         "gold": "scope_services",
         "pred": "body",
-        "score": 0.2505
+        "score": 0.2271
       },
       {
         "doc_id": "doc_016",
@@ -15774,7 +15893,7 @@
         "pred_taxonomy": "section_types/generic",
         "gold": "scope_services",
         "pred": "body",
-        "score": 0.2465
+        "score": 0.2389
       },
       {
         "doc_id": "doc_016",
@@ -15785,7 +15904,7 @@
         "pred_taxonomy": "section_types/generic",
         "gold": "confidentiality",
         "pred": "front_matter",
-        "score": 0.2538
+        "score": 0.2587
       },
       {
         "doc_id": "doc_016",
@@ -15796,7 +15915,7 @@
         "pred_taxonomy": "section_types/generic",
         "gold": "intellectual_property",
         "pred": "front_matter",
-        "score": 0.255
+        "score": 0.261
       },
       {
         "doc_id": "doc_016",
@@ -15807,7 +15926,7 @@
         "pred_taxonomy": "section_types/generic",
         "gold": "intellectual_property",
         "pred": "front_matter",
-        "score": 0.2148
+        "score": 0.2224
       },
       {
         "doc_id": "doc_016",
@@ -15818,7 +15937,7 @@
         "pred_taxonomy": "section_types/generic",
         "gold": "termination",
         "pred": "body",
-        "score": 0.2692
+        "score": 0.2396
       },
       {
         "doc_id": "doc_016",
@@ -15829,7 +15948,7 @@
         "pred_taxonomy": "section_types/generic",
         "gold": "general_provisions",
         "pred": "body",
-        "score": 0.237
+        "score": 0.214
       },
       {
         "doc_id": "doc_016",
@@ -15839,8 +15958,8 @@
         "taxonomy": "section_types/contract",
         "pred_taxonomy": "section_types/generic",
         "gold": "signatures_exhibits",
-        "pred": "body",
-        "score": 0.2168
+        "pred": "references",
+        "score": 0.2048
       },
       {
         "doc_id": "doc_016",
@@ -15851,7 +15970,7 @@
         "pred_taxonomy": "section_types/generic",
         "gold": "signatures_exhibits",
         "pred": "appendix",
-        "score": 0.6603
+        "score": 0.6711
       },
       {
         "doc_id": "doc_016",
@@ -15862,13 +15981,13 @@
         "pred_taxonomy": "section_types/generic",
         "gold": "signatures_exhibits",
         "pred": "appendix",
-        "score": 0.348
+        "score": 0.3532
       }
     ],
     "loadavg_end": [
-      5.681640625,
-      7.97900390625,
-      7.63427734375
+      9.25634765625,
+      10.583984375,
+      9.4326171875
     ],
     "matched": 5,
     "n": 6

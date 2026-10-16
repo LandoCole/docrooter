@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from conftest import CountingBackend, NeverSupports
+from conftest import CountingBackend, NeverSupports, RecordingBackend
 
 import docrooter
 from docrooter import Beam, Classifier, Document, DocumentView, Flat, Greedy, Taxonomy, TaxonomyNode
@@ -177,8 +177,10 @@ def test_classify_documents_one_backend_call_for_many_docs(mode):
 
 def test_hybrid_with_tree_strategy_runs_view_and_sections_separately():
     backend = CountingBackend(KeywordBackend())
-    clf = Classifier(doc_type_taxonomy(), backend, strategy=Greedy(), threshold=0.0)
-    results = clf.classify_documents([contract_doc(), contract_doc()], mode="hybrid")
+    clf = Classifier(doc_type_taxonomy(), backend, threshold=0.0)
+    results = clf.classify_documents(
+        [contract_doc(), contract_doc()], mode="hybrid", strategy=Greedy()
+    )
     # Greedy view: one root call (Legal's only child needs none); sections: one Flat call.
     assert backend.calls == 2
     assert all(r.best.node_ids[-1] == "legal.contract" for r in results)
@@ -385,3 +387,48 @@ def test_hybrid_with_view_text_but_no_classifiable_sections():
     assert res.best.node_ids[-1] == "research.paper"
     assert sum(res.leaf_probs.values()) == pytest.approx(1.0)  # the view alone, renormalised
     assert res.confidence == pytest.approx(res.leaf_probs["research.paper"])
+
+
+def _same(a: DocTypeResult, b: DocTypeResult) -> bool:
+    return a.model_dump(exclude={"timings"}) == b.model_dump(exclude={"timings"})
+
+
+@pytest.mark.parametrize("mode", MODES)
+@pytest.mark.parametrize("make_doc", [contract_doc, paper_doc, annual_doc])
+def test_classify_document_equals_classifier_classify_documents(mode, make_doc):
+    tax, doc = doc_type_taxonomy(), make_doc()
+    single = docrooter.classify_document(doc, tax, backend=KeywordBackend(), mode=mode)
+    (batch,) = Classifier(tax, KeywordBackend()).classify_documents([doc], mode=mode, threshold=0.0)
+    assert _same(single, batch)
+
+
+def test_classify_documents_defaults_are_flat_and_the_doc_type_instruction():
+    backend = RecordingBackend(KeywordBackend())
+    clf = Classifier(doc_type_taxonomy(), backend)  # the section defaults: Beam(3), 0.35
+    (res,) = clf.classify_documents([paper_doc()])
+    assert backend.calls == 1  # Flat: one call over every leaf, no per-level traversal
+    assert [c.node_id for c in backend.last_candidates] == [
+        n.id for n in doc_type_taxonomy().leaves()
+    ]
+    assert backend.last_instruction == "What type of document is this?"
+    assert len(res.best.steps) == 1 and res.best.node_ids[-1] == "research.paper"
+
+
+def test_classify_documents_keyword_overrides():
+    backend = RecordingBackend(KeywordBackend())
+    clf = Classifier(doc_type_taxonomy(), backend, threshold=0.0)
+    (res,) = clf.classify_documents([paper_doc()], strategy=Beam(2), instruction="Kind?")
+    assert backend.last_instruction == "Kind?"
+    assert len(res.best.steps) == 2  # a per-level traversal: root, then Research
+    (res,) = clf.classify_documents([paper_doc()], threshold=0.99)
+    assert res.best.stopped_reason == "low_confidence"
+
+
+@pytest.mark.parametrize("strategy", [Beam(3), Greedy()])
+def test_tree_strategy_empty_path_confidence_is_the_root_step_max(strategy):
+    top = {"financial": 0.2, "legal": 0.5, "research": 0.3}
+    clf = Classifier(doc_type_taxonomy(), FixedBackend(top))
+    (res,) = clf.classify_documents([paper_doc()], strategy=strategy, threshold=0.9)
+    assert res.best.node_ids == [] and res.best.stopped_reason == "low_confidence"
+    assert res.confidence == pytest.approx(0.5)
+    assert res.leaf_probs == pytest.approx(top)

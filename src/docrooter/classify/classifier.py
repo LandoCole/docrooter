@@ -285,23 +285,46 @@ class Classifier:
         *,
         view: DocumentView | None = None,
         mode: str = "view",
+        strategy: Greedy | Beam | Flat | None = None,
+        threshold: float | None = None,
+        instruction: str | None = None,
     ) -> list[DocTypeResult]:
         """One document-type result per document, against this classifier's taxonomy.
 
+        Document-type defaults, independent of the section settings this classifier was built
+        with: ``strategy=None`` is ``Flat()``, ``instruction=None`` is ``"What type of document
+        is this?"`` and ``threshold=None`` is this classifier's ``threshold``. The root's own
+        ``threshold``, when set, wins as at every node. :func:`~docrooter.classify_document`
+        is this method with ``threshold=0.0``.
+
         ``mode="view"`` classifies each document's rendered ``view`` (default
-        ``DocumentView()``) with the classifier's strategy. ``mode="sections"`` scores every
-        leaf section's title and lead with ``Flat`` and takes the token-weighted mean of the
-        leaf distributions; the argmax is ``best``. ``mode="hybrid"`` mixes the two as
+        ``DocumentView()``) with ``strategy``. ``mode="sections"`` scores every leaf section's
+        title and lead with ``Flat`` and takes the token-weighted mean of the leaf
+        distributions; the argmax is ``best``. ``mode="hybrid"`` mixes the two as
         ``0.6 * view + 0.4 * sections``. Every mode then decides the same way: the argmax
         node, or an empty ``"low_confidence"`` path when its probability (``confidence``) is
-        below the root's ``threshold``, else this classifier's. All documents share one
-        traversal per kind of text. A document with nothing to show (no text beyond the file
-        name, or a PDF without a text layer) gets ``best.stopped_reason == "empty_text"`` and
-        is never sent to a backend.
+        below the threshold. All documents share one traversal per kind of text. A document
+        with nothing to show (no text beyond the file name, or a PDF without a text layer) gets
+        ``best.stopped_reason == "empty_text"`` and is never sent to a backend.
+
+        ``leaf_probs`` under ``Flat`` is the leaf distribution. Under ``Greedy`` or ``Beam`` it
+        holds the end node of the best path and of each alternative with its path score (the
+        product of its step probabilities), scaled to sum to at most 1; a path that stopped
+        early ends at an internal node. When no path got past the root, ``leaf_probs`` holds
+        the root decision's probabilities over the top-level nodes and ``confidence`` is their
+        maximum, so it is never 0 just because the traversal stopped.
         """
         from docrooter.classify.documents import classify_documents
 
-        return classify_documents(self, docs, view or DocumentView(), mode)
+        return classify_documents(
+            self,
+            docs,
+            view or DocumentView(),
+            mode,
+            strategy=strategy,
+            threshold=threshold,
+            instruction=instruction,
+        )
 
     def prepare_texts(self, texts: Sequence[str]) -> list[str]:
         """The texts as the backends see them: cut to ``view.max_tokens`` (blank ones unchanged).

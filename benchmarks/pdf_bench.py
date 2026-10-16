@@ -814,13 +814,12 @@ def run_docrooter(
     from docrooter.classify.strategies import Flat
 
     backend = _backend(system)
-    classifier = Classifier(
-        taxonomy, backend, strategy=Flat(), instruction=INSTRUCTION, threshold=0.0
-    )
+    classifier = Classifier(taxonomy, backend)
+    settings = {"strategy": Flat(), "instruction": INSTRUCTION, "threshold": 0.0}
     rendered = shared.rendered(system.view)
     view, by_source = fixed_view(system.view, rendered)
     start = time.perf_counter()
-    classifier.classify_documents([_warmup_doc()], view=view, mode=system.mode)
+    classifier.classify_documents([_warmup_doc()], view=view, mode=system.mode, **settings)
     load_s = time.perf_counter() - start
     if isinstance(backend, jev_chunks.UsageJevBackend):
         backend.usage.clear()
@@ -837,7 +836,7 @@ def run_docrooter(
         part = list(ids[lo : lo + chunk])
         start = time.perf_counter()
         results = classifier.classify_documents(
-            [docs[i][0] for i in part], view=view, mode=system.mode
+            [docs[i][0] for i in part], view=view, mode=system.mode, **settings
         )
         part_s = time.perf_counter() - start
         batch_s += part_s

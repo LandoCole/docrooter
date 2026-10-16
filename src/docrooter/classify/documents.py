@@ -8,9 +8,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 from docrooter.backends.base import Backend
+from docrooter.classify import engine
 from docrooter.classify._beams import TreeResult
 from docrooter.classify.classifier import DEFAULT_BACKEND, Classifier, _is_trained
-from docrooter.classify.engine import TOP_K_PROBS
+from docrooter.classify.engine import TOP_K_PROBS, EngineSettings
 from docrooter.classify.results import DocTypeResult, PathResult, Step
 from docrooter.classify.strategies import Beam, Flat, Greedy
 from docrooter.doc_view import DocumentView
@@ -48,26 +49,50 @@ def classify_document(
 
     ``threshold`` defaults to 0, so a document with content always gets a label; gate on
     ``result.confidence`` or pass a ``threshold`` to get ``"low_confidence"`` instead.
-    ``classifier_kwargs`` go to :class:`Classifier` (``fallback``, ``batch_size``, ...). See
-    :meth:`Classifier.classify_documents` for the modes.
+    ``instruction=None`` is the document-type default. ``classifier_kwargs`` go to
+    :class:`Classifier` (``fallback``, ``batch_size``, ...). This is
+    ``Classifier(taxonomy, backend, **classifier_kwargs).classify_documents([doc], ...)``; see
+    :meth:`Classifier.classify_documents` for the modes and ``leaf_probs``.
     """
-    classifier = Classifier(
-        taxonomy,
-        backend,
-        strategy=strategy if strategy is not None else Flat(),
-        instruction=instruction,
+    classifier = Classifier(taxonomy, backend, **classifier_kwargs)
+    return classifier.classify_documents(
+        [doc],
+        view=view,
+        mode=mode,
+        strategy=strategy,
         threshold=threshold,
-        **classifier_kwargs,
-    )
-    return classifier.classify_documents([doc], view=view, mode=mode)[0]
+        instruction=instruction,
+    )[0]
 
 
 def classify_documents(
-    classifier: Classifier, docs: Sequence[Document], view: DocumentView, mode: str
+    classifier: Classifier,
+    docs: Sequence[Document],
+    view: DocumentView,
+    mode: str,
+    *,
+    strategy: Greedy | Beam | Flat | None = None,
+    threshold: float | None = None,
+    instruction: str | None = None,
 ) -> list[DocTypeResult]:
     """The implementation of :meth:`Classifier.classify_documents`."""
+    strategy = strategy if strategy is not None else Flat()
+    if not isinstance(strategy, (Greedy, Beam, Flat)):
+        raise TypeError(f"strategy must be Greedy, Beam or Flat, got {type(strategy).__name__}")
+    settings = classifier.settings.model_copy(
+        update={
+            "full_probs": True,
+            "threshold": classifier.settings.threshold if threshold is None else threshold,
+            "instruction": DEFAULT_INSTRUCTION if instruction is None else instruction,
+        }
+    )
     if mode not in MODES:
         raise ValueError(f"mode must be one of {', '.join(MODES)}; got {mode!r}")
+    if isinstance(strategy, Flat) and _is_trained(classifier.backend):
+        raise ValueError(
+            "Flat strategy needs a zero-shot backend; pass strategy=Greedy() or Beam(n) for a "
+            "trained backend"
+        )
     if mode != "view" and _is_trained(classifier.backend):
         raise ValueError(
             f"mode={mode!r} scores sections with Flat, which needs a zero-shot backend"
@@ -97,14 +122,15 @@ def classify_documents(
                 weights.setdefault(i, {})[key] = max(1, estimate_tokens(section.text))
 
     start = time.perf_counter()
-    results = _run(classifier, view_texts, section_texts)
+    results = _run(classifier, view_texts, section_texts, strategy, settings)
+    root_probs = _root_probs(classifier, results, view_texts, strategy, settings, mode)
     elapsed = time.perf_counter() - start
     classifier._warn_no_backend(results.values())
 
     n_classified = sum(1 for i in rendered if mode != "sections" or i in weights)
     per_doc = elapsed / n_classified if n_classified else 0.0
     root_threshold = classifier.taxonomy.node(Taxonomy.ROOT_ID).threshold
-    threshold = root_threshold if root_threshold is not None else classifier.settings.threshold
+    threshold = root_threshold if root_threshold is not None else settings.threshold
     out: list[DocTypeResult] = []
     for i, doc in enumerate(docs):
         if i not in rendered or (mode == "sections" and i not in weights):
@@ -112,7 +138,9 @@ def classify_documents(
             continue
         view_result = results.get(f"v{i}")
         section_results = [(results[k], w) for k, w in weights.get(i, {}).items()]
-        view_dist = _view_distribution(view_result, classifier.strategy) if view_result else {}
+        view_dist = _view_distribution(view_result, strategy) if view_result else {}
+        if f"v{i}" in root_probs:  # view mode, and no path got past the root
+            view_dist = root_probs[f"v{i}"]
         if mode == "view":
             dist = view_dist
         else:
@@ -121,13 +149,19 @@ def classify_documents(
                 dist = mix_distributions(view_dist, dist)
         reasons = [r[0].stopped_reason for r in ([view_result] if view_result else [])]
         reasons += [r[0].stopped_reason for r, _ in section_results]
-        best, confidence = decide_doc_type(
-            dist,
-            classifier.taxonomy,
-            threshold,
-            reasons,
-            view_best=view_result[0] if mode == "view" and view_result else None,
-        )
+        if f"v{i}" in root_probs:
+            # The traversal's own stop stands; the root decision only supplies a confidence.
+            reason = next((r for r in reasons if r is not None), "low_confidence")
+            best = PathResult(node_ids=[], stopped_reason=reason)
+            confidence = max(dist.values(), default=0.0)
+        else:
+            best, confidence = decide_doc_type(
+                dist,
+                classifier.taxonomy,
+                threshold,
+                reasons,
+                view_best=view_result[0] if mode == "view" and view_result else None,
+            )
         out.append(
             DocTypeResult(
                 source=doc.source,
@@ -176,19 +210,57 @@ def _has_content(doc: Document) -> bool:
 
 
 def _run(
-    classifier: Classifier, view_texts: dict[str, str], section_texts: dict[str, str]
+    classifier: Classifier,
+    view_texts: dict[str, str],
+    section_texts: dict[str, str],
+    strategy: Greedy | Beam | Flat,
+    settings: EngineSettings,
 ) -> dict[str, TreeResult]:
-    """Score the views with the classifier's strategy and the sections with full-distribution
-    Flat; one traversal when both are plain Flat."""
-    settings = classifier.settings.model_copy(update={"full_probs": True})
-    if view_texts and section_texts and classifier.strategy == Flat():
+    """Score the views with ``strategy`` and the sections with full-distribution Flat; one
+    traversal when both are plain Flat."""
+    if view_texts and section_texts and strategy == Flat():
         return classifier._run({**view_texts, **section_texts}, Flat(), settings)
     results: dict[str, TreeResult] = {}
     if view_texts:
-        results.update(classifier._run(view_texts, classifier.strategy, settings))
+        results.update(classifier._run(view_texts, strategy, settings))
     if section_texts:
         results.update(classifier._run(section_texts, Flat(), settings))
     return results
+
+
+def _root_probs(
+    classifier: Classifier,
+    results: dict[str, TreeResult],
+    view_texts: dict[str, str],
+    strategy: Greedy | Beam | Flat,
+    settings: EngineSettings,
+    mode: str,
+) -> dict[str, dict[str, float]]:
+    """The root decision's probabilities over the top-level nodes for each view whose
+    ``Greedy``/``Beam`` traversal stopped at the root (low confidence or margin), scored in one
+    batch; ``{}`` under ``Flat`` or outside ``mode="view"``."""
+    if mode != "view" or isinstance(strategy, Flat):
+        return {}
+    stopped = [
+        key
+        for key in view_texts
+        if (best := results[key][0]) is not None
+        and not best.node_ids
+        and best.stopped_reason in ("low_confidence", "low_margin")
+    ]
+    if not stopped:
+        return {}
+    child_ids, probs, _ = engine.decide(
+        [view_texts[k] for k in stopped],
+        Taxonomy.ROOT_ID,
+        classifier.taxonomy,
+        classifier.router,
+        settings,
+    )
+    return {
+        key: {c: float(p) for c, p in zip(child_ids, row, strict=True)}
+        for key, row in zip(stopped, probs, strict=True)
+    }
 
 
 def _empty(doc: Document, mode: str, view_text: str) -> DocTypeResult:

@@ -106,6 +106,11 @@ def _section_running_key(text: str) -> str:
     return _EDGE_PAGE_NUMBER.sub("", _SPACE.sub(" ", text.casefold()).strip())
 
 
+def _edge_copy_key(text: str) -> str:
+    """Title of a possible running copy of a heading: page number and numbering stripped."""
+    return normalize_title(_EDGE_PAGE_NUMBER.sub("", _SPACE.sub(" ", text).strip()))
+
+
 def _in_edge_zone(line: Line) -> bool:
     centre = (line.y0 + line.y1) / 2
     return (

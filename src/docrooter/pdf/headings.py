@@ -16,7 +16,14 @@ from pydantic import BaseModel, Field
 from docrooter.document.headings import _DOTTED, _NUMBERING, repair_levels, score_heading
 from docrooter.document.models import RawHeading
 from docrooter.pdf.lines import Line
-from docrooter.pdf.signals import _FUZZY_THRESHOLD, DocSignals, is_fuzzy_match, normalize_title
+from docrooter.pdf.signals import (
+    _FUZZY_THRESHOLD,
+    DocSignals,
+    _edge_copy_key,
+    _in_edge_zone,
+    is_fuzzy_match,
+    normalize_title,
+)
 
 __all__ = ["HeadingCandidate", "find_headings"]
 
@@ -29,6 +36,7 @@ _STYLE_TOLERANCE = 0.5  # pt
 _MAX_LEVEL = 6
 # A style used by fewer headings than min(3, 10% of them) is "one-off" (cover, front matter)
 # and takes the level of the next recurring style instead of a level of its own (P5b).
+_EDGE_COPY_PAGES = 2  # a running copy sits at most this many pages after its heading
 _LEVEL_STYLE_MIN_COUNT = 3
 _LEVEL_STYLE_MIN_SHARE = 0.1
 _NUMBERED_FRACTION = 0.5
@@ -173,6 +181,25 @@ def _merge_runs(
     return runs
 
 
+def _drop_edge_copies(lines: Sequence[Line], runs: list[_Run]) -> list[_Run]:
+    """Drop runs in the top/bottom edge band whose title (page number and numbering stripped)
+    repeats a run outside the band on the same page or up to two pages before: the section
+    title printed as a running head or footer of a section too short (one or two pages) for its
+    copies to be excluded as a running line (P5b)."""
+    edge = [_in_edge_zone(lines[run.start]) for run in runs]
+    inner: defaultdict[str, set[int]] = defaultdict(set)
+    for run, at_edge in zip(runs, edge, strict=True):
+        if not at_edge:
+            inner[_edge_copy_key(run.text)].add(lines[run.start].page)
+    kept = []
+    for run, at_edge in zip(runs, edge, strict=True):
+        page = lines[run.start].page
+        pages = inner.get(_edge_copy_key(run.text), set()) if at_edge else set()
+        if not any(0 <= page - other <= _EDGE_COPY_PAGES for other in pages):
+            kept.append(run)
+    return kept
+
+
 def _next_line(i: int, n: int, excluded: set[int]) -> int | None:
     j = i + 1
     while j < n and j in excluded:
@@ -267,7 +294,9 @@ def find_headings(
     gap_floor = _ISOLATION_GAP_FACTOR * signals.median_gap
     isolated = [_is_isolated(lines, i, gap_floor) for i in range(n)]
     candidate = [i not in skip and _is_candidate(lines[i], isolated[i], body) for i in range(n)]
-    runs = _merge_runs(lines, candidate, skip, body, _MERGE_GAP_FACTOR * signals.median_gap)
+    runs = _drop_edge_copies(
+        lines, _merge_runs(lines, candidate, skip, body, _MERGE_GAP_FACTOR * signals.median_gap)
+    )
     repeats = Counter(_normalise(run.text) for run in runs)
     toc = _TocMatcher(title for title, _ in signals.printed_toc) if use_printed_toc else None
     bookmarks: defaultdict[int, list[tuple[int, str, int]]] = defaultdict(list)

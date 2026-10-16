@@ -354,3 +354,41 @@ def test_one_off_styles_do_not_consume_levels():
     assert levels["Annual Review"] == 1 and levels["Letter From The Chair"] == 1
     assert {levels[f"Chapter {n}"] for n in ["Strategy", "Finance"]} == {1}
     assert {levels[t] for t in ["Strategy Overview", "Finance Outlook"]} == {2}
+
+
+def test_edge_band_copy_of_a_heading_is_not_a_heading():
+    # A two-page section prints its title in the footer band of both pages (too few pages to
+    # be a running line); the footer copies duplicate the real heading and are dropped.
+    pages = [
+        [item("Chapter One", size=18, bold=True), *para(4),
+         item("2.2. Address Map", size=14, bold=True, gap=HEAD_GAP), *para(4)],
+        [*para(5)],
+        [item("Chapter Two", size=18, bold=True), *para(4)],
+    ]  # fmt: skip
+    lines = layout(pages)
+    footers = [
+        lines[0].model_copy(update={
+            "page": n, "text": f"{n + 20} 2.2. Address Map", "size": 14.0, "bold": True,
+            "y0": H - 40, "y1": H - 25, "gap_above": 300.0, "block": 9,
+        })  # fmt: skip
+        for n in (1, 2)
+    ]
+    ordered = sorted(lines + footers, key=lambda line: (line.page, line.y0))
+    found = find_headings(ordered, compute_signals(ordered, 3))
+    assert [(h.text, h.page) for h in found] == [
+        ("Chapter One", 1), ("2.2. Address Map", 1), ("Chapter Two", 3),
+    ]  # fmt: skip
+
+
+def test_page_top_heading_listed_on_an_earlier_contents_page_is_kept():
+    pages = [
+        [item("Contents Overview", size=18, bold=True), *para(2),
+         item("Item 3. Market Risk", size=14, bold=True, gap=HEAD_GAP), *para(2)],
+        [*para(5)], [*para(5)], [*para(5)],
+        [item("Item 3. Market Risk", size=14, bold=True), *para(4)],
+    ]  # fmt: skip
+    lines = layout(pages)
+    top = next(i for i, line in enumerate(lines) if line.page == 5)
+    lines[top] = lines[top].model_copy(update={"y0": 20.0, "y1": 37.0})  # in the top band
+    found = find_headings(lines, compute_signals(lines, 5))
+    assert ("Item 3. Market Risk", 5) in [(h.text, h.page) for h in found]

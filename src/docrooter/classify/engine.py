@@ -13,7 +13,7 @@ from collections.abc import Callable, Iterable, Sequence
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
-from docrooter.backends.base import Backend, Candidate, candidate_text, to_probs
+from docrooter.backends.base import Backend, Candidate, Scores, candidate_text, to_probs
 from docrooter.classify._beams import PartialPath, TreeResult, collect, prune
 from docrooter.classify.results import PathResult, Step
 from docrooter.classify.strategies import Beam, Flat, Greedy
@@ -306,13 +306,11 @@ def _score_candidates(
     where: str,
 ) -> np.ndarray:
     """Probabilities of shape ``(len(texts), len(candidates))``, one ``score`` call per batch."""
-    temperature = settings.temperatures.get(backend.name, backend.temperature)
+    temperature = settings.temperatures.get(backend.name, backend_temperature(backend))
     parts = []
     for start in range(0, len(texts), settings.batch_size):
         batch = texts[start : start + settings.batch_size]
-        scores = backend.score(
-            batch, candidates, instruction=settings.instruction, multi_label=multi_label
-        )
+        scores = score_batch(backend, batch, candidates, settings.instruction, multi_label)
         expected = (len(batch), len(candidates))
         if np.shape(scores.values) != expected:
             raise BackendError(
@@ -321,3 +319,22 @@ def _score_candidates(
             )
         parts.append(to_probs(scores, temperature=temperature, multi_label=multi_label))
     return np.concatenate(parts) if parts else np.zeros((0, len(candidates)))
+
+
+def backend_temperature(backend: Backend) -> float:
+    """``backend.temperature``, or 1.0 for a custom backend that does not define one."""
+    return float(getattr(backend, "temperature", 1.0))
+
+
+def score_batch(
+    backend: Backend,
+    texts: Sequence[str],
+    candidates: Sequence[Candidate],
+    instruction: str | None,
+    multi_label: bool,
+) -> Scores:
+    """``backend.score``; ``multi_label=True`` is passed only for a multi-label decision, so a
+    custom backend whose ``score`` has no ``multi_label`` argument works at every other node."""
+    if multi_label:
+        return backend.score(texts, candidates, instruction=instruction, multi_label=True)
+    return backend.score(texts, candidates, instruction=instruction)

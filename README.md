@@ -290,11 +290,56 @@ classifier can use different backends at different nodes or depths (`overrides=`
 | `nli[:model]` | Textual entailment | `models` | Default `MoritzLaurer/deberta-v3-base-zeroshot-v2.0` |
 | `mlm-choice[:model]` | A masked LM fills in the letter of the right option | `models` | Experimental; default `dmis-lab/UltraBERT-380M` |
 | `trained:<dir>` | Per-node heads on a fine-tuned body | `models` | From `docrooter train` / `train()`; see the pickle warning above |
-| `openai[:model]` | Chat model answers with an option number | `llm` | Any OpenAI-compatible endpoint, e.g. `openai:gpt-4o-mini` |
+| `openai:<model>` | Chat model answers with an option number | `llm` | Any OpenAI-compatible endpoint, e.g. `openai:gpt-4o-mini`; the model is required |
 | `jev[:model]` | TypeSafe Jev typed choice and yes/no probabilities | `jev` | Default `jev-1.13.0`; needs `TYPESAFE_API_KEY` |
 
 Model-backed backends pick the device in the order CUDA, MPS, CPU. FlashAttention 2 is used only on
 CUDA when it is installed; otherwise attention runs through `sdpa`.
+
+### Custom backends
+
+Any object with these members can be passed as a backend (or registered as a spec kind with
+`docrooter.backends.register_backend_kind`); there is nothing to subclass:
+
+- `name`: a string that identifies the backend, e.g. in results and calibrated temperatures.
+- `max_candidates`: the most candidates one `score` call accepts, or `None` for no limit. A
+  decision with more candidates goes to the next backend in the routing order.
+- `temperature` (optional, default 1.0): applied to `similarity` scores and used to re-temper
+  `softmax` scores. `calibrate()` tunes it per backend `name`.
+- `score(texts, candidates, *, instruction=None[, multi_label])`: returns `Scores(values, kind)`
+  with `values` of shape `(len(texts), len(candidates))`. `kind` is `"softmax"` (rows are
+  probabilities), `"independent"` (one probability per candidate) or `"similarity"` (unbounded
+  scores). Each candidate has `node_id`, `text` and `examples`. `multi_label=True` is passed only
+  for decisions at multi-label nodes, so a backend without that argument works everywhere else.
+- `supports(node_id)`: whether the backend can decide at this node.
+- `tokenizer()`: a function that counts the tokens of a text, or `None` to use an estimate.
+
+```python
+from docrooter.backends import Scores
+
+
+class OverlapBackend:
+    name = "overlap"  # keys calibrated temperatures; keep it unique per backend
+    max_candidates = None  # or a limit: larger candidate sets go to the next backend
+
+    def score(self, texts, candidates, *, instruction=None):
+        rows = []
+        for text in texts:
+            words = set(text.lower().split())
+            rows.append([len(words & set(c.text.lower().split())) for c in candidates])
+        return Scores(np.array(rows, dtype=float), "similarity")
+
+    def supports(self, node_id):
+        return True
+
+    def tokenizer(self):
+        return None  # token counts are estimated
+
+
+classifier = Classifier(taxonomy, OverlapBackend(), threshold=0.0)
+```
+
+The full script is [`examples/custom_backend.py`](examples/custom_backend.py).
 
 ### API keys
 

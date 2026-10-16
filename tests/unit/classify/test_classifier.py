@@ -537,7 +537,7 @@ def test_summary_depths_and_edge_cases():
         },
     )
     assert res.summary() == pytest.approx({"Financial": 0.75, "Legal": 0.25})
-    assert res.summary(depth=2) == {"Tax": 1.0}
+    assert res.summary(depth=2) == {"Financial > Tax": 1.0}
     assert res.summary(depth=3) == {}
     with pytest.raises(ValueError, match="depth"):
         res.summary(depth=0)
@@ -721,3 +721,36 @@ def test_all_blank_texts_make_no_backend_call(tax):
         warnings.simplefilter("error")
         out = Classifier(tax, backend=spy).classify_texts(["", " "])
     assert spy.calls == 0 and {r.best.stopped_reason for r in out} == {"empty_text"}
+
+
+def test_summary_keys_deeper_levels_by_full_path():
+    """Same leaf label under different parents stays apart below the top level."""
+    res = DocumentResult(
+        source="d",
+        sections={
+            "a": _result("a", 30, ["A", "Other"]),
+            "b": _result("b", 10, ["B", "Other"]),
+        },
+    )
+    assert res.summary(depth=2) == pytest.approx({"A > Other": 0.75, "B > Other": 0.25})
+    assert res.summary(depth=1) == pytest.approx({"A": 0.75, "B": 0.25})
+
+
+def _trained_instance():
+    from docrooter.train.bundle import TrainedModel
+
+    class Stub(TrainedModel):
+        def __init__(self):
+            self.name = "trained:stub"
+
+    return Stub()
+
+
+@pytest.mark.parametrize("backend", ["trained:some/bundle", "instance"])
+def test_flat_strategy_rejects_trained_backends(tax, backend):
+    spec = _trained_instance() if backend == "instance" else backend
+    message = "Flat strategy needs a zero-shot backend; trained backends score per-node heads"
+    with pytest.raises(ValueError) as info:
+        Classifier(tax, spec, strategy=Flat())
+    assert str(info.value) == message
+    Classifier(tax, spec, strategy=Greedy())  # other strategies accept it

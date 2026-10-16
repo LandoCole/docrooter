@@ -73,11 +73,11 @@ def _collect(clf: Classifier, dev: Dataset) -> dict[str, _BackendData]:
         index = {c.id: i for i, c in enumerate(children)}
         node = clf.taxonomy.node(node_id)
         candidates = [Candidate(c.id, candidate_text(c), tuple(c.examples)) for c in children]
-        entry = data.setdefault(backend.name, _BackendData(backend.temperature))
+        entry = data.setdefault(backend.name, _BackendData(engine.backend_temperature(backend)))
         for start in range(0, len(texts), settings.batch_size):
             batch = texts[start : start + settings.batch_size]
-            scores = backend.score(
-                batch, candidates, instruction=settings.instruction, multi_label=node.multi_label
+            scores = engine.score_batch(
+                backend, batch, candidates, settings.instruction, node.multi_label
             )
             gold = np.array([index[g] for g in golds[start : start + settings.batch_size]])
             entry.chunks.append(_Chunk(scores, gold, node.multi_label))

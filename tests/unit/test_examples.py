@@ -90,3 +90,16 @@ def test_every_readme_python_snippet_line_is_in_an_example():
                     assert hasattr(docrooter, name.strip()), code
             else:
                 assert code in example_lines, f"README line not in any example: {code!r}"
+
+
+def test_custom_backend_example_runs(capsys):
+    """The README's custom backend: no ``temperature`` and no ``multi_label`` argument."""
+    runpy.run_path(str(EXAMPLES / "custom_backend.py"), run_name="__main__")
+    assert capsys.readouterr().out.splitlines() == ["Tax", "Audit"]
+
+
+def test_readme_documents_the_backend_protocol():
+    section = README.read_text(encoding="utf-8").split("## Backends", 1)[1].split("\n## ", 1)[0]
+    for member in ("name", "max_candidates", "temperature", "score(", "supports(", "tokenizer("):
+        assert f"`{member}" in section, member
+    assert "examples/custom_backend.py" in section

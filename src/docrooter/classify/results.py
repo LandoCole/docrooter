@@ -72,17 +72,19 @@ class DocumentResult(BaseModel):
     sections: dict[str, SectionResult]
 
     def summary(self, depth: int = 1) -> dict[str, float]:
-        """Share of the document (by tokens) in each label at 1-based ``depth``.
+        """Share of the document (by tokens) in each label path at 1-based ``depth``.
 
-        Every section whose best path reaches ``depth`` adds its ``n_tokens`` to the label found
-        there; shares are normalised to sum to 1. Empty when no section contributes any weight.
+        Every section whose best path reaches ``depth`` adds its ``n_tokens`` to the path's
+        first ``depth`` labels joined by ``" > "`` (just the top-level label at depth 1), so the
+        same label under different parents stays apart. Shares are normalised to sum to 1.
+        Empty when no section contributes any weight.
         """
         if depth < 1:
             raise ValueError(f"depth must be at least 1, got {depth}")
         weights: dict[str, float] = {}
         for result in self.sections.values():
             if result.best is not None and len(result.best.labels) >= depth:
-                label = result.best.labels[depth - 1]
+                label = " > ".join(result.best.labels[:depth])
                 weights[label] = weights.get(label, 0.0) + result.n_tokens
         total = sum(weights.values())
         if total <= 0:

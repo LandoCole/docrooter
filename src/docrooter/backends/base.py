@@ -36,7 +36,12 @@ class Scores(NamedTuple):
 
 @runtime_checkable
 class Backend(Protocol):
-    """Scores texts against candidate labels."""
+    """Scores texts against candidate labels.
+
+    The classifier and ``calibrate`` treat two members as optional, so a custom backend may
+    leave them out: ``temperature`` (1.0 when absent) and the ``multi_label`` argument of
+    ``score``, which is passed (as ``True``) only for decisions at multi-label nodes.
+    """
 
     name: str
     max_candidates: int | None

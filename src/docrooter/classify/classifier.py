@@ -74,6 +74,10 @@ class Classifier:
     ):
         if not isinstance(strategy, (Greedy, Beam, Flat)):
             raise TypeError(f"strategy must be Greedy, Beam or Flat, got {type(strategy).__name__}")
+        if isinstance(strategy, Flat) and _is_trained(backend):
+            raise ValueError(
+                "Flat strategy needs a zero-shot backend; trained backends score per-node heads"
+            )
         self.taxonomy = taxonomy
         self.backend = backend
         self.fallback = fallback
@@ -401,6 +405,15 @@ class _LazyBackends(Sequence[Backend]):
         while self._advance():
             pass
         return len(self._items)
+
+
+def _is_trained(backend: str | Backend) -> bool:
+    """Whether ``backend`` is a ``TrainedModel`` or a ``"trained:"`` spec."""
+    if isinstance(backend, str):
+        return registry.parse_spec(backend)[0] == "trained"
+    from docrooter.train.bundle import TrainedModel
+
+    return isinstance(backend, TrainedModel)
 
 
 def _backend_spec(backend: str | Backend, where: str) -> str:

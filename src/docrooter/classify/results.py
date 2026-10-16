@@ -8,8 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field
 class Step(BaseModel):
     """One decision: at parent ``node_id``, ``backend`` scored the children and chose some.
 
-    ``probs`` holds up to the five most probable children, most probable first, keyed by
-    child id. A node with a single child is chosen without a backend call; its step has
+    ``probs`` holds the five most probable children plus every child chosen at this decision,
+    most probable first, keyed by child id, so ``probs[chosen[0]]`` always exists. A node
+    with a single child is chosen without a backend call; its step has
     ``probs == {child: 1.0}`` and ``backend == "(auto)"``.
     """
 
@@ -41,9 +42,10 @@ class PathResult(BaseModel):
 class SectionResult(BaseModel):
     """The classification of one section.
 
-    ``best`` is the highest-scoring path, ``alternatives`` are the other beam paths that
-    competed with it, and ``selected`` holds one path per multi-label branch (just ``best``
-    when no multi-label node was crossed). ``n_tokens`` weights the section in summaries.
+    ``best`` is the highest-scoring path. ``selected`` holds the paths assigned together with
+    it at its first multi-label node, one per branch, ``best`` first (just ``[best]`` when no
+    multi-label node was crossed). ``alternatives`` are the rival paths that competed with
+    them. ``n_tokens`` weights the section in summaries.
     """
 
     model_config = ConfigDict(extra="forbid")

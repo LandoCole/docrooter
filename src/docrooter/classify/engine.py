@@ -8,15 +8,14 @@ The traversal is iterative: no recursion over the tree.
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, replace
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from docrooter.backends.base import Backend, Candidate, candidate_text, to_probs
-from docrooter.classify.results import PathResult, Step
+from docrooter.classify._beams import PartialPath, TreeResult, collect, prune
+from docrooter.classify.results import Step
 from docrooter.classify.strategies import Beam, Greedy
 from docrooter.errors import BackendError
 from docrooter.taxonomy import Taxonomy, TaxonomyNode
@@ -24,14 +23,11 @@ from docrooter.taxonomy import Taxonomy, TaxonomyNode
 Router = Callable[[str], list[Backend]]
 """Candidate backends for a decision at a node id, in priority order."""
 
-TreeResult = tuple[PathResult | None, list[PathResult], list[PathResult]]
-"""``(best, alternatives, selected)`` for one text."""
-
 AUTO_BACKEND = "(auto)"
 """``Step.backend`` for a single-child node, which is chosen with p=1.0 and no backend call."""
 
 TOP_K_PROBS = 5
-"""How many of the most probable children a ``Step`` records."""
+"""How many of the most probable children a ``Step`` records (chosen children are added)."""
 
 
 class EngineSettings(BaseModel):
@@ -52,40 +48,6 @@ class EngineSettings(BaseModel):
     temperatures: dict[str, float] = Field(default_factory=dict)
 
 
-@dataclass(frozen=True)
-class _Beam:
-    """One partial path of one text.
-
-    ``branch`` holds the children chosen at multi-label nodes along the path; beams compete
-    (and are pruned) only against beams of the same text in the same branch.
-    """
-
-    key: str
-    node_ids: tuple[str, ...] = ()
-    logp: float = 0.0
-    steps: tuple[Step, ...] = ()
-    branch: tuple[str, ...] = ()
-    done: bool = False
-    reason: str | None = None
-
-    @property
-    def node_id(self) -> str:
-        return self.node_ids[-1] if self.node_ids else Taxonomy.ROOT_ID
-
-    def extend(self, step: Step, p: float, *, new_branch: bool) -> _Beam:
-        (child,) = step.chosen
-        return replace(
-            self,
-            node_ids=(*self.node_ids, child),
-            logp=self.logp + (math.log(p) if p > 0 else -math.inf),
-            steps=(*self.steps, step),
-            branch=(*self.branch, child) if new_branch else self.branch,
-        )
-
-    def stop(self, reason: str | None) -> _Beam:
-        return replace(self, done=True, reason=reason)
-
-
 def run_tree(
     texts: dict[str, str],
     taxonomy: Taxonomy,
@@ -95,27 +57,29 @@ def run_tree(
 ) -> dict[str, TreeResult]:
     """Walk every text down ``taxonomy`` from the root; return ``(best, alternatives, selected)``.
 
-    ``selected`` holds the best path of each multi-label branch, most probable first, and
-    ``best`` is its first entry. ``alternatives`` are the other surviving paths in ``best``'s
-    branch, most probable first (always empty for ``Greedy``).
+    ``best`` is the most probable finished path. If it never crossed a multi-label node,
+    ``selected == [best]``. Otherwise ``selected`` holds the most probable path of each branch
+    of ``best``'s first multi-label fan-out (the labels assigned together with ``best``), most
+    probable first, with ``best`` first. ``alternatives`` are the other finished paths, the
+    rival hypotheses, most probable first and at most ``Beam.width`` of them (always empty for
+    ``Greedy``).
     """
     if not isinstance(strategy, (Greedy, Beam)):
         raise TypeError(f"run_tree takes Greedy or Beam, not {type(strategy).__name__}")
-    greedy = isinstance(strategy, Greedy)
-    width = 1 if greedy else strategy.width
+    width = 1 if isinstance(strategy, Greedy) else strategy.width
     backends: dict[str, Backend | None] = {}
 
-    beams = [_Beam(key) for key in texts]
+    beams = [PartialPath(key) for key in texts]
     for _ in range(settings.max_depth):
         if all(b.done for b in beams):
             break
-        beams = _advance(beams, texts, taxonomy, router, backends, greedy, settings)
-        beams = _prune(beams, width)
+        beams = _advance(beams, texts, taxonomy, router, backends, width, settings)
+        beams = prune(beams, width)
     beams = [
         b if b.done else b.stop("max_depth" if taxonomy.children(b.node_id) else None)
         for b in beams
     ]
-    return _collect(beams, list(texts), taxonomy)
+    return collect(beams, list(texts), taxonomy, width)
 
 
 def decide(
@@ -147,16 +111,16 @@ def decide(
 
 
 def _advance(
-    beams: list[_Beam],
+    beams: list[PartialPath],
     texts: dict[str, str],
     taxonomy: Taxonomy,
     router: Router,
     backends: dict[str, Backend | None],
-    greedy: bool,
+    width: int,
     settings: EngineSettings,
-) -> list[_Beam]:
+) -> list[PartialPath]:
     """Advance every unfinished beam by one decision; finished beams pass through unchanged."""
-    out: list[list[_Beam]] = []
+    out: list[list[PartialPath]] = []
     groups: dict[tuple[str, int], tuple[Backend, TaxonomyNode, list[int]]] = {}
     for i, beam in enumerate(beams):
         if beam.done:
@@ -169,7 +133,7 @@ def _advance(
         elif len(children) == 1:
             only = children[0].id
             step = Step(node_id=node.id, chosen=[only], probs={only: 1.0}, backend=AUTO_BACKEND)
-            out.append([beam.extend(step, 1.0, new_branch=False)])
+            out.append([beam.extend(step, 1.0, fan_out=False)])
         else:
             if node.id not in backends:
                 backends[node.id] = _pick_backend(router, node.id, len(children))
@@ -188,21 +152,25 @@ def _advance(
         for i in members:
             beam = beams[i]
             out[i] = _expand(
-                beam, node, children, probs[row[beam.key]], backend.name, greedy, settings
+                beam, node, children, probs[row[beam.key]], backend.name, width, settings
             )
     return [b for expanded in out for b in expanded]
 
 
 def _expand(
-    beam: _Beam,
+    beam: PartialPath,
     node: TaxonomyNode,
     children: list[TaxonomyNode],
     probs: np.ndarray,
     backend_name: str,
-    greedy: bool,
+    width: int,
     settings: EngineSettings,
-) -> list[_Beam]:
-    """Apply one scored decision to a beam: stop it, or replace it by its chosen children."""
+) -> list[PartialPath]:
+    """Apply one scored decision to a beam: stop it, or replace it by its chosen children.
+
+    A single-label decision keeps at most ``width`` children (Greedy: 1); more could not
+    survive pruning anyway. A multi-label decision fans out to at most ``max_fanout``.
+    """
     threshold = node.threshold if node.threshold is not None else settings.threshold
     # sorted() is stable, so equal probabilities keep the taxonomy's child order.
     ranked = sorted(
@@ -215,59 +183,18 @@ def _expand(
         if ranked[0][1] - ranked[1][1] < settings.min_margin:
             return [beam.stop("low_margin")]
 
-    if node.multi_label:
-        picks = eligible[: settings.max_fanout]
-    elif greedy:
-        picks = eligible[:1]
-    else:
-        picks = eligible
-    top = dict(ranked[:TOP_K_PROBS])
+    picks = eligible[: settings.max_fanout if node.multi_label else width]
+    picked = {child for child, _ in picks}
+    # The top children plus every child picked here, so a step always shows its own choice.
+    probs_shown = {c: p for i, (c, p) in enumerate(ranked) if i < TOP_K_PROBS or c in picked}
     return [
         beam.extend(
-            Step(node_id=node.id, chosen=[child], probs=top, backend=backend_name),
+            Step(node_id=node.id, chosen=[child], probs=probs_shown, backend=backend_name),
             p,
-            new_branch=node.multi_label,
+            fan_out=node.multi_label,
         )
         for child, p in picks
     ]
-
-
-def _prune(beams: list[_Beam], width: int) -> list[_Beam]:
-    """Keep the ``width`` most probable beams per (text, branch); ties keep the earlier beam."""
-    pools: dict[tuple[str, tuple[str, ...]], list[_Beam]] = {}
-    for beam in beams:
-        pools.setdefault((beam.key, beam.branch), []).append(beam)
-    return [b for pool in pools.values() for b in sorted(pool, key=_by_logp)[:width]]
-
-
-def _collect(beams: list[_Beam], keys: list[str], taxonomy: Taxonomy) -> dict[str, TreeResult]:
-    """Turn finished beams into ``(best, alternatives, selected)`` per text."""
-    branches: dict[str, dict[tuple[str, ...], list[_Beam]]] = {key: {} for key in keys}
-    for beam in beams:
-        branches[beam.key].setdefault(beam.branch, []).append(beam)
-
-    results: dict[str, TreeResult] = {}
-    for key in keys:
-        pools = {branch: sorted(pool, key=_by_logp) for branch, pool in branches[key].items()}
-        heads = sorted((pool[0] for pool in pools.values()), key=_by_logp)
-        selected = [_path_result(b, taxonomy) for b in heads]
-        alternatives = [_path_result(b, taxonomy) for b in pools[heads[0].branch][1:]]
-        results[key] = (selected[0], alternatives, selected)
-    return results
-
-
-def _by_logp(beam: _Beam) -> float:
-    return -beam.logp
-
-
-def _path_result(beam: _Beam, taxonomy: Taxonomy) -> PathResult:
-    return PathResult(
-        node_ids=list(beam.node_ids),
-        labels=[taxonomy.node(n).label for n in beam.node_ids],
-        score=math.exp(beam.logp),
-        steps=list(beam.steps),
-        stopped_reason=beam.reason,
-    )
 
 
 def _pick_backend(router: Router, node_id: str, n_candidates: int) -> Backend | None:

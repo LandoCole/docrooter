@@ -9,6 +9,7 @@ from conftest import (
     RecordingBackend,
     chain_taxonomy,
     fin_legal_taxonomy,
+    taxonomy_with_multilabel_financial,
     taxonomy_with_multilabel_root,
 )
 
@@ -365,6 +366,71 @@ def test_multilabel_ignores_min_margin(router):
         {"x": "tax contracts"}, t, router, Greedy(), EngineSettings(threshold=0, min_margin=0.5)
     )["x"]
     assert {p.node_ids[0] for p in selected} == {"financial", "legal"}
+
+
+def test_rival_of_a_multilabel_fan_out_is_an_alternative(router):
+    # Legal > Contracts beats both Financial children, so the Financial fan-out is a rival.
+    t = taxonomy_with_multilabel_financial()
+    best, alts, selected = run_tree(
+        {"x": "tax audit contracts"}, t, router, Beam(3), EngineSettings(threshold=0.1)
+    )["x"]
+    assert best.node_ids == ["legal", "legal.contracts"] and selected == [best]
+    assert [a.node_ids for a in alts] == [
+        ["financial", "financial.tax"],
+        ["financial", "financial.audit"],
+    ]
+
+
+def test_winning_multilabel_fan_out_selects_each_branch(router):
+    # Financial wins at the root and fans out to both children; Legal paths are rivals.
+    t = taxonomy_with_multilabel_financial()
+    best, alts, selected = run_tree(
+        {"x": "financial tax audit"}, t, router, Beam(3), EngineSettings(threshold=0.01)
+    )["x"]
+    assert [p.node_ids for p in selected] == [
+        ["financial", "financial.tax"],
+        ["financial", "financial.audit"],
+    ]
+    assert best == selected[0]
+    assert alts and all(a.node_ids[0] == "legal" for a in alts)
+    assert all(a.score <= p.score for a in alts for p in selected)
+
+
+def test_nested_fan_outs_are_selected_together(router):
+    t = taxonomy_with_multilabel_financial(root_multi_label=True)
+    best, alts, selected = run_tree(
+        {"x": "tax audit contracts"}, t, router, Greedy(), EngineSettings(threshold=0.1)
+    )["x"]
+    assert [p.node_ids[-1] for p in selected] == [
+        "legal.contracts",
+        "financial.tax",
+        "financial.audit",
+    ]
+    assert best == selected[0] and alts == []
+
+
+def test_alternatives_capped_at_beam_width(router):
+    t = taxonomy_with_multilabel_financial()
+    # Rivals: both Financial fan-out branches plus Legal > Litigation; Beam(2) reports two.
+    best, alts, _ = run_tree(
+        {"x": "tax audit contracts"}, t, router, Beam(2), EngineSettings(threshold=0.01)
+    )["x"]
+    assert best.node_ids == ["legal", "legal.contracts"]
+    assert [a.node_ids[-1] for a in alts] == ["financial.tax", "financial.audit"]
+
+
+def test_every_step_shows_its_chosen_child():
+    nodes = [TaxonomyNode(id=f"c{i}", label=f"C{i}") for i in range(8)]
+    best, alts, _ = run_tree(
+        {"x": "c3"},
+        Taxonomy(nodes),
+        lambda n: [KeywordBackend()],
+        Beam(8),
+        EngineSettings(threshold=0),
+    )["x"]
+    paths = [best, *alts]
+    assert len(paths) == 8
+    assert all(s.chosen[0] in s.probs for p in paths for s in p.steps)
 
 
 def test_flat_is_not_a_tree_strategy(tax, router):

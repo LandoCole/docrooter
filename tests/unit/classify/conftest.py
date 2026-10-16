@@ -98,6 +98,15 @@ def taxonomy_with_multilabel_root() -> Taxonomy:
     return Taxonomy(_fin_legal_nodes(), root={"multi_label": True})
 
 
+def taxonomy_with_multilabel_financial(*, root_multi_label: bool = False) -> Taxonomy:
+    """The :func:`fin_legal_taxonomy` tree where the decision under Financial is multi-label."""
+    nodes = [
+        n.model_copy(update={"multi_label": True}) if n.id == "financial" else n
+        for n in _fin_legal_nodes()
+    ]
+    return Taxonomy(nodes, root={"multi_label": True} if root_multi_label else None)
+
+
 def chain_taxonomy(n: int) -> Taxonomy:
     """A single chain ``l0 > l1 > ... > l{n-1}``: every node has exactly one child."""
     return Taxonomy(

@@ -15,7 +15,7 @@
     {
       "id": "configuration",
       "label": "Configuration",
-      "description": "Explanation of settings, options, parameters, and environment needed to tailor the product's behaviour.",
+      "description": "Explanation of settings, options, parameters, and environment needed to tailor the product's behavior.",
       "children": []
     },
     {
@@ -27,7 +27,7 @@
     {
       "id": "reference",
       "label": "Reference",
-      "description": "Exhaustive lookup material such as API, command, register, message, or function descriptions, organised for consultation rather than reading in order.",
+      "description": "Lookup material such as API, command, register, message, or function descriptions, organized for consultation rather than reading in order.",
       "children": []
     },
     {
@@ -45,7 +45,7 @@
     {
       "id": "appendix",
       "label": "Appendix",
-      "description": "Supplementary material after the main body, such as glossaries, revision history, ordering information, legal notices, and extra tables.",
+      "description": "Supplementary material placed after the main body, such as glossaries, revision history, ordering information, legal notices, and extra tables, as opposed to the lookup material in reference.",
       "children": []
     }
   ]

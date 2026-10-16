@@ -9,13 +9,13 @@
     {
       "id": "definitions",
       "label": "Definitions",
-      "description": "Clauses that define capitalised terms and rules of interpretation used throughout the agreement.",
+      "description": "Clauses that define capitalized terms and rules of interpretation used throughout the agreement.",
       "children": []
     },
     {
       "id": "scope_services",
       "label": "Scope and services",
-      "description": "The clauses describing what each party must deliver or perform, including the products, services, license grant, or deliverables.",
+      "description": "The clauses describing the work, services, products, or deliverables that a party is to provide and the standards for providing them.",
       "children": []
     },
     {
@@ -39,7 +39,7 @@
     {
       "id": "intellectual_property",
       "label": "Intellectual property",
-      "description": "The clauses allocating ownership of, and licence rights in, inventions, work product, trademarks, and other intellectual property.",
+      "description": "The clauses on ownership and assignment of, and licenses to, intellectual property such as inventions, work product, trademarks, and software.",
       "children": []
     },
     {

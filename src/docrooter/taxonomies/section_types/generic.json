@@ -39,7 +39,7 @@
     {
       "id": "appendix",
       "label": "Appendix",
-      "description": "Supplementary material placed after the main content, such as extra data, tables, forms, and glossaries.",
+      "description": "Supplementary material placed after the main body, such as extra data, tables, forms, and glossaries.",
       "children": []
     }
   ]

@@ -39,13 +39,13 @@
     {
       "id": "results",
       "label": "Results",
-      "description": "The reported outcomes of the experiments or analyses, with tables, figures, and their direct interpretation.",
+      "description": "The reported measurements and findings of the experiments or analyses, presented in tables and figures, without broader interpretation (which belongs to discussion).",
       "children": []
     },
     {
       "id": "discussion",
       "label": "Discussion",
-      "description": "An interpretation of the results that examines implications, explanations, and comparison with expectations beyond the raw numbers.",
+      "description": "The interpretation of the results: their implications, possible explanations, and comparisons with prior work or expectations, rather than the reported numbers themselves (which belong to results).",
       "children": []
     },
     {
@@ -62,7 +62,7 @@
     },
     {
       "id": "acknowledgements",
-      "label": "Acknowledgements",
+      "label": "Acknowledgments",
       "description": "Thanks to funders, colleagues, and reviewers, including funding statements and author contributions.",
       "children": []
     },
@@ -75,7 +75,7 @@
     {
       "id": "appendix",
       "label": "Appendix",
-      "description": "Supplementary material placed after the main text, such as extra proofs, tables, derivations, and additional experiments.",
+      "description": "Supplementary material placed after the main body, such as extra proofs, tables, derivations, and additional experiments.",
       "children": []
     }
   ]

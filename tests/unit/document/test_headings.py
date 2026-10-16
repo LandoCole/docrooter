@@ -162,3 +162,15 @@ def test_title_case_tokens_keep_apostrophes_and_hyphens():
     assert "title_case" in score_heading("Company's Results Year-over-Year")[1]
     assert "title_case" in score_heading("Management’s Discussion")[1]
     assert "title_case" not in score_heading("the company's results over time")[1]
+
+
+@pytest.mark.parametrize(
+    "title", ["Civil.", "Civic.", "Li. Chen", "v. Smith", "Xi.", "Mix. Results"]
+)
+def test_ordinary_words_do_not_get_roman_numbering_bonus(title):
+    assert "numbering_prefix" not in score_heading(title)[1]
+
+
+@pytest.mark.parametrize("title", ["IV. Results", "XII. Appendix", "IX. Notes", "XL. Index"])
+def test_uppercase_roman_numerals_get_numbering_bonus(title):
+    assert "numbering_prefix" in score_heading(title)[1]

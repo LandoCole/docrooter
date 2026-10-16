@@ -81,7 +81,7 @@
     {
       "id": "sustainability",
       "label": "Sustainability",
-      "description": "Material on environmental, social, and governance topics, climate commitments, human capital, and corporate responsibility.",
+      "description": "Material on environmental and social topics such as climate commitments, emissions, workforce, and community impact; it excludes board and corporate governance, which belongs to corporate_governance.",
       "children": []
     },
     {

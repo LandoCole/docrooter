@@ -10,7 +10,11 @@ from docrooter.document.models import RawHeading
 _BASE_SCORE = 0.6
 _LOW_CONFIDENCE = 0.7
 _NUMBERING = re.compile(
-    r"^((\d+(\.\d+)*\.?|(Article|Section|Chapter|Part|Item|Appendix)\s+\w+)\b|[IVXLC]+\.(?=\s|$))",
+    r"^("
+    r"(\d+(\.\d+)*\.?|(Article|Section|Chapter|Part|Item|Appendix)\s+\w+)\b"
+    # Roman numerals stay uppercase and well-formed so "Civil." or "Li. Chen" do not count.
+    r"|(?-i:(?=[IVXLC])(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3}))\.(?=\s|$)"
+    r")",
     re.IGNORECASE,
 )
 _PAGE_NUMBER = re.compile(r"^(page\s*)?\d+(\s*(of|/)\s*\d+)?$", re.IGNORECASE)

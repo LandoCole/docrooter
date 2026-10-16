@@ -74,10 +74,12 @@ def test_doc_type_mapping_families():
     ):
         assert m[leaf] == "section_types/annual_report"
     for leaf, value in m.items():
-        if leaf.startswith("research."):
+        if leaf == "research.research_paper":
             assert value == "section_types/research_paper"
         if leaf.startswith("technical."):
             assert value == "section_types/technical_document"
+    for leaf in ("research.technical_standard", "research.white_paper"):
+        assert m[leaf] == "section_types/generic"
     assert m["legal.contract"] == "section_types/contract"
     assert m["legal.legislation"] == "section_types/generic"
     assert m["financial.prospectus"] == "section_types/generic"
@@ -89,3 +91,18 @@ def test_doc_type_mapping_families():
 def test_unknown_name_raises_keyerror_listing_options(name):
     with pytest.raises(KeyError, match="doc_types"):
         builtin_taxonomy(name)
+
+
+@pytest.mark.parametrize("name", ["doc_types", *SECTION_NAMES])
+def test_ids_and_labels_are_unique(name):
+    taxonomy = builtin_taxonomy(name)
+    labels = [n.label for n in taxonomy.nodes.values()]
+    assert len(labels) == len(set(labels))
+    assert len(taxonomy.nodes) == len({n.id for n in taxonomy.nodes.values()})
+
+
+@pytest.mark.parametrize("name", SECTION_NAMES)
+def test_section_definitions_use_american_spelling(name):
+    text = " ".join(n.description for n in builtin_taxonomy(name).nodes.values()).lower()
+    for british in ("licence", "capitalised", "organised", "behaviour", "recognis"):
+        assert british not in text

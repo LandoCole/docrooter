@@ -1,9 +1,11 @@
+import math
+import random
 from pathlib import Path
 
 import pytest
 
-from docrooter import Document, SectionView, load
-from docrooter.views import estimate_tokens
+from docrooter import Document, SectionView, load, views
+from docrooter.views import estimate_tokens, render_budgeted
 
 SIMPLE = Path(__file__).parent.parent / "fixtures" / "docs" / "simple.md"
 
@@ -188,3 +190,37 @@ def test_cut_text_that_fits_is_still_marked_truncated():
     )["s1"]
     assert v.truncated
     assert v.text == "Text: " + " ".join(f"w{i}" for i in range(20))  # 4 x 5 words, then stop
+
+
+def _subword_count(text: str) -> int:
+    return sum(math.ceil(len(word) / 3) for word in text.split())
+
+
+@pytest.mark.parametrize(
+    "count", [estimate_tokens, lambda t: len(t.split()), _subword_count], ids=["est", "w", "sub"]
+)
+def test_precut_matches_uncut_rendering_on_random_inputs(monkeypatch, count):
+    """Differential: the word cap never changes a view (every counter costs >= 1/4 token per
+    word), checked against the same function with the cap disabled."""
+    rng = random.Random(1016)
+    vocab = ["a", "of", "model", "results", "x1", "Item", "7A.", "supercalifragilistic", "été"]
+
+    def random_text(max_words: int) -> str:
+        words = [rng.choice(vocab) for _ in range(rng.randint(0, max_words))]
+        return rng.choice([" ", "  ", "\n"]).join(words)
+
+    cases = []
+    for _ in range(300):
+        entries = [
+            None if rng.random() < 0.1 else (rng.choice(["Title:", "Lead:", ""]), random_text(60))
+            for _ in range(rng.randint(0, 4))
+        ]
+        cases.append((entries, random_text(40), rng.randint(1, 12)))
+    capped = [render_budgeted(e, t, m, count) for e, t, m in cases]
+    monkeypatch.setattr(views, "_WORDS_PER_TOKEN", 10**9)
+    uncapped = [render_budgeted(e, t, m, count) for e, t, m in cases]
+    assert capped == uncapped
+    over_cap = sum(
+        any(e is not None and len(e[1].split()) > 4 * m for e in entries) for entries, _, m in cases
+    )
+    assert over_cap > 100  # the cap was exercised, not idle

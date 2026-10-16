@@ -173,8 +173,16 @@ def test_without_synonyms_strips_only_the_examples():
     ]
 
 
+RP = "section_types/research_paper"
+
+
 def _run(accuracy, n_correct, preds, **extra):
-    rows = [{"gold": "a", "pred": p} for p in preds] + [{"gold": None, "pred": "junk"}] * 3
+    # the first row's heading is a built-in example ("References"), the others are not
+    titles = ["7 References", "Our Odd Heading", "Another One", "Yet Another"]
+    rows = [
+        {"gold": "a", "pred": p, "section_title": t, "taxonomy": RP}
+        for p, t in zip(preds, titles, strict=True)
+    ] + [{"gold": None, "pred": "junk", "section_title": "x", "taxonomy": RP}] * 3
     overall = {"accuracy": accuracy, "macro_f1": 0.5, "n_correct": n_correct, "n_scored": 4}
     return {"overall": overall, "s_per_section": 0.01, "rows": rows, **extra}
 
@@ -184,6 +192,8 @@ def test_summarize_counts_top_predictions_over_scored_rows_only():
     assert s["top_preds"] == [("b", 2), ("a", 1), ("c", 1)]
     assert (s["accuracy"], s["n_correct"], s["tokens"], s["cost_usd"]) == (0.5, 2, 10, 0.1)
     assert "rows" not in s
+    # non-overlap drops the "7 References" row: preds b, b, c against gold a
+    assert s["non_overlap"] == {"accuracy": 0.0, "n_correct": 0, "n_scored": 3}
 
 
 def test_before_after_and_variant_tables():
@@ -208,11 +218,58 @@ def test_before_after_and_variant_tables():
         },
     }
     table = "\n".join(nb._before_after(result, ["ultrabert"]))
-    assert "| `ultrabert` | 0.250 (1/4) | 0.750 (3/4) | +50.0 pts |" in table
+    assert (
+        "| `ultrabert` | 0.250 (1/4); 0.000 (0/3) | 0.750 (3/4); 0.667 (2/3) | +50.0 pts "
+        "| +66.7 pts |"
+    ) in table
     assert "without the taxonomies' heading synonyms" in table
     variants = "\n".join(nb._variants(result))
     assert (
-        f"| `{nb.BASELINE_CONFIG}` | title + lead @ 96 | no | 0.250 (1/4) | `b` (3) |" in variants
+        f"| `{nb.BASELINE_CONFIG}` | title + lead @ 96 | no | 0.250 (1/4); 0.000 (0/3) | `b` (3) |"
+        in variants
     )
     assert f"| `{nb.FINAL_CONFIG}` (default) |" in variants
     assert "dev set" in variants
+
+
+@pytest.mark.parametrize(
+    ("title", "key"),
+    [
+        ("3.1 Encoder and Decoder Stacks", "encoder and decoder stacks"),
+        ("ITEM 1A. RISK FACTORS", "risk factors"),
+        ("Item 7. Management\u2019s Discussion", "management s discussion"),
+        ("Note 2. Revenue Recognition", "revenue recognition"),
+        ("A. Additional Results", "additional results"),
+        ("Abstract", "abstract"),
+        ("2023 Annual Report", "annual report"),
+    ],
+)
+def test_heading_key_drops_one_leading_number_and_punctuation(title, key):
+    assert nb.heading_key(title) == key
+
+
+def test_in_examples_uses_the_rows_gold_taxonomy():
+    assert nb.in_examples({"section_title": "5 Related Work", "taxonomy": RP})
+    assert not nb.in_examples({"section_title": "Item 1A. Risk Factors", "taxonomy": RP})
+    row = {"section_title": "Risk Factors", "taxonomy": "section_types/annual_report"}
+    assert nb.in_examples(row)
+
+
+def test_warmup_encodes_each_doc_type_taxonomy_and_all_leaves_for_auto(monkeypatch):
+    from docrooter.classify import normalize as normalize_module
+
+    calls = []
+    monkeypatch.setattr(normalize_module, "normalize_sections", lambda doc, **kw: calls.append(kw))
+    rp, ar = "research.research_paper", "financial.annual_report"
+    nb._warmup(object(), nb.CONFIGS[nb.FINAL_CONFIG], [rp, ar, rp])
+    assert [c["doc_type"] for c in calls] == [rp, ar]
+    assert all(c["taxonomy"] is None for c in calls)
+
+    calls.clear()
+    nb._warmup(object(), nb.CONFIGS[nb.BASELINE_CONFIG], [rp])
+    (call,) = calls
+    assert all(not n.examples for n in call["taxonomy"].nodes.values())
+
+    calls.clear()
+    nb._warmup(object(), nb.CONFIGS[nb.FINAL_CONFIG], [None])
+    assert calls[0]["doc_type"] is None and len(calls) == 1 + 18

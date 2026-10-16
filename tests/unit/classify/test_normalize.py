@@ -161,6 +161,54 @@ def test_view_override_renders_sections_with_that_view():
     assert backend.last_texts[2] == "Path: Method > Datasets\nTitle: Datasets"
 
 
+def _custom(examples: bool) -> Taxonomy:
+    return Taxonomy(
+        [
+            TaxonomyNode(
+                id="a",
+                label="Alpha",
+                description="abstract summary",
+                examples=["Abstract"] if examples else [],
+            ),
+            TaxonomyNode(id="b", label="Bravo", description="bibliography cited works"),
+        ]
+    )
+
+
+def test_default_view_is_title_and_lead_for_a_taxonomy_without_examples():
+    backend = RecordingBackend(KeywordBackend())
+    normalize_sections(paper(), taxonomy=_custom(examples=False), backend=backend)
+    assert backend.last_texts[0] == "Title: Abstract\nLead: We present results."
+    assert backend.last_texts[2] == "Title: Datasets\nLead: Experiments use datasets and baselines."
+
+
+def test_default_view_is_path_and_title_once_any_node_has_examples():
+    backend = RecordingBackend(KeywordBackend())
+    normalize_sections(paper(), taxonomy=_custom(examples=True), backend=backend)
+    assert backend.last_texts[2] == "Path: Method > Datasets\nTitle: Datasets"
+
+
+def test_explicit_view_wins_over_the_examples_rule():
+    backend = RecordingBackend(KeywordBackend())
+    view = SectionView(fields=("title",), max_tokens=32)
+    normalize_sections(paper(), taxonomy=_custom(examples=False), backend=backend, view=view)
+    assert backend.last_texts[0] == "Title: Abstract"
+
+
+def test_blank_title_with_text_gets_its_lead_under_a_heading_only_view():
+    doc = Document.from_sections(
+        [
+            {"title": "Method", "level": 1, "text": "Our method."},
+            {"title": " ", "level": 1, "text": "We list the cited works. More."},
+        ],
+        source="x.md",
+    )
+    backend = RecordingBackend(KeywordBackend())
+    normalize_sections(doc, taxonomy="research_paper", backend=backend)
+    assert backend.last_texts[0] == "Path: Method\nTitle: Method"
+    assert backend.last_texts[1].endswith("Lead: We list the cited works. More.")
+
+
 def test_prebuilt_classifier():
     taxonomy = builtin_taxonomy("section_types/research_paper")
     backend = RecordingBackend(KeywordBackend())

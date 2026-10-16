@@ -30,8 +30,10 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import functools
 import json
 import os
+import re
 import time
 from collections import Counter, defaultdict, deque
 from collections.abc import Mapping, Sequence
@@ -111,6 +113,30 @@ def read_gold(path: Path = GOLD_PATH) -> tuple[dict[str, Any], list[dict[str, An
     if header is None:
         raise ValueError(f"{path}: empty file, no header")
     return header, rows
+
+
+_NUMBERING = re.compile(
+    r"^(?:(?:item|note|part|section|article)\s+)?(?:\d+[a-z]?(?:\.\d+)*|[ivxl]+|[a-z])[.:)]?\s+"
+)
+
+
+def heading_key(title: str) -> str:
+    """:func:`title_key` without one leading number ("3.1", "Item 1A.", "Note 2.", "A.") and
+    with punctuation turned into spaces: the key for heading-vs-example overlap."""
+    key = _NUMBERING.sub("", title_key(title))
+    return " ".join(re.sub(r"[^\w\s]", " ", key).split())
+
+
+@functools.cache
+def _example_keys(taxonomy: str) -> frozenset[str]:
+    nodes = builtin_taxonomy(taxonomy).nodes.values()
+    return frozenset(heading_key(e) for node in nodes for e in node.examples)
+
+
+def in_examples(row: Mapping[str, Any]) -> bool:
+    """Whether the row's heading equals (by :func:`heading_key`) a heading-synonym example of
+    any node of its gold taxonomy, so the synonyms may have handed the model its title."""
+    return heading_key(row["section_title"]) in _example_keys(row["taxonomy"])
 
 
 def title_key(title: str) -> str:
@@ -223,15 +249,27 @@ def _backend(name: str) -> Any:
     return resolve_backend(SYSTEMS[name])
 
 
-def _warmup(backend: Any, config: Config) -> float:
+def _warmup(backend: Any, config: Config, doc_types: Sequence[str | None]) -> float:
+    """Untimed: load the model and encode the label vectors of every section taxonomy the run
+    can use, under each doc type's instruction. ``None`` (auto) warms the doc-type step and
+    every leaf doc type. Returns the seconds taken."""
     from docrooter.classify.normalize import normalize_sections
 
     doc = Document.from_sections(
         [{"title": "Introduction", "level": 1, "text": "This short note describes a method."}],
         source="warmup.txt",
     )
+    types: list[str | None] = list(dict.fromkeys(doc_types))
+    if None in types:
+        types += [leaf.id for leaf in builtin_taxonomy("doc_types").leaves()]
     start = time.perf_counter()
-    normalize_sections(doc, doc_type="research.research_paper", backend=backend, view=config.view)
+    for doc_type in dict.fromkeys(types):
+        taxonomy = None
+        if doc_type is not None and not config.synonyms:
+            taxonomy = without_synonyms(DOC_TYPE_TO_SECTION_TAXONOMY[doc_type])
+        normalize_sections(
+            doc, doc_type=doc_type, taxonomy=taxonomy, backend=backend, view=config.view
+        )
     return time.perf_counter() - start
 
 
@@ -260,7 +298,7 @@ def run_system(
     if not config.synonyms and any(t is None for t in doc_types.values()):
         raise ValueError("a config without synonyms needs a known doc type for every document")
     backend = _backend(name)
-    load_s = _warmup(backend, config)
+    load_s = _warmup(backend, config, list(doc_types.values()))
     is_jev = isinstance(backend, jev_chunks.UsageJevBackend)
     log(f"{name}: warm-up (load) {load_s:.1f} s")
     rows: list[dict[str, Any]] = []
@@ -357,12 +395,21 @@ def run_system(
     return out
 
 
+def non_overlap(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Accuracy over the scored rows whose heading is not a heading-synonym example
+    (:func:`in_examples`)."""
+    s = score([r for r in rows if r["gold"] is not None and not in_examples(r)], qualify=True)
+    return {k: s[k] for k in ("accuracy", "n_correct", "n_scored")}
+
+
 def summarize(run: Mapping[str, Any], top: int = 3) -> dict[str, Any]:
-    """The headline numbers of one run, plus its ``top`` most frequent predicted labels over
-    the scored rows (a collapse onto few labels shows up here)."""
+    """The headline numbers of one run, the same on the rows outside the synonym overlap, and
+    its ``top`` most frequent predicted labels over the scored rows (a collapse onto few labels
+    shows up here)."""
     o = run["overall"]
     preds = Counter(r["pred"] for r in run["rows"] if r["gold"] is not None)
     out = {k: o[k] for k in ("accuracy", "macro_f1", "n_correct", "n_scored")} | {
+        "non_overlap": non_overlap(run["rows"]),
         "s_per_section": run["s_per_section"],
         "top_preds": preds.most_common(top),
     }
@@ -400,6 +447,28 @@ def _acc(o: Mapping[str, Any]) -> str:
     return f"{_f(o['accuracy'])} ({o['n_correct']}/{o['n_scored']})"
 
 
+def _acc_both(overall: Mapping[str, Any], rest: Mapping[str, Any]) -> str:
+    return f"{_acc(overall)}; {_acc(rest)}"
+
+
+def _overlap_note(result: Mapping[str, Any]) -> list[str]:
+    runs = [r for r in result["systems"].values() if "rows" in r]
+    if not runs:
+        return []
+    scored = [r for r in runs[0]["rows"] if r["gold"] is not None]
+    hits = [r for r in scored if in_examples(r)]
+    titles = {(r["taxonomy"], heading_key(r["section_title"])) for r in hits}
+    return [
+        "",
+        f"**Synonym overlap.** {len(hits)} of the {len(scored)} scored sections have a heading "
+        f"equal to a heading-synonym example of their taxonomy ({len(titles)} distinct "
+        "headings; compared case- and punctuation-insensitively after dropping one leading "
+        'number such as "3.1", "Item 1A." or "Note 2."). For those, the synonyms can hand the '
+        "model the answer, so every accuracy below is also given on the other "
+        f"{len(scored) - len(hits)} (*non-overlap*), as *all; non-overlap*.",
+    ]
+
+
 def _before_after(result: Mapping[str, Any], names: Sequence[str]) -> list[str]:
     base = result.get("baseline_p10")
     if not base:
@@ -409,11 +478,12 @@ def _before_after(result: Mapping[str, Any], names: Sequence[str]) -> list[str]:
         "### Before / after",
         "",
         f"*Baseline (P10)* is the original run ({base['date']} at `{base['commit']}`: "
-        f"{_config_text(result, base['config'])}); *after* is this run.",
+        f"{_config_text(result, base['config'])}); *after* is this run. Accuracy cells are "
+        "*all; non-overlap*.",
         "",
-        "| System | Baseline (P10) accuracy | After accuracy | Change | Baseline macro F1 "
-        "| After macro F1 |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| System | Baseline (P10) accuracy | After accuracy | Change (all) | Change (non-overlap) "
+        "| Baseline macro F1 | After macro F1 |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     runs = [(n, base["systems"].get(n), result["systems"][n]) for n in names]
     if "auto_doc_type" in base and "overall" in result.get("auto_doc_type", {}):
@@ -422,8 +492,15 @@ def _before_after(result: Mapping[str, Any], names: Sequence[str]) -> list[str]:
         if not before or "overall" not in before:
             continue
         b, a = before["overall"], after["overall"]
+        bn, an = non_overlap(before["rows"]), non_overlap(after["rows"])
+
+        def pts(x: Mapping[str, Any], y: Mapping[str, Any]) -> str:
+            if x["accuracy"] is None or y["accuracy"] is None:
+                return "-"
+            return f"{100 * (y['accuracy'] - x['accuracy']):+.1f} pts"
+
         lines.append(
-            f"| `{n}` | {_acc(b)} | {_acc(a)} | {100 * (a['accuracy'] - b['accuracy']):+.1f} pts "
+            f"| `{n}` | {_acc_both(b, bn)} | {_acc_both(a, an)} | {pts(b, a)} | {pts(bn, an)} "
             f"| {_f(b['macro_f1'])} | {_f(a['macro_f1'])} |"
         )
     return lines
@@ -438,10 +515,11 @@ def _variants(result: Mapping[str, Any]) -> list[str]:
         "",
         "### Configurations tried (the silver set used as a dev set)",
         "",
-        "Every configuration that was run, all on the same 145 scored sections, so the chosen "
+        "Every configuration that was run, all on the same scored sections, so the chosen "
         f"default (`{result['final_config']}`) is selected on the evaluation data and its margin "
-        "over the others is optimistic. *Top prediction* is the most frequent predicted label "
-        "over the scored sections and its count (a collapse onto one label shows up here).",
+        "over the others is optimistic. Accuracy cells are *all; non-overlap*. *Top prediction* "
+        "is the most frequent predicted label over the scored sections and its count (a "
+        "collapse onto one label shows up here).",
         "",
         "| Config | View | Synonyms | "
         + " | ".join(f"`{n}` accuracy" for n in names)
@@ -465,7 +543,7 @@ def _variants(result: Mapping[str, Any]) -> list[str]:
                 acc.append("-" if v is None else "error")
                 top.append("-")
                 continue
-            acc.append(_acc(v))
+            acc.append(_acc_both(v, v["non_overlap"]))
             top.append(
                 f"`{v['top_preds'][0][0]}` ({v['top_preds'][0][1]})" if v["top_preds"] else "-"
             )
@@ -498,8 +576,11 @@ def render_section(result: Mapping[str, Any]) -> str:
         "*Macro F1* averages over the gold classes (per document over that document's classes; "
         "overall over all classes, qualified by taxonomy). *s/section* is the summed wall time "
         "of the per-document calls (view rendering and label encoding included) divided by the "
-        "sections labelled, junk included; model load is excluded (*Load s*). Jev cost is input "
+        "sections labelled, junk included. Model load and the label encoding of every section "
+        "taxonomy the run can use (one untimed warm-up per doc type) are excluded (*Load s*). "
+        "Jev cost is input "
         f"tokens x ${pdf_bench.JEV_USD_PER_M_INPUT}/M as reported by the API.",
+        *_overlap_note(result),
         *_before_after(result, names),
         *_variants(result),
         "",

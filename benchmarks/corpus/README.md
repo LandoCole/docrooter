@@ -10,6 +10,7 @@ A small labelled corpus of real PDFs, large and small, used to benchmark docroot
 | `manifest.jsonl` | One JSON object per document: `id`, `file`, `url`, `title`, `publisher`, `label`, `pages`, `bytes`, `sha256`, `label_rationale`. |
 | `fetch.py` | Stdlib-only downloader that fetches every manifest entry into `pdfs/` and checks its sha256. |
 | `pdfs/` | The downloaded PDFs (git-ignored; created by `fetch.py`). |
+| `section_gold.jsonl` | Silver section labels for section normalisation (see below): a `{"_meta": ...}` header line, then one `{doc_id, section_title, page, level, canonical, note?}` object per level-1/2 section of six documents. |
 
 ## Reproducing
 
@@ -102,3 +103,11 @@ Documents come from public, no-login publisher sites: arXiv, the RFC Editor, Ber
 - Boundary cases kept deliberately: `doc_037` (the Bitcoin paper) is labelled `research.white_paper` because it is the canonical self-published "white paper", not a peer-reviewed paper; the Amazon annual report is a glossy report bundling the CEO letter with the Form 10-K, labelled `financial.annual_report`; the Apple privacy policy is a single very long PDF page.
 - Court opinions include both slip opinions and Official Reports preliminary prints; both are `legal.court_opinion`.
 - Debt issuance programme base prospectuses are used for `financial.prospectus` because they are dated, stable securities-offering documents (fund prospectuses are overwritten in place by their sponsors).
+
+## Section labels (silver)
+
+`section_gold.jsonl` holds **agent-assigned silver labels, not human gold**. An agent (Claude Opus 5.5) loaded `doc_027`, `doc_028`, `doc_029` (research papers), `doc_001`, `doc_002` (annual reports) and `doc_016` (contract) with the default engine, listed every level-1 and level-2 section, read each heading with the first ~300 characters of its body, and chose the best node of the doc type's section taxonomy (`DOC_TYPE_TO_SECTION_TAXONOMY`) from the node definitions. The labels were written and committed before any model was run on them. The header line records the labelling time and the src commit the documents were loaded at.
+
+- `canonical: null` marks parser junk or text that is not a section (title and author blocks, printed-TOC lines, headings repeated on continuation pages, run-in paragraph leads, form fields). These rows are counted but excluded from accuracy.
+- `note` justifies ambiguous choices and names the runner-up node. Annual-report cover pages and tables of contents are `other`, as that node's definition says; research papers and contracts have no such node, so their title blocks are junk.
+- Sections are matched to a freshly loaded document by (casefolded title, page). If the loader's output changes, unmatched rows are reported by `benchmarks/normalize_bench.py`, not silently dropped.

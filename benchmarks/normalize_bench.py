@@ -1,0 +1,547 @@
+"""Section-normalisation benchmark: ``normalize_sections`` vs agent-assigned silver labels.
+
+``PYTHONPATH=src uv run --extra models --extra pdf --extra jev --extra bench \
+    python -m benchmarks.normalize_bench --docs docs/benchmarks-pdf.md``
+
+The silver set is ``benchmarks/corpus/section_gold.jsonl``: a JSON header line (``{"_meta":
+{...}}``, with the labelling time and the src commit the documents were loaded at), then one line
+per level-1/2 section ``{doc_id, section_title, page, level, canonical, note?}``. A null
+``canonical`` marks parser junk (not a real section): it is counted, never scored.
+
+Each gold document is loaded fresh with the default engine and the gold rows are matched to its
+sections by (normalised title, page); rows that no longer match are reported, not fatal. Every
+system runs ``normalize_sections(doc, doc_type=<manifest label>, backend=...)`` per document; one
+extra run uses ``doc_type=None`` (the auto doc-type path) with the default backend. Results go to
+``benchmarks/results/<date>/normalize.json`` and, with ``--docs``, to the generated block of the
+``## Section normalisation`` section of ``docs/benchmarks-pdf.md``.
+
+Timing: each system first normalises one tiny synthetic document untimed (model load; reported
+as ``load_s``). Seconds per section is the wall time of each document's ``normalize_sections``
+call (label encoding and view rendering included) summed over documents, divided by the number
+of sections it labelled (junk included, since the system labels those too).
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime
+import json
+import os
+import time
+from collections import defaultdict, deque
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from benchmarks import jev_chunks, pdf_bench
+from benchmarks.toc import git_revision
+from docrooter.document import Document
+from docrooter.evaluate.metrics import leaf_prf
+from docrooter.taxonomies import DOC_TYPE_TO_SECTION_TAXONOMY
+
+GOLD_PATH = pdf_bench.CORPUS / "section_gold.jsonl"
+GOLD_FIELDS = ("doc_id", "section_title", "page", "level", "canonical")
+LEVELS = (1, 2)
+SYSTEMS: dict[str, str] = {
+    "ultrabert": f"embedding:{pdf_bench.ULTRABERT}",
+    "bge-small": f"embedding:{pdf_bench.BGE}",
+    "jev": f"jev:{pdf_bench.JEV_MODEL}",
+}
+AUTO_SYSTEM = "ultrabert"  # backend of the doc_type=None run (the library default)
+TABLE_DOCS = ("doc_027", "doc_002")  # per-entry tables: one research paper, one annual report
+SECTION = "## Section normalisation"
+BEGIN, END = "<!-- normalize-benchmark:begin -->", "<!-- normalize-benchmark:end -->"
+log = pdf_bench.log
+
+
+# --- gold --------------------------------------------------------------------------------
+
+
+def read_gold(path: Path = GOLD_PATH) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """``(header, rows)`` of a silver-label file. The first non-blank line must be the
+    ``{"_meta": {...}}`` header; every row needs :data:`GOLD_FIELDS` (else ``ValueError``)."""
+    header: dict[str, Any] | None = None
+    rows: list[dict[str, Any]] = []
+    with path.open(encoding="utf-8") as fh:
+        for number, line in enumerate(fh, 1):
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if header is None:
+                if not isinstance(record, dict) or "_meta" not in record:
+                    raise ValueError(f"{path}: line {number} is not a {{'_meta': ...}} header")
+                header = record["_meta"]
+                continue
+            missing = [f for f in GOLD_FIELDS if f not in record]
+            if missing:
+                raise ValueError(f"{path}: line {number} lacks {', '.join(missing)}")
+            rows.append(record)
+    if header is None:
+        raise ValueError(f"{path}: empty file, no header")
+    return header, rows
+
+
+def title_key(title: str) -> str:
+    """Casefolded title with whitespace collapsed (numbering kept: it disambiguates)."""
+    return " ".join(title.split()).casefold()
+
+
+@dataclass
+class Match:
+    pairs: list[tuple[dict[str, Any], str]] = field(default_factory=list)  # (gold row, section id)
+    unmatched_gold: list[dict[str, Any]] = field(default_factory=list)
+    unlabelled: list[str] = field(default_factory=list)  # section ids with no gold row
+
+
+def match_gold(gold: Sequence[Mapping[str, Any]], sections: Sequence[Any]) -> Match:
+    """Pair gold rows with sections (objects with ``id``, ``title``, ``page_start``) by
+    ``(title_key, page)``; repeats of one key pair up in reading order."""
+    free: dict[tuple[str, int | None], deque[str]] = defaultdict(deque)
+    for s in sections:
+        free[(title_key(s.title), s.page_start)].append(s.id)
+    out = Match()
+    used: set[str] = set()
+    for row in gold:
+        queue = free.get((title_key(row["section_title"]), row["page"]))
+        if queue:
+            sid = queue.popleft()
+            used.add(sid)
+            out.pairs.append((dict(row), sid))
+        else:
+            out.unmatched_gold.append(dict(row))
+    out.unlabelled = [s.id for s in sections if s.id not in used]
+    return out
+
+
+# --- metrics -----------------------------------------------------------------------------
+
+
+def score(rows: Sequence[Mapping[str, Any]], *, qualify: bool = False) -> dict[str, Any]:
+    """Accuracy and macro F1 over rows with a gold label; junk rows (gold None) are counted.
+
+    A prediction is correct when it names the gold node of the gold ``taxonomy``: a row whose
+    ``pred_taxonomy`` differs (the auto doc-type run chose another taxonomy) is always wrong.
+    Macro F1 averages over the gold classes (``leaf_prf``). With ``qualify`` each class is
+    prefixed by its taxonomy, so pooled documents of different types never share one.
+    """
+    scored = [r for r in rows if r["gold"] is not None]
+
+    def gold_of(r: Mapping[str, Any]) -> tuple[str | None, str]:
+        return r.get("taxonomy"), r["gold"]
+
+    def pred_of(r: Mapping[str, Any]) -> tuple[str | None, str | None]:
+        return r.get("pred_taxonomy", r.get("taxonomy")), r["pred"]
+
+    out: dict[str, Any] = {
+        "n_scored": len(scored),
+        "n_junk": len(rows) - len(scored),
+        "n_correct": sum(pred_of(r) == gold_of(r) for r in scored),
+        "accuracy": None,
+        "macro_f1": None,
+    }
+    if scored:
+
+        def path(taxonomy: str | None, label: str | None) -> list[str]:
+            if label is None:
+                return []
+            return [f"{taxonomy}:{label}" if qualify else label]
+
+        gold = [path(*gold_of(r)) for r in scored]
+        # Unqualified, a node of another taxonomy must still never count as the gold class.
+        pred = [
+            path(*pred_of(r)) if qualify or pred_of(r)[0] == gold_of(r)[0] else ["<other>"]
+            for r in scored
+        ]
+        out["accuracy"] = out["n_correct"] / len(scored)
+        out["macro_f1"] = leaf_prf(pred, gold)[2]
+    return out
+
+
+def jev_cost(tokens: int | None) -> float | None:
+    """US dollars for ``tokens`` Jev input tokens (output tokens are free)."""
+    return None if tokens is None else tokens * pdf_bench.JEV_USD_PER_M_INPUT / 1e6
+
+
+# --- running -----------------------------------------------------------------------------
+
+
+def load_documents(doc_ids: Sequence[str], corpus: Path) -> dict[str, Document]:
+    """Fresh ``load_pdf`` (default engine) of each document, so matching sees the current src."""
+    from docrooter.pdf.load import load_pdf
+
+    entries = {e["id"]: e for e in pdf_bench.manifest(corpus)}
+    return {i: load_pdf(corpus / entries[i]["file"]) for i in doc_ids}
+
+
+def _backend(name: str) -> Any:
+    if name == "jev":
+        return jev_chunks.UsageJevBackend(
+            pdf_bench.JEV_MODEL, concurrency=pdf_bench.JEV_CONCURRENCY
+        )
+    from docrooter.backends.registry import resolve_backend
+
+    return resolve_backend(SYSTEMS[name])
+
+
+def _warmup(backend: Any) -> float:
+    from docrooter.classify.normalize import normalize_sections
+
+    doc = Document.from_sections(
+        [{"title": "Introduction", "level": 1, "text": "This short note describes a method."}],
+        source="warmup.txt",
+    )
+    start = time.perf_counter()
+    normalize_sections(doc, doc_type="research.research_paper", backend=backend)
+    return time.perf_counter() - start
+
+
+def _usage_tokens(backend: Any) -> tuple[int | None, bool]:
+    """SDK-reported input tokens since the last ``usage.clear()``; estimated from the state
+    texts (words x 1.3) when any request reported none."""
+    usage = backend.usage
+    if all(t is not None for _, t in usage):
+        return sum(t for _, t in usage if t is not None), False
+    return sum(t if t is not None else jev_chunks.estimate_tokens(s) for s, t in usage), True
+
+
+def run_system(
+    name: str,
+    docs: Mapping[str, Document],
+    doc_types: Mapping[str, str | None],
+    gold: Mapping[str, Sequence[Mapping[str, Any]]],
+    true_types: Mapping[str, str],
+) -> dict[str, Any]:
+    """Normalise every document with backend ``name``; ``doc_types[id]`` is passed as
+    ``doc_type`` (None = auto). Rows carry gold and prediction for every matched section."""
+    from docrooter.classify.normalize import normalize_sections
+
+    backend = _backend(name)
+    load_s = _warmup(backend)
+    is_jev = isinstance(backend, jev_chunks.UsageJevBackend)
+    log(f"{name}: warm-up (load) {load_s:.1f} s")
+    rows: list[dict[str, Any]] = []
+    per_doc: dict[str, Any] = {}
+    tokens_total, estimated = 0, False
+    for doc_id, doc in docs.items():
+        if is_jev:
+            backend.usage.clear()
+        start = time.perf_counter()
+        result = normalize_sections(doc, doc_type=doc_types[doc_id], backend=backend, levels=LEVELS)
+        seconds = time.perf_counter() - start
+        match = match_gold(gold[doc_id], [doc.sections[sid] for sid in result.sections])
+        gold_taxonomy = DOC_TYPE_TO_SECTION_TAXONOMY[true_types[doc_id]]
+        doc_rows = []
+        for g, sid in match.pairs:
+            norm = result.sections[sid]
+            doc_rows.append(
+                {
+                    "doc_id": doc_id,
+                    "section_title": g["section_title"],
+                    "page": g["page"],
+                    "level": g["level"],
+                    "taxonomy": gold_taxonomy,
+                    "pred_taxonomy": result.taxonomy,
+                    "gold": g["canonical"],
+                    "pred": norm.canonical,
+                    "score": round(norm.score, 4),
+                }
+            )
+        n_labelled = sum(n.canonical is not None for n in result.sections.values())
+        entry: dict[str, Any] = {
+            "seconds": seconds,
+            "n_labelled": n_labelled,
+            "doc_type": result.doc_type,
+            "doc_type_confidence": result.doc_type_confidence,
+            "doc_type_matched": result.doc_type == true_types[doc_id],
+            "taxonomy": result.taxonomy,
+            "unmatched_gold": [
+                {k: g[k] for k in ("section_title", "page", "level")} for g in match.unmatched_gold
+            ],
+            "unlabelled_sections": [
+                {"title": doc.sections[s].title, "page": doc.sections[s].page_start}
+                for s in match.unlabelled
+            ],
+            **score(doc_rows),
+        }
+        if is_jev:
+            tokens, est = _usage_tokens(backend)
+            entry |= {"tokens": tokens, "tokens_estimated": est}
+            tokens_total += tokens
+            estimated = estimated or est
+        per_doc[doc_id] = entry
+        rows.extend(doc_rows)
+        acc = entry["accuracy"]
+        log(
+            f"{name} {doc_id}: {entry['n_correct']}/{entry['n_scored']} "
+            f"({'n/a' if acc is None else f'{acc:.3f}'}), {seconds:.2f} s, "
+            f"doc type {result.doc_type}"
+        )
+        if match.unmatched_gold:
+            log(f"{name} {doc_id}: {len(match.unmatched_gold)} gold rows did not match")
+    n_labelled = sum(d["n_labelled"] for d in per_doc.values())
+    seconds = sum(d["seconds"] for d in per_doc.values())
+    out: dict[str, Any] = {
+        "backend": SYSTEMS[name],
+        "load_s": load_s,
+        "seconds": seconds,
+        "n_labelled": n_labelled,
+        "s_per_section": seconds / n_labelled if n_labelled else None,
+        "per_doc": per_doc,
+        "overall": score(rows, qualify=True),
+        "rows": rows,
+    }
+    if is_jev:
+        out |= {
+            "tokens": tokens_total,
+            "tokens_estimated": estimated,
+            "cost_usd": jev_cost(tokens_total),
+        }
+    del backend
+    pdf_bench.free_memory()
+    return out
+
+
+# --- Markdown report ---------------------------------------------------------------------
+
+
+def _f(value: float | None, digits: int = 3) -> str:
+    return pdf_bench._f(value, digits)
+
+
+def _cost(run: Mapping[str, Any]) -> str:
+    if "cost_usd" not in run:
+        return "-"
+    return f"${run['cost_usd']:.4f}" + (" (est.)" if run.get("tokens_estimated") else "")
+
+
+def _cell(text: str) -> str:
+    return text.replace("|", "\\|")
+
+
+def render_section(result: Mapping[str, Any]) -> str:
+    meta, systems = result["gold"]["meta"], result["systems"]
+    names = [n for n in SYSTEMS if n in systems and "error" not in systems[n]]
+    docs = result["documents"]
+    lines = [
+        f"Silver set: `benchmarks/corpus/section_gold.jsonl`, {result['gold']['n_entries']} "
+        f"level-1/2 sections of {len(docs)} documents ({result['gold']['n_junk']} marked as "
+        "parser junk, i.e. not a real section, and excluded from accuracy). **These are "
+        "agent-assigned silver labels, not human gold:** an agent (Claude Opus 5.5) read each "
+        "heading and the first ~300 characters of its body and chose the best node of the doc "
+        "type's section taxonomy from the node definitions, before any model was run "
+        f"(labelled {meta['labelled_at']}, documents loaded at `{meta['src_commit']}`). "
+        "Ambiguous cases carry a `note` in the file. Expect a few points of label noise.",
+        "",
+        f"Run {result['date']} at `{result['commit']}`, device `{result['env']['device']}` "
+        f"({result['env']['device_note']}). Each system calls `normalize_sections(doc, "
+        "doc_type=<gold type>, backend=...)` (Flat, title + lead, 96 tokens) once per document. "
+        "*Macro F1* averages over the gold classes (per document over that document's classes; "
+        "overall over all classes, qualified by taxonomy). *s/section* is the summed wall time "
+        "of the per-document calls (view rendering and label encoding included) divided by the "
+        "sections labelled, junk included; model load is excluded (*Load s*). Jev cost is input "
+        f"tokens x ${pdf_bench.JEV_USD_PER_M_INPUT}/M as reported by the API.",
+        "",
+        "### Aggregate",
+        "",
+        "| System | Backend | Accuracy | Correct | Macro F1 | s/section | Load s | Jev tokens "
+        "| Jev cost |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for n in names:
+        run, o = systems[n], systems[n]["overall"]
+        tokens = f"{run['tokens']:,}" if "tokens" in run else "-"
+        lines.append(
+            f"| `{n}` | `{run['backend']}` | {_f(o['accuracy'])} "
+            f"| {o['n_correct']}/{o['n_scored']} | {_f(o['macro_f1'])} "
+            f"| {_f(run['s_per_section'], 4)} | {run['load_s']:.1f} "
+            f"| {tokens} | {_cost(run)} |"
+        )
+    lines += ["", "### Per document (accuracy / macro F1)", ""]
+    lines.append(
+        "| Document | Type | Sections | Junk | Unmatched | "
+        + " | ".join(f"`{n}`" for n in names)
+        + " |"
+    )
+    lines.append("| --- | --- | --- | --- | --- | " + " | ".join("---" for _ in names) + " |")
+    for d in docs:
+        first = systems[names[0]]["per_doc"][d["id"]] if names else {}
+        cells = []
+        for n in names:
+            p = systems[n]["per_doc"][d["id"]]
+            cells.append(f"{_f(p['accuracy'])} / {_f(p['macro_f1'])}")
+        lines.append(
+            f"| {d['id']} {_cell(d['title'])} | `{d['doc_type']}` | {d['n_gold']} | {d['n_junk']} "
+            f"| {len(first.get('unmatched_gold', []))} | " + " | ".join(cells) + " |"
+        )
+    auto = result.get("auto_doc_type")
+    if auto and "error" not in auto:
+        o = auto["overall"]
+        lines += [
+            "",
+            "### Auto doc type (`doc_type=None`)",
+            "",
+            f"One run of `normalize_sections(doc)` with the default backend (`{auto['backend']}`), "
+            "so `classify_document` picks the doc type and hence the section taxonomy. The doc "
+            f"type matched the gold type on **{auto['matched']}/{auto['n']}** documents; section "
+            f"accuracy {_f(o['accuracy'])} ({o['n_correct']}/{o['n_scored']}), macro F1 "
+            f"{_f(o['macro_f1'])} (a wrong doc type usually means a different taxonomy, so its "
+            "sections all count as wrong).",
+            "",
+            "| Document | Gold type | Auto type | Confidence | Taxonomy | Accuracy |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+        for d in docs:
+            p = auto["per_doc"][d["id"]]
+            mark = pdf_bench.CHECK if p["doc_type_matched"] else pdf_bench.CROSS
+            lines.append(
+                f"| {d['id']} | `{d['doc_type']}` | {mark} `{p['doc_type']}` "
+                f"| {_f(p['doc_type_confidence'])} | `{p['taxonomy']}` | {_f(p['accuracy'])} |"
+            )
+    for doc_id in TABLE_DOCS:
+        d = next((x for x in docs if x["id"] == doc_id), None)
+        if d is None or not names:
+            continue
+        lines += [
+            "",
+            f"### Per entry: {doc_id} {_cell(d['title'])}",
+            "",
+            "| Page | Level | Section | Gold | " + " | ".join(f"`{n}`" for n in names) + " |",
+            "| --- | --- | --- | --- | " + " | ".join("---" for _ in names) + " |",
+        ]
+        by_system = {n: [r for r in systems[n]["rows"] if r["doc_id"] == doc_id] for n in names}
+        for i, r in enumerate(by_system[names[0]]):
+            gold = "*(junk)*" if r["gold"] is None else f"`{r['gold']}`"
+            cells = []
+            for n in names:
+                p = by_system[n][i]["pred"]
+                mark = (
+                    ""
+                    if r["gold"] is None
+                    else (f"{pdf_bench.CHECK} " if p == r["gold"] else f"{pdf_bench.CROSS} ")
+                )
+                cells.append(f"{mark}`{p}`")
+            lines.append(
+                f"| {r['page']} | {r['level']} | {_cell(r['section_title'][:70])} | {gold} | "
+                + " | ".join(cells)
+                + " |"
+            )
+    return "\n".join(lines)
+
+
+def update_docs(path: Path, block: str) -> None:
+    """Replace the generated block of the ``## Section normalisation`` section of ``path``,
+    appending the section at the end when it is missing; everything else is kept."""
+    wrapped = f"{BEGIN}\n{block}\n{END}"
+    text = path.read_text(encoding="utf-8")
+    if BEGIN in text and END in text:
+        head, rest = text.split(BEGIN, 1)
+        text = f"{head}{wrapped}{rest.split(END, 1)[1]}"
+    elif SECTION in text:
+        head, rest = text.split(SECTION, 1)
+        text = f"{head}{SECTION}\n\n{wrapped}\n{rest}"
+    else:
+        text = f"{text.rstrip()}\n\n{SECTION}\n\n{wrapped}\n"
+    path.write_text(text, encoding="utf-8")
+
+
+# --- main --------------------------------------------------------------------------------
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Section-normalisation silver benchmark")
+    parser.add_argument("--systems", default=",".join(SYSTEMS))
+    parser.add_argument("--no-auto", action="store_true", help="skip the doc_type=None run")
+    parser.add_argument("--gold", type=Path, default=GOLD_PATH)
+    parser.add_argument("--corpus", type=Path, default=pdf_bench.CORPUS)
+    parser.add_argument("--out", type=Path, default=None, help="results dir (default: dated)")
+    parser.add_argument("--device", default=None, help="skip the MPS probe and use this device")
+    parser.add_argument("--docs", type=Path, default=None, help="also update this Markdown file")
+    parser.add_argument("--report-only", action="store_true", help="render from normalize.json")
+    args = parser.parse_args(argv)
+
+    out_dir = args.out or pdf_bench.RESULTS_ROOT / datetime.date.today().isoformat()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "normalize.json"
+    if args.report_only:
+        update_docs(args.docs or pdf_bench.DOCS_PATH, render_section(json.loads(path.read_text())))
+        return
+    systems = [s.strip() for s in args.systems.split(",") if s.strip()]
+    unknown = [s for s in systems if s not in SYSTEMS]
+    if unknown:
+        parser.error(f"unknown systems {unknown}; choose from {list(SYSTEMS)}")
+
+    pdf_bench.load_env()  # silent: never prints names or values
+    meta, gold_rows = read_gold(args.gold)
+    doc_ids = list(meta.get("documents") or dict.fromkeys(r["doc_id"] for r in gold_rows))
+    entries = {e["id"]: e for e in pdf_bench.manifest(args.corpus)}
+    true_types = {i: entries[i]["label"] for i in doc_ids}
+    gold: dict[str, list[dict[str, Any]]] = {i: [] for i in doc_ids}
+    for r in gold_rows:
+        gold[r["doc_id"]].append(r)
+
+    if args.device:
+        device, note = args.device, "set with --device"
+    elif any(s != "jev" for s in systems) or not args.no_auto:
+        device, note = pdf_bench.probe_device()
+    else:
+        device, note = "n/a", "API only"
+    os.environ["DOCROOTER_DEVICE"] = device
+    log(f"device {device}: {note}")
+    log(f"loading {len(doc_ids)} PDFs")
+    docs = load_documents(doc_ids, args.corpus)
+
+    result: dict[str, Any] = (
+        json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"systems": {}}
+    )
+    result |= {
+        "date": datetime.date.today().isoformat(),
+        "commit": git_revision(),
+        "env": pdf_bench.collect_env() | {"device": device, "device_note": note},
+        "gold": {
+            "path": str(args.gold.relative_to(pdf_bench.ROOT)),
+            "meta": meta,
+            "n_entries": len(gold_rows),
+            "n_junk": sum(r["canonical"] is None for r in gold_rows),
+        },
+        "documents": [
+            {
+                "id": i,
+                "title": entries[i]["title"],
+                "doc_type": true_types[i],
+                "n_sections": sum(s.level in LEVELS for s in docs[i].walk()),
+                "n_gold": len(gold[i]),
+                "n_junk": sum(r["canonical"] is None for r in gold[i]),
+            }
+            for i in doc_ids
+        ],
+    }
+    runs: list[tuple[str, str, dict[str, str | None]]] = [(s, s, true_types) for s in systems]
+    if not args.no_auto:
+        runs.append(("auto_doc_type", AUTO_SYSTEM, dict.fromkeys(doc_ids)))
+    for key, name, doc_types in runs:
+        log(f"== {key} (load average {os.getloadavg()[0]:.1f})")
+        try:
+            run = run_system(name, docs, doc_types, gold, true_types)
+        except Exception as exc:  # noqa: BLE001 - one failing system must not lose the others
+            log(f"{key} FAILED: {type(exc).__name__}: {str(exc)[:500]}")
+            run = {"error": f"{type(exc).__name__}: {str(exc)[:500]}"}
+        else:
+            run["loadavg_end"] = list(os.getloadavg())
+            if key == "auto_doc_type":
+                run["matched"] = sum(d["doc_type_matched"] for d in run["per_doc"].values())
+                run["n"] = len(run["per_doc"])
+            o = run["overall"]
+            log(f"{key}: accuracy {_f(o['accuracy'])}, macro F1 {_f(o['macro_f1'])}")
+        if key == "auto_doc_type":
+            result["auto_doc_type"] = run
+        else:
+            result["systems"][key] = run
+        path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    if args.docs:
+        update_docs(args.docs, render_section(result))
+    log(f"wrote {path}")
+
+
+if __name__ == "__main__":
+    main()

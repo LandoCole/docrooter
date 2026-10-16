@@ -344,7 +344,7 @@ def test_one_off_styles_do_not_consume_levels():
         [item("Annual Review", size=28, bold=True), *para(2),
          item("Letter From The Chair", size=18, bold=True, gap=HEAD_GAP), *para(4)],
     ]  # fmt: skip
-    for n, name in enumerate(["Strategy", "Operations", "Finance", "Governance"], start=1):
+    for name in ["Strategy", "Operations", "Finance", "Governance"]:
         pages.append(
             [item(f"Chapter {name}", size=14, bold=True), *para(3),
              item(f"{name} Overview", size=12, bold=True, gap=HEAD_GAP), *para(3),
@@ -368,10 +368,18 @@ def test_edge_band_copy_of_a_heading_is_not_a_heading():
     ]  # fmt: skip
     lines = layout(pages)
     footers = [
-        lines[0].model_copy(update={
-            "page": n, "text": f"{n + 20} 2.2. Address Map", "size": 14.0, "bold": True,
-            "y0": H - 40, "y1": H - 25, "gap_above": 300.0, "block": 9,
-        })  # fmt: skip
+        lines[0].model_copy(
+            update={
+                "page": n,
+                "text": f"{n + 20} 2.2. Address Map",
+                "size": 14.0,
+                "bold": True,
+                "y0": H - 40,
+                "y1": H - 25,
+                "gap_above": 300.0,
+                "block": 9,
+            }
+        )  # fmt: skip
         for n in (1, 2)
     ]
     ordered = sorted(lines + footers, key=lambda line: (line.page, line.y0))

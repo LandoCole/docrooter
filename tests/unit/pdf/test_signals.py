@@ -187,8 +187,10 @@ def test_section_running_header_with_changing_page_number_is_excluded():
 
 def _row(page, title, label, y0):
     """A contents row whose page number is a separate line on the same row, at the right."""
-    return [mk(page, title, y0=y0, w=300.0),
-            mk(page, label, y0=y0, w=20.0).model_copy(update={"x0": 500.0, "x1": 520.0})]
+    return [
+        mk(page, title, y0=y0, w=300.0),
+        mk(page, label, y0=y0, w=20.0).model_copy(update={"x0": 500.0, "x1": 520.0}),
+    ]
 
 
 def test_toc_page_numbers_on_separate_lines_of_the_same_row():
@@ -218,7 +220,8 @@ def test_table_rows_with_unordered_numbers_are_not_a_toc():
 def test_numbered_contents_without_page_numbers_is_a_toc_page():
     entries = ["1.\xa0\xa0Introduction", "1.1.\xa0\xa0Purpose", "1.2.\xa0\xa0History",
                "2.\xa0\xa0Conformance", "2.1.\xa0\xa0Syntax Notation", "2.2.\xa0\xa0Requirements",
-               "3.\xa0\xa0Terminology", "3.1.\xa0\xa0Resources", "3.2.\xa0\xa0Representations"]  # fmt: skip
+               "3.\xa0\xa0Terminology", "3.1.\xa0\xa0Resources",
+               "3.2.\xa0\xa0Representations"]  # fmt: skip
     lines = [mk(2, e, y0=100.0 + 20 * k) for k, e in enumerate(entries)] + body_page(3)
     s = compute_signals(lines, 3)
     assert s.toc_page_lines == set(range(len(entries)))

@@ -274,7 +274,7 @@ def _contents_end(lines: Sequence[Line], indexes: Sequence[int], numbered: Seque
 
 
 def _is_contents_heading(text: str) -> bool:
-    """"Contents" / "Table of Contents": the TOC page's own heading, which may be a heading."""
+    """ "Contents" / "Table of Contents": the TOC page's own heading, which may be a heading."""
     return _SPACE.sub(" ", text.casefold()).strip(" :.") in _TOC_HEADINGS
 
 

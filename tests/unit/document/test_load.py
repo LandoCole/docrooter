@@ -70,4 +70,4 @@ def test_load_pdf_without_extra(monkeypatch, tmp_path):
     pdf = tmp_path / "a.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
     with pytest.raises(MissingExtraError, match=r"docrooter\[pdf\]"):
-        load(pdf)
+        load(pdf, engine="pymupdf4llm")

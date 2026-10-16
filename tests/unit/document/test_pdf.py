@@ -105,7 +105,7 @@ def bookmarked_pdf(pymupdf, tmp_path):
 
 
 def test_pdf_bookmark_levels(bookmarked_pdf):
-    doc = load(bookmarked_pdf)
+    doc = load(bookmarked_pdf, engine="pymupdf4llm")
     toc = {e.title: e for e in doc.toc()}
     assert [(e.title, e.level) for e in doc.toc()][:3] == [
         ("Introduction", 1),
@@ -122,7 +122,7 @@ def test_pdf_bookmark_levels(bookmarked_pdf):
 
 
 def test_pdf_pages_and_text(bookmarked_pdf):
-    doc = load(bookmarked_pdf)
+    doc = load(bookmarked_pdf, engine="pymupdf4llm")
     pages = {s.title: s.page_start for s in doc.walk()}
     assert pages["Introduction"] == 1 and pages["Background"] == 1
     assert pages["Methods"] == 2 and pages["Appendix Notes"] == 3
@@ -133,7 +133,7 @@ def test_pdf_pages_and_text(bookmarked_pdf):
 
 def test_pdf_without_bookmarks_uses_font_levels(pymupdf, tmp_path):
     path = make_pdf(pymupdf, tmp_path / "plain.pdf", bookmarks=False)
-    doc = load(path)
+    doc = load(path, engine="pymupdf4llm")
     titles = ["Introduction", "Background", "Methods", "Appendix Notes"]
     assert [e.title for e in doc.toc()] == titles
     assert {e.level for e in doc.toc()} == {1}  # the bookmark test's level 2 came from bookmarks

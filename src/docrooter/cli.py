@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -57,17 +58,38 @@ def toc(
         Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Document to read.")
     ],
     as_json: Annotated[bool, typer.Option("--json", help="Print the TOC as a JSON list.")] = False,
+    engine: Annotated[
+        str,
+        typer.Option(
+            help="PDF engine: auto, pymupdf, pdfplumber, both or pymupdf4llm (ignored otherwise)."
+        ),
+    ] = "auto",
 ) -> None:
-    """Print a document's table of contents."""
+    """Print a document's table of contents; PDFs also get a one-line summary on stderr."""
     from docrooter.document.load import load
+    from docrooter.pdf.load import ENGINES
 
+    if engine not in ENGINES:
+        raise typer.BadParameter(
+            f"invalid engine {engine!r}; use one of {', '.join(ENGINES)}", param_hint="--engine"
+        )
+    is_pdf = file.suffix.lower() == ".pdf"
     with _errors_exit_1():
-        entries = load(file).toc()
+        started = time.perf_counter()
+        doc = load(file, engine=engine) if is_pdf else load(file)
+        seconds = time.perf_counter() - started
+        entries = doc.toc()
     if as_json:
         typer.echo(json.dumps([e.model_dump() for e in entries], indent=2))
         return
     for entry in entries:
         typer.echo("  " * entry.depth + entry.title)
+    if is_pdf:
+        typer.echo(
+            f"{doc.meta.get('n_pages', '?')} pages, {len(entries)} sections, {seconds:.2f}s, "
+            f"engine {doc.meta.get('engine', engine)}",
+            err=True,
+        )
 
 
 def _parse_strategy(value: str) -> Greedy | Beam | Flat:

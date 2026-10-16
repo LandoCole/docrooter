@@ -30,7 +30,7 @@ def test_toc_pdf_without_the_pdf_extra(monkeypatch, tmp_path):
     monkeypatch.setattr(pdf_module, "require", missing)
     pdf = tmp_path / "a.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
-    result = runner.invoke(app, ["toc", str(pdf)])
+    result = runner.invoke(app, ["toc", str(pdf), "--engine", "pymupdf4llm"])
     _assert_error(result, "pip install 'docrooter[pdf]'")
 
 
@@ -53,7 +53,7 @@ def test_error_text_is_not_read_as_markup(monkeypatch, tmp_path):
     monkeypatch.setattr(pdf_module, "require", missing)
     pdf = tmp_path / "a.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
-    result = runner.invoke(app, ["toc", str(pdf)])
+    result = runner.invoke(app, ["toc", str(pdf), "--engine", "pymupdf4llm"])
     _assert_error(result, "[bold]not markup[/bold]", "docrooter[pdf]")
 
 

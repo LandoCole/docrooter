@@ -1,4 +1,5 @@
-"""PDF loader: PyMuPDF4LLM Markdown, per-heading page numbers and bookmark-derived levels."""
+"""PDF loading. :func:`load_pdf` is the native engine (:mod:`docrooter.pdf.load`); this module
+also holds the v0.1 PyMuPDF4LLM Markdown path (``engine="pymupdf4llm"``)."""
 
 from __future__ import annotations
 
@@ -14,6 +15,9 @@ from docrooter.document.build import build_document
 from docrooter.document.headings import repair_levels, validate_headings
 from docrooter.document.markdown import extract_headings
 from docrooter.document.models import Document, RawHeading
+from docrooter.pdf.load import load_pdf
+
+__all__ = ["apply_bookmarks", "load_pdf"]
 
 _BOOKMARK_FLAG = "level_from_bookmark"
 _NON_WORD = re.compile(r"[\W_]+")
@@ -82,10 +86,10 @@ def _join_chunks(chunks: Sequence[dict[str, Any]]) -> tuple[str, list[int], list
     return "".join(parts), starts, pages
 
 
-def load_pdf(
+def _load_pdf_pymupdf4llm(
     path: str | os.PathLike[str], *, min_heading_score: float = 0.5, repair: bool = True
 ) -> Document:
-    """Load a PDF into a :class:`Document`. Requires the ``pdf`` extra.
+    """Load a PDF through PyMuPDF4LLM Markdown (the v0.1 path). Requires the ``pdf`` extra.
 
     The Markdown comes from ``pymupdf4llm.to_markdown(path, page_chunks=True)`` and each
     heading records the page it appears on (1-based). When the PDF has bookmarks, headings whose
@@ -117,4 +121,6 @@ def load_pdf(
         raw = apply_bookmarks(raw, toc)
 
     title = next((h.title for h in raw if h.level == 1), path.stem)
-    return build_document(raw, source=str(path), title=title)
+    doc = build_document(raw, source=str(path), title=title)
+    doc.meta = {"engine": "pymupdf4llm", "n_pages": len(chunks), "warnings": []}
+    return doc

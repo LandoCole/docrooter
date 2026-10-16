@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 from docrooter.document.build import build_document
 from docrooter.document.headings import repair_levels, validate_headings
@@ -14,6 +15,7 @@ from docrooter.document.pdf import load_pdf
 _TEXT_SUFFIXES = {".md", ".markdown", ".txt"}
 _KNOWN_SUFFIXES = _TEXT_SUFFIXES | {".pdf"}
 _TEXT_SOURCE = "<string>"
+_MARKDOWN_MIN_SCORE = 0.5
 
 
 def _is_file(path: Path) -> bool:
@@ -24,7 +26,11 @@ def _is_file(path: Path) -> bool:
 
 
 def load(
-    source: str | os.PathLike[str], *, min_heading_score: float = 0.5, repair: bool = True
+    source: str | os.PathLike[str],
+    *,
+    min_heading_score: float | None = None,
+    repair: bool = True,
+    **pdf_options: Any,
 ) -> Document:
     """Load a document and build its section tree.
 
@@ -32,9 +38,11 @@ def load(
     as Markdown text when it contains a newline; otherwise it is a path if it names an existing
     file, a missing file (``FileNotFoundError``) if it has a known extension (``.md``,
     ``.markdown``, ``.txt``, ``.pdf``), and Markdown text in every other case.
-    ``.pdf`` files go to :func:`docrooter.document.pdf.load_pdf`; other files are read as UTF-8
+    ``.pdf`` files go to :func:`docrooter.pdf.load.load_pdf`, which also takes ``pdf_options``
+    (``engine``, ``use_bookmarks``, ``use_printed_toc``); other files are read as UTF-8
     Markdown. Headings are extracted, validated (scores below ``min_heading_score`` are merged
     into the preceding text), and, if ``repair`` is true, have their levels repaired.
+    ``min_heading_score`` defaults to 0.5 for Markdown and 0.55 for PDF.
     """
     path: Path | None
     if isinstance(source, str):
@@ -51,15 +59,21 @@ def load(
     else:
         path = Path(source)
 
+    is_pdf = path is not None and path.suffix.lower() == ".pdf"
+    if pdf_options and not is_pdf:
+        raise TypeError(f"{', '.join(sorted(pdf_options))}: only valid when loading a PDF")
+    score = _MARKDOWN_MIN_SCORE if min_heading_score is None else min_heading_score
     if path is None:
-        return _build(str(source), _TEXT_SOURCE, None, min_heading_score, repair)
+        return _build(str(source), _TEXT_SOURCE, None, score, repair)
 
     if not _is_file(path):
         raise FileNotFoundError(f"No such file: {path}")
-    if path.suffix.lower() == ".pdf":
-        return load_pdf(path, min_heading_score=min_heading_score, repair=repair)
+    if is_pdf:
+        if min_heading_score is not None:
+            pdf_options["min_heading_score"] = min_heading_score
+        return load_pdf(path, repair=repair, **pdf_options)
     text = path.read_text(encoding="utf-8-sig")
-    return _build(text, str(source), path.stem, min_heading_score, repair)
+    return _build(text, str(source), path.stem, score, repair)
 
 
 def _build(

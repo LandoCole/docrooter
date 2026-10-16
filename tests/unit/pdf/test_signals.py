@@ -342,3 +342,28 @@ def test_repeated_large_or_bold_slide_titles_at_different_heights_are_not_runnin
                 lines.append(mk(page, "Market Overview", size=size, bold=bold, y0=10.0 + page))
             lines += body_page(page)
         assert compute_signals(lines, 30).excluded == set(), (size, bold)
+
+
+def test_section_and_page_of_total_footer_is_excluded_on_every_page():
+    # "Section N · Page P of 80": the section number follows a numbering word, but the line
+    # carries a page number, so it is a running footer on all 80 pages, including the
+    # one- and two-page sections (40-41, 79-80) too short for the 3-page section rule.
+    starts = [1, 11, 21, 31, 40, 42, 52, 62, 72, 79]
+    lines, footer_idx = [], set()
+    for page in range(1, 81):
+        section = sum(start <= page for start in starts)
+        lines += body_page(page)
+        footer_idx.add(len(lines))
+        lines.append(mk(page, f"Section {section} · Page {page} of 80", size=8.0, y0=H - 40))
+    assert compute_signals(lines, 80).excluded == footer_idx
+
+
+def test_section_running_header_with_page_number_is_excluded_within_its_section():
+    # "Chapter 3 · 12": the chapter number stays, the trailing page number is masked.
+    lines, header_idx = [], set()
+    for page in range(1, 41):
+        if 20 <= page <= 23:
+            header_idx.add(len(lines))
+            lines.append(mk(page, f"Chapter 3 · {page}", size=8.0, y0=20))
+        lines += body_page(page)
+    assert compute_signals(lines, 40).excluded == header_idx

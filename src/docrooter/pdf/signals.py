@@ -72,6 +72,12 @@ _EDGE_TRAILING_NUMBER = re.compile(r"\s+\d{1,4}$")
 _NUMBERING_WORDS = r"chapter|part|section|item|appendix|article|schedule|exhibit|annex|table|figure"
 _NUMBERING_WORD = re.compile(rf"\b(?:{_NUMBERING_WORDS})$", re.IGNORECASE)
 _NUMBERED_OR_DIGITS = re.compile(rf"(\b(?:{_NUMBERING_WORDS})\s+)?\d+", re.IGNORECASE)
+# "Page 5", "Page 5 of 80", "5 of 80", "5/80": always a page number, whatever precedes it.
+_PAGE_EXPRESSION = re.compile(
+    r"\bpage\s*\d{1,4}(?:\s*(?:of|/)\s*\d{1,4})?\b|\b\d{1,4}\s*(?:of|/)\s*\d{1,4}\b",
+    re.IGNORECASE,
+)
+_DIGIT_RUN = re.compile(r"\d+")
 _SPACE = re.compile(r"\s+")
 _LEADING_NUMBER = re.compile(
     r"^(?:(?:chapter|section|part|item|article|appendix)\s+)?"
@@ -124,9 +130,15 @@ def _is_page_number(text: str) -> bool:
 
 
 def _running_key(text: str) -> str:
-    """Text with page numbers generalised to ``#``; a number right after a numbering word
-    ("Chapter 2", "Item 1A") is the title's own and keeps its digits."""
-    return _SPACE.sub(" ", _NUMBERED_OR_DIGITS.sub(_mask_digits, text.casefold())).strip()
+    """Text with numbers generalised to ``#`` for the document-wide running-line test. A line
+    that carries a page number ("Page 5 of 80", or a bare leading/trailing number) is a running
+    line candidate and has every number generalised ("Section # · Page # of #"); otherwise a
+    number right after a numbering word ("Chapter 2", "Item 1A") is the title's own and keeps
+    its digits, so chapter openers stay distinct."""
+    text = _SPACE.sub(" ", text.casefold()).strip()
+    if _strip_page_number(text) != text:
+        return _DIGIT_RUN.sub("#", text)
+    return _NUMBERED_OR_DIGITS.sub(_mask_digits, text)
 
 
 def _mask_digits(match: re.Match[str]) -> str:
@@ -134,9 +146,11 @@ def _mask_digits(match: re.Match[str]) -> str:
 
 
 def _strip_page_number(text: str) -> str:
-    """``text`` (whitespace collapsed) without a leading or trailing page number. A trailing
-    number that follows a numbering word ("Chapter 2", "Item 3") belongs to the title and stays."""
-    text = _EDGE_LEADING_NUMBER.sub("", _SPACE.sub(" ", text).strip())
+    """``text`` (whitespace collapsed) without its page number: a page expression ("Page 5",
+    "Page 5 of 80", "5/80") anywhere, then a bare leading or trailing number. A trailing number
+    that follows a numbering word ("Chapter 2", "Item 3") belongs to the title and stays."""
+    text = _SPACE.sub(" ", _PAGE_EXPRESSION.sub("", _SPACE.sub(" ", text).strip())).strip()
+    text = _EDGE_LEADING_NUMBER.sub("", text)
     stripped = _EDGE_TRAILING_NUMBER.sub("", text)
     return text if _NUMBERING_WORD.search(stripped) else stripped
 
@@ -190,8 +204,8 @@ def _find_excluded(lines: Sequence[Line], n_pages: int) -> set[int]:
 
 def _is_section_running_line(line: Line, copies: Sequence[Line], body: float) -> bool:
     """Whether an edge-band line whose text recurs as ``copies`` is a section running line: on
-    at least 3 pages, and either not a heading candidate by size (bold and >= 1.15 x body) or
-    at the same height on at least 3 pages, as running lines are (P5b)."""
+    at least 3 pages, and either not heading-like (neither bold nor >= 1.15 x body) or at the
+    same height (+/- 2 pt) on at least 3 pages, as running lines are (P5b)."""
     if len({copy.page for copy in copies}) < _SECTION_RECURRENCE_MINIMUM:
         return False
     if not (line.bold or (body > 0 and line.size >= _SIZE_FACTOR * body)):

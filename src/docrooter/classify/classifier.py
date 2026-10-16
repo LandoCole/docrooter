@@ -292,9 +292,12 @@ class Classifier:
         ``DocumentView()``) with the classifier's strategy. ``mode="sections"`` scores every
         leaf section's title and lead with ``Flat`` and takes the token-weighted mean of the
         leaf distributions; the argmax is ``best``. ``mode="hybrid"`` mixes the two as
-        ``0.6 * view + 0.4 * sections``. All documents share one traversal per kind of text.
-        A document with nothing to show gets ``best.stopped_reason == "empty_text"`` and is
-        never sent to a backend.
+        ``0.6 * view + 0.4 * sections``. Every mode then decides the same way: the argmax
+        node, or an empty ``"low_confidence"`` path when its probability (``confidence``) is
+        below the root's ``threshold``, else this classifier's. All documents share one
+        traversal per kind of text. A document with nothing to show (no text beyond the file
+        name, or a PDF without a text layer) gets ``best.stopped_reason == "empty_text"`` and
+        is never sent to a backend.
         """
         from docrooter.classify.documents import classify_documents
 

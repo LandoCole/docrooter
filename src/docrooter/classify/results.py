@@ -119,7 +119,9 @@ class DocTypeResult(BaseModel):
     """The document-type classification of one document.
 
     ``best`` is the chosen path (``stopped_reason="empty_text"`` and no nodes for a document
-    with nothing to classify). ``leaf_probs`` holds the (at most) ten most probable nodes, most
+    with nothing to classify; ``"low_confidence"`` and no nodes when ``confidence`` is below the
+    threshold). ``confidence`` is the winning node's probability (0 when nothing was scored), so
+    pipelines can gate on it. ``leaf_probs`` holds the (at most) ten most probable nodes, most
     probable first, summing to at most 1. ``view_text`` is the rendered ``DocumentView`` and
     ``timings["classify"]`` the classification time in seconds (amortised over a batch).
     """
@@ -128,6 +130,7 @@ class DocTypeResult(BaseModel):
 
     source: str
     best: PathResult
+    confidence: float = 0.0
     leaf_probs: dict[str, float] = Field(default_factory=dict)
     view_text: str = ""
     timings: dict[str, float] = Field(default_factory=dict)

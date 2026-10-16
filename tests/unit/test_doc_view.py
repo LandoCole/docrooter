@@ -126,3 +126,15 @@ def test_view_never_empty():
 def test_unknown_field_rejected():
     with pytest.raises(ValueError, match="unknown"):
         DocumentView(fields=("title", "bogus"))
+
+
+def test_contents_keeps_years_in_headings():
+    d = Document.from_sections(
+        [
+            {"title": "2024 Annual Report", "level": 1, "text": "a"},
+            {"title": "2023. Review", "level": 1, "text": "b"},
+            {"title": "12 Notes", "level": 1, "text": "c"},
+        ]
+    )
+    contents = lines_by_label(DocumentView(fields=("toc",)).render(d).text)["Contents"]
+    assert contents == "1 2024 Annual Report; 2 Review; 3 Notes"

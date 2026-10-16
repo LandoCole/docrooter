@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any, Literal
 
 from docrooter.backends.base import Backend
@@ -40,11 +41,14 @@ def classify_document(
     view: DocumentView | None = None,
     instruction: str | None = DEFAULT_INSTRUCTION,
     mode: Mode = "view",
+    threshold: float = 0.0,
     **classifier_kwargs: Any,
 ) -> DocTypeResult:
     """Classify one document's type against ``taxonomy`` (strategy ``Flat()`` by default).
 
-    ``classifier_kwargs`` go to :class:`Classifier` (``threshold``, ``fallback``, ...). See
+    ``threshold`` defaults to 0, so a document with content always gets a label; gate on
+    ``result.confidence`` or pass a ``threshold`` to get ``"low_confidence"`` instead.
+    ``classifier_kwargs`` go to :class:`Classifier` (``fallback``, ``batch_size``, ...). See
     :meth:`Classifier.classify_documents` for the modes.
     """
     classifier = Classifier(
@@ -52,6 +56,7 @@ def classify_document(
         backend,
         strategy=strategy if strategy is not None else Flat(),
         instruction=instruction,
+        threshold=threshold,
         **classifier_kwargs,
     )
     return classifier.classify_documents([doc], view=view, mode=mode)[0]
@@ -98,6 +103,8 @@ def classify_documents(
 
     n_classified = sum(1 for i in rendered if mode != "sections" or i in weights)
     per_doc = elapsed / n_classified if n_classified else 0.0
+    root_threshold = classifier.taxonomy.node(Taxonomy.ROOT_ID).threshold
+    threshold = root_threshold if root_threshold is not None else classifier.settings.threshold
     out: list[DocTypeResult] = []
     for i, doc in enumerate(docs):
         if i not in rendered or (mode == "sections" and i not in weights):
@@ -105,22 +112,27 @@ def classify_documents(
             continue
         view_result = results.get(f"v{i}")
         section_results = [(results[k], w) for k, w in weights.get(i, {}).items()]
+        view_dist = _view_distribution(view_result, classifier.strategy) if view_result else {}
         if mode == "view":
-            assert view_result is not None
-            best = _trim_steps(view_result[0])
-            dist = _view_distribution(view_result, classifier.strategy)
+            dist = view_dist
         else:
             dist = _sections_distribution(section_results)
             if mode == "hybrid":
-                assert view_result is not None
-                dist = mix_distributions(_view_distribution(view_result, classifier.strategy), dist)
-            reasons = [r[0].stopped_reason for r in ([view_result] if view_result else [])]
-            reasons += [r[0].stopped_reason for r, _ in section_results]
-            best = _aggregate_path(dist, classifier.taxonomy, reasons)
+                dist = mix_distributions(view_dist, dist)
+        reasons = [r[0].stopped_reason for r in ([view_result] if view_result else [])]
+        reasons += [r[0].stopped_reason for r, _ in section_results]
+        best, confidence = decide_doc_type(
+            dist,
+            classifier.taxonomy,
+            threshold,
+            reasons,
+            view_best=view_result[0] if mode == "view" and view_result else None,
+        )
         out.append(
             DocTypeResult(
                 source=doc.source,
                 best=best,
+                confidence=confidence,
                 leaf_probs=_top(dist, LEAF_PROBS_TOP),
                 view_text=rendered[i],
                 timings={"classify": per_doc},
@@ -151,9 +163,14 @@ def mix_distributions(
 def _has_content(doc: Document) -> bool:
     """Whether anything but the source name could be shown: a title, a heading or body text.
 
-    A preamble's title is synthetic (``"Preamble"`` or the file stem), so it does not count.
+    A preamble's title is synthetic (``"Preamble"`` or the file stem), and so is a title equal
+    to the file stem (PDF loaders set one), so neither counts. A PDF without a text layer
+    (``"no_text_layer"`` in ``meta["warnings"]``) has no content.
     """
-    if doc.title and doc.title.strip():
+    if "no_text_layer" in (doc.meta.get("warnings") or []):
+        return False
+    title = (doc.title or "").strip()
+    if title and title != Path(doc.source).stem:
         return True
     return any(s.text.strip() or (s.level > 0 and s.title.strip()) for s in doc.sections.values())
 
@@ -227,35 +244,45 @@ def _top(dist: Mapping[str, float], k: int) -> dict[str, float]:
     return dict(sorted(dist.items(), key=lambda item: -item[1])[:k])
 
 
-def _aggregate_path(
-    dist: Mapping[str, float], taxonomy: Taxonomy, reasons: list[str | None]
-) -> PathResult:
-    """The argmax node's path with one root ``Step`` over the aggregated distribution.
+def decide_doc_type(
+    dist: Mapping[str, float],
+    taxonomy: Taxonomy,
+    threshold: float,
+    reasons: Sequence[str | None] = (),
+    view_best: PathResult | None = None,
+) -> tuple[PathResult, float]:
+    """The decision rule of every mode: the argmax node of ``dist`` and its probability.
 
-    With an empty distribution, an empty path stopped for the first reason the underlying
-    results gave (``"low_confidence"`` if none).
+    Below ``threshold`` the path is empty and stopped as ``"low_confidence"`` (the probability is
+    still returned). Otherwise it is ``view_best`` (the traversal's own path, steps trimmed) when
+    that path ends at the argmax, else the argmax node's taxonomy path with one root ``Step``
+    over ``dist`` (backend ``"(aggregate)"``). An empty ``dist`` gives an empty path stopped for
+    the first of ``reasons`` that is set (``"low_confidence"`` if none) and probability 0.
     """
     if not dist:
         reason = next((r for r in reasons if r is not None), "low_confidence")
-        return PathResult(node_ids=[], stopped_reason=reason)
+        return PathResult(node_ids=[], stopped_reason=reason), 0.0
     shown = _top(dist, TOP_K_PROBS)
     node_id = next(iter(shown))
+    confidence = dist[node_id]
+    if confidence < threshold:
+        return PathResult(node_ids=[], stopped_reason="low_confidence"), confidence
+    if view_best is not None and view_best.node_ids and view_best.node_ids[-1] == node_id:
+        return _trim_steps(view_best), confidence
     nodes = taxonomy.path(node_id)
-    return PathResult(
+    step = Step(node_id=Taxonomy.ROOT_ID, chosen=[node_id], probs=shown, backend=AGGREGATE_BACKEND)
+    path = PathResult(
         node_ids=[n.id for n in nodes],
         labels=[n.label for n in nodes],
-        score=dist[node_id],
-        steps=[
-            Step(node_id=Taxonomy.ROOT_ID, chosen=[node_id], probs=shown, backend=AGGREGATE_BACKEND)
-        ],
+        score=confidence,
+        steps=[step],
         stopped_reason=None,
     )
+    return path, confidence
 
 
-def _trim_steps(path: PathResult | None) -> PathResult:
+def _trim_steps(path: PathResult) -> PathResult:
     """``path`` with each step's ``probs`` cut back to the top ``TOP_K_PROBS`` plus its choices."""
-    if path is None:  # run_tree and run_flat always give a best path; keep the type honest
-        return PathResult(node_ids=[], stopped_reason="low_confidence")
     steps = []
     for step in path.steps:
         ranked = sorted(step.probs.items(), key=lambda item: -item[1])

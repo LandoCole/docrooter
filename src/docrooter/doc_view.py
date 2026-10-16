@@ -15,8 +15,9 @@ from docrooter.views import RenderedView, estimate_tokens, render_budgeted
 
 _FIELD_NAMES = ("title", "stats", "toc", "lead", "keyphrases")
 
-# Leading numbering already in a heading ("1.", "2.3", "IV."), replaced by the view's own.
-_LEADING_NUMBER = re.compile(r"^\s*(?:\d+(?:\.\d+)*[.)]?|[IVXLC]+[.)])\s+")
+# Leading numbering already in a heading ("1.", "2.3", "IV."), replaced by the view's own. A
+# bare number of four or more digits is a year ("2024 Annual Report"), not numbering.
+_LEADING_NUMBER = re.compile(r"^\s*(?:\d{1,3}(?:\.\d+)*[.)]?|\d+(?:\.\d+)*[.)]|[IVXLC]+[.)])\s+")
 
 # Normalised titles of front-matter and boilerplate sections that ``Lead`` skips.
 _SKIPPED_TITLES = frozenset(

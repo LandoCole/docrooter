@@ -1,9 +1,10 @@
+import numpy as np
 import pytest
 from conftest import CountingBackend, NeverSupports
 
 import docrooter
 from docrooter import Beam, Classifier, Document, DocumentView, Flat, Greedy, Taxonomy, TaxonomyNode
-from docrooter.backends import KeywordBackend
+from docrooter.backends import KeywordBackend, Scores
 from docrooter.classify import EngineSettings, run_flat
 from docrooter.classify.documents import mix_distributions
 from docrooter.classify.results import DocTypeResult
@@ -281,3 +282,106 @@ def test_run_flat_full_probs_setting():
 def test_public_exports():
     for name in ("DocumentView", "classify_document", "DocTypeResult"):
         assert name in docrooter.__all__ and hasattr(docrooter, name)
+
+
+class FixedBackend:
+    """Gives every text the same probabilities over the candidates, by candidate id."""
+
+    name = "fixed"
+    max_candidates = None
+    temperature = 1.0
+
+    def __init__(self, probs: dict[str, float]):
+        self.probs = probs
+
+    def score(self, texts, candidates, *, instruction=None, multi_label=False) -> Scores:
+        row = [self.probs.get(c.node_id, 0.0) for c in candidates]
+        return Scores(np.array([row] * len(texts), dtype=float), "softmax")
+
+    def supports(self, node_id: str) -> bool:
+        return True
+
+    def tokenizer(self):
+        return None
+
+
+FIXED = {
+    "financial.annual_report": 0.1,
+    "financial.prospectus": 0.1,
+    "legal.contract": 0.5,
+    "research.paper": 0.3,
+}
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_same_distribution_same_decision_in_every_mode(mode):
+    res = docrooter.classify_document(
+        paper_doc(), doc_type_taxonomy(), backend=FixedBackend(FIXED), mode=mode
+    )
+    assert res.best.node_ids == ["legal", "legal.contract"]
+    assert res.best.stopped_reason is None
+    assert res.confidence == pytest.approx(0.5) == pytest.approx(res.best.score)
+    assert res.leaf_probs == pytest.approx(FIXED)
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_explicit_threshold_gives_low_confidence_in_every_mode(mode):
+    res = docrooter.classify_document(
+        paper_doc(), doc_type_taxonomy(), backend=FixedBackend(FIXED), mode=mode, threshold=0.9
+    )
+    assert res.best.node_ids == [] and res.best.stopped_reason == "low_confidence"
+    assert res.confidence == pytest.approx(0.5)
+    assert res.leaf_probs == pytest.approx(FIXED)  # the distribution is kept
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_default_call_always_labels(mode):
+    flat = {leaf: 0.25 for leaf in FIXED}  # far below the Classifier's 0.35 default
+    res = docrooter.classify_document(
+        paper_doc(), doc_type_taxonomy(), backend=FixedBackend(flat), mode=mode
+    )
+    assert res.best.node_ids == ["financial", "financial.annual_report"]  # ties: taxonomy order
+    assert res.confidence == pytest.approx(0.25)
+
+
+def test_classify_documents_uses_the_classifier_threshold():
+    clf = Classifier(doc_type_taxonomy(), FixedBackend(FIXED), strategy=Flat(), threshold=0.6)
+    for mode in MODES:
+        (res,) = clf.classify_documents([paper_doc()], mode=mode)
+        assert res.best.stopped_reason == "low_confidence"
+    tax = Taxonomy(list(doc_type_taxonomy().nodes.values()), root={"threshold": 0.4})
+    clf = Classifier(tax, FixedBackend(FIXED), strategy=Flat(), threshold=0.6)
+    for mode in MODES:
+        (res,) = clf.classify_documents([paper_doc()], mode=mode)
+        assert res.best.node_ids[-1] == "legal.contract"  # the root's own threshold wins
+
+
+def test_scanned_pdf_with_stem_title_is_empty():
+    doc = Document.from_sections([{"title": "", "level": 0, "text": " "}], source="dir/scan.pdf")
+    doc = doc.model_copy(update={"title": "scan", "meta": {"warnings": ["no_text_layer"]}})
+    (res,) = Classifier(doc_type_taxonomy(), NeverSupports(), strategy=Flat()).classify_documents(
+        [doc]
+    )
+    assert res.best.stopped_reason == "empty_text" and res.view_text == ""
+    # The stem title alone is not content either, even without the warning.
+    bare = doc.model_copy(update={"meta": {}})
+    (res,) = Classifier(doc_type_taxonomy(), NeverSupports(), strategy=Flat()).classify_documents(
+        [bare]
+    )
+    assert res.best.stopped_reason == "empty_text"
+
+
+def test_no_text_layer_warning_empties_any_document():
+    doc = paper_doc().model_copy(update={"meta": {"warnings": ["no_text_layer"]}})
+    res = docrooter.classify_document(doc, doc_type_taxonomy(), backend=NeverSupports())
+    assert res.best.stopped_reason == "empty_text"
+
+
+def test_hybrid_with_view_text_but_no_classifiable_sections():
+    doc = Document(source="x.pdf", title="Research paper abstract method experiments")
+    res = docrooter.classify_document(
+        doc, doc_type_taxonomy(), backend=KeywordBackend(), mode="hybrid"
+    )
+    assert res.best.node_ids[-1] == "research.paper"
+    assert sum(res.leaf_probs.values()) == pytest.approx(1.0)  # the view alone, renormalised
+    assert res.confidence == pytest.approx(res.leaf_probs["research.paper"])

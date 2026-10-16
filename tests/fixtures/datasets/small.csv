@@ -1,0 +1,9 @@
+text,path
+Deferred income tax liabilities increased due to temporary differences in depreciation.,financial > financial.tax
+"The effective tax rate was 21.4 percent, compared with 23.1 percent in the prior year.",financial > financial.tax
+The independent auditor issued an unqualified opinion on the consolidated financial statements.,financial > financial.audit
+Management identified a material weakness in internal control over financial reporting.,financial > financial.audit
+The master services agreement renews automatically for successive one-year terms unless terminated.,legal > legal.contracts
+The lease obligates the company to minimum annual payments through 2031.,legal > legal.contracts
+A putative class action was filed against the company in the Northern District of California.,Legal > Litigation
+The court granted the motion to dismiss and the plaintiffs have appealed the ruling.,legal > legal.litigation

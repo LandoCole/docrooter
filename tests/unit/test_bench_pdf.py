@@ -289,9 +289,12 @@ def test_config_choice_uses_only_training_accuracy():
     assert pdf_bench.pick_config(preds, labels, configs) == "y"
     assert pdf_bench.pick_config(preds[:1], labels[:1], configs) == "x"
     assert pdf_bench.pick_config([{"x": "a", "y": "a"}], ["a"], configs) == "x"  # tie: first
-    out = pdf_bench.loo_predict(preds, labels, pdf_bench.config_choice(configs))
+    choice = pdf_bench.config_choice(configs)
+    out = pdf_bench.loo_predict(preds, labels, choice)
     # Doc 0's own label never helps it: "y" wins on the other three, so doc 0 gets "b".
     assert [o[0] for o in out] == ["b", "a", "a", "a"]
+    assert choice.chosen == ["y", "y", "y", "y"]
+    assert all(set(o[1]) == {o[0]} for o in out)  # probabilities hold labels only
 
 
 def test_label_text_styles():
@@ -343,6 +346,111 @@ def test_render_experiments_groups_rows():
     assert text.index("**Zero-shot, dev-tuned**") < text.index("**Leave-one-out (honest)**")
     assert "| `l1` | loo | 0.500 | 0.00-1.00 | 1.000 | 0.333 | 10.0: 3, 1.0: 1 |" in text
     assert pdf_bench.render_experiments({}) == []
+
+
+# --- shared views, best system, incremental rows, redaction --------------------------------
+
+
+def _doc(source, words):
+    from docrooter.document import Document
+
+    text = " ".join(f"word{i}" for i in range(words))
+    return Document.from_sections(
+        [{"title": "Introduction", "level": 1, "text": text}], source=source
+    )
+
+
+def test_shared_views_render_once_with_estimate_tokens_and_count_differences():
+    from docrooter.views import estimate_tokens
+
+    docs = {"a": (_doc("a.pdf", 3), 0.0), "b": (_doc("b.pdf", 600), 0.0)}
+    shared = pdf_bench.SharedViews(["a", "b"], docs)
+    rendered = shared.rendered(None)
+    assert shared.rendered({}) is rendered  # same config, rendered once
+    from docrooter.doc_view import DocumentView
+
+    assert rendered["b"].text == DocumentView().render(docs["b"][0], estimate_tokens).text
+    # A counter 10x as strict cuts the long view but not the short one: only "b" differs.
+    assert shared.n_differing(None, lambda t: 10 * estimate_tokens(t)) == 1
+    assert shared.n_differing(None, estimate_tokens) == 0
+    manifest = shared.manifest()
+    assert manifest["default"]["a"] == pdf_bench.text_sha(rendered["a"].text)
+
+
+def test_fixed_view_returns_the_shared_text_whatever_the_counter():
+    docs = {"a": (_doc("a.pdf", 600), 0.0)}
+    shared = pdf_bench.SharedViews(["a"], docs)
+    rendered = shared.rendered(None)
+    view, by_source = pdf_bench.fixed_view(None, rendered)
+    by_source["a.pdf"] = rendered["a"]
+    assert view.render(docs["a"][0], lambda t: len(t)).text == rendered["a"].text
+    other = _doc("warmup.txt", 5)
+    assert view.render(other, lambda t: 10**9).text  # unknown docs still render
+
+
+def _system_entry(f1, acc=0.5):
+    return {"metrics": {"macro_f1": f1, "leaf_accuracy": acc}, "rows": []}
+
+
+def test_best_docrooter_excludes_jev_and_dev_tuned_systems():
+    result = {
+        "systems": {
+            "jev-view": _system_entry(0.99),
+            "ultrabert-view-tuned": _system_entry(0.9),
+            "ultrabert-bge-loo": _system_entry(0.8),
+            "ultrabert-view": _system_entry(0.7),
+            "bge-view": _system_entry(0.6),
+            "nli-view": {"error": "boom"},
+        }
+    }
+    assert pdf_bench.SYSTEMS["ultrabert-view-tuned"].dev_tuned
+    assert pdf_bench.best_docrooter(result, zero_shot_only=True) == "ultrabert-view"
+    assert pdf_bench.best_docrooter(result, zero_shot_only=False) == "ultrabert-bge-loo"
+    assert (
+        pdf_bench.best_docrooter(result, zero_shot_only=False, dev_tuned=True)
+        == "ultrabert-view-tuned"
+    )
+    assert pdf_bench.best_docrooter({"systems": {}}, zero_shot_only=True) is None
+
+
+def test_row_writer_saves_after_each_batch_and_keeps_rows_on_failure(tmp_path):
+    import json
+
+    path = tmp_path / "pdf.json"
+    result = {"systems": {"jev-view": _system_entry(0.9)}}
+    writer = pdf_bench.RowWriter(path, result, "jev-view", {"d1": "x", "d2": "y"})
+    writer.add([{"doc_id": "d1", "pred": "x"}])
+    saved = json.loads(path.read_text())
+    assert saved["systems"]["jev-view"]["rows"] == [
+        {"doc_id": "d1", "pred": "x", "gold": "x", "correct": True}
+    ]
+    assert saved["systems"]["jev-view"]["partial"] is True
+    writer.add([{"doc_id": "d2", "pred": "x"}])
+    writer.fail("RuntimeError: network down, key apikey_abc123")
+    saved = json.loads(path.read_text())
+    entry = saved["systems"]["jev-view"]
+    assert [r["doc_id"] for r in entry["rows"]] == ["d1", "d2"]
+    assert entry["rows"][1]["correct"] is False
+    assert "apikey_abc123" not in entry["error"] and "[REDACTED]" in entry["error"]
+    # A partial entry has no metrics, so the report skips it.
+    assert pdf_bench._ordered(saved) == []
+
+
+def test_redact_removes_key_like_and_env_secret_values():
+    secret = "sk-live-0123456789abcdef"
+    environ = {"TYPESAFE_API_KEY": secret, "HOME": "/Users/someone", "SHORT_KEY": "abc"}
+    text = f"401 for {secret} (apikey_XYZ987, home /Users/someone, abc)"
+    out = pdf_bench.redact(text, environ)
+    assert secret not in out and "apikey_XYZ987" not in out
+    assert out.count("[REDACTED]") == 2
+    assert "/Users/someone" in out and "abc)" in out  # not secrets
+
+
+def test_redact_removes_values_loaded_from_env_file(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("SOME_VALUE=hunter2-hunter2\n", encoding="utf-8")
+    pdf_bench.load_env(env_file, {})
+    assert pdf_bench.redact("oops hunter2-hunter2", {}) == "oops [REDACTED]"
 
 
 # --- .env loading ------------------------------------------------------------------------

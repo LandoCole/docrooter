@@ -19,9 +19,12 @@ from __future__ import annotations
 import argparse
 import datetime
 import gc
+import hashlib
 import json
 import os
 import platform
+import re
+import subprocess
 import sys
 import threading
 import time
@@ -34,11 +37,11 @@ from typing import Any
 import numpy as np
 
 from benchmarks import jev_chunks
-from benchmarks.toc import git_revision
 from docrooter.document import Document
 from docrooter.evaluate.metrics import leaf_prf
 from docrooter.taxonomies import builtin_taxonomy
 from docrooter.taxonomy import Taxonomy
+from docrooter.views import RenderedView, estimate_tokens
 
 ROOT = Path(__file__).parent.parent
 CORPUS = Path(__file__).parent / "corpus"
@@ -194,7 +197,46 @@ def load_env(path: Path = ENV_FILE, environ: MutableMapping[str, str] | None = N
             continue
         environ[key] = value
         loaded.append(key)
+        _SECRET_VALUES.add(value)
     return loaded
+
+
+_SECRET_VALUES: set[str] = set()
+"""Values set by :func:`load_env`; :func:`redact` removes them from any text."""
+_KEY_LIKE = re.compile(r"apikey_\S+")
+_SECRET_NAME = re.compile(r"KEY|TOKEN|SECRET", re.IGNORECASE)
+REDACTED = "[REDACTED]"
+
+
+def redact(text: str, environ: Mapping[str, str] | None = None) -> str:
+    """``text`` with key-like strings (``apikey_...``), every value :func:`load_env` set and
+    every secret-looking environment value (name contains KEY, TOKEN or SECRET; at least 8
+    characters) replaced by ``[REDACTED]``. Use it on exception text before it is logged or
+    saved."""
+    environ = os.environ if environ is None else environ
+    secrets = set(_SECRET_VALUES)
+    secrets |= {v for k, v in environ.items() if _SECRET_NAME.search(k)}
+    for value in sorted((v for v in secrets if len(v) >= 8), key=len, reverse=True):
+        text = text.replace(value, REDACTED)
+    return _KEY_LIKE.sub(REDACTED, text)
+
+
+def bench_revision(root: Path = ROOT) -> str | None:
+    """Short HEAD commit, with ``+dirty`` when tracked files under ``src/`` or ``benchmarks/``
+    (results excluded) have uncommitted changes, so a run of uncommitted code is marked."""
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=root, capture_output=True, text=True,
+            check=True,
+        ).stdout.strip()  # fmt: skip
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no", "--", "src", "benchmarks",
+             ":(exclude)benchmarks/results"],
+            cwd=root, capture_output=True, text=True, check=True,
+        ).stdout.strip()  # fmt: skip
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return f"{sha}+dirty" if dirty else sha
 
 
 # --- corpus and parsing ------------------------------------------------------------------
@@ -548,17 +590,27 @@ def pick_config(
     return max(configs, key=lambda c: hits[c])
 
 
-def config_choice(configs: Sequence[str]) -> FitPredict:
+class ConfigChoice:
     """A "fit" that picks the zero-shot config most accurate on the training documents and
-    returns its prediction for the test document (features: ``{config: predicted label}``)."""
+    returns its prediction for the test document (features: ``{config: predicted label}``).
+    Each call's chosen config is appended to ``chosen``."""
 
-    def fit_predict(
-        train_x: Sequence[Mapping[str, str]], train_y: Sequence[str], test_x: Mapping[str, str]
+    def __init__(self, configs: Sequence[str]) -> None:
+        self.configs = list(configs)
+        self.chosen: list[str] = []
+
+    def __call__(
+        self,
+        train_x: Sequence[Mapping[str, str]],
+        train_y: Sequence[str],
+        test_x: Mapping[str, str],
     ) -> tuple[str, dict[str, float]]:
-        best = pick_config(train_x, train_y, configs)
-        return test_x[best], {test_x[best]: 1.0, f"config={best}": 0.0}
+        best = pick_config(train_x, train_y, self.configs)
+        self.chosen.append(best)
+        return test_x[best], {test_x[best]: 1.0}
 
-    return fit_predict
+
+config_choice = ConfigChoice
 
 
 _NLL_FLOOR = 1e-6
@@ -610,6 +662,121 @@ class InnerLoo:
         return self.make(value)(train_x, train_y, test_x)
 
 
+# --- shared views and incremental results -----------------------------------------------
+
+SHARED_COUNTER = "estimate_tokens"
+"""Every ``*-view`` system and every embedding experiment sees the same view text, rendered once
+per view config with ``docrooter.views.estimate_tokens`` (1.3 tokens per word) rather than
+each backend's own tokenizer."""
+
+
+def view_key(view: Mapping[str, Any] | None) -> str:
+    """A stable name for a DocumentView config (``"default"`` for ``DocumentView()``)."""
+    return json.dumps(dict(view or {}), sort_keys=True, default=list) if view else "default"
+
+
+def text_sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
+class SharedViews:
+    """Each document's DocumentView, rendered once per view config with ``estimate_tokens``."""
+
+    def __init__(self, ids: Sequence[str], docs: Mapping[str, tuple[Document, float]]) -> None:
+        self.ids = list(ids)
+        self.docs = docs
+        self._cache: dict[str, dict[str, RenderedView]] = {}
+
+    def rendered(self, view: Mapping[str, Any] | None = None) -> dict[str, RenderedView]:
+        key = view_key(view)
+        if key not in self._cache:
+            from docrooter.doc_view import DocumentView
+
+            doc_view = DocumentView(**(view or {}))
+            self._cache[key] = {
+                i: doc_view.render(self.docs[i][0], estimate_tokens) for i in self.ids
+            }
+        return self._cache[key]
+
+    def texts(self, view: Mapping[str, Any] | None = None) -> list[str]:
+        rendered = self.rendered(view)
+        return [rendered[i].text for i in self.ids]
+
+    def n_differing(self, view: Mapping[str, Any] | None, count: Callable[[str], int]) -> int:
+        """How many documents' views would differ if rendered with ``count`` instead."""
+        from docrooter.doc_view import DocumentView
+
+        doc_view = DocumentView(**(view or {}))
+        shared = self.rendered(view)
+        return sum(doc_view.render(self.docs[i][0], count).text != shared[i].text for i in self.ids)
+
+    def manifest(self) -> dict[str, Any]:
+        """``{view key: {doc id: sha256[:12] of the shared text}}`` for ``pdf.json``."""
+        return {
+            key: {i: text_sha(r.text) for i, r in rendered.items()}
+            for key, rendered in self._cache.items()
+        }
+
+
+def fixed_view(view: Mapping[str, Any] | None, rendered: Mapping[str, RenderedView]) -> Any:
+    """A ``DocumentView`` whose ``render`` returns the pre-rendered text of a known document
+    (matched by ``doc.source``) and ignores the token counter, so ``classify_documents`` sends
+    exactly the shared text and keeps all its other behaviour. Unknown documents (the warm-up)
+    are rendered normally with ``estimate_tokens``."""
+    from docrooter.doc_view import DocumentView
+
+    class FixedView(DocumentView):
+        def render(
+            self, doc: Document, count_tokens: Callable[[str], int] | None = None
+        ) -> RenderedView:
+            if doc.source in by_source:
+                return by_source[doc.source]
+            return super().render(doc, estimate_tokens)
+
+    by_source: dict[str, RenderedView] = {}
+    return FixedView(**(view or {})), by_source
+
+
+class RowWriter:
+    """One system's entry in ``result``, rewritten to ``path`` after every batch of rows.
+
+    Rows already computed (and, for Jev, already paid for) survive a failure later in the
+    run: the entry then keeps ``rows`` and gains ``error``.
+    """
+
+    def __init__(
+        self, path: Path, result: dict[str, Any], name: str, gold: Mapping[str, str]
+    ) -> None:
+        self.path = path
+        self.result = result
+        self.gold = gold
+        self.entry: dict[str, Any] = {"rows": [], "partial": True}
+        result.setdefault("systems", {})[name] = self.entry
+
+    def add(self, rows: Sequence[dict[str, Any]]) -> None:
+        for row in rows:
+            row["gold"] = self.gold[row["doc_id"]]
+            row["correct"] = row["pred"] == row["gold"]
+            self.entry["rows"].append(row)
+        self.save()
+
+    def fail(self, error: str) -> None:
+        self.entry["error"] = redact(error)
+        self.save()
+
+    def save(self) -> None:
+        self.path.write_text(
+            json.dumps(self.result, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+
+
+AddRows = Callable[[Sequence[dict[str, Any]]], None]
+
+
+def _no_rows(rows: Sequence[dict[str, Any]]) -> None:
+    pass
+
+
 # --- running systems ---------------------------------------------------------------------
 
 
@@ -637,45 +804,74 @@ def run_docrooter(
     ids: Sequence[str],
     docs: Mapping[str, tuple[Document, float]],
     taxonomy: Taxonomy,
+    shared: SharedViews,
+    add_rows: AddRows = _no_rows,
 ) -> dict[str, Any]:
+    """``classify_documents`` on the shared view texts. Jev runs in chunks of
+    ``JEV_CONCURRENCY`` documents so each chunk's rows are saved before the next is paid for;
+    local backends run as one batch."""
     from docrooter.classify import Classifier
     from docrooter.classify.strategies import Flat
-    from docrooter.doc_view import DocumentView
 
     backend = _backend(system)
     classifier = Classifier(
         taxonomy, backend, strategy=Flat(), instruction=INSTRUCTION, threshold=0.0
     )
-    view = DocumentView(**(system.view or {}))
+    rendered = shared.rendered(system.view)
+    view, by_source = fixed_view(system.view, rendered)
     start = time.perf_counter()
     classifier.classify_documents([_warmup_doc()], view=view, mode=system.mode)
     load_s = time.perf_counter() - start
     if isinstance(backend, jev_chunks.UsageJevBackend):
         backend.usage.clear()
-    log(f"{system.id}: warm-up (load) {load_s:.1f} s; classifying {len(ids)} documents")
-    start = time.perf_counter()
-    results = classifier.classify_documents([docs[i][0] for i in ids], view=view, mode=system.mode)
-    batch_s = time.perf_counter() - start
-    rows = []
-    for doc_id, result in zip(ids, results, strict=True):
-        row: dict[str, Any] = {
-            "doc_id": doc_id,
-            "pred": result.best.node_ids[-1] if result.best.node_ids else None,
-            "confidence": round(result.confidence, 4),
-            "leaf_probs_top3": _top3(result.leaf_probs),
-            "parse_s": docs[doc_id][1],
-            "classify_s": batch_s / len(ids),
-        }
-        if isinstance(backend, jev_chunks.UsageJevBackend):
-            row["tokens"] = backend.tokens_for([result.view_text])
-            row["tokens_estimated"] = False
-            if row["tokens"] is None:
-                row["tokens"] = jev_chunks.estimate_tokens(result.view_text)
-                row["tokens_estimated"] = True
-        rows.append(row)
+    differing = shared.n_differing(system.view, classifier._token_counter())
+    by_source.update({docs[i][0].source: rendered[i] for i in ids})
+    log(
+        f"{system.id}: warm-up (load) {load_s:.1f} s; {differing} of {len(ids)} views would "
+        f"differ with the backend's own counter; classifying"
+    )
+    chunk = JEV_CONCURRENCY if system.is_jev else len(ids)
+    rows: list[dict[str, Any]] = []
+    batch_s = 0.0
+    for lo in range(0, len(ids), chunk):
+        part = list(ids[lo : lo + chunk])
+        start = time.perf_counter()
+        results = classifier.classify_documents(
+            [docs[i][0] for i in part], view=view, mode=system.mode
+        )
+        part_s = time.perf_counter() - start
+        batch_s += part_s
+        new = []
+        for doc_id, result in zip(part, results, strict=True):
+            if result.view_text != rendered[doc_id].text:
+                raise RuntimeError(f"{doc_id}: the classifier saw a different view text")
+            row: dict[str, Any] = {
+                "doc_id": doc_id,
+                "pred": result.best.node_ids[-1] if result.best.node_ids else None,
+                "confidence": round(result.confidence, 4),
+                "leaf_probs_top3": _top3(result.leaf_probs),
+                "parse_s": docs[doc_id][1],
+                "classify_s": part_s / len(part),
+                "view_sha": text_sha(result.view_text),
+            }
+            if isinstance(backend, jev_chunks.UsageJevBackend):
+                row["tokens"] = backend.tokens_for([result.view_text])
+                row["tokens_estimated"] = False
+                if row["tokens"] is None:
+                    row["tokens"] = jev_chunks.estimate_tokens(result.view_text)
+                    row["tokens_estimated"] = True
+            new.append(row)
+        rows.extend(new)
+        add_rows(new)
     del classifier, backend
     free_memory()
-    return {"rows": rows, "load_s": load_s, "batch_s": batch_s}
+    return {
+        "rows": rows,
+        "load_s": load_s,
+        "batch_s": batch_s,
+        "view_counter": SHARED_COUNTER,
+        "views_differing_from_own_counter": differing,
+    }
 
 
 def run_jev_chunks(
@@ -684,6 +880,7 @@ def run_jev_chunks(
     entries: Mapping[str, dict[str, Any]],
     taxonomy: Taxonomy,
     corpus: Path,
+    add_rows: AddRows = _no_rows,
 ) -> dict[str, Any]:
     backend = _backend(system)
     rows = []
@@ -704,6 +901,7 @@ def run_jev_chunks(
                 "n_chunks": res.n_chunks,
             }
         )
+        add_rows(rows[-1:])
         log(
             f"jev-chunks {doc_id}: {res.leaf} ({res.n_chunks} chunks, {res.n_tokens} tokens, "
             f"{res.classify_s:.2f} s)"
@@ -758,8 +956,9 @@ def label_text(taxonomy: Taxonomy, node_id: str, style: str) -> str:
 class ZeroShotEmbedder:
     """View embeddings and zero-shot leaf distributions from one embedding model.
 
-    Equivalent to ``classify_documents`` with ``Flat`` and the given view and instruction (same
-    token counter, query prompt, label prompt and temperature), but it keeps the embeddings.
+    Given the shared view texts, equivalent to ``classify_documents`` with ``Flat`` and the
+    given instruction (same query prompt, label prompt and temperature), but it keeps the
+    embeddings.
     """
 
     def __init__(self, model: str, taxonomy: Taxonomy) -> None:
@@ -777,17 +976,6 @@ class ZeroShotEmbedder:
         prefix = self.backend.recipe.label_prompt
         texts = [prefix + label_text(self.taxonomy, leaf, style) for leaf in self.leaves]
         return self.backend.encode(texts, prompt="")
-
-    def views(
-        self,
-        view: Mapping[str, Any],
-        ids: Sequence[str],
-        docs: Mapping[str, tuple[Document, float]],
-    ) -> list[str]:
-        from docrooter.doc_view import DocumentView
-
-        doc_view = DocumentView(**view)
-        return [doc_view.render(docs[i][0], self.count).text for i in ids]
 
     def embed(self, texts: Sequence[str], instruction: str) -> np.ndarray:
         prompt = self.backend.recipe.query_prompt.format(instruction=instruction)
@@ -830,20 +1018,24 @@ def run_loo(
     docs: Mapping[str, tuple[Document, float]],
     gold: Mapping[str, str],
     taxonomy: Taxonomy,
+    shared: SharedViews,
+    add_rows: AddRows = _no_rows,
 ) -> dict[str, Any]:
-    """A leave-one-out system: features from the default DocumentView (as P9), then
+    """A leave-one-out system: features from the shared default DocumentView (as P9), then
     ``system.method`` with its hyperparameter tuned by inner leave-one-out."""
     labels = [gold[i] for i in ids]
     models = [ULTRABERT] + ([BGE] if system.method == "ensemble-cv" else [])
     load_s, embed_s = 0.0, 0.0
     vecs: dict[str, np.ndarray] = {}
     dists: dict[str, list[dict[str, float]]] = {}
+    differing: dict[str, int] = {}
     for model in models:
         embedder = ZeroShotEmbedder(model, taxonomy)
         load_s += embedder.load_s
+        differing[model] = shared.n_differing(None, embedder.count)
         log(f"{system.id}: {model} load {embedder.load_s:.1f} s; embedding {len(ids)} views")
         start = time.perf_counter()
-        vecs[model] = embedder.embed(embedder.views({}, ids, docs), INSTRUCTION)
+        vecs[model] = embedder.embed(shared.texts(None), INSTRUCTION)
         dists[model] = embedder.distributions(vecs[model], embedder.label_vecs("label-def"))
         embed_s += time.perf_counter() - start
         del embedder
@@ -860,13 +1052,18 @@ def run_loo(
         raise ValueError(f"unknown leave-one-out method {system.method!r}")
     preds = loo_predict(features, labels, fit_predict)
     rows = _loo_rows(ids, docs, preds, embed_s / len(ids))
+    view_text = shared.rendered(None)
     for row, value in zip(rows, fit_predict.chosen, strict=True):
         row["chosen"] = value
+        row["view_sha"] = text_sha(view_text[row["doc_id"]].text)
+    add_rows(rows)
     return {
         "rows": rows,
         "load_s": load_s,
         "embed_s": embed_s,
         "chosen": dict(Counter(str(v) for v in fit_predict.chosen)),
+        "view_counter": SHARED_COUNTER,
+        "views_differing_from_own_counter": differing,
     }
 
 
@@ -905,6 +1102,7 @@ def run_experiments(
     docs: Mapping[str, tuple[Document, float]],
     gold: Mapping[str, str],
     taxonomy: Taxonomy,
+    shared: SharedViews,
 ) -> list[dict[str, Any]]:
     """P9b: the zero-shot grids (every config evaluated on all documents, so any choice among
     them is dev-tuned) and the leave-one-out systems (honest: each held-out document's
@@ -914,6 +1112,7 @@ def run_experiments(
     out: list[dict[str, Any]] = []
     zs_preds: dict[str, list[str]] = {}
     feats: dict[str, dict[str, Any]] = {}
+    differing: dict[str, int] = {}
     for model, grid in ((ULTRABERT, ZERO_SHOT_GRID), (BGE, BGE_GRID)):
         short = "ultrabert" if model == ULTRABERT else "bge"
         embedder = ZeroShotEmbedder(model, taxonomy)
@@ -921,7 +1120,8 @@ def run_experiments(
         texts = {}
         for view, instr, style in grid:
             if view not in texts:
-                texts[view] = embedder.views(ZS_VIEWS[view], ids, docs)
+                texts[view] = shared.texts(ZS_VIEWS[view])
+                differing[f"{short}/{view}"] = shared.n_differing(ZS_VIEWS[view], embedder.count)
             vecs = embedder.embed(texts[view], ZS_INSTRUCTIONS[instr])
             dists = embedder.distributions(vecs, label_vecs[style])
             preds = [_argmax(d) for d in dists]
@@ -930,6 +1130,7 @@ def run_experiments(
             feats[exp_id] = {"vecs": vecs, "dists": dists}
             what = f"{short}, view {view}, instruction {instr}, labels {style}"
             out.append(_experiment(exp_id, EXP_ZERO_SHOT, what, ids, labels, preds, taxonomy))
+            out[-1]["views_differing_from_own_counter"] = differing[f"{short}/{view}"]
             log(f"experiment {exp_id}: {out[-1]['metrics']['leaf_accuracy']:.3f}")
         if model == ULTRABERT:
             feats["ultrabert/label-vecs"] = dict(zip(leaves, label_vecs["label-def"], strict=True))
@@ -1038,11 +1239,18 @@ def _ordered(result: Mapping[str, Any]) -> list[str]:
     return [s for s in SYSTEMS if s in present and present[s].get("metrics")]
 
 
-def best_docrooter(result: Mapping[str, Any], *, zero_shot_only: bool) -> str | None:
+def best_docrooter(
+    result: Mapping[str, Any], *, zero_shot_only: bool, dev_tuned: bool = False
+) -> str | None:
+    """The local (non-Jev) system with the best macro F1, then leaf accuracy. Honest systems
+    only by default; ``dev_tuned=True`` picks among the dev-tuned ones instead. With
+    ``zero_shot_only`` leave-one-out systems are excluded."""
     candidates = [
         s
         for s in _ordered(result)
-        if not SYSTEMS[s].is_jev and not (zero_shot_only and SYSTEMS[s].kind == "loo")
+        if not SYSTEMS[s].is_jev
+        and SYSTEMS[s].dev_tuned == dev_tuned
+        and not (zero_shot_only and SYSTEMS[s].kind == "loo")
     ]
     metrics = {s: result["systems"][s]["metrics"] for s in candidates}
     return max(
@@ -1050,6 +1258,21 @@ def best_docrooter(result: Mapping[str, Any], *, zero_shot_only: bool) -> str | 
         key=lambda s: (metrics[s]["macro_f1"], metrics[s]["leaf_accuracy"]),
         default=None,
     )
+
+
+def _differing(entry: Mapping[str, Any]) -> str:
+    """``"; views differing ..."`` for a run that recorded it, else ``""``."""
+    diff = entry.get("views_differing_from_own_counter")
+    if diff is None:
+        return ""
+    if isinstance(diff, Mapping):
+        parts = ", ".join(f"{_model_short(k)} {v}" for k, v in diff.items())
+        return f"; views differing from the backends' own counters: {parts} of {len(entry['rows'])}"
+    return f"; views differing from the backend's own counter: {diff} of {len(entry['rows'])}"
+
+
+def _model_short(model: str) -> str:
+    return {ULTRABERT: "UltraBERT", BGE: "bge"}.get(model, model)
 
 
 def render_section(result: Mapping[str, Any], taxonomy: Taxonomy) -> str:
@@ -1085,15 +1308,31 @@ def render_section(result: Mapping[str, Any], taxonomy: Taxonomy) -> str:
         "Timing: *parse* is one `load_pdf` call with the default engine (pymupdf), cached and "
         "shared by every system except `jev-chunks`, whose parse is pymupdf `page.get_text()` "
         "over all pages. *Classify* for the `classify_documents` systems (`*-view`, "
-        "`ultrabert-hybrid`) is the wall time of one call over all documents divided by the "
-        "number of documents (DocumentView rendering included). For the leave-one-out systems "
+        "`ultrabert-hybrid`) is batch throughput: the wall time of the classify calls divided "
+        "by the number of documents (local backends: one call over all documents; Jev: chunks "
+        f"of {JEV_CONCURRENCY} documents with {JEV_CONCURRENCY} concurrent requests, so each "
+        "chunk's rows are saved before the next is paid for). For the leave-one-out systems "
         "(`*-loo`) it is view rendering, embedding and zero-shot scoring divided by the number "
         "of documents; the fit per fold (with its inner leave-one-out tuning) is listed "
-        "separately. For `jev-chunks` it is the wall time of each document's concurrent chunk "
-        "requests. *Load* is a warm-up excluded from the averages: "
+        "separately. For `jev-chunks` it is per-document latency: the wall time of each "
+        "document's concurrent chunk requests. The table marks each figure as `(batch)` or "
+        "`(latency)`. *Load* is a warm-up excluded from the averages: "
         "model load plus one classification of a tiny synthetic document (the label vectors are "
         f"encoded there). Jev cost is input tokens x ${JEV_USD_PER_M_INPUT}/M (output tokens are "
         "free), with tokens as reported by the API (`usage.input_tokens`)."
+    )
+    out.append("")
+    out.append(
+        "Views: every `*-view` system, `ultrabert-hybrid` (its view half), the leave-one-out "
+        "systems and the P9b embedding experiments receive the same DocumentView text per "
+        "document and view config, rendered once with the shared word-based counter "
+        "(`docrooter.views.estimate_tokens`, 1.3 tokens per word) instead of each backend's own "
+        "tokenizer. Each row records the SHA-256 prefix of the text the system saw "
+        "(`view_sha`), and `pdf.json` lists the shared texts' hashes under `views`. Whatever a "
+        "model's own tokenizer cannot fit is cut by that model as usual (bge-small and the NLI "
+        "model at 512 tokens). For each system, *Views differing* counts the documents whose "
+        "view would have been different had it been rendered with the backend's own counter, "
+        "which was the P9 behaviour."
     )
     out.append("")
     out.append("### Aggregate")
@@ -1119,7 +1358,8 @@ def render_section(result: Mapping[str, Any], taxonomy: Taxonomy) -> str:
         out.append(
             f"| `{s}` | {SYSTEMS[s].what} | {_f(m['leaf_accuracy'])} | {_f(lo, 2)}-{_f(hi, 2)} | "
             f"{_f(m['level1_accuracy'])} | {_f(m['macro_p'])} | {_f(m['macro_r'])} | "
-            f"{_f(m['macro_f1'])} | {_f(m['avg_parse_s'], 2)} | {_f(m['avg_classify_s'], 3)} | "
+            f"{_f(m['macro_f1'])} | {_f(m['avg_parse_s'], 2)} | "
+            f"{_f(m['avg_classify_s'], 3)} {'(latency)' if s == 'jev-chunks' else '(batch)'} | "
             f"{_f(m['avg_total_s'], 2)} | {_f(entry.get('load_s'), 1)} | {tok} | {cost} |"
         )
     out.append("")
@@ -1140,32 +1380,36 @@ def render_section(result: Mapping[str, Any], taxonomy: Taxonomy) -> str:
         loadavg = ", ".join(f"{x:.1f}" for x in entry.get("loadavg_start", []))
         out.append(
             f"- `{s}`: {entry.get('date')} at `{entry.get('commit')}`, device "
-            f"`{entry.get('device')}`, load average {loadavg} at start{extra}."
+            f"`{entry.get('device')}`, load average {loadavg} at start{extra}{_differing(entry)}."
         )
     out.append("")
 
     out.extend(render_experiments(result))
 
+    honest_zs = best_docrooter(result, zero_shot_only=True)
+    honest_any = best_docrooter(result, zero_shot_only=False)
+    tuned = best_docrooter(result, zero_shot_only=False, dev_tuned=True)
     shown = []
-    for name in (
-        best_docrooter(result, zero_shot_only=True),
-        best_docrooter(result, zero_shot_only=False),
-        "jev-view",
-    ):
+    for name in (honest_zs, honest_any, "jev-view", tuned):
         if name and name in systems and name not in shown:
             shown.append(name)
+    headers = {s: f"`{s}`" + (" (dev-tuned)" if SYSTEMS[s].dev_tuned else "") for s in shown}
     if shown:
         out.append("### Per class")
         out.append("")
         out.append(
-            "Best docrooter system by macro F1 (zero-shot: `"
-            + str(best_docrooter(result, zero_shot_only=True))
-            + "`; any: `"
-            + str(best_docrooter(result, zero_shot_only=False))
-            + "`) and `jev-view`. P / R / F1 per gold class."
+            f"Best honest docrooter system by macro F1 (zero-shot: `{honest_zs}`; any, "
+            f"leave-one-out included: `{honest_any}`), `jev-view`"
+            + (
+                f", and the best dev-tuned system `{tuned}` (its settings were chosen on this "
+                "corpus, so its numbers are optimistic)"
+                if tuned in shown
+                else ""
+            )
+            + ". P / R / F1 per gold class."
         )
         out.append("")
-        out.append("| Class | n | " + " | ".join(f"`{s}` P / R / F1" for s in shown) + " |")
+        out.append("| Class | n | " + " | ".join(f"{headers[s]} P / R / F1" for s in shown) + " |")
         out.append("| --- | --- | " + " | ".join("---" for _ in shown) + " |")
         classes = sorted({d["gold"] for d in result["documents"]}, key=leaves.index)
         for c in classes:
@@ -1184,7 +1428,7 @@ def render_section(result: Mapping[str, Any], taxonomy: Taxonomy) -> str:
         )
         for s in shown:
             out.append("")
-            out.append(f"`{s}`:")
+            out.append(f"{headers[s]}:")
             out.append("")
             out.extend(_confusion_table(result["systems"][s]["metrics"]["confusion"], leaves))
         out.append("")
@@ -1235,7 +1479,7 @@ def render_experiments(result: Mapping[str, Any]) -> list[str]:
         "first value), so the held-out document never influences its own prediction. Their "
         "features are the default `DocumentView()` embeddings with the P9 instruction, fixed "
         "before P9b. *Diagnostic* rows fix a hyperparameter and are shown only to explain the "
-        "tuned ones.",
+        "tuned ones. All of them use the shared `estimate_tokens` view texts (see *Views* above).",
     ]
     groups = list(dict.fromkeys(r["group"] for r in runs))
     for group in groups:
@@ -1366,21 +1610,24 @@ def main(argv: Sequence[str] | None = None) -> None:
         "per_doc_s": {i: round(docs[i][1], 4) for i in ids},
     }
 
+    shared = SharedViews(ids, docs)
     for name in systems:
         system = SYSTEMS[name]
         loadavg_start = list(os.getloadavg())
+        commit = bench_revision()
         log(f"== {name} (load average {loadavg_start[0]:.1f})")
+        writer = RowWriter(path, result, name, gold)
         try:
             if system.kind == "docrooter":
-                run = run_docrooter(system, ids, docs, taxonomy)
+                run = run_docrooter(system, ids, docs, taxonomy, shared, writer.add)
             elif system.kind == "jev-chunks":
-                run = run_jev_chunks(system, ids, by_id, taxonomy, args.corpus)
+                run = run_jev_chunks(system, ids, by_id, taxonomy, args.corpus, writer.add)
             else:
-                run = run_loo(system, ids, docs, gold, taxonomy)
+                run = run_loo(system, ids, docs, gold, taxonomy, shared, writer.add)
         except Exception as exc:  # noqa: BLE001 - one failing system must not lose the others
-            log(f"{name} FAILED: {type(exc).__name__}: {str(exc)[:500]}")
-            result["systems"][name] = {"error": f"{type(exc).__name__}: {str(exc)[:500]}"}
-            path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+            error = redact(f"{type(exc).__name__}: {str(exc)[:500]}")
+            log(f"{name} FAILED after {len(writer.entry['rows'])} rows: {error}")
+            writer.fail(error)
             free_memory()
             continue
         for row in run["rows"]:
@@ -1392,12 +1639,13 @@ def main(argv: Sequence[str] | None = None) -> None:
             "mode": system.mode,
             "device": "n/a" if system.is_jev else device,
             "date": datetime.date.today().isoformat(),
-            "commit": git_revision(),
+            "commit": commit,
             "loadavg_start": loadavg_start,
             "loadavg_end": list(os.getloadavg()),
             "metrics": system_metrics(run["rows"], taxonomy),
         }
         result["systems"][name] = run
+        result["views"] = {"counter": SHARED_COUNTER, "sha256_12": shared.manifest()}
         m = run["metrics"]
         log(
             f"{name}: leaf acc {m['leaf_accuracy']:.3f}, macro F1 {m['macro_f1']:.3f}, "
@@ -1408,10 +1656,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         log("== experiments (P9b)")
         result["experiments"] = {
             "date": datetime.date.today().isoformat(),
-            "commit": git_revision(),
+            "commit": bench_revision(),
             "device": device,
-            "runs": run_experiments(ids, docs, gold, taxonomy),
+            "view_counter": SHARED_COUNTER,
+            "runs": run_experiments(ids, docs, gold, taxonomy, shared),
         }
+        result["views"] = {"counter": SHARED_COUNTER, "sha256_12": shared.manifest()}
         path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     if args.docs:
         update_docs(args.docs, render_section(result, taxonomy))

@@ -28,8 +28,9 @@ models = [
 ]
 pdf = ["pymupdf4llm"]
 llm = ["httpx"]
+jev = ["typesafe-sdk>=0.7.5"]
 bench = ["datasets", "pandas"]
-all = ["docrooter[models,pdf,llm]"]
+all = ["docrooter[models,pdf,llm,jev]"]
 
 [project.scripts]
 docrooter = "docrooter.cli:app"

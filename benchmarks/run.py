@@ -18,6 +18,7 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
+from benchmarks import _guard
 from benchmarks import systems as bench_systems
 from benchmarks.data import DATASET_KEYS, LOADERS, BenchData
 from benchmarks.systems import (
@@ -671,7 +672,7 @@ def _parse(argv: Sequence[str] | None) -> argparse.Namespace:
         "--train-batch-size",
         type=int,
         default=None,
-        help="few-shot/strategies: training batch size (default: the base model's recipe, 32)",
+        help="few-shot/strategies: training batch size (default: 16, 32 on CUDA)",
     )
     p.add_argument(
         "--train-max-triplets",
@@ -684,11 +685,13 @@ def _parse(argv: Sequence[str] | None) -> argparse.Namespace:
         action="store_true",
         help="skip the per-node (teacher-forced) accuracy pass",
     )
+    _guard.add_guard_argument(p)
     return p.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse(argv)
+    _guard.single_model_process("benchmarks.run", allow_concurrent=args.allow_concurrent)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     for noisy in ("httpx", "httpcore", "huggingface_hub", "sentence_transformers", "datasets"):
         logging.getLogger(noisy).setLevel(logging.WARNING)

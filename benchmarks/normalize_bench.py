@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from benchmarks import jev_chunks, pdf_bench
+from benchmarks import _guard, jev_chunks, pdf_bench
 from benchmarks.toc import git_revision
 from docrooter.document import Document
 from docrooter.evaluate.metrics import leaf_prf
@@ -706,6 +706,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--device", default=None, help="skip the MPS probe and use this device")
     parser.add_argument("--docs", type=Path, default=None, help="also update this Markdown file")
     parser.add_argument("--report-only", action="store_true", help="render from normalize.json")
+    _guard.add_guard_argument(parser)
     args = parser.parse_args(argv)
 
     out_dir = args.out or pdf_bench.RESULTS_ROOT / datetime.date.today().isoformat()
@@ -714,6 +715,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.report_only:
         update_docs(args.docs or pdf_bench.DOCS_PATH, render_section(json.loads(path.read_text())))
         return
+    _guard.single_model_process(
+        "benchmarks.normalize_bench", allow_concurrent=args.allow_concurrent
+    )
     systems = [s.strip() for s in args.systems.split(",") if s.strip()]
     unknown = [s for s in systems if s not in SYSTEMS]
     if unknown:

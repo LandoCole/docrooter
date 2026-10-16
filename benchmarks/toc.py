@@ -23,6 +23,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+from benchmarks import _guard
 from docrooter.pdf.signals import normalize_title, read_bookmarks
 
 Heading = tuple[str, int, int]  # (title, page, level)
@@ -439,6 +440,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--docs", type=Path, default=None, help="also update this Markdown file")
     parser.add_argument("--report-only", action="store_true", help="render from existing toc.json")
     args = parser.parse_args(argv)
+    _guard.apply_env_caps()  # no models here, so no single-process check
 
     out_dir = args.out or RESULTS_ROOT / datetime.date.today().isoformat()
     out_dir.mkdir(parents=True, exist_ok=True)

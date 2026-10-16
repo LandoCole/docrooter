@@ -1,0 +1,129 @@
+[
+  {
+    "case": "classify",
+    "device": "cpu",
+    "peak_rss_gb": 1.129,
+    "peak_rss_after_parse_gb": 0.292,
+    "target_gb": 8.0,
+    "within_target": true,
+    "seconds": 24.1,
+    "document": "doc_042.pdf",
+    "pages": 642,
+    "sections": 1239,
+    "backend": "embedding:dmis-lab/UltraBERT-Embed-150M",
+    "predicted": "technical.user_manual",
+    "confidence": 0.33,
+    "env": {
+      "PYTORCH_MPS_HIGH_WATERMARK_RATIO": "0.5",
+      "PYTORCH_MPS_LOW_WATERMARK_RATIO": "0.4",
+      "OMP_NUM_THREADS": "4",
+      "TOKENIZERS_PARALLELISM": "false",
+      "DOCROOTER_THREADS": "4",
+      "DOCROOTER_MPS_MEMORY_FRACTION": "0.5"
+    },
+    "platform": {
+      "python": "3.12.13",
+      "machine": "arm64",
+      "system": "macOS-26.5-arm64-arm-64bit",
+      "cpu_count": 8
+    },
+    "note": "run with --device cpu before the 8 GiB budget existed (fixed 0.5 MPS caps); target re-evaluated against the budget"
+  },
+  {
+    "case": "classify",
+    "device": "mps",
+    "peak_rss_gb": 0.772,
+    "peak_rss_after_parse_gb": 0.449,
+    "target_gb": 8.0,
+    "within_target": true,
+    "seconds": 16.7,
+    "document": "doc_042.pdf",
+    "pages": 642,
+    "sections": 1239,
+    "backend": "embedding:dmis-lab/UltraBERT-Embed-150M",
+    "predicted": "technical.user_manual",
+    "confidence": 0.33,
+    "peak_mps_driver_gb": 1.141,
+    "peak_mps_allocated_gb": 0.564,
+    "env": {
+      "OMP_NUM_THREADS": "4",
+      "TOKENIZERS_PARALLELISM": "false",
+      "DOCROOTER_THREADS": "4",
+      "DOCROOTER_MEMORY_BUDGET_GB": "8",
+      "PYTORCH_MPS_HIGH_WATERMARK_RATIO": "0.6757",
+      "PYTORCH_MPS_LOW_WATERMARK_RATIO": "0.5405"
+    },
+    "platform": {
+      "python": "3.12.13",
+      "machine": "arm64",
+      "system": "macOS-26.5-arm64-arm-64bit",
+      "cpu_count": 8
+    }
+  },
+  {
+    "case": "train",
+    "device": "cpu",
+    "peak_rss_gb": 6.233,
+    "peak_rss_after_data_gb": 0.875,
+    "target_gb": 8.0,
+    "within_target": true,
+    "seconds": 1453.7,
+    "dataset": "b1",
+    "k": 16,
+    "n_train": 306,
+    "base_model": "dmis-lab/UltraBERT-Embed-150M",
+    "finetune_body": true,
+    "triplets": 596,
+    "max_seq_len": 512,
+    "batch_size": null,
+    "env": {
+      "PYTORCH_MPS_HIGH_WATERMARK_RATIO": "0.5",
+      "PYTORCH_MPS_LOW_WATERMARK_RATIO": "0.4",
+      "OMP_NUM_THREADS": "4",
+      "TOKENIZERS_PARALLELISM": "false",
+      "DOCROOTER_THREADS": "4",
+      "DOCROOTER_MPS_MEMORY_FRACTION": "0.5"
+    },
+    "platform": {
+      "python": "3.12.13",
+      "machine": "arm64",
+      "system": "macOS-26.5-arm64-arm-64bit",
+      "cpu_count": 8
+    },
+    "note": "run with --device cpu before the 8 GiB budget existed (fixed 0.5 MPS caps); target re-evaluated against the budget"
+  },
+  {
+    "case": "train",
+    "device": "mps",
+    "peak_rss_gb": 1.132,
+    "peak_rss_after_data_gb": 0.852,
+    "target_gb": 8.0,
+    "within_target": true,
+    "seconds": 1109.4,
+    "dataset": "b1",
+    "k": 16,
+    "n_train": 306,
+    "base_model": "dmis-lab/UltraBERT-Embed-150M",
+    "finetune_body": true,
+    "triplets": 596,
+    "max_seq_len": 512,
+    "batch_size": 16,
+    "trained_on": "mps",
+    "peak_mps_driver_gb": 7.024,
+    "peak_mps_allocated_gb": 4.512,
+    "env": {
+      "OMP_NUM_THREADS": "4",
+      "TOKENIZERS_PARALLELISM": "false",
+      "DOCROOTER_THREADS": "4",
+      "DOCROOTER_MEMORY_BUDGET_GB": "8",
+      "PYTORCH_MPS_HIGH_WATERMARK_RATIO": "0.6757",
+      "PYTORCH_MPS_LOW_WATERMARK_RATIO": "0.5405"
+    },
+    "platform": {
+      "python": "3.12.13",
+      "machine": "arm64",
+      "system": "macOS-26.5-arm64-arm-64bit",
+      "cpu_count": 8
+    }
+  }
+]

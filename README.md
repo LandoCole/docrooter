@@ -436,6 +436,36 @@ HF_HUB_OFFLINE=1 docrooter classify report.md -t taxonomy.json
 
 A trained bundle is self-contained (the fine-tuned body is inside it) and loads offline.
 
+### Memory
+
+docrooter works within a memory budget, 8 GiB by default. UltraBERT reads at most 1024 tokens,
+`train()` truncates to `max_seq_len=512` and fine-tunes with gradient checkpointing, and
+embeddings are computed in batches of 16 (32 on CUDA) and cached in an LRU of 50,000 texts.
+Release models when you are done with them, and set process-wide limits before the first model
+loads:
+
+```python
+import docrooter
+
+# or set DOCROOTER_MEMORY_BUDGET_GB=8 and DOCROOTER_THREADS=4
+docrooter.configure(memory_budget_gb=8, threads=4)
+
+with docrooter.Classifier(taxonomy) as clf:  # closes the models it loaded
+    results = clf.classify(doc)
+```
+
+The device order stays CUDA, MPS, CPU. On Apple silicon the budget is a hard cap on GPU memory
+(`torch.mps.set_per_process_memory_fraction(budget / recommended_max_memory)`, preceded by the
+`PYTORCH_MPS_HIGH_WATERMARK_RATIO` / `PYTORCH_MPS_LOW_WATERMARK_RATIO` variables when
+`configure` runs before torch is imported; variables you set yourself win). If a model still
+runs out of MPS memory while loading or encoding, it moves to the CPU once and logs a warning;
+fine-tuning first retries with half the batch. On the CPU nothing caps the resident set: a
+smaller budget only shrinks the default batch sizes.
+
+Every backend has `close()`; a `TrainedModel` closes its body too (save it first if it was
+fine-tuned in memory). `docrooter doctype --chunk-size N --max-pages N` bounds memory on large
+corpora. Measured peaks are in [docs/performance.md](docs/performance.md).
+
 ## Benchmarks
 
 The repository includes a benchmark suite (`benchmarks/`) that scores the backends zero-shot and

@@ -25,6 +25,20 @@ uv run python -m benchmarks.report          # writes docs/benchmarks.md
 `benchmarks/results/<date>/<suite>.json` and are rewritten after every system x dataset, so a
 crashed run keeps its finished rows.
 
+### Memory guard
+
+Every model benchmark (`run`, `pdf_bench`, `normalize_bench`, `memory_check`) refuses to start
+while another one, or `docrooter serve`, is running, since two models at once can exhaust a
+16 GB machine; `--allow-concurrent` overrides this. Each entry point (and `toc`) also sets
+conservative defaults unless the variable is already set: `OMP_NUM_THREADS=4`,
+`DOCROOTER_THREADS=4`, `TOKENIZERS_PARALLELISM=false` and `DOCROOTER_MEMORY_BUDGET_GB=8`, and
+derives `PYTORCH_MPS_HIGH_WATERMARK_RATIO` / `PYTORCH_MPS_LOW_WATERMARK_RATIO` from the budget.
+The device is the default order (CUDA, MPS, CPU).
+
+`python -m benchmarks.memory_check --case classify|train|all [--device D]` measures peak RSS
+and peak MPS memory for classifying the 642-page doc_042 and for training on B1 with k=16;
+results go to `results/<date>/memory.json` and `docs/performance.md`.
+
 ### Few-shot
 
 ```bash
@@ -37,10 +51,12 @@ For each benchmark, base and k, two models are trained on `pool_shots(train_pool
 threshold 0.0. Rows carry `shots`, `train_seconds` and `n_train` (the pools hold at most 20
 examples per leaf, so k=64 trains on the whole pool). Bundles are kept under
 `benchmarks/.cache/bundles/<dataset>/<base>/<k>/<variant>/` (git-ignored) and reused; delete a
-directory to retrain it. Fine-tuning at the 512-token view is memory-hungry: on a 16 GB machine batch 32 (the recipe
-default) runs out of memory even for bge-small, so use `--train-batch-size 4` (or less) and
-`--train-max-triplets N` to cap the fine-tuning set. Either option gives the bundle its own
-directory (`finetuned-bs4-mt2000`) and is recorded in each row's `env`.
+directory to retrain it. `train()` truncates texts to 512 tokens, uses batch 16 off CUDA (32 on
+CUDA) and gradient checkpointing, which keeps fine-tuning within the 8 GiB budget; before v0.3 (batch 32, UltraBERT
+at 8192 tokens) it ran out of memory. `--train-batch-size N` and `--train-max-triplets N` still
+shrink it further. Either option gives the bundle its own directory (`finetuned-bs4-mt2000`)
+and is recorded in each row's `env`. Bundles trained before v0.3 were trained without the
+512-token cap; delete them to retrain under it.
 Here `--only` takes a base name (`--only bge-small`) or one variant (`--only bge-small/heads`).
 
 ### Strategies

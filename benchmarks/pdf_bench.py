@@ -36,7 +36,7 @@ from typing import Any
 
 import numpy as np
 
-from benchmarks import jev_chunks
+from benchmarks import _guard, jev_chunks
 from docrooter.document import Document
 from docrooter.evaluate.metrics import leaf_prf
 from docrooter.taxonomies import builtin_taxonomy
@@ -1555,6 +1555,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         action="store_true",
         help="also run the P9b zero-shot grid and leave-one-out experiments",
     )
+    _guard.add_guard_argument(parser)
     args = parser.parse_args(argv)
 
     taxonomy = builtin_taxonomy("doc_types")
@@ -1566,6 +1567,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         update_docs(args.docs or DOCS_PATH, render_section(saved, taxonomy))
         return
 
+    _guard.single_model_process("benchmarks.pdf_bench", allow_concurrent=args.allow_concurrent)
     load_env()  # silent: never prints names or values
     entries = manifest(args.corpus)
     if args.only:

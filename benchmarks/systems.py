@@ -179,9 +179,10 @@ def trained_model(
     A bundle already under :func:`bundle_dir` (for the same taxonomy) is loaded instead of
     retrained; ``seconds`` is then the training time recorded in it. ``n`` is the number of
     training examples (a leaf with fewer than ``k`` in the pool gives all it has).
-    ``batch_size`` (default: the base model's recipe) is the fine-tuning and encoding batch size;
-    a smaller one saves memory but changes the contrastive loss. ``max_triplets`` (default:
-    ``train``'s 20000) caps the fine-tuning set. Either one gives the bundle its own directory.
+    ``batch_size`` (default: the recipe's, else 16, 32 on CUDA) is the fine-tuning and
+    encoding batch size; a smaller one saves memory but changes the contrastive loss.
+    ``max_triplets`` (default: ``train``'s 20000) caps the fine-tuning set. Either one gives the
+    bundle its own directory.
     """
     from docrooter import train
 

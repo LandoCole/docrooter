@@ -10,17 +10,34 @@ _ATX = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$")
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 _SETEXT_H1 = re.compile(r"^ {0,3}=+[ \t]*$")
 _SETEXT_H2 = re.compile(r"^ {0,3}-+[ \t]*$")
+_YAML_KEY = re.compile(r"^[\w-]+[ \t]*:")
 # A line that cannot be the text of a setext heading (it starts another block type).
 _NOT_SETEXT_TEXT = re.compile(r"^ {0,3}(?:[-*+][ \t]|\d+[.)][ \t]|>|\||#{1,6}(?:[ \t]|$))")
 
 
 def _skip_front_matter(lines: list[str]) -> int:
-    """Return the index of the first line after a leading YAML front-matter block."""
-    if lines and lines[0].strip() == "---":
-        for index in range(1, len(lines)):
-            if lines[index].strip() in ("---", "..."):
-                return index + 1
-    return 0
+    """Return the index of the first line after a leading YAML front-matter block.
+
+    The block only counts when it looks like YAML: it opens with a ``key:`` line and every
+    non-blank line is a ``key:`` line, indented, a ``- `` list item or a ``#`` comment.
+    Otherwise the leading ``---`` is an ordinary horizontal rule and nothing is skipped.
+    """
+    if not lines or lines[0].strip() != "---":
+        return 0
+    for end in range(1, len(lines)):
+        if lines[end].strip() in ("---", "..."):
+            block = lines[1:end]
+            break
+    else:
+        return 0
+    if not block or not _YAML_KEY.match(block[0]):
+        return 0
+    for line in block:
+        if line.strip() and not (
+            _YAML_KEY.match(line) or line[0] in " \t" or line.startswith(("- ", "#"))
+        ):
+            return 0
+    return end + 1
 
 
 def extract_headings(markdown: str) -> list[RawHeading]:

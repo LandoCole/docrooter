@@ -44,6 +44,18 @@ def test_setext_levels_and_atx_closing_hashes():
 def test_front_matter_skipped():
     headings = extract_headings("---\ntitle: x\n---\n# A\nbody")
     assert [h.title for h in headings] == ["A"]
+    headings = extract_headings("---\ntitle: X\nauthor: Y\n---\n# A")
+    assert [h.title for h in headings] == ["A"]
+    assert extract_headings("---\ntitle: X\n---\nbody")[0].text == "body"
+
+
+def test_hr_led_document_keeps_headings():
+    md = "---\n# Title\nbody\n## Sub\n---\nmore\n# Next\nx"
+    headings = extract_headings(md)
+    # the leading hr is ordinary text (a preamble); no heading is lost
+    assert [h.title for h in headings if h.level > 0] == ["Title", "Sub", "Next"]
+    # an hr followed by a key-like line is still not front matter without a closing marker
+    assert [h.title for h in extract_headings("---\nkey: v\n# A") if h.level > 0] == ["A"]
 
 
 def test_duplicate_titles_unique_ids():

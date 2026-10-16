@@ -118,3 +118,32 @@ def test_section_nodes_carry_heading_synonyms(name):
             assert example.strip() == example and example, node.id
             # one heading string never names two nodes of the same taxonomy
             assert seen.setdefault(example.casefold(), node.id) == node.id, example
+
+
+def test_parsed_builtins_are_cached_and_callers_get_copies():
+    from docrooter.taxonomies import _parse
+
+    _parse.cache_clear()
+    first = builtin_taxonomy("doc_types")
+    second = builtin_taxonomy("doc_types")
+    assert _parse.cache_info().misses == 1 and _parse.cache_info().hits == 1
+    assert first is not second
+    first.node("financial").description = "mutated"
+    assert builtin_taxonomy("doc_types").node("financial").description != "mutated"
+
+
+def test_builtin_single_child_warning_is_debug_only(caplog):
+    from docrooter.taxonomies import _parse
+
+    _parse.cache_clear()
+    with caplog.at_level("DEBUG", logger="docrooter"):
+        builtin_taxonomy("doc_types")  # 'government' has a single child
+    single = [r for r in caplog.records if "single_child" in r.getMessage()]
+    assert single and all(r.levelname == "DEBUG" for r in single)
+
+
+def test_unknown_name_is_a_taxonomy_error_and_a_key_error():
+    with pytest.raises(dr.UnknownTaxonomyError) as err:
+        builtin_taxonomy("nope")
+    assert isinstance(err.value, dr.TaxonomyError) and isinstance(err.value, KeyError)
+    assert str(err.value).startswith("unknown built-in taxonomy 'nope'; available: doc_types")

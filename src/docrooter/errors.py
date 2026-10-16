@@ -17,6 +17,14 @@ class TaxonomyError(DocrooterError):
         self.issues: list[Any] = list(issues) if issues is not None else []
 
 
+class UnknownTaxonomyError(TaxonomyError, KeyError):
+    """Raised for a built-in taxonomy name that does not exist; the message lists the valid
+    names. It is a ``KeyError`` too, so ``except KeyError`` keeps working."""
+
+    def __str__(self) -> str:  # KeyError would show the message quoted, as a repr
+        return str(self.args[0]) if self.args else ""
+
+
 class BackendError(DocrooterError):
     """Raised when a classification or extraction backend fails."""
 

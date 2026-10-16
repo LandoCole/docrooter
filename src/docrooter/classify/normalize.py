@@ -86,6 +86,7 @@ def normalize_sections(
     classifies as configured and also supplies the backend for the doc-type step.
     """
     confidence: float | None = None
+    doc_types: Taxonomy | None = None  # loaded at most once, only when needed
     if isinstance(taxonomy, Taxonomy):
         section_taxonomy, name = taxonomy, CUSTOM_TAXONOMY
     elif taxonomy is not None:
@@ -93,14 +94,19 @@ def normalize_sections(
         section_taxonomy = builtin_taxonomy(name)
     else:
         if doc_type is None:
-            result = classify_document(
-                doc,
-                builtin_taxonomy(DOC_TYPES),
-                backend=classifier.backend if classifier is not None else backend,
-            )
+            doc_types = builtin_taxonomy(DOC_TYPES)
+            if classifier is not None:
+                doc_type_backend = classifier._resolve(classifier.backend)
+            else:
+                # Resolved once and reused for the section step: a spec would load its
+                # model twice, once per Classifier.
+                backend = doc_type_backend = _resolved(backend)
+            result = classify_document(doc, doc_types, backend=doc_type_backend)
             doc_type = result.best.node_ids[-1] if result.best.node_ids else None
             confidence = result.confidence
-        name = _section_taxonomy_name(doc_type)
+        elif doc_type not in DOC_TYPE_TO_SECTION_TAXONOMY:
+            doc_types = builtin_taxonomy(DOC_TYPES)
+        name = _section_taxonomy_name(doc_type, doc_types)
         section_taxonomy = builtin_taxonomy(name)
 
     if view is None:
@@ -114,12 +120,15 @@ def normalize_sections(
                 "build the classifier on that taxonomy or omit it"
             )
     else:
+        if doc_type is not None and doc_types is None:
+            doc_types = builtin_taxonomy(DOC_TYPES)
+        label = _doc_type_label(doc_type, doc_types)
         classifier = Classifier(
             section_taxonomy,
             backend,
             strategy=Flat(),
             view=view,
-            instruction=f"Which standard section of a {_doc_type_label(doc_type)} is this?",
+            instruction=f"Which standard section of a {label} is this?",
             threshold=0.0,
         )
 
@@ -167,13 +176,22 @@ def _builtin_name(name: str) -> str:
     return name
 
 
-def _section_taxonomy_name(doc_type: str | None) -> str:
+def _resolved(backend: str | Backend) -> Backend:
+    if not isinstance(backend, str):
+        return backend
+    from docrooter.backends import registry
+
+    return registry.resolve_backend(backend)
+
+
+def _section_taxonomy_name(doc_type: str | None, doc_types: Taxonomy | None) -> str:
+    """The section taxonomy for ``doc_type``; ``doc_types`` is needed only for a doc type
+    outside :data:`DOC_TYPE_TO_SECTION_TAXONOMY` (a group id, or unknown)."""
     if doc_type is None:
         return GENERIC_TAXONOMY
     if doc_type in DOC_TYPE_TO_SECTION_TAXONOMY:
         return DOC_TYPE_TO_SECTION_TAXONOMY[doc_type]
-    doc_types = builtin_taxonomy(DOC_TYPES)
-    if doc_type not in doc_types:
+    if doc_types is None or doc_type not in doc_types:
         return GENERIC_TAXONOMY
     stack = [doc_type]  # first leaf under a group, depth first in taxonomy order
     while stack:
@@ -184,9 +202,7 @@ def _section_taxonomy_name(doc_type: str | None) -> str:
     return GENERIC_TAXONOMY
 
 
-def _doc_type_label(doc_type: str | None) -> str:
-    if doc_type is not None:
-        doc_types = builtin_taxonomy(DOC_TYPES)
-        if doc_type in doc_types:
-            return doc_types.node(doc_type).label
+def _doc_type_label(doc_type: str | None, doc_types: Taxonomy | None) -> str:
+    if doc_type is not None and doc_types is not None and doc_type in doc_types:
+        return doc_types.node(doc_type).label
     return "document"

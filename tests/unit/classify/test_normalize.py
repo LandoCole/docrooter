@@ -244,3 +244,29 @@ def test_exported_from_package():
     assert docrooter.NormalizationResult is NormalizationResult
     assert "normalize_sections" in docrooter.__all__
     assert "NormalizationResult" in docrooter.__all__
+
+
+def test_doc_types_loaded_once_and_backend_spec_resolved_once(monkeypatch):
+    from docrooter.backends import registry
+
+    loads, resolved = [], []
+    real_builtin, real_resolve = normalize_module.builtin_taxonomy, registry.resolve_backend
+
+    def count_builtin(name):
+        loads.append(name)
+        return real_builtin(name)
+
+    def count_resolve(spec):
+        resolved.append(spec)
+        return real_resolve(spec)
+
+    monkeypatch.setattr(normalize_module, "builtin_taxonomy", count_builtin)
+    monkeypatch.setattr(registry, "resolve_backend", count_resolve)
+    result = normalize_sections(paper(), backend="keyword")
+    assert loads.count("doc_types") == 1
+    assert resolved == ["keyword"]
+    assert result.doc_type is not None
+
+    loads.clear()
+    normalize_sections(paper(), doc_type="research", backend="keyword")  # a group id
+    assert loads.count("doc_types") == 1

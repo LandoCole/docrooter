@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import copy
+import functools
 import json
+import logging
 from importlib import resources
 
+from docrooter.errors import UnknownTaxonomyError
 from docrooter.taxonomy import Taxonomy
+from docrooter.taxonomy.io import nodes_from_dict
+
+logger = logging.getLogger("docrooter.taxonomy")
 
 _SECTION_PREFIX = "section_types/"
 
@@ -20,7 +27,7 @@ def _resource(name: str):
         or (len(parts) == 2 and parts[0] != _SECTION_TAXONOMIES)
         or ".." in parts
     ):
-        raise KeyError(_unknown(name))
+        raise UnknownTaxonomyError(_unknown(name))
     node = resources.files(__package__)
     for part in parts[:-1]:
         node = node.joinpath(part)
@@ -45,11 +52,28 @@ def list_builtin_taxonomies() -> list[str]:
 
 
 def builtin_taxonomy(name: str) -> Taxonomy:
-    """Load a built-in taxonomy: ``"doc_types"`` or ``"section_types/<name>"``."""
+    """Load a built-in taxonomy: ``"doc_types"`` or ``"section_types/<name>"``.
+
+    Each name is parsed once per process; every call returns a fresh deep copy, so callers may
+    change it freely. Unknown names raise :class:`~docrooter.errors.UnknownTaxonomyError`
+    (a ``KeyError`` too) listing the valid names.
+    """
+    return copy.deepcopy(_parse(name))
+
+
+@functools.cache
+def _parse(name: str) -> Taxonomy:
+    """The parsed built-in (cached: never hand it out without copying). Validation warnings,
+    such as ``doc_types``' single-child group, are logged at DEBUG: they are by design."""
     resource = _resource(name)
     if not resource.is_file():
-        raise KeyError(_unknown(name))
-    return Taxonomy.from_dict(json.loads(resource.read_text(encoding="utf-8")))
+        raise UnknownTaxonomyError(_unknown(name))
+    parsed = nodes_from_dict(json.loads(resource.read_text(encoding="utf-8")))
+    taxonomy = Taxonomy(parsed.nodes, locations=parsed.locations, root=parsed.root)
+    for warning in taxonomy.warnings:
+        where = f" ({warning.location})" if warning.location else ""
+        logger.debug("built-in taxonomy %s %s%s: %s", name, warning.code, where, warning.message)
+    return taxonomy
 
 
 # Leaf doc-type id -> built-in section taxonomy name (a ``builtin_taxonomy`` argument).

@@ -21,3 +21,4 @@ benchmarks/.cache/
 # OS
 .DS_Store
 .venv.nosync/
+benchmarks/heldout/pdfs/

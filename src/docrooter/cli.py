@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import pydantic
 import typer
@@ -20,6 +22,9 @@ from docrooter.classify.classifier import DEFAULT_BACKEND
 from docrooter.classify.strategies import Beam, Flat, Greedy
 from docrooter.errors import DocrooterError, TaxonomyError
 from docrooter.taxonomy import Taxonomy, TaxonomyIssue, validate_nodes
+
+if TYPE_CHECKING:
+    from docrooter.classify.results import DocTypeResult
 
 app = typer.Typer(no_args_is_help=True, help="Document TOC extraction and section classification.")
 taxonomy_app = typer.Typer(no_args_is_help=True, help="Work with taxonomy files.")
@@ -408,4 +413,297 @@ def models_list() -> None:
         table.add_row(
             Text(repo.repo_id, no_wrap=True), Text(revisions), Text(_human_size(repo.size_on_disk))
         )
+    console.print(table)
+
+
+# --- doctype and normalize ----------------------------------------------------------------
+
+_DOC_SUFFIXES = (".pdf", ".md", ".txt")
+_DEFAULT_DOCTYPE_TAXONOMY = "builtin:doc_types"
+_BUILTIN_PREFIX = "builtin:"
+
+
+def _default_workers() -> int:
+    return max(1, min(4, os.cpu_count() or 1))
+
+
+def _load_taxonomy_spec(spec: str) -> Taxonomy:
+    """A taxonomy from ``builtin:<name>`` or a file path."""
+    if spec.startswith(_BUILTIN_PREFIX):
+        from docrooter.taxonomies import builtin_taxonomy
+
+        try:
+            return builtin_taxonomy(spec[len(_BUILTIN_PREFIX) :])
+        except KeyError as exc:
+            raise ValueError(exc.args[0]) from exc
+    return Taxonomy.load(Path(spec))
+
+
+def _expand_paths(paths: list[Path]) -> list[Path]:
+    """Files as given; directories expanded recursively to ``.pdf``, ``.md`` and ``.txt``
+    files in sorted order. Duplicates are dropped."""
+    out: dict[Path, None] = {}
+    for path in paths:
+        if path.is_dir():
+            found = sorted(
+                p for p in path.rglob("*") if p.suffix.lower() in _DOC_SUFFIXES and p.is_file()
+            )
+            out.update(dict.fromkeys(found))
+        else:
+            out[path] = None
+    return list(out)
+
+
+def _parse_one(path: str, engine: str) -> tuple[dict | None, float, str | None]:
+    """Load one file: ``(Document.model_dump(), seconds, None)`` or ``(None, seconds, error)``.
+
+    Module level and picklable results, so a process pool can run it. Never raises: a bad file
+    must not stop the batch.
+    """
+    from docrooter.document.load import load
+
+    started = time.perf_counter()
+    try:
+        doc = load(Path(path), engine=engine) if path.lower().endswith(".pdf") else load(Path(path))
+        return doc.model_dump(), time.perf_counter() - started, None
+    except Exception as exc:
+        message = str(exc) or type(exc).__name__
+        return None, time.perf_counter() - started, message
+
+
+def _parse_all(
+    paths: list[Path], engine: str, workers: int
+) -> list[tuple[dict | None, float, str | None]]:
+    names = [str(p) for p in paths]
+    if workers <= 1 or len(paths) <= 1:
+        return [_parse_one(name, engine) for name in names]
+    from concurrent.futures import ProcessPoolExecutor
+
+    with ProcessPoolExecutor(max_workers=min(workers, len(paths))) as pool:
+        return list(pool.map(_parse_one, names, [engine] * len(names)))
+
+
+@dataclass
+class _DocRow:
+    """What ``doctype`` reports for one file."""
+
+    source: str
+    parse_s: float
+    error: str | None = None
+    result: DocTypeResult | None = None
+
+    @property
+    def node_ids(self) -> list[str]:
+        return self.result.best.node_ids if self.result else []
+
+    def record(self) -> dict[str, Any]:
+        """The JSONL record: the leaf id as ``type``, its label, and the ids from the top."""
+        result = self.result
+        best = result.best if result else None
+        return {
+            "source": self.source,
+            "type": best.node_ids[-1] if best and best.node_ids else None,
+            "label": best.labels[-1] if best and best.labels else None,
+            "path": list(best.node_ids) if best else [],
+            "confidence": result.confidence if result else None,
+            "leaf_probs": result.leaf_probs if result else {},
+            "timings": {
+                "parse": self.parse_s,
+                "classify": result.timings.get("classify", 0.0) if result else None,
+            },
+            "error": self.error,
+        }
+
+    def cells(self) -> tuple[Text, str, str, str]:
+        """Type, confidence, parse seconds and classify seconds, as table cells."""
+        parse = f"{self.parse_s:.2f}"
+        if self.error is not None or self.result is None:
+            return Text(f"error: {self.error}", style="red"), "-", parse, "-"
+        best, classify = self.result.best, f"{self.result.timings.get('classify', 0.0):.3f}"
+        confidence = f"{self.result.confidence:.2f}"
+        if not best.node_ids:  # nothing assigned: say why instead of leaving it blank
+            return (
+                Text(f"({best.stopped_reason or 'none'})", style="yellow"),
+                confidence,
+                parse,
+                classify,
+            )
+        return Text(" > ".join(best.labels)), confidence, parse, classify
+
+
+@app.command()
+def doctype(
+    paths: Annotated[
+        list[Path],
+        typer.Argument(
+            exists=True, readable=True, help="Documents or directories (searched recursively)."
+        ),
+    ],
+    taxonomy: Annotated[
+        str,
+        typer.Option("--taxonomy", "-t", help="Taxonomy file (JSON or CSV) or builtin:<name>."),
+    ] = _DEFAULT_DOCTYPE_TAXONOMY,
+    backend: Annotated[
+        str, typer.Option("--backend", "-b", help="Backend spec, e.g. keyword or embedding:MODEL.")
+    ] = DEFAULT_BACKEND,
+    mode: Annotated[
+        str, typer.Option(help="What is classified: view, sections or hybrid.")
+    ] = "view",
+    engine: Annotated[
+        str, typer.Option(help="PDF engine: auto, pymupdf, pdfplumber, both or pymupdf4llm.")
+    ] = "auto",
+    keep: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--keep",
+            help="Only list files whose type, or an ancestor of it, has this id (repeatable).",
+        ),
+    ] = None,
+    paths_only: Annotated[
+        bool, typer.Option("--paths-only", help="Print only the (kept) file paths, one per line.")
+    ] = False,
+    jsonl: Annotated[
+        Path | None,
+        typer.Option("--jsonl", dir_okay=False, help="Also write one JSON record per file here."),
+    ] = None,
+    workers: Annotated[
+        int, typer.Option(min=1, help="Parser processes (default: min(4, CPU count)).")
+    ] = _default_workers(),
+    threshold: Annotated[
+        float, typer.Option(help="Minimum confidence to assign a type (0 always labels).")
+    ] = 0.0,
+) -> None:
+    """Classify each document's type; a table by default, JSONL with --jsonl."""
+    from docrooter.classify.classifier import Classifier
+    from docrooter.classify.documents import DEFAULT_INSTRUCTION, MODES
+    from docrooter.document import Document
+    from docrooter.pdf.load import ENGINES
+
+    if mode not in MODES:
+        raise typer.BadParameter(
+            f"invalid mode {mode!r}; use one of {', '.join(MODES)}", param_hint="--mode"
+        )
+    if engine not in ENGINES:
+        raise typer.BadParameter(
+            f"invalid engine {engine!r}; use one of {', '.join(ENGINES)}", param_hint="--engine"
+        )
+    with _errors_exit_1():
+        tax = _load_taxonomy_spec(taxonomy)
+        keep_ids = list(dict.fromkeys(keep or []))
+        unknown = [k for k in keep_ids if k not in tax]
+        if unknown:
+            raise typer.BadParameter(
+                f"unknown id(s) {', '.join(map(repr, unknown))}; valid ids: {', '.join(tax.nodes)}",
+                param_hint="--keep",
+            )
+        files = _expand_paths(paths)
+        if not files:
+            raise ValueError("no .pdf, .md or .txt files found")
+
+        parsed = _parse_all(files, engine, workers)
+        indexes = [i for i, (data, _, _) in enumerate(parsed) if data is not None]
+        docs = [Document.model_validate(parsed[i][0]) for i in indexes]
+        results = {}
+        if docs:
+            classifier = Classifier(
+                tax,
+                backend,
+                strategy=Flat(),
+                instruction=DEFAULT_INSTRUCTION,
+                threshold=threshold,
+            )
+            results = dict(
+                zip(indexes, classifier.classify_documents(docs, mode=mode), strict=True)
+            )
+
+        rows = [
+            _DocRow(str(path), parse_s, error, results.get(i))
+            for i, (path, (_, parse_s, error)) in enumerate(zip(files, parsed, strict=True))
+        ]
+        if keep_ids:
+            wanted = set(keep_ids)
+            for row in rows:
+                if row.error is not None:
+                    Console(stderr=True, highlight=False).print(
+                        Text(f"warning: {row.source}: {row.error}", style="yellow"), soft_wrap=True
+                    )
+            shown = [r for r in rows if wanted & set(r.node_ids)]
+        else:
+            shown = rows
+        if jsonl is not None:
+            lines = (json.dumps(r.record(), ensure_ascii=False) for r in shown)
+            jsonl.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
+
+    if paths_only:
+        for row in shown:
+            if row.error is None:
+                typer.echo(row.source)
+        return
+    table = Table("File", "Type", "Confidence", "Parse s", "Classify s")
+    for row in shown:
+        # Text, not str: paths and labels may contain "[...]" that rich would read as markup.
+        table.add_row(Text(row.source), *row.cells())
+    Console(highlight=False).print(table)
+
+
+def _parse_levels(value: str) -> list[int]:
+    try:
+        levels = [int(part) for part in value.split(",") if part.strip()]
+    except ValueError:
+        levels = []
+    if not levels or any(level < 1 for level in levels):
+        raise typer.BadParameter(
+            f"invalid levels {value!r}; use comma-separated positive integers, e.g. 1,2",
+            param_hint="--levels",
+        )
+    return levels
+
+
+@app.command()
+def normalize(
+    file: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Document to read.")
+    ],
+    doc_type: Annotated[
+        str | None,
+        typer.Option(help="Document-type id choosing the section taxonomy (default: classify it)."),
+    ] = None,
+    backend: Annotated[
+        str, typer.Option("--backend", "-b", help="Backend spec, e.g. keyword or embedding:MODEL.")
+    ] = DEFAULT_BACKEND,
+    levels: Annotated[str, typer.Option(help="Heading levels to normalise, e.g. 1,2.")] = "1,2",
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Print the result as JSON instead of a table.")
+    ] = False,
+) -> None:
+    """Map each section title to a canonical section label of the document's type."""
+    from docrooter.classify.normalize import DOC_TYPES, normalize_sections
+    from docrooter.document.load import load
+    from docrooter.taxonomies import builtin_taxonomy
+
+    chosen_levels = _parse_levels(levels)
+    with _errors_exit_1():
+        if doc_type is not None and doc_type not in (known := builtin_taxonomy(DOC_TYPES)):
+            raise typer.BadParameter(
+                f"unknown document type {doc_type!r}; valid ids: {', '.join(known.nodes)}",
+                param_hint="--doc-type",
+            )
+        doc = load(file)
+        result = normalize_sections(doc, doc_type=doc_type, backend=backend, levels=chosen_levels)
+    if as_json:
+        typer.echo(result.model_dump_json(indent=2))
+        return
+    console = Console(highlight=False)
+    confidence = (
+        f" ({result.doc_type_confidence:.2f})" if result.doc_type_confidence is not None else ""
+    )
+    console.print(
+        Text(f"doc type: {result.doc_type or '-'}{confidence}; taxonomy: {result.taxonomy}")
+    )
+    table = Table("Section", "Canonical", "Score")
+    for norm in result.sections.values():
+        if norm.canonical is None:
+            table.add_row(Text(norm.title), Text("-"), "-")
+        else:
+            table.add_row(Text(norm.title), Text(norm.label or norm.canonical), f"{norm.score:.2f}")
     console.print(table)

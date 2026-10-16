@@ -125,6 +125,12 @@ docrooter classify report.md -t taxonomy.json            # JSON on stdout, defau
 docrooter classify report.md -t taxonomy.json -b keyword --strategy greedy
 docrooter classify report.md -t taxonomy.json -b jev -o result.json   # table + result.json
 
+docrooter doctype docs/ -b keyword                       # document type per file (builtin:doc_types)
+docrooter doctype docs/ --keep financial --paths-only    # only financial docs, one path per line
+docrooter doctype docs/ --jsonl types.jsonl --workers 4  # parse PDFs in 4 processes
+docrooter normalize report.md                            # canonical label for each section title
+docrooter normalize report.md --doc-type research.research_paper --json
+
 docrooter eval -t taxonomy.json -d labelled.jsonl -b keyword          # accuracy, hierarchical F1
 docrooter eval -t taxonomy.json -d labelled.jsonl --format md
 

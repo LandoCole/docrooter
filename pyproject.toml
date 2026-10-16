@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "docrooter"
+version = "0.1.0.dev0"
+description = "Document TOC extraction and taxonomy-based section classification."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2",
+    "numpy",
+    "typer",
+    "rich",
+]
+
+[project.optional-dependencies]
+models = [
+    "torch",
+    "transformers>=5",
+    "sentence-transformers>=6",
+    "scikit-learn",
+    "joblib",
+    "datasets",
+]
+pdf = ["pymupdf4llm"]
+llm = ["httpx"]
+bench = ["datasets", "pandas"]
+all = ["docrooter[models,pdf,llm]"]
+
+[project.scripts]
+docrooter = "docrooter.cli:app"
+
+[dependency-groups]
+dev = ["pytest", "ruff"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/docrooter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["models: downloads and runs ML models"]
+addopts = "-m 'not models'"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

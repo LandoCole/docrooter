@@ -407,3 +407,17 @@ def test_large_title_wrapped_with_its_own_leading_is_merged():
     assert [h.text for h in found] == [
         "Appendix D. Use other Integrated Development Environments", "D.1. Use CLion",
     ]  # fmt: skip
+
+
+def test_text_smaller_than_body_is_never_a_heading():
+    # Footnotes, table-cell fragments and figure notes are set below body size; numbered and
+    # isolated (a block of their own) they would otherwise pass the pre-filter.
+    pages = [
+        [item("1. Overview", size=14, bold=True), *para(4),
+         item("2. Register Map", size=14, bold=True, gap=HEAD_GAP), *para(3),
+         item("0 Register", size=7, gap=PARA_GAP),
+         item("5. See, for example, the earlier report", size=8, gap=PARA_GAP), *para(2)],
+        [item("3. Timing", size=14, bold=True), *para(4)],
+    ]  # fmt: skip
+    _, found = run(pages)
+    assert [h.text for h in found] == ["1. Overview", "2. Register Map", "3. Timing"]

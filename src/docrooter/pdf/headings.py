@@ -135,6 +135,8 @@ def _is_candidate(line: Line, isolated: bool, body: float) -> bool:
     text = line.text.strip()
     if len(text.split()) > _MAX_WORDS:
         return False
+    if body > 0 and line.size < body - _STYLE_TOLERANCE:
+        return False  # footnotes, captions, table cells: set below body size (P5b)
     if sum(c.isalpha() for c in _NUMBER_PREFIX.sub("", text, count=1)) < _MIN_LETTERS:
         return False
     if body > 0 and line.size >= _SIZE_FACTOR * body:

@@ -10,7 +10,7 @@ import sys
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from docrooter import runtime
+from docrooter import events, runtime
 from docrooter.backends.recipes import Recipe
 from docrooter.errors import BackendError
 
@@ -40,20 +40,27 @@ def select_device(preference: str | None = None) -> str:
     return "cpu"
 
 
-def prepare_model_load(preference: str | None = None) -> str:
+def prepare_model_load(preference: str | None = None, name: str | None = None) -> str:
     """Apply the :func:`docrooter.configure` settings that must precede torch, then pick the
     device for a model load.
+
+    This starts the ``model_load`` pipeline event (``name`` is the backend's); the matching end
+    is reported by :func:`after_model_load`.
 
     Backends call this before importing anything that imports torch, so the MPS watermark
     variables still take effect. It never imports torch itself (beyond device detection);
     :func:`after_model_load` applies the rest once the model is loaded.
     """
     runtime.apply_before_torch(runtime.settings())
-    return select_device(preference)
+    device = select_device(preference)
+    events.start("model_load", backend=name, device=device)
+    return device
 
 
-def after_model_load(device: str) -> None:
-    """Apply the thread count and the MPS memory fraction, if torch is loaded."""
+def after_model_load(device: str, name: str | None = None) -> None:
+    """Apply the thread count and the MPS memory fraction, if torch is loaded, and end the
+    ``model_load`` pipeline event started by :func:`prepare_model_load`."""
+    events.finish("model_load", backend=name, device=device)
     torch = sys.modules.get("torch")
     if torch is not None:
         runtime.apply_to_torch(torch, runtime.settings(), device)

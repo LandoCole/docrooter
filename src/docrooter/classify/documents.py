@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
+from docrooter import events
 from docrooter.backends.base import Backend
 from docrooter.classify import engine
 from docrooter.classify._beams import TreeResult
@@ -43,6 +44,7 @@ def classify_document(
     instruction: str | None = DEFAULT_INSTRUCTION,
     mode: Mode = "view",
     threshold: float = 0.0,
+    on_event: events.EventSink | None = None,
     **classifier_kwargs: Any,
 ) -> DocTypeResult:
     """Classify one document's type against ``taxonomy`` (strategy ``Flat()`` by default).
@@ -55,8 +57,15 @@ def classify_document(
     :meth:`Classifier.classify_documents` for the modes and ``leaf_probs``. A model loaded
     from a spec string is released before returning; pass a backend instance to reuse one
     across calls.
+
+    ``on_event`` receives pipeline :class:`~docrooter.events.Event` objects: ``view``,
+    ``model_load`` (when a backend loads its model), ``classify`` (its end carries ``type`` and
+    ``confidence``) and a final ``done``.
     """
-    with Classifier(taxonomy, backend, **classifier_kwargs) as classifier:
+    with (
+        events.pipeline_run(on_event),
+        Classifier(taxonomy, backend, **classifier_kwargs) as classifier,
+    ):
         return classifier.classify_documents(
             [doc],
             view=view,
@@ -103,6 +112,8 @@ def classify_documents(
     has_content = [_has_content(doc) for doc in docs]
     count = classifier._token_counter() if any(has_content) else estimate_tokens
 
+    stage = events.start("view", mode=mode)
+    tokens = 0
     view_texts: dict[str, str] = {}
     rendered: dict[int, str] = {}
     weights: dict[int, dict[str, int]] = {}  # doc index -> section key -> token weight
@@ -110,7 +121,9 @@ def classify_documents(
     for i, doc in enumerate(docs):
         if not has_content[i]:
             continue
-        rendered[i] = view.render(doc, count).text
+        shown = view.render(doc, count)
+        rendered[i] = shown.text
+        tokens += shown.n_tokens
         if mode != "sections":
             view_texts[f"v{i}"] = rendered[i]
         if mode != "view":
@@ -121,9 +134,13 @@ def classify_documents(
             for section in leaves:
                 key = f"s{i}:{section.id}"
                 section_texts[key] = section_views[section.id].text
+                tokens += section_views[section.id].n_tokens
                 weights.setdefault(i, {})[key] = max(1, estimate_tokens(section.text))
 
+    stage.end(tokens=tokens)
+
     start = time.perf_counter()
+    stage = events.start("classify", mode=mode)
     results = _run(classifier, view_texts, section_texts, strategy, settings)
     root_probs = _root_probs(classifier, results, view_texts, strategy, settings, mode)
     elapsed = time.perf_counter() - start
@@ -175,7 +192,20 @@ def classify_documents(
                 mode=mode,  # type: ignore[arg-type]
             )
         )
+    if stage.active:
+        stage.end(documents=len(out), **_outcome(out))
     return out
+
+
+def _outcome(results: Sequence[DocTypeResult]) -> dict[str, Any]:
+    """``{"type": node id or None, "confidence": p}`` of a single result, else ``{}``."""
+    if len(results) != 1:
+        return {}
+    best = results[0].best
+    return {
+        "type": best.node_ids[-1] if best.node_ids else None,
+        "confidence": float(results[0].confidence),
+    }
 
 
 def mix_distributions(

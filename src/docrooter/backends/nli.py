@@ -83,7 +83,7 @@ class NLIBackend:
 
     def _load(self) -> Any:
         if self._model is None:
-            device = prepare_model_load(self._device)
+            device = prepare_model_load(self._device, self.name)
             transformers = require("transformers", "models")
             # No attn_implementation: DeBERTa-v2 has its own attention and rejects "sdpa".
             kwargs: dict[str, Any] = {"revision": self.recipe.revision}
@@ -99,7 +99,7 @@ class NLIBackend:
             self._device_in_use = device  # before the move, so an MPS OOM there is caught
             model.to(device)
             model.eval()
-            after_model_load(device)
+            after_model_load(device, self.name)
             self._tokenizer, self._model = tokenizer, model
         return self._model
 

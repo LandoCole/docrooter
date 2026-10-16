@@ -7,12 +7,13 @@ from __future__ import annotations
 import os
 import re
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from docrooter import events
 from docrooter.document.build import build_document
 from docrooter.document.headings import repair_levels
 from docrooter.document.models import Document, RawHeading
@@ -63,6 +64,7 @@ def load_pdf(
     use_printed_toc: bool = True,
     repair: bool = True,
     max_pages: int | None = None,
+    on_event: events.EventSink | None = None,
 ) -> Document:
     """Load a PDF into a :class:`Document` using native text extraction (no OCR).
 
@@ -83,7 +85,35 @@ def load_pdf(
 
     A PDF without text becomes one empty section ``s0``. Encrypted or unreadable files raise
     :class:`~docrooter.errors.DocrooterError`.
+
+    ``on_event`` receives an :class:`~docrooter.events.Event` for each stage (``extract`` with
+    progress every 10 pages, ``signals``, ``headings``, ``assemble``) and a final ``done``, or
+    an ``error`` before the exception is re-raised. With ``engine="both"`` each engine reports
+    its own ``extract``/``signals``/``headings`` (``data["engine"]`` says which) and the merge
+    is a last ``headings`` stage with ``engine="both"``.
     """
+    with events.pipeline_run(on_event):
+        return _load_pdf(
+            path,
+            engine=engine,
+            min_heading_score=min_heading_score,
+            use_bookmarks=use_bookmarks,
+            use_printed_toc=use_printed_toc,
+            repair=repair,
+            max_pages=max_pages,
+        )
+
+
+def _load_pdf(
+    path: str | os.PathLike[str],
+    *,
+    engine: str,
+    min_heading_score: float | None,
+    use_bookmarks: bool,
+    use_printed_toc: bool,
+    repair: bool,
+    max_pages: int | None,
+) -> Document:
     if engine not in ENGINES:
         raise DocrooterError(f"unknown PDF engine {engine!r}; use one of {', '.join(ENGINES)}")
     if max_pages is not None and max_pages < 1:
@@ -93,9 +123,12 @@ def load_pdf(
         score = 0.5 if min_heading_score is None else min_heading_score
         from docrooter.document.pdf import _load_pdf_pymupdf4llm
 
-        return _load_pdf_pymupdf4llm(
+        stage = events.start("assemble", engine=engine)
+        legacy = _load_pdf_pymupdf4llm(
             path, min_heading_score=score, repair=repair, max_pages=max_pages
         )
+        stage.end(sections=len(legacy.sections))
+        return legacy
     if engine == "auto":
         engine = _auto_engine()
 
@@ -109,11 +142,14 @@ def load_pdf(
         primary = _analyse(path, "pymupdf", None, **options)
         other = _analyse(path, "pdfplumber", primary.signals.bookmarks, **options)
         start = time.perf_counter()
+        stage = events.start("headings", engine=engine)
         skip = primary.signals.excluded | primary.signals.toc_page_lines
         headings = _merge_engines(
             primary.headings, other.headings, primary.lines, other.lines, skip=skip
         )
         merge_seconds = time.perf_counter() - start
+        if stage.active:
+            stage.end(**_heading_counts(headings))
         timings = {key: primary.timings[key] + other.timings[key] for key in _TIMING_KEYS}
         timings["headings"] += merge_seconds
     else:
@@ -121,12 +157,14 @@ def load_pdf(
         headings, timings = primary.headings, dict(primary.timings)
 
     start = time.perf_counter()
+    stage = events.start("assemble")
     raw = _assemble(primary.lines, primary.signals, headings, primary.n_read)
     title = next(
         (h.title for h in raw if h.level == 1 and not _LETTER_SPACED.search(h.title)), None
     ) or _metadata_title(path)
     doc = build_document(raw, source=str(path), title=title or path.stem)
     timings["assemble"] = time.perf_counter() - start
+    stage.end(sections=len(doc.sections))
 
     doc.meta = {
         "engine": engine,
@@ -170,15 +208,28 @@ def _analyse(
     """Extract lines, compute signals and find headings with one engine. ``bookmarks`` skips
     re-reading the outline when a previous engine already did."""
     start = time.perf_counter()
-    lines, n_pages = extract_lines(path, engine=engine, max_pages=max_pages)  # type: ignore[arg-type]
+    stage = events.start("extract", engine=engine)
+    lines, n_pages = extract_lines(
+        path,
+        engine=engine,  # type: ignore[arg-type]
+        max_pages=max_pages,
+        progress=(lambda page, total: stage.progress(pages=total, page=page))
+        if stage.active
+        else None,
+    )
     n_read = n_pages if max_pages is None else min(n_pages, max_pages)
     extracted = time.perf_counter()
+    stage.end(lines=len(lines), pages=n_read)
+    stage = events.start("signals", engine=engine)
     if bookmarks is None:
         bookmarks = read_bookmarks(path)
     if n_read < n_pages:
         bookmarks = [b for b in bookmarks if b[2] <= n_read]
     signals = compute_signals(lines, n_read, bookmarks=bookmarks)
     signalled = time.perf_counter()
+    if stage.active:
+        stage.end(bookmarks=len(signals.bookmarks), printed_toc_entries=len(signals.printed_toc))
+    stage = events.start("headings", engine=engine)
     headings = find_headings(
         lines,
         signals,
@@ -187,6 +238,8 @@ def _analyse(
         use_printed_toc=use_printed_toc,
     )
     done = time.perf_counter()
+    if stage.active:
+        stage.end(**_heading_counts(headings))
     timings = {
         "extract": extracted - start,
         "signals": signalled - extracted,
@@ -194,6 +247,12 @@ def _analyse(
         "assemble": 0.0,
     }
     return _Analysis(lines, n_pages, n_read, signals, headings, timings)
+
+
+def _heading_counts(headings: Sequence[HeadingCandidate]) -> dict[str, Any]:
+    """``{"headings": n, "levels": {"1": n1, ...}}``, the data of a ``headings`` event."""
+    levels = Counter(h.level or 1 for h in headings)
+    return {"headings": len(headings), "levels": {str(k): levels[k] for k in sorted(levels)}}
 
 
 def _merge_engines(

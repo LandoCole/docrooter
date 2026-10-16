@@ -8,7 +8,7 @@ import math
 import re
 import statistics
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, Literal
 
@@ -31,6 +31,10 @@ _WIDE_GAP_FACTOR = 2.0  # pymupdf: past this many char widths only a short label
 _SHORT_LABEL_CHARS = 12
 _LABEL = re.compile(r"^\(?[\dA-Za-z]{1,4}[.)]?$")  # "1", "3.", "(a)", "IV)"
 _NO_SPACE_FACTOR = 0.15  # pymupdf: a gap under this many char widths joins without a space
+PROGRESS_EVERY = 10  # pages between ``progress`` callbacks
+
+Progress = Callable[[int, int], None]
+"""``progress(pages_done, pages_total)``, called after every ``PROGRESS_EVERY``-th page."""
 
 
 class Line(BaseModel):
@@ -118,7 +122,10 @@ def _finalise(rows: list[dict[str, Any]]) -> list[Line]:
     return lines
 
 
-def _pymupdf_rows(doc: Any, pymupdf: Any, max_pages: int | None = None) -> Iterator[dict[str, Any]]:
+def _pymupdf_rows(
+    doc: Any, pymupdf: Any, max_pages: int | None = None, progress: Progress | None = None
+) -> Iterator[dict[str, Any]]:
+    total = doc.page_count if max_pages is None else min(doc.page_count, max_pages)
     # Drop glyphs outside the media box (pymupdf >= 1.2x also clips to the page rect by default).
     flags = pymupdf.TEXT_PRESERVE_WHITESPACE | pymupdf.TEXT_MEDIABOX_CLIP
     for page_index, page in enumerate(doc):
@@ -161,6 +168,8 @@ def _pymupdf_rows(doc: Any, pymupdf: Any, max_pages: int | None = None) -> Itera
                     "y1": frag["y1"], "page_height": height, "page_width": width,
                     "block": block_no,
                 }  # fmt: skip
+        if progress is not None and (page_index + 1) % PROGRESS_EVERY == 0:
+            progress(page_index + 1, total)
 
 
 def _join_row_fragments(fragments: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -214,8 +223,11 @@ def _split_columns(words: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
     return groups
 
 
-def _pdfplumber_rows(pdf: Any, max_pages: int | None = None) -> Iterator[dict[str, Any]]:
-    for page_index, page in enumerate(pdf.pages[:max_pages]):
+def _pdfplumber_rows(
+    pdf: Any, max_pages: int | None = None, progress: Progress | None = None
+) -> Iterator[dict[str, Any]]:
+    pages = pdf.pages[:max_pages]
+    for page_index, page in enumerate(pages):
         try:
             page_rows = _pdfplumber_page_rows(page, page_index)
         finally:
@@ -225,6 +237,8 @@ def _pdfplumber_rows(pdf: Any, max_pages: int | None = None) -> Iterator[dict[st
             if close is not None:
                 close()
         yield from page_rows
+        if progress is not None and (page_index + 1) % PROGRESS_EVERY == 0:
+            progress(page_index + 1, len(pages))
 
 
 def _pdfplumber_page_rows(page: Any, page_index: int) -> list[dict[str, Any]]:
@@ -270,24 +284,31 @@ def _pdfplumber_page_rows(page: Any, page_index: int) -> list[dict[str, Any]]:
 
 
 def extract_lines(
-    path: str | Path, *, engine: Engine, max_pages: int | None = None
+    path: str | Path,
+    *,
+    engine: Engine,
+    max_pages: int | None = None,
+    progress: Progress | None = None,
 ) -> tuple[list[Line], int]:
     """Extract text lines (reading order) and the page count from ``path``.
 
     With ``max_pages`` only the first ``max_pages`` pages are read; the page count is still
-    the whole document's.
+    the whole document's. ``progress(done, total)`` is called after every 10th page read
+    (``total`` is the number of pages read).
 
     Raises ``DocrooterError`` for encrypted, corrupt or non-PDF files and ``MissingExtraError``
     when the engine's package is not installed.
     """
     if engine == "pymupdf":
-        return _extract_pymupdf(path, max_pages)
+        return _extract_pymupdf(path, max_pages, progress)
     if engine == "pdfplumber":
-        return _extract_pdfplumber(path, max_pages)
+        return _extract_pdfplumber(path, max_pages, progress)
     raise DocrooterError(f"unknown PDF engine {engine!r}; use 'pymupdf' or 'pdfplumber'")
 
 
-def _extract_pymupdf(path: str | Path, max_pages: int | None = None) -> tuple[list[Line], int]:
+def _extract_pymupdf(
+    path: str | Path, max_pages: int | None = None, progress: Progress | None = None
+) -> tuple[list[Line], int]:
     pymupdf = _import_pymupdf()
     try:
         doc = pymupdf.open(str(path), filetype="pdf")
@@ -298,7 +319,7 @@ def _extract_pymupdf(path: str | Path, max_pages: int | None = None) -> tuple[li
             raise DocrooterError(f"cannot open PDF {path}: file is encrypted")
         n_pages = doc.page_count
         try:
-            rows = list(_pymupdf_rows(doc, pymupdf, max_pages))
+            rows = list(_pymupdf_rows(doc, pymupdf, max_pages, progress))
         except Exception as exc:
             raise DocrooterError(f"cannot open PDF {path}: {exc}") from exc
     finally:
@@ -306,7 +327,9 @@ def _extract_pymupdf(path: str | Path, max_pages: int | None = None) -> tuple[li
     return _finalise(rows), n_pages
 
 
-def _extract_pdfplumber(path: str | Path, max_pages: int | None = None) -> tuple[list[Line], int]:
+def _extract_pdfplumber(
+    path: str | Path, max_pages: int | None = None, progress: Progress | None = None
+) -> tuple[list[Line], int]:
     pdfplumber = _import_pdfplumber()
     try:
         pdf = pdfplumber.open(str(path))
@@ -315,7 +338,7 @@ def _extract_pdfplumber(path: str | Path, max_pages: int | None = None) -> tuple
     try:
         n_pages = len(pdf.pages)
         try:
-            rows = list(_pdfplumber_rows(pdf, max_pages))
+            rows = list(_pdfplumber_rows(pdf, max_pages, progress))
         except Exception as exc:
             raise DocrooterError(f"cannot open PDF {path}: {exc}") from exc
     except DocrooterError:

@@ -87,7 +87,7 @@ class EmbeddingBackend:
         if self._model is None:
             if self._unrecoverable is not None:
                 raise BackendError(self._unrecoverable)
-            device = prepare_model_load(self._device)
+            device = prepare_model_load(self._device, self.name)
             try:
                 model = self._build(device)
             except Exception as exc:
@@ -101,7 +101,7 @@ class EmbeddingBackend:
                 warn_cpu_fallback(self.name, "loading")
                 device = self._device = "cpu"
                 model = self._build(device)
-            after_model_load(device)
+            after_model_load(device, self.name)
             self._model, self._device_in_use = model, device
         return self._model
 

@@ -6,6 +6,7 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from docrooter import events
 from docrooter.backends.base import Backend, close_backend
 from docrooter.classify.classifier import DEFAULT_BACKEND, Classifier
 from docrooter.classify.documents import classify_document
@@ -65,6 +66,7 @@ def normalize_sections(
     levels: Sequence[int] = (1, 2),
     classifier: Classifier | None = None,
     view: SectionView | None = None,
+    on_event: events.EventSink | None = None,
 ) -> NormalizationResult:
     """Map each section of ``doc`` at ``levels`` to a canonical section of a section taxonomy.
 
@@ -86,10 +88,15 @@ def normalize_sections(
     classifies as configured and also supplies the backend for the doc-type step. A model
     loaded here from a spec string is released before returning; a prebuilt ``classifier``
     and a backend instance are left open.
+
+    ``on_event`` receives pipeline :class:`~docrooter.events.Event` objects: the doc-type step's
+    (``view``, ``classify``) when it runs, then ``normalize`` (with ``model_load`` inside it when
+    the section classifier loads a model) and a final ``done``.
     """
     owned: list[Backend | Classifier] = []  # what this call loaded, closed when it returns
     try:
-        return _normalize(doc, doc_type, taxonomy, backend, levels, classifier, view, owned)
+        with events.pipeline_run(on_event):
+            return _normalize(doc, doc_type, taxonomy, backend, levels, classifier, view, owned)
     finally:
         for item in owned:
             close_backend(item)
@@ -158,6 +165,7 @@ def _normalize(
 
     wanted = set(levels) - {0}
     sections = [s for s in doc.walk() if s.level in wanted]
+    stage = events.start("normalize", taxonomy=name)
     # A section with neither title nor text has nothing to classify: it stays unlabelled.
     todo = [s for s in sections if s.title.strip() or s.text.strip()]
     norms: dict[str, SectionNorm] = {}
@@ -182,6 +190,7 @@ def _normalize(
         s.id: norms.get(s.id) or SectionNorm(canonical=None, label=None, title=s.title)
         for s in sections
     }
+    stage.end(sections=len(out))
     return NormalizationResult(
         doc_type=doc_type, doc_type_confidence=confidence, taxonomy=name, sections=out
     )

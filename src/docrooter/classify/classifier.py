@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 
+from docrooter import events
 from docrooter.backends import registry
 from docrooter.backends.base import Backend, close_backend
 from docrooter.classify import engine
@@ -313,6 +314,7 @@ class Classifier:
         strategy: Greedy | Beam | Flat | None = None,
         threshold: float | None = None,
         instruction: str | None = None,
+        on_event: events.EventSink | None = None,
     ) -> list[DocTypeResult]:
         """One document-type result per document, against this classifier's taxonomy.
 
@@ -338,18 +340,22 @@ class Classifier:
         early ends at an internal node. When no path got past the root, ``leaf_probs`` holds
         the root decision's probabilities over the top-level nodes and ``confidence`` is their
         maximum, so it is never 0 just because the traversal stopped.
+
+        ``on_event`` receives pipeline :class:`~docrooter.events.Event` objects (``view``,
+        ``model_load``, ``classify``, then ``done``); see :func:`~docrooter.classify_document`.
         """
         from docrooter.classify.documents import classify_documents
 
-        return classify_documents(
-            self,
-            docs,
-            view or DocumentView(),
-            mode,
-            strategy=strategy,
-            threshold=threshold,
-            instruction=instruction,
-        )
+        with events.pipeline_run(on_event):
+            return classify_documents(
+                self,
+                docs,
+                view or DocumentView(),
+                mode,
+                strategy=strategy,
+                threshold=threshold,
+                instruction=instruction,
+            )
 
     def prepare_texts(self, texts: Sequence[str]) -> list[str]:
         """The texts as the backends see them: cut to ``view.max_tokens`` (blank ones unchanged).

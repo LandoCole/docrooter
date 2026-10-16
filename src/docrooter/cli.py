@@ -9,6 +9,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 from docrooter.errors import TaxonomyError
 from docrooter.taxonomy import Taxonomy, TaxonomyIssue, validate_nodes
@@ -50,11 +51,12 @@ def _print_issues(console: Console, issues: list[TaxonomyIssue]) -> None:
     table = Table("Severity", "Code", "Location", "Message")
     for issue in issues:
         style = "red" if issue.severity == "error" else "yellow"
+        # Text, not str: labels and messages may contain "[...]" that rich would read as markup.
         table.add_row(
-            f"[{style}]{issue.severity}[/{style}]",
-            issue.code,
-            issue.location or "-",
-            issue.message,
+            Text(issue.severity, style=style),
+            Text(issue.code),
+            Text(issue.location or "-"),
+            Text(issue.message),
         )
     console.print(table)
 
@@ -71,16 +73,16 @@ def taxonomy_validate(
 
     console = Console(highlight=False)
     try:
-        nodes, locations = read_nodes(file, sep=sep)
+        parsed = read_nodes(file, sep=sep)
     except TaxonomyError as exc:
         # Parse failures carry their own issues; show them like validation errors.
         _print_issues(console, exc.issues)
         raise typer.Exit(1) from exc
-    issues = validate_nodes(nodes, locations=locations)
+    issues = validate_nodes(parsed.nodes, locations=parsed.locations)
     if any(i.severity == "error" for i in issues):
         _print_issues(console, issues)
         raise typer.Exit(1)
-    taxonomy = Taxonomy(nodes, locations=locations)
+    taxonomy = Taxonomy(parsed.nodes, locations=parsed.locations, root=parsed.root)
     console.print(f"valid: {len(taxonomy)} nodes, depth {taxonomy.depth()}")
     if issues:
         _print_issues(console, issues)

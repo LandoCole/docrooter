@@ -153,8 +153,7 @@ def test_json_pointer_locations():
     with pytest.raises(TaxonomyError) as e:
         Taxonomy.from_dict(data)
     assert ("duplicate_id", "/nodes/1") in {(i.code, i.location) for i in e.value.issues}
-    nodes, locs = read_nodes_from_dict(data)
-    assert locs[2] == "/nodes/0/children/1"
+    assert read_nodes_from_dict(data).locations[2] == "/nodes/0/children/1"
 
 
 def read_nodes_from_dict(data):
@@ -188,8 +187,8 @@ def test_load_sniffs_format_without_known_suffix(tmp_path):
 
 
 def test_read_nodes_returns_nodes_without_validating():
-    nodes, locs = read_nodes(FIX / "broken.csv")
-    assert len(nodes) == 5 and locs[0] == "row 2"
+    parsed = read_nodes(FIX / "broken.csv")
+    assert len(parsed.nodes) == 5 and parsed.locations[0] == "row 2"
 
 
 def test_slug():
@@ -205,3 +204,25 @@ def test_warnings_logged_on_load(tmp_path, caplog):
         t = Taxonomy.load(p)
     assert [w.code for w in t.warnings] == ["single_child"]
     assert any("single_child" in r.getMessage() for r in caplog.records)
+
+
+def test_json_root_settings_nested_and_flat():
+    t = Taxonomy.load(FIX / "root_settings.json")
+    root = t.node(Taxonomy.ROOT_ID)
+    assert (root.multi_label, root.threshold, root.backend) == (True, 0.3, "jev")
+    assert root.children == ["a", "b"]
+    flat = Taxonomy.from_dict(
+        {"root": {"multi_label": True}, "nodes": [{"id": "a", "label": "A", "parent_id": None}]}
+    )
+    assert flat.node(Taxonomy.ROOT_ID).multi_label is True
+    assert read_nodes(FIX / "root_settings.json").root["backend"] == "jev"
+
+
+def test_json_unknown_root_key_raises_with_location():
+    with pytest.raises(TaxonomyError) as e:
+        Taxonomy.from_dict({"root": {"colour": "red"}, "nodes": [{"id": "a", "label": "A"}]})
+    assert (e.value.issues[0].code, e.value.issues[0].location) == ("invalid_root", "/root")
+
+
+def test_csv_has_no_root_settings():
+    assert Taxonomy.load(FIX / "adjacency.csv").node(Taxonomy.ROOT_ID).multi_label is False

@@ -1,0 +1,5 @@
+{"root": {"multi_label": true, "threshold": 0.3, "backend": "jev"},
+ "nodes": [
+  {"id": "a", "label": "A"},
+  {"id": "b", "label": "B", "children": [{"id": "b.1", "label": "One"}, {"id": "b.2", "label": "Two"}]}
+]}

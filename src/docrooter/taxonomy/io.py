@@ -7,19 +7,25 @@ import io
 import json
 import logging
 import re
-from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, NamedTuple, NoReturn
 
 from pydantic import ValidationError
 
 from docrooter.errors import TaxonomyError
-from docrooter.taxonomy.models import Taxonomy, TaxonomyNode
+from docrooter.taxonomy.models import Taxonomy, TaxonomyNode, check_root
 from docrooter.taxonomy.validate import TaxonomyIssue
 
 logger = logging.getLogger("docrooter.taxonomy")
 
-ParsedNodes = tuple[list[TaxonomyNode], list[str | None]]
+
+class ParsedNodes(NamedTuple):
+    """Nodes read from a file, where each came from, and optional root-level settings."""
+
+    nodes: list[TaxonomyNode]
+    locations: list[str | None]
+    root: dict[str, Any] | None = None
+
 
 _LEVEL_COLUMN = re.compile(r"level_(\d+)")
 _TRUE = {"true", "t", "yes", "y", "1"}
@@ -35,8 +41,8 @@ def _fail(code: str, message: str, location: str | None = None) -> NoReturn:
     raise TaxonomyError(message, [TaxonomyIssue("error", code, message, location)])
 
 
-def _build(nodes: list[TaxonomyNode], locations: Sequence[str | None]) -> Taxonomy:
-    taxonomy = Taxonomy(nodes, locations=locations)
+def _build(parsed: ParsedNodes) -> Taxonomy:
+    taxonomy = Taxonomy(parsed.nodes, locations=parsed.locations, root=parsed.root)
     for warning in taxonomy.warnings:
         where = f" ({warning.location})" if warning.location else ""
         logger.warning("taxonomy %s%s: %s", warning.code, where, warning.message)
@@ -49,14 +55,18 @@ def _build(nodes: list[TaxonomyNode], locations: Sequence[str | None]) -> Taxono
 def nodes_from_dict(data: Any) -> ParsedNodes:
     """Parse nested and/or flat JSON data into nodes plus JSON-pointer locations.
 
+    A top-level ``"root"`` object (dict form only) holds root-level decision settings.
     Items may carry ``children`` as node objects (nested form; the parent comes from the nesting).
     Child entries that are plain strings are ids from a flat dump and are ignored, since
     ``parent_id`` already carries the link. Missing ids are generated from the label path.
     """
+    root: dict[str, Any] | None = None
     if isinstance(data, dict):
         items, base = data.get("nodes"), "/nodes"
         if not isinstance(items, list):
             _fail("invalid_structure", "expected a top-level 'nodes' list", "/nodes")
+        if data.get("root") is not None:
+            root = check_root(data["root"], location="/root")
     elif isinstance(data, list):
         items, base = data, ""
     else:
@@ -98,11 +108,11 @@ def nodes_from_dict(data: Any) -> ParsedNodes:
         for j in range(len(child_items) - 1, -1, -1):
             if not isinstance(child_items[j], str):
                 stack.append((child_items[j], f"{pointer}/children/{j}", node.id, label_path))
-    return nodes, locations
+    return ParsedNodes(nodes, locations, root)
 
 
 def from_dict(data: Any) -> Taxonomy:
-    return _build(*nodes_from_dict(data))
+    return _build(nodes_from_dict(data))
 
 
 # ---------------------------------------------------------------- CSV
@@ -192,7 +202,7 @@ def _adjacency(rows: list[tuple[str, dict[str, str]]]) -> ParsedNodes:
             TaxonomyNode(id=node_id, label=label, parent_id=parent, **_row_attrs(cells, location))
         )
         locations.append(location)
-    return nodes, locations
+    return ParsedNodes(nodes, locations)
 
 
 _PathEntry = tuple[list[str], dict[str, Any], str]
@@ -249,12 +259,12 @@ def _from_paths(entries: list[_PathEntry]) -> ParsedNodes:
         declared.add(key)
         nodes[index[key]] = nodes[index[key]].model_copy(update=attrs)
         locations[index[key]] = location
-    return nodes, locations
+    return ParsedNodes(nodes, locations)
 
 
 def from_csv(path_or_text: str | Path, *, sep: str = ">") -> Taxonomy:
     """Build a taxonomy from a CSV file path or CSV text. Layout is detected from the header."""
-    return _build(*nodes_from_csv(_csv_text(path_or_text), sep=sep))
+    return _build(nodes_from_csv(_csv_text(path_or_text), sep=sep))
 
 
 # ---------------------------------------------------------------- files
@@ -276,4 +286,4 @@ def read_nodes(path: str | Path, *, sep: str = ">") -> ParsedNodes:
 
 
 def load(path: str | Path, *, sep: str = ">") -> Taxonomy:
-    return _build(*read_nodes(path, sep=sep))
+    return _build(read_nodes(path, sep=sep))

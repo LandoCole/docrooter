@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from docrooter.errors import TaxonomyError
 from docrooter.taxonomy.validate import ROOT_ID, TaxonomyIssue, validate_nodes
@@ -32,10 +32,46 @@ class TaxonomyNode(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+ROOT_SETTINGS = ("multi_label", "threshold", "backend", "description")
+_ROOT_DEFAULTS: dict[str, Any] = {
+    "multi_label": False,
+    "threshold": None,
+    "backend": None,
+    "description": None,
+}
+
+
+def check_root(root: Any, *, location: str | None = None) -> dict[str, Any]:
+    """Validate root-level settings and return the non-default ones.
+
+    Accepted keys are ``multi_label``, ``threshold``, ``backend`` and ``description``.
+    Anything else, or a bad value, raises ``TaxonomyError`` with code ``invalid_root``.
+    """
+
+    def fail(message: str) -> TaxonomyError:
+        return TaxonomyError(message, [TaxonomyIssue("error", "invalid_root", message, location)])
+
+    if not isinstance(root, dict):
+        raise fail("root settings must be an object")
+    unknown = sorted(str(k) for k in root if k not in ROOT_SETTINGS)
+    if unknown:
+        raise fail(
+            f"unknown root setting(s) {', '.join(unknown)}; allowed: {', '.join(ROOT_SETTINGS)}"
+        )
+    try:
+        probe = TaxonomyNode(id=ROOT_ID, label="(root)", **root)
+    except ValidationError as exc:
+        detail = "; ".join(f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors())
+        raise fail(f"invalid root settings: {detail}") from exc
+    return {k: v for k in ROOT_SETTINGS if (v := getattr(probe, k)) != _ROOT_DEFAULTS[k]}
+
+
 class Taxonomy:
     """A validated hierarchy of categories.
 
-    ``nodes`` maps id to node for the real nodes. The virtual root ``ROOT_ID`` is not stored there;
+    ``nodes`` maps id to node for the real nodes only; the virtual root is never stored there.
+    ``node(ROOT_ID)`` returns a synthetic root node (label ``"(root)"``, ``children`` = top-level
+    ids in input order) carrying the optional ``root`` decision settings, and
     ``children(ROOT_ID)`` (the default) returns the top-level nodes. Child lists and parent links
     are derived from ``parent_id`` in input order. All traversal is iterative.
     """
@@ -43,8 +79,13 @@ class Taxonomy:
     ROOT_ID = ROOT_ID
 
     def __init__(
-        self, nodes: Sequence[TaxonomyNode], *, locations: Sequence[str | None] | None = None
+        self,
+        nodes: Sequence[TaxonomyNode],
+        *,
+        locations: Sequence[str | None] | None = None,
+        root: dict[str, Any] | None = None,
     ):
+        root_settings = check_root(root) if root is not None else {}
         nodes = list(nodes)
         issues = validate_nodes(nodes, locations=locations)
         errors = [i for i in issues if i.severity == "error"]
@@ -67,6 +108,10 @@ class Taxonomy:
             for n in nodes
         }
         self._children = child_ids
+        self._root_settings = root_settings
+        self._root = TaxonomyNode(
+            id=ROOT_ID, label="(root)", children=list(child_ids[ROOT_ID]), **root_settings
+        )
         self._depth: dict[str, int] = {ROOT_ID: 0}
         queue = deque([ROOT_ID])
         while queue:
@@ -82,13 +127,15 @@ class Taxonomy:
         return node_id in self.nodes
 
     def node(self, id: str) -> TaxonomyNode:
-        return self.nodes[id]
+        return self._root if id == ROOT_ID else self.nodes[id]
 
     def children(self, node_id: str = ROOT_ID) -> list[TaxonomyNode]:
         return [self.nodes[c] for c in self._children[node_id]]
 
     def path(self, node_id: str) -> list[TaxonomyNode]:
-        """Nodes from the top level down to ``node_id`` (root excluded)."""
+        """Nodes from the top level down to ``node_id`` (root excluded); ``[]`` for the root."""
+        if node_id == ROOT_ID:
+            return []
         chain = [self.nodes[node_id]]
         while chain[-1].parent_id is not None:
             chain.append(self.nodes[chain[-1].parent_id])
@@ -128,12 +175,19 @@ class Taxonomy:
 
     def to_dict(self) -> dict[str, Any]:
         """Flat representation that :meth:`from_dict` reads back."""
-        return {"nodes": [n.model_dump() for n in self.nodes.values()]}
+        data: dict[str, Any] = {"nodes": [n.model_dump() for n in self.nodes.values()]}
+        if self._root_settings:
+            data["root"] = dict(self._root_settings)
+        return data
 
     def content_hash(self) -> str:
-        """sha256 of the canonical JSON; equal for the same tree whatever format it came from."""
+        """sha256 of the canonical JSON; equal for the same tree whatever format it came from.
+
+        Covers every node, the root settings and the order of the top-level nodes.
+        """
         ordered = sorted((n.model_dump() for n in self.nodes.values()), key=lambda d: d["id"])
-        canonical = json.dumps(ordered, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        payload = {"nodes": ordered, "root": self._root_settings, "top": self._children[ROOT_ID]}
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     @classmethod

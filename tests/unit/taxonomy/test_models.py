@@ -85,7 +85,7 @@ def test_to_dict_round_trip_and_hash_independent_of_node_order():
     again = Taxonomy.from_dict(t.to_dict())
     assert again.to_dict() == t.to_dict()
     assert again.content_hash() == t.content_hash()
-    reordered = Taxonomy([nodes[2], nodes[0], nodes[1]])
+    reordered = Taxonomy([nodes[0], nodes[2], nodes[1]])  # same top-level order
     assert reordered.content_hash() == t.content_hash()
     changed = Taxonomy([_n("a"), _n("a.1", "a", label="Different"), _n("b")])
     assert changed.content_hash() != t.content_hash()
@@ -101,3 +101,45 @@ def test_explicit_root_parent_means_top_level():
 def test_node_rejects_unknown_fields():
     with pytest.raises(ValueError):
         TaxonomyNode(id="a", label="A", descripton="typo")
+
+
+def test_root_node_is_synthetic_with_top_level_children():
+    from docrooter.taxonomy.validate import ROOT_ID
+
+    t = Taxonomy([_n("b"), _n("a"), _n("a.1", "a"), _n("a.2", "a")])
+    root = t.node(ROOT_ID)
+    assert root.id == ROOT_ID and root.label == "(root)" and root.parent_id is None
+    assert root.children == ["b", "a"]
+    assert root.multi_label is False and root.threshold is None and root.backend is None
+    assert t.path(ROOT_ID) == [] and t.node_depth(ROOT_ID) == 0
+    assert ROOT_ID not in t.nodes and ROOT_ID not in t and len(t) == 4
+    assert t.to_dict().get("root") is None
+
+
+def test_root_settings_applied_round_tripped_and_hashed():
+    nodes = [_n("a"), _n("b")]
+    t = Taxonomy(nodes, root={"multi_label": True, "threshold": 0.25, "description": "top"})
+    root = t.node(Taxonomy.ROOT_ID)
+    assert (root.multi_label, root.threshold, root.description) == (True, 0.25, "top")
+    assert t.to_dict()["root"] == {"multi_label": True, "threshold": 0.25, "description": "top"}
+    again = Taxonomy.from_dict(t.to_dict())
+    assert again.node(Taxonomy.ROOT_ID).multi_label is True
+    assert again.content_hash() == t.content_hash()
+    assert t.content_hash() != Taxonomy(nodes).content_hash()
+    assert (
+        Taxonomy(nodes, root={"multi_label": False}).content_hash()
+        == Taxonomy(nodes).content_hash()
+    )
+
+
+def test_top_level_order_changes_hash():
+    assert (
+        Taxonomy([_n("a"), _n("b")]).content_hash() != Taxonomy([_n("b"), _n("a")]).content_hash()
+    )
+
+
+@pytest.mark.parametrize("root", [{"colour": "red"}, {"threshold": "high"}, ["multi_label"]])
+def test_invalid_root_settings_raise(root):
+    with pytest.raises(TaxonomyError) as e:
+        Taxonomy([_n("a")], root=root)
+    assert [i.code for i in e.value.issues] == ["invalid_root"]

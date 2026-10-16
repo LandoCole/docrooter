@@ -28,6 +28,7 @@
 - PyMuPDF/pymupdf4llm is AGPL-3.0 and installed only via the `[pdf]` extra. The README states this.
 - Unit tests never import torch. Model tests carry `@pytest.mark.models` and are deselected by default (`addopts = "-m 'not models'"`).
 - Error messages for missing extras use the exact form: `pip install 'docrooter[<extra>]'`.
+- Secrets live only in the git-ignored `.env` file (e.g. `TYPESAFE_API_KEY`). Never commit, log, or print API keys. Tests that need a key skip when it is absent.
 
 ## Review Focus
 
@@ -540,7 +541,8 @@ def test_cli_classify_keyword(tmp_path):
 ### Task 10: Recipes, model loading, embedding backend
 
 **Files:**
-- Create: `src/docrooter/backends/{recipes,loading,embedding}.py`, `tests/unit/backends/test_recipes.py`, `tests/integration/test_embedding.py`
+- Create: `src/docrooter/backends/{recipes,loading,embedding}.py`, `tests/unit/backends/test_recipes.py`, `tests/integration/test_embedding.py`, `tests/unit/test_cli_models.py`
+- Modify: `cli.py` (add the `models` command group)
 
 **Interfaces:**
 - Produces:
@@ -584,6 +586,7 @@ def test_embedding_zero_shot_sanity(model):
 
 - [ ] **Step 3:** Run `uv run pytest tests/unit/backends -v` and expect a FAIL. Then implement. `select_device` imports torch lazily and returns `"cpu"` when torch is absent.
 - [ ] **Step 4:** Run `uv sync --extra models && uv run pytest -m models tests/integration/test_embedding.py -v` and expect a PASS. This downloads the models; record the wall time in the commit message body.
+- [ ] **Step 4b: `docrooter models` CLI.** Add `docrooter models pull MODEL_ID [--revision REV]` (calls `huggingface_hub.snapshot_download(repo_id, revision=rev or recipe.revision)` and prints the cache path) and `docrooter models list` (lists cached repos from `huggingface_hub.scan_cache_dir()` as a rich table: repo id, revision(s), size on disk). Both require the `models` extra. Unit test `tests/unit/test_cli_models.py` monkeypatches `snapshot_download`/`scan_cache_dir` and asserts the pinned recipe revision is passed for `dmis-lab/UltraBERT-Embed-150M` and that `list` prints the repo id.
 - [ ] **Step 5:** Commit `feat: recipes, trust gate, embedding backend`.
 
 ### Task 11: NLI and MLM-choice backends, Dataset

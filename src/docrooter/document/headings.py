@@ -1,0 +1,141 @@
+"""Heading validation (reject false headings) and hierarchy repair (fix levels)."""
+
+from __future__ import annotations
+
+import re
+from collections import Counter
+
+from docrooter.document.models import RawHeading
+
+_BASE_SCORE = 0.6
+_LOW_CONFIDENCE = 0.7
+_NUMBERING = re.compile(
+    r"^(\d+(\.\d+)*\.?|[IVXLC]+\.|(Article|Section|Chapter|Part|Item|Appendix)\s+\w+)\b"
+)
+_PAGE_NUMBER = re.compile(r"^(page\s*)?\d+(\s*(of|/)\s*\d+)?$", re.IGNORECASE)
+_URL_OR_EMAIL = re.compile(r"https?://|www\.|\S+@\S+\.\S+", re.IGNORECASE)
+_WORD = re.compile(r"[^\W\d_]+")
+_CONNECTORS = frozenset({"and", "of", "the", "in", "for", "to", "a", "an", "on", "with"})
+_TITLE_CASE_RATIO = 0.7
+_MAX_WORDS = 20
+_MIN_ALNUM_RATIO = 0.4
+# Dotted-numeric prefix used to infer levels; parts are capped at 3 digits so years don't match.
+_DOTTED = re.compile(r"^(\d{1,3}(?:\.\d{1,3})*)\.?(?:\s|$)")
+_NUMBERED_FRACTION = 0.5
+
+
+def _is_title_case_or_caps(title: str) -> bool:
+    letters = [c for c in title if c.isalpha()]
+    if len(letters) >= 2 and all(c.isupper() for c in letters):
+        return True
+    words = [w for w in _WORD.findall(title) if w.casefold() not in _CONNECTORS]
+    if not words:
+        return False
+    upper = sum(1 for w in words if w[0].isupper())
+    return upper / len(words) >= _TITLE_CASE_RATIO
+
+
+def score_heading(title: str, *, repeat_count: int = 1) -> tuple[float, list[str]]:
+    """Score how heading-like ``title`` is, in [0, 1], with the reasons that moved the score."""
+    text = title.strip()
+    score = _BASE_SCORE
+    reasons: list[str] = []
+
+    def adjust(delta: float, reason: str) -> None:
+        nonlocal score
+        score += delta
+        reasons.append(reason)
+
+    if _NUMBERING.match(text):
+        adjust(0.25, "numbering_prefix")
+    if _is_title_case_or_caps(text):
+        adjust(0.1, "title_case")
+    if len(text.split()) > _MAX_WORDS:
+        adjust(-0.4, "too_long")
+    if text.endswith((".", ",", ";")):
+        adjust(-0.3, "sentence_punctuation")
+    if _PAGE_NUMBER.match(text):
+        adjust(-0.7, "page_number")
+    if _URL_OR_EMAIL.search(text):
+        adjust(-0.6, "url_or_email")
+    chars = [c for c in text if not c.isspace()]
+    if sum(c.isalnum() for c in chars) < _MIN_ALNUM_RATIO * len(chars) or not chars:
+        adjust(-0.5, "low_alphanumeric")
+    if text.startswith(("-", "*", "+", "|")):
+        adjust(-0.6, "list_or_table_marker")
+    if repeat_count >= 3:
+        adjust(-0.5, "repeated_title")
+
+    return round(min(1.0, max(0.0, score)), 4), reasons
+
+
+def _normalise(title: str) -> str:
+    return " ".join(title.casefold().split())
+
+
+def validate_headings(raw: list[RawHeading], *, min_score: float = 0.5) -> list[RawHeading]:
+    """Drop false headings, merging each into the previous block's text.
+
+    A rejected heading's title is appended as a line, followed by its body, to the text of the
+    previous kept block. When there is no previous block it becomes a level-0 "Preamble" block.
+    Survivors get ``heading_score`` and, below 0.7, the ``low_heading_confidence`` flag. The
+    level-0 preamble block is not a heading and passes through untouched. Inputs are not mutated.
+    """
+    counts = Counter(_normalise(h.title) for h in raw if h.level > 0)
+    out: list[RawHeading] = []
+    for heading in raw:
+        if heading.level <= 0:
+            out.append(heading)
+            continue
+        score, _ = score_heading(heading.title, repeat_count=counts[_normalise(heading.title)])
+        if score >= min_score:
+            flags = list(heading.flags)
+            if score < _LOW_CONFIDENCE and "low_heading_confidence" not in flags:
+                flags.append("low_heading_confidence")
+            out.append(heading.model_copy(update={"heading_score": score, "flags": flags}))
+            continue
+        merged = "\n".join(part for part in (heading.title, heading.text) if part)
+        if out:
+            previous = out[-1]
+            text = "\n".join(part for part in (previous.text, merged) if part)
+            out[-1] = previous.model_copy(update={"text": text})
+        else:
+            out.append(
+                RawHeading(
+                    title="Preamble", level=0, text=merged, line=heading.line, page=heading.page
+                )
+            )
+    return out
+
+
+def repair_levels(raw: list[RawHeading]) -> list[RawHeading]:
+    """Fix heading levels.
+
+    When at least half of the headings carry a dotted-numeric prefix ("1", "1.2", "1.2.3"), those
+    headings take the number of dot-separated parts as their level. A single pass then caps each
+    level at ``previous_level + 1`` so the hierarchy has no gaps. Changed headings get the
+    ``level_repaired`` flag. The level-0 preamble block is untouched. Inputs are not mutated.
+    """
+    headings = [h for h in raw if h.level > 0]
+    numbered = sum(1 for h in headings if _DOTTED.match(h.title.strip()))
+    use_numbering = bool(headings) and numbered / len(headings) >= _NUMBERED_FRACTION
+
+    out: list[RawHeading] = []
+    previous = 0
+    for heading in raw:
+        if heading.level <= 0:
+            out.append(heading)
+            continue
+        level = heading.level
+        match = _DOTTED.match(heading.title.strip()) if use_numbering else None
+        if match:
+            level = len(match.group(1).split("."))
+        level = min(level, previous + 1)
+        previous = level
+        if level != heading.level:
+            flags = list(heading.flags)
+            if "level_repaired" not in flags:
+                flags.append("level_repaired")
+            heading = heading.model_copy(update={"level": level, "flags": flags})
+        out.append(heading)
+    return out

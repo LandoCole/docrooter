@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -13,7 +13,8 @@ class Step(BaseModel):
     """One decision: at parent ``node_id``, ``backend`` scored the children and chose some.
 
     ``probs`` holds the five most probable children plus every child chosen at this decision,
-    most probable first, keyed by child id, so ``probs[chosen[0]]`` always exists. A node
+    most probable first, keyed by child id, so ``probs[chosen[0]]`` always exists (every
+    candidate when the engine runs with ``EngineSettings.full_probs``). A node
     with a single child is chosen without a backend call; its step has
     ``probs == {child: 1.0}`` and ``backend == "(auto)"``.
     """
@@ -112,3 +113,22 @@ class DocumentResult(BaseModel):
         return pd.DataFrame(
             rows, columns=["section_id", "title", "path", "score", "stopped_reason"]
         )
+
+
+class DocTypeResult(BaseModel):
+    """The document-type classification of one document.
+
+    ``best`` is the chosen path (``stopped_reason="empty_text"`` and no nodes for a document
+    with nothing to classify). ``leaf_probs`` holds the (at most) ten most probable nodes, most
+    probable first, summing to at most 1. ``view_text`` is the rendered ``DocumentView`` and
+    ``timings["classify"]`` the classification time in seconds (amortised over a batch).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str
+    best: PathResult
+    leaf_probs: dict[str, float] = Field(default_factory=dict)
+    view_text: str = ""
+    timings: dict[str, float] = Field(default_factory=dict)
+    mode: Literal["view", "sections", "hybrid"] = "view"

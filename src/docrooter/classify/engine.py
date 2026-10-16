@@ -37,6 +37,8 @@ class EngineSettings(BaseModel):
 
     ``threshold`` applies where the taxonomy node has no ``threshold`` of its own.
     ``temperatures`` maps a backend name to the temperature used instead of its own.
+    ``full_probs`` makes ``run_flat`` record every candidate's probability in its step, not
+    just the top ``TOP_K_PROBS``.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -48,6 +50,7 @@ class EngineSettings(BaseModel):
     batch_size: int = Field(default=32, ge=1)
     instruction: str | None = None
     temperatures: dict[str, float] = Field(default_factory=dict)
+    full_probs: bool = False
 
 
 def run_tree(
@@ -98,8 +101,10 @@ def run_flat(
     ``threshold`` when it has one), is ``best``: its path from the top level down with a single
     ``Step`` at the root, and ``selected == [best]``. Otherwise ``best`` is an empty path
     stopped as ``"low_confidence"``, ``selected == []``, and ``alternatives`` start from the
-    argmax. ``alternatives`` are the next ``TOP_K_PROBS`` candidates by probability. A ``None``
-    backend (nothing can score the root) gives every text an empty ``"no_backend"`` path.
+    argmax. ``alternatives`` are the next ``TOP_K_PROBS`` candidates by probability. Each
+    step's ``probs`` holds the top ``TOP_K_PROBS`` candidates, or all of them with
+    ``settings.full_probs``. A ``None`` backend (nothing can score the root) gives every text
+    an empty ``"no_backend"`` path.
     """
     if backend is None:
         stopped = PathResult(node_ids=[], stopped_reason="no_backend")
@@ -123,8 +128,11 @@ def run_flat(
         if not ranked:
             results[key] = (PathResult(node_ids=[], stopped_reason="low_confidence"), [], [])
             continue
-        shown = dict(ranked[:TOP_K_PROBS])
-        paths = [_flat_path(node_id, p, shown, backend.name, taxonomy) for node_id, p in ranked]
+        shown = dict(ranked if settings.full_probs else ranked[:TOP_K_PROBS])
+        paths = [
+            _flat_path(node_id, p, shown, backend.name, taxonomy)
+            for node_id, p in ranked[: 1 + TOP_K_PROBS]  # all a result can use
+        ]
         if ranked[0][1] >= threshold:
             results[key] = (paths[0], paths[1 : 1 + TOP_K_PROBS], [paths[0]])
         else:

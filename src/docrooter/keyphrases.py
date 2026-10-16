@@ -61,6 +61,13 @@ def keyphrases_from_frequencies(
     text: str, df: Counter[tuple[str, ...]], n_docs: int, k: int = 8
 ) -> list[str]:
     """Top-``k`` keyphrases of ``text`` given precomputed corpus document frequencies."""
+    return [phrase for phrase, _score in scored_keyphrases(text, df, n_docs, k)]
+
+
+def scored_keyphrases(
+    text: str, df: Counter[tuple[str, ...]], n_docs: int, k: int = 8
+) -> list[tuple[str, float]]:
+    """:func:`keyphrases_from_frequencies` with each phrase's score, best first."""
     if k <= 0:
         return []
     tf = Counter(_ngrams(text))
@@ -73,14 +80,19 @@ def keyphrases_from_frequencies(
         for index, (gram, count) in enumerate(tf.items())
     ]
     scored.sort(reverse=True)
-    kept: list[str] = []
-    for _score, _order, phrase in scored:
-        padded = f" {phrase} "
-        if any(padded in f" {other} " for other in kept):
-            continue
-        kept.append(phrase)
+    return drop_contained([(phrase, score) for score, _order, phrase in scored], k)
+
+
+def drop_contained(ranked: Sequence[tuple[str, float]], k: int) -> list[tuple[str, float]]:
+    """The first ``k`` of ``ranked`` (best first), skipping phrases inside an earlier kept one."""
+    kept: list[tuple[str, float]] = []
+    for phrase, score in ranked:
         if len(kept) == k:
             break
+        padded = f" {phrase} "
+        if any(padded in f" {other} " for other, _ in kept):
+            continue
+        kept.append((phrase, score))
     return kept
 
 

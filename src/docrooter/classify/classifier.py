@@ -17,8 +17,9 @@ from docrooter.backends.base import Backend
 from docrooter.classify import engine
 from docrooter.classify._beams import TreeResult
 from docrooter.classify.engine import EngineSettings
-from docrooter.classify.results import DocumentResult, PathResult, SectionResult
+from docrooter.classify.results import DocTypeResult, DocumentResult, PathResult, SectionResult
 from docrooter.classify.strategies import Beam, Flat, Greedy
+from docrooter.doc_view import DocumentView
 from docrooter.document import Document, Section
 from docrooter.taxonomy import Taxonomy
 from docrooter.views import SectionView, estimate_tokens
@@ -278,6 +279,27 @@ class Classifier:
         self._warn_no_backend(results.values())
         return out
 
+    def classify_documents(
+        self,
+        docs: Sequence[Document],
+        *,
+        view: DocumentView | None = None,
+        mode: str = "view",
+    ) -> list[DocTypeResult]:
+        """One document-type result per document, against this classifier's taxonomy.
+
+        ``mode="view"`` classifies each document's rendered ``view`` (default
+        ``DocumentView()``) with the classifier's strategy. ``mode="sections"`` scores every
+        leaf section's title and lead with ``Flat`` and takes the token-weighted mean of the
+        leaf distributions; the argmax is ``best``. ``mode="hybrid"`` mixes the two as
+        ``0.6 * view + 0.4 * sections``. All documents share one traversal per kind of text.
+        A document with nothing to show gets ``best.stopped_reason == "empty_text"`` and is
+        never sent to a backend.
+        """
+        from docrooter.classify.documents import classify_documents
+
+        return classify_documents(self, docs, view or DocumentView(), mode)
+
     def prepare_texts(self, texts: Sequence[str]) -> list[str]:
         """The texts as the backends see them: cut to ``view.max_tokens`` (blank ones unchanged).
 
@@ -322,16 +344,24 @@ class Classifier:
 
     # --- internals ------------------------------------------------------------------------
 
-    def _run(self, texts: dict[str, str]) -> dict[str, TreeResult]:
+    def _run(
+        self,
+        texts: dict[str, str],
+        strategy: Greedy | Beam | Flat | None = None,
+        settings: EngineSettings | None = None,
+    ) -> dict[str, TreeResult]:
+        """Traverse for every text; ``strategy`` and ``settings`` default to the classifier's."""
         if not texts:
             return {}
-        if isinstance(self.strategy, Flat):
+        strategy = strategy if strategy is not None else self.strategy
+        settings = settings if settings is not None else self.settings
+        if isinstance(strategy, Flat):
             n_candidates = len(
-                self.taxonomy.nodes if self.strategy.allow_internal else self.taxonomy.leaves()
+                self.taxonomy.nodes if strategy.allow_internal else self.taxonomy.leaves()
             )
             backend = engine.pick_backend(self.router, Taxonomy.ROOT_ID, n_candidates)
-            return engine.run_flat(texts, self.taxonomy, backend, self.strategy, self.settings)
-        return engine.run_tree(texts, self.taxonomy, self.router, self.strategy, self.settings)
+            return engine.run_flat(texts, self.taxonomy, backend, strategy, settings)
+        return engine.run_tree(texts, self.taxonomy, self.router, strategy, settings)
 
     def _token_counter(self) -> Callable[[str], int]:
         tokenizer = self._resolve(self.backend).tokenizer()

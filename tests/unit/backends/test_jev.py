@@ -201,3 +201,37 @@ def test_jev_properties_and_registry(monkeypatch):
     assert resolve_backend("jev").name == "jev:jev-1.13.0"
     with pytest.raises(BackendError, match="revision"):
         resolve_backend("jev:jev-1.13.0@abc")
+
+
+def test_jev_sdk_failure_does_not_leak_key(install, monkeypatch):
+    fake = install(choice_probs={})
+    monkeypatch.setenv("TYPESAFE_API_KEY", "sk-SECRET-VALUE-123\n")
+
+    async def boom(self, *args, **kwargs):
+        raise RuntimeError("401 bad credentials sk-SECRET-VALUE-123")
+
+    monkeypatch.setattr(fake.AsyncTypeSafeClient, "system_one", boom)
+    with pytest.raises(BackendError) as info:
+        JevBackend().score(["t"], CANDIDATES)
+    assert "sk-SECRET-VALUE-123" not in str(info.value)
+    assert "RuntimeError" in str(info.value)
+    assert info.value.__cause__ is None
+
+
+@pytest.mark.parametrize("multi_label", [False, True])
+def test_jev_malformed_response_is_backend_error(install, monkeypatch, multi_label):
+    fake = install(choice_probs={})
+
+    async def odd(self, state, questions, *, model=None):
+        return SimpleNamespace(choices={}, nouls=None)  # no "choice" answer; nouls not a mapping
+
+    monkeypatch.setattr(fake.AsyncTypeSafeClient, "system_one", odd)
+    with pytest.raises(BackendError, match="unexpected response shape"):
+        JevBackend().score(["t"], CANDIDATES, multi_label=multi_label)
+
+    async def no_attrs(self, state, questions, *, model=None):
+        return object()
+
+    monkeypatch.setattr(fake.AsyncTypeSafeClient, "system_one", no_attrs)
+    with pytest.raises(BackendError, match="unexpected response shape"):
+        JevBackend().score(["t"], CANDIDATES, multi_label=multi_label)

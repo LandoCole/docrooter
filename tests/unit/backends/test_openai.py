@@ -156,3 +156,53 @@ def test_openai_properties_and_registry(monkeypatch):
     assert b.supports("x") and b.tokenizer() is None
     with pytest.raises(BackendError, match="revision"):
         resolve_backend("openai:gpt-4o-mini@abc")
+
+
+def test_openai_api_key_is_stripped():
+    seen = []
+
+    def handler(request):
+        seen.append(request.headers["authorization"])
+        return httpx.Response(200, json=completion("1"))
+
+    b = OpenAIBackend("m", base_url="http://llm.test/v1", api_key=" k\n")
+    b._transport = httpx.MockTransport(handler)
+    b.score(["t"], CANDIDATES)
+    assert seen == ["Bearer k"]
+    assert OpenAIBackend("m", base_url="http://x.test", api_key=" \n")._api_key is None
+
+
+SECRET = "sk-SECRET-VALUE-123"
+
+
+def test_openai_transport_error_does_not_leak_key():
+    def handler(request):
+        raise httpx.LocalProtocolError(f"Illegal header value b'Bearer {SECRET}\\n'")
+
+    b = OpenAIBackend("m", base_url="http://llm.test/v1", api_key=SECRET + "\n")
+    b._transport = httpx.MockTransport(handler)
+    with pytest.raises(BackendError) as info:
+        b.score(["t"], CANDIDATES)
+    assert SECRET not in str(info.value)
+    assert "LocalProtocolError" in str(info.value)
+    assert info.value.__cause__ is None and info.value.__suppress_context__
+
+
+def test_openai_http_error_body_does_not_leak_key():
+    def handler(request):
+        return httpx.Response(401, text=f'{{"error": "Incorrect API key provided: {SECRET}"}}')
+
+    b = OpenAIBackend("m", base_url="http://llm.test/v1", api_key=SECRET)
+    b._transport = httpx.MockTransport(handler)
+    with pytest.raises(BackendError, match="401") as info:
+        b.score(["t"], CANDIDATES)
+    assert SECRET not in str(info.value)
+
+
+def test_redact_helper():
+    from docrooter.backends._secrets import redact
+
+    assert redact(f"a {SECRET} b {SECRET}", SECRET) == "a *** b ***"
+    assert redact(f"Bearer {SECRET}\n", f" {SECRET}\n") == "Bearer ***\n"
+    assert redact("plain", None) == "plain" and redact("plain", "") == "plain"
+    assert redact(ValueError("x"), "y") == "x"

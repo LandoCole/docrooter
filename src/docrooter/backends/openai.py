@@ -13,6 +13,7 @@ import numpy as np
 
 from docrooter._extras import require
 from docrooter.backends._async import run_sync
+from docrooter.backends._secrets import redact
 from docrooter.backends.base import Candidate, Scores
 from docrooter.backends.mlm_choice import build_choice_prompt
 from docrooter.errors import BackendError
@@ -105,7 +106,8 @@ class OpenAIBackend:
         self.base_url = (
             base_url or _first_env("DOCROOTER_LLM_BASE_URL", "OPENAI_BASE_URL") or DEFAULT_BASE_URL
         ).rstrip("/")
-        self._api_key = api_key or _first_env("DOCROOTER_LLM_API_KEY", "OPENAI_API_KEY")
+        key = (api_key or _first_env("DOCROOTER_LLM_API_KEY", "OPENAI_API_KEY") or "").strip()
+        self._api_key: str | None = key or None
         if self._api_key is None and self.base_url == DEFAULT_BASE_URL:
             raise BackendError(
                 "no API key for the openai backend: set DOCROOTER_LLM_API_KEY or OPENAI_API_KEY "
@@ -138,11 +140,12 @@ class OpenAIBackend:
         try:
             response = await client.post("/chat/completions", json=body)
         except httpx.HTTPError as exc:
-            raise BackendError(f"{self.name}: request failed: {exc!r}") from exc
-        if response.status_code >= 400:
             raise BackendError(
-                f"{self.name}: HTTP {response.status_code}: {response.text[:300].strip()}"
-            )
+                f"{self.name}: request failed: {type(exc).__name__}: {redact(exc, self._api_key)}"
+            ) from None
+        if response.status_code >= 400:
+            excerpt = redact(response.text[:300].strip(), self._api_key)
+            raise BackendError(f"{self.name}: HTTP {response.status_code}: {excerpt}")
         try:
             return response.json()
         except ValueError as exc:

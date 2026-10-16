@@ -11,6 +11,7 @@ import numpy as np
 
 from docrooter._extras import require
 from docrooter.backends._async import run_sync
+from docrooter.backends._secrets import redact
 from docrooter.backends.base import Candidate, ScoreKind, Scores
 from docrooter.errors import BackendError
 
@@ -118,9 +119,16 @@ class JevBackend:
                         )
                     except Exception as exc:
                         raise BackendError(
-                            f"{self.name}: request failed: {type(exc).__name__}: {exc}"
-                        ) from exc
-                return read(response)
+                            f"{self.name}: request failed: {type(exc).__name__}: "
+                            f"{redact(exc, self._api_key)}"
+                        ) from None
+                try:
+                    return read(response)
+                except (AttributeError, KeyError, TypeError, ValueError) as exc:
+                    raise BackendError(
+                        f"{self.name}: unexpected response shape: {type(exc).__name__}: "
+                        f"{redact(exc, self._api_key)}"
+                    ) from None
 
             rows = await asyncio.gather(*(one(t) for t in texts))
         return np.vstack(rows)

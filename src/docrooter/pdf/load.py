@@ -272,11 +272,12 @@ def _assemble(
 ) -> list[RawHeading]:
     """Heading blocks with their body text, preceded by the preamble (level 0).
 
-    A heading's body is the non-excluded lines (running headers/footers, page numbers, printed
-    TOC pages) after its title lines and before the next heading, joined with newlines. The
-    preamble holds the lines before the first heading; it is omitted when empty unless the PDF
-    has no headings at all (a text-less PDF still yields one empty ``s0``)."""
-    skip = signals.excluded | signals.toc_page_lines
+    A heading's body is the lines after its title lines and before the next heading, minus
+    running headers/footers, page numbers and high-confidence printed TOC pages
+    (``toc_body_lines``), joined with newlines. The preamble holds the lines before the first
+    heading; it is omitted when empty unless the PDF has no headings at all (a text-less PDF
+    still yields one empty ``s0``)."""
+    skip = signals.excluded | signals.toc_body_lines
 
     def body(start: int, stop: int) -> tuple[str, int | None]:
         kept = [lines[k] for k in range(start, stop) if k not in skip]

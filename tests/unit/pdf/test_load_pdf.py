@@ -348,3 +348,22 @@ def test_pymupdf4llm_defaults_to_the_v01_score(monkeypatch, toc_pdf):
     with pytest.raises(DocrooterError):
         load_pdf(toc_pdf, engine="pymupdf4llm", min_heading_score=0.7)
     assert seen["score"] == 0.7
+
+
+def test_dot_leader_table_keeps_its_body_text_and_contents_page_still_leaves(tmp_path):
+    pdf = pymupdf.open()
+    contents = pdf.new_page(width=612, height=792)
+    contents.insert_text((72, 90), "Table of Contents", fontsize=16, fontname="hebo")
+    for k, (title, page_no) in enumerate([("Results", 2), ("Outlook", 2), ("Notes", 2)]):
+        contents.insert_text((72, 130 + 20 * k), f"{title} {'.' * 40} {page_no}", fontsize=11)
+    table = _page(pdf, [("h1", "Results"), ("p", BODY)])
+    labels = ["Revenues", "Operating expenses", "Interest expense", "Pre-tax earnings",
+              "Income taxes", "Net earnings"]  # fmt: skip
+    for k, label in enumerate(labels):
+        table.insert_text((72, 300 + 16 * k), f"{label} " + ". " * 25, fontsize=11)
+        table.insert_text((450, 300 + 16 * k), f"${60 + k},{100 + k}", fontsize=11)
+    doc = load_pdf(_write(pdf, tmp_path / "table.pdf"), engine="pymupdf")
+    text = "\n".join(s.text for s in doc.walk())
+    assert all(label in text for label in labels) and "$65,105" in text
+    assert "Outlook" not in text  # the real contents page is still removed from the body
+    assert doc.meta["printed_toc_entries"] == 3

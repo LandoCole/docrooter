@@ -40,6 +40,11 @@ _SECTION_SAME_Y_TOLERANCE = 2.0  # pt
 _SIZE_FACTOR = 1.15  # size >= 1.15 x body makes a line a heading candidate on its own
 _TOC_MIN_LINES = 5
 _TOC_HEADED_MIN_LINES = 3
+# A line ending in leaders without a page number ("Revenues . . . . .") is also how financial
+# tables are set, so bare-leader lines count towards a contents page only on a page headed
+# "Contents" / "Table of Contents" or one with at least this many page-numbered entries.
+_TOC_LEADER_MIN_NUMBERED = 3
+_TOC_HEADING_WINDOW = 5  # a contents heading among a page's first lines heads the page
 # Contents pages that the leader regex misses (P5b): the page number is a separate line on the
 # title's row, the line ends in leaders without a number, or (RFC style) the page is a list of
 # short section-numbered lines with no page numbers at all. Tables and code listings look alike,
@@ -89,14 +94,18 @@ _FUZZY_THRESHOLD = 0.85
 
 
 class DocSignals(BaseModel):
-    """Document-wide typography and layout signals. ``excluded`` and ``toc_page_lines`` hold
-    indexes into the ``lines`` list given to :func:`compute_signals`."""
+    """Document-wide typography and layout signals. ``excluded``, ``toc_page_lines`` and
+    ``toc_body_lines`` hold indexes into the ``lines`` list given to :func:`compute_signals`."""
 
     body_size: float
     median_gap: float  # median positive line gap among non-excluded lines (0.0 if none)
     excluded: set[int] = Field(default_factory=set)  # running headers/footers, page numbers
     printed_toc: list[tuple[str, str]] = Field(default_factory=list)  # (title, page label)
     toc_page_lines: set[int] = Field(default_factory=set)  # every non-excluded line on a TOC page
+    # Lines of the high-confidence TOC pages (headed "Contents", or enough page-numbered
+    # entries on their own): removed from body text. Other TOC pages are only kept out of the
+    # headings, since a table can look like a contents list.
+    toc_body_lines: set[int] = Field(default_factory=set)
     bookmarks: list[tuple[int, str, int]] = Field(default_factory=list)  # (level, title, page)
 
 
@@ -242,28 +251,30 @@ def _mostly_ordered(values: Sequence[tuple[int, ...]]) -> bool:
 
 def _toc_entries(
     lines: Sequence[Line], indexes: Sequence[int], n_pages: int
-) -> dict[int, tuple[str, str]]:
-    """Contents entries on one page: leader lines with a trailing page number, a separate
-    same-row page number (kept only when those numbers run in order), or bare leaders."""
-    entries: dict[int, tuple[str, str]] = {}
+) -> tuple[dict[int, tuple[str, str]], dict[int, tuple[str, str]]]:
+    """Contents entries on one page as ``(page-numbered, bare-leader)``: page-numbered entries
+    are leader lines with a trailing page number or a separate same-row page number (kept only
+    when those numbers run in order); bare-leader entries end in leaders without a number."""
+    numbered: dict[int, tuple[str, str]] = {}
+    leaders: dict[int, tuple[str, str]] = {}
     row_entries: dict[int, tuple[str, str]] = {}
     for i in indexes:
         text = lines[i].text.strip()
         match = _TOC_LINE.match(text)
         if match and any(c.isalpha() for c in match.group(1)):
-            entries[i] = (_TOC_TRAILING.sub("", match.group(1)).strip(), match.group(2))
+            numbered[i] = (_TOC_TRAILING.sub("", match.group(1)).strip(), match.group(2))
         elif (label := _row_page_number(lines, i)) is not None and any(c.isalpha() for c in text):
             row_entries[i] = (_TOC_TRAILING.sub("", text).strip(), label)
-        elif leaders := _TOC_LEADERS.match(text):
-            entries[i] = (leaders.group(1).strip(), "")
+        elif bare := _TOC_LEADERS.match(text):
+            leaders[i] = (bare.group(1).strip(), "")
     labels = [int(label) for _, label in row_entries.values()]
     if (
         _mostly_ordered([(label,) for label in labels])
         and len(set(labels)) >= max(_TOC_MIN_LINES, _TOC_DISTINCT_FRACTION * len(labels))
         and max(labels, default=0) <= n_pages
     ):
-        entries.update(row_entries)
-    return dict(sorted(entries.items()))
+        numbered.update(row_entries)
+    return numbered, leaders
 
 
 def _numbered_contents(lines: Sequence[Line], indexes: Sequence[int]) -> list[int]:
@@ -288,27 +299,36 @@ def _numbered_contents(lines: Sequence[Line], indexes: Sequence[int]) -> list[in
 
 def _find_printed_toc(
     lines: Sequence[Line], excluded: set[int], n_pages: int
-) -> tuple[list[tuple[str, str]], set[int]]:
+) -> tuple[list[tuple[str, str]], set[int], set[int]]:
+    """Printed contents entries, the lines of every contents page (never headings) and the
+    lines of the high-confidence contents pages (also removed from body text)."""
     by_page: defaultdict[int, list[int]] = defaultdict(list)
     for i, line in enumerate(lines):
         if i not in excluded:
             by_page[line.page].append(i)
     entries: list[tuple[str, str]] = []
     toc_lines: set[int] = set()
+    body_lines: set[int] = set()
     for page in sorted(by_page):
         indexes = by_page[page]
-        found = _toc_entries(lines, indexes, n_pages)
-        headed = _is_contents_heading(lines[indexes[0]].text)
+        numbered, leaders = _toc_entries(lines, indexes, n_pages)
+        headed = any(_is_contents_heading(lines[i].text) for i in indexes[:_TOC_HEADING_WINDOW])
+        counted = numbered
+        if headed or len(numbered) >= _TOC_LEADER_MIN_NUMBERED:
+            counted = {**numbered, **leaders}
+        found = dict(sorted(counted.items()))
+        page_lines: set[int] = set()
         if len(found) >= _TOC_MIN_LINES or (headed and len(found) >= _TOC_HEADED_MIN_LINES):
-            toc_lines.update(i for i in indexes if not _is_contents_heading(lines[i].text))
+            page_lines = {i for i in indexes if not _is_contents_heading(lines[i].text)}
             entries.extend(found.values())
-        elif numbered := _numbered_contents(lines, indexes):
-            end = _contents_end(lines, indexes, numbered)
-            toc_lines.update(
-                i for i in indexes if i < end and not _is_contents_heading(lines[i].text)
-            )
-            entries.extend((lines[i].text.strip(), "") for i in numbered if i < end)
-    return entries, toc_lines
+        elif numbered_lines := _numbered_contents(lines, indexes):
+            end = _contents_end(lines, indexes, numbered_lines)
+            page_lines = {i for i in indexes if i < end and not _is_contents_heading(lines[i].text)}
+            entries.extend((lines[i].text.strip(), "") for i in numbered_lines if i < end)
+        toc_lines |= page_lines
+        if headed or len(numbered) >= _TOC_MIN_LINES:
+            body_lines |= page_lines
+    return entries, toc_lines, body_lines
 
 
 def _contents_end(lines: Sequence[Line], indexes: Sequence[int], numbered: Sequence[int]) -> int:
@@ -347,13 +367,14 @@ def compute_signals(
         for i, line in enumerate(lines)
         if i not in excluded and _MIN_POSITIVE_GAP < line.gap_above < math.inf
     ]
-    entries, toc_lines = _find_printed_toc(lines, excluded, n_pages)
+    entries, toc_lines, toc_body_lines = _find_printed_toc(lines, excluded, n_pages)
     return DocSignals(
         body_size=_body_size(lines),
         median_gap=statistics.median(gaps) if gaps else 0.0,
         excluded=excluded,
         printed_toc=entries,
         toc_page_lines=toc_lines,
+        toc_body_lines=toc_body_lines,
         bookmarks=[(int(lvl), str(title), int(page)) for lvl, title, page in bookmarks or []],
     )
 

@@ -367,3 +367,72 @@ def test_section_running_header_with_page_number_is_excluded_within_its_section(
             lines.append(mk(page, f"Chapter 3 · {page}", size=8.0, y0=20))
         lines += body_page(page)
     assert compute_signals(lines, 40).excluded == header_idx
+
+
+FINANCIAL_ROWS = [
+    "Revenues . . . . . . . . . . . . . . . . . . . . . . . . . .",
+    "Operating expenses . . . . . . . . . . . . . . . . . . . . .",
+    "Interest expense . . . . . . . . . . . . . . . . . . . . . .",
+    "Pre-tax earnings . . . . . . . . . . . . . . . . . . . . . .",
+    "Income taxes and minority interests . . . . . . . . . . . . .",
+    "Net earnings . . . . . . . . . . . . . . . . . . . . . . . . .",
+]
+
+
+def _financial_table_page(page):
+    """A financial statement: dot-leader labels with the amounts in a separate column."""
+    lines = [mk(page, "Earnings Statement (in millions)", y0=80.0)]
+    for k, label in enumerate(FINANCIAL_ROWS):
+        y0 = 110.0 + 20 * k
+        lines.append(mk(page, label, y0=y0, w=300.0))
+        amount = mk(page, f"${60 + k},{100 + k}", y0=y0, w=50.0)
+        lines.append(amount.model_copy(update={"x0": 450.0, "x1": 500.0}))
+    return lines
+
+
+def test_dot_leader_financial_table_is_not_a_toc_page():
+    lines = body_page(1) + _financial_table_page(2) + body_page(3)
+    s = compute_signals(lines, 3)
+    assert s.printed_toc == [] and s.toc_page_lines == set() and s.toc_body_lines == set()
+
+
+def test_bare_leaders_count_on_a_contents_headed_page():
+    lines = [mk(2, "Contents", y0=60.0)]
+    titles = ["Letter", "Insurance", "Utilities", "Investments"]
+    lines += [mk(2, f"{t} . . . . . . . . .", y0=100.0 + 20 * k) for k, t in enumerate(titles)]
+    s = compute_signals(lines + body_page(3), 3)
+    assert ("Insurance", "") in s.printed_toc
+    assert s.toc_page_lines == {1, 2, 3, 4} and s.toc_body_lines == {1, 2, 3, 4}
+
+
+def test_bare_leaders_count_with_three_page_numbered_entries():
+    lines = [mk(2, f"Part {k} .......... {k + 2}", y0=100.0 + 20 * k) for k in range(3)]
+    lines += [mk(2, f"Annex {k} . . . . . . . . .", y0=200.0 + 20 * k) for k in range(2)]
+    s = compute_signals(lines + body_page(3), 3)
+    assert ("Annex 1", "") in s.printed_toc and s.toc_page_lines == set(range(5))
+    # A contents page only by its bare leaders is kept out of the headings, not the body.
+    assert s.toc_body_lines == set()
+
+
+def test_page_numbered_contents_page_leaves_the_body():
+    toc = [("Introduction", "3"), ("Risk Factors", "7"), ("Business Overview", "12"),
+           ("Financial Results", "20"), ("Governance", "31")]  # fmt: skip
+    lines = [mk(2, f"{t} " + "." * 30 + f" {p}") for t, p in toc] + body_page(3)
+    s = compute_signals(lines, 3)
+    assert s.toc_page_lines == s.toc_body_lines == set(range(5))
+
+
+def test_unheaded_numbered_contents_stays_in_the_body():
+    entries = [f"{n}.{k}.\xa0\xa0Entry {n} {k}" for n in (1, 2, 3) for k in range(1, 4)]
+    lines = [mk(2, e, y0=100.0 + 20 * k) for k, e in enumerate(entries)] + body_page(3)
+    s = compute_signals(lines, 3)
+    assert s.toc_page_lines == set(range(len(entries))) and s.toc_body_lines == set()
+
+
+def test_contents_heading_below_a_masthead_still_heads_the_page():
+    lines = [mk(3, "ACME HOLDINGS INC.", y0=60.0), mk(3, "2023 ANNUAL REPORT", y0=80.0),
+             mk(3, "TABLE OF CONTENTS", y0=100.0)]  # fmt: skip
+    lines += [mk(3, f"{t} . . . . . . . . . . . .", y0=130.0 + 20 * k)
+              for k, t in enumerate(["Letter", "Insurance", "Railroad", "Utilities"])]  # fmt: skip
+    s = compute_signals(lines + body_page(4), 4)
+    assert ("Railroad", "") in s.printed_toc and {3, 4, 5, 6} <= s.toc_body_lines

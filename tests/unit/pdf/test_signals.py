@@ -301,3 +301,44 @@ def test_same_height_bold_section_footer_is_a_running_line():
             footer_idx.add(len(lines))
             lines.append(mk(page, "2.2. Address Map", size=14.0, bold=True, y0=H - 40))
     assert compute_signals(lines, 40).excluded == footer_idx
+
+
+def _openers(n_pages, label, opener_pages):
+    """Body pages with "<label> 1", "<label> 2", ... (no period) at the top of ``opener_pages``."""
+    lines = []
+    for page in range(1, n_pages + 1):
+        if page in opener_pages:
+            lines.append(mk(page, f"{label} {opener_pages.index(page) + 1}", y0=30))
+        lines += body_page(page)
+    return lines
+
+
+def test_numbered_openers_of_a_short_document_are_not_running_lines():
+    # On >= 30% of a short document's pages, the openers used to collapse into one "chapter #"
+    # running-line key; the number after a numbering word is part of the title.
+    for n_pages, label, opener_pages in [
+        (9, "Chapter", [1, 4, 7]),
+        (10, "Item", [1, 4, 7]),
+        (12, "Chapter", [1, 4, 7, 10]),
+    ]:
+        assert compute_signals(_openers(n_pages, label, opener_pages), n_pages).excluded == set()
+
+
+def test_page_numbered_running_footer_of_a_short_document_is_still_excluded():
+    lines, footer_idx = [], set()
+    for page in range(1, 10):
+        lines += body_page(page)
+        footer_idx.add(len(lines))
+        lines.append(mk(page, f"Quarterly Report Page {page}", size=8.0, y0=H - 40))
+    assert compute_signals(lines, 9).excluded == footer_idx
+
+
+def test_repeated_large_or_bold_slide_titles_at_different_heights_are_not_running_lines():
+    # Heading-like by size alone (24 pt, not bold) or by weight alone (bold at body size).
+    for size, bold in [(24.0, False), (11.0, True)]:
+        lines = []
+        for page in range(1, 31):
+            if page in (5, 12, 20):
+                lines.append(mk(page, "Market Overview", size=size, bold=bold, y0=10.0 + page))
+            lines += body_page(page)
+        assert compute_signals(lines, 30).excluded == set(), (size, bold)

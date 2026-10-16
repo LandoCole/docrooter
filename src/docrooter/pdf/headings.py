@@ -18,6 +18,7 @@ from docrooter.document.models import RawHeading
 from docrooter.pdf.lines import Line
 from docrooter.pdf.signals import (
     _FUZZY_THRESHOLD,
+    _SIZE_FACTOR,
     DocSignals,
     _edge_copy_key,
     _in_edge_zone,
@@ -28,7 +29,6 @@ from docrooter.pdf.signals import (
 __all__ = ["HeadingCandidate", "find_headings"]
 
 _MAX_WORDS = 20
-_SIZE_FACTOR = 1.15  # size >= 1.15 x body makes a line a candidate on its own
 _ISOLATION_GAP_FACTOR = 1.2  # x median gap
 _ISOLATION_SIZE_FACTOR = 0.5  # x line size; the median gap alone is ordinary leading
 _MERGE_GAP_FACTOR = 1.5  # x median gap

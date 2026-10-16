@@ -31,13 +31,13 @@ _RECURRENCE_MINIMUM = 3
 # A section running line (the current section's title printed in the edge band of each of its
 # pages) recurs on far fewer than 30% of a long document's pages. Matched on its exact text
 # minus a leading/trailing page number, so "Item 1." and "Item 2." stay distinct (P5b). It must
-# recur on 3 pages; a line that is a heading candidate by size (bold and >= 1.15 x body, e.g. a
-# repeated slide title) counts only when it sits at the same height (+/- 2 pt) on 3 pages, as
-# running lines do. No share-of-pages floor: a datasheet's sections span 3-10 of 642 pages, and
-# max(3, 10% of pages) cut TOC micro F1 from 0.702 to 0.580 (P5b fix round 1).
+# recur on 3 pages; a heading-like line (bold, or >= 1.15 x body, e.g. a repeated slide title)
+# counts only when it sits at the same height (+/- 2 pt) on 3 pages, as running lines do. No
+# share-of-pages floor: a datasheet's sections span 3-10 of 642 pages, and max(3, 10% of
+# pages) cut TOC micro F1 from 0.702 to 0.580 (P5b fix round 1).
 _SECTION_RECURRENCE_MINIMUM = 3
 _SECTION_SAME_Y_TOLERANCE = 2.0  # pt
-_HEADING_SIZE_FACTOR = 1.15  # same as the heading pre-filter
+_SIZE_FACTOR = 1.15  # size >= 1.15 x body makes a line a heading candidate on its own
 _TOC_MIN_LINES = 5
 _TOC_HEADED_MIN_LINES = 3
 # Contents pages that the leader regex misses (P5b): the page number is a separate line on the
@@ -65,15 +65,13 @@ _TOC_TRAILING = re.compile(r"[\s.·…_-]+$")
 _TOC_LEADERS = re.compile(r"^(.*?[^\W\d_].*?)\s*(?:[.·…_]\s?){5,}$")  # not an ellipsis
 _TOC_NUMBERED = re.compile(r"^(\d{1,3}(?:\.\d{1,3})*)\.?\s+\S")
 _TOC_HEADINGS = frozenset({"contents", "table of contents"})
-_DIGITS = re.compile(r"\d+")
 _EDGE_LEADING_NUMBER = re.compile(r"^\d{1,4}\s+")
 _EDGE_TRAILING_NUMBER = re.compile(r"\s+\d{1,4}$")
 # A trailing number after one of these words is the title's own number ("Chapter 2"), not a
 # page number.
-_NUMBERING_WORD = re.compile(
-    r"\b(?:chapter|part|section|item|appendix|article|schedule|exhibit|annex|table|figure)$",
-    re.IGNORECASE,
-)
+_NUMBERING_WORDS = r"chapter|part|section|item|appendix|article|schedule|exhibit|annex|table|figure"
+_NUMBERING_WORD = re.compile(rf"\b(?:{_NUMBERING_WORDS})$", re.IGNORECASE)
+_NUMBERED_OR_DIGITS = re.compile(rf"(\b(?:{_NUMBERING_WORDS})\s+)?\d+", re.IGNORECASE)
 _SPACE = re.compile(r"\s+")
 _LEADING_NUMBER = re.compile(
     r"^(?:(?:chapter|section|part|item|article|appendix)\s+)?"
@@ -126,7 +124,13 @@ def _is_page_number(text: str) -> bool:
 
 
 def _running_key(text: str) -> str:
-    return _SPACE.sub(" ", _DIGITS.sub("#", text.casefold())).strip()
+    """Text with page numbers generalised to ``#``; a number right after a numbering word
+    ("Chapter 2", "Item 1A") is the title's own and keeps its digits."""
+    return _SPACE.sub(" ", _NUMBERED_OR_DIGITS.sub(_mask_digits, text.casefold())).strip()
+
+
+def _mask_digits(match: re.Match[str]) -> str:
+    return match.group(0) if match.group(1) else "#"
 
 
 def _strip_page_number(text: str) -> str:
@@ -190,7 +194,7 @@ def _is_section_running_line(line: Line, copies: Sequence[Line], body: float) ->
     at the same height on at least 3 pages, as running lines are (P5b)."""
     if len({copy.page for copy in copies}) < _SECTION_RECURRENCE_MINIMUM:
         return False
-    if not (line.bold and body > 0 and line.size >= _HEADING_SIZE_FACTOR * body):
+    if not (line.bold or (body > 0 and line.size >= _SIZE_FACTOR * body)):
         return True
     same_y = {copy.page for copy in copies if abs(copy.y0 - line.y0) <= _SECTION_SAME_Y_TOLERANCE}
     return len(same_y) >= _SECTION_RECURRENCE_MINIMUM

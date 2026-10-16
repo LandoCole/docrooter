@@ -158,11 +158,15 @@ def _teacher_forced(
     that no backend can decide is skipped.
     """
     by_node: dict[str, tuple[list[str], list[str]]] = {}
-    for example in dataset:
+    # the backends see truncated text in classify_texts, so teacher-force on the same text
+    prepared = clf.prepare_texts([e.text for e in dataset])
+    for example, text in zip(dataset, prepared, strict=True):
+        if not text.strip():  # blank text never reaches a backend
+            continue
         parents = [Taxonomy.ROOT_ID, *example.path[:-1]]
         for parent, child in zip(parents, example.path, strict=True):
             texts, golds = by_node.setdefault(parent, ([], []))
-            texts.append(example.text)
+            texts.append(text)
             golds.append(child)
     order = [Taxonomy.ROOT_ID, *clf.taxonomy.nodes]
     accuracy: dict[str, float] = {}
@@ -191,8 +195,10 @@ def evaluate(clf: Classifier, dataset: Dataset, *, node_decisions: bool = True) 
     resolved = dataset.resolve(clf.taxonomy)
     texts = [e.text for e in resolved]
     gold = [list(e.path) for e in resolved]
-    if texts:
-        clf.classify_texts(texts[:1])  # warm-up: loads models, builds caches
+    # warm-up on a non-blank text (blank ones never reach a backend): loads models, builds caches
+    warm = next((t for t in texts if t.strip()), None)
+    if warm is not None:
+        clf.classify_texts([warm])
     start = time.perf_counter()
     results = clf.classify_texts(texts) if texts else []
     elapsed = time.perf_counter() - start
@@ -277,5 +283,10 @@ class Comparison:
 
 
 def compare(classifiers: dict[str, Classifier], dataset: Dataset) -> Comparison:
-    """Evaluate every classifier on ``dataset``; ``Comparison.print()`` shows them side by side."""
-    return Comparison({name: evaluate(clf, dataset) for name, clf in classifiers.items()})
+    """Evaluate every classifier on ``dataset``; ``Comparison.print()`` shows them side by side.
+
+    Per-node decisions are skipped: the comparison table has no use for them.
+    """
+    return Comparison(
+        {name: evaluate(clf, dataset, node_decisions=False) for name, clf in classifiers.items()}
+    )

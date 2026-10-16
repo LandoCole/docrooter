@@ -189,14 +189,23 @@ class Classifier:
         self._warn_no_backend(results.values())
         return out
 
+    def prepare_texts(self, texts: Sequence[str]) -> list[str]:
+        """The texts as the backends see them: cut to ``view.max_tokens`` (blank ones unchanged).
+
+        :meth:`classify_texts` scores exactly these; use them with :meth:`decide` to get the
+        same decisions.
+        """
+        count = self._token_counter() if any(t.strip() for t in texts) else estimate_tokens
+        return [_truncate(t, self.view.max_tokens, count)[0] if t.strip() else t for t in texts]
+
     def classify_texts(self, texts: list[str]) -> list[SectionResult]:
         """Classify plain texts; the results have section ids ``"0"``, ``"1"``, ..."""
-        count = self._token_counter() if any(t.strip() for t in texts) else estimate_tokens
+        prepared = self.prepare_texts(texts)
         keyed: dict[str, str] = {}
         truncated: dict[str, bool] = {}
-        for i, text in enumerate(texts):
+        for i, (text, cut) in enumerate(zip(texts, prepared, strict=True)):
             if text.strip():  # blank text is never sent to a backend
-                keyed[str(i)], truncated[str(i)] = _truncate(text, self.view.max_tokens, count)
+                keyed[str(i)], truncated[str(i)] = cut, cut != text
         results = self._run(keyed)
         out = []
         for i, text in enumerate(texts):

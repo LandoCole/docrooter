@@ -156,3 +156,41 @@ def test_cli_eval_bad_format_and_missing_extra():
     assert runner.invoke(app, [*base, "--format", "xml"]).exit_code != 0
     bad = runner.invoke(app, ["eval", "-t", str(NESTED), "-d", str(SMALL), "-b", "nope:x"])
     assert bad.exit_code == 1 and "error:" in bad.output
+
+
+def test_warm_up_skips_blank_first_text(tax):
+    clf = Classifier(tax, backend=KeywordBackend(), threshold=0)
+    seen = []
+    real = clf.classify_texts
+    clf.classify_texts = lambda texts: (seen.append(list(texts)), real(texts))[1]
+    ds = Dataset([Example(text="  ", path=["financial"]), Example(text="tax", path=["financial"])])
+    evaluate(clf, ds, node_decisions=False)
+    assert seen[0] == ["tax"] and len(seen[1]) == 2
+
+
+def test_compare_skips_node_decisions(tax):
+    clf = Classifier(tax, backend=KeywordBackend(), threshold=0)
+    decided = []
+    real = clf.decide
+    clf.decide = lambda texts, node_id: (decided.append(node_id), real(texts, node_id))[1]
+    compare({"kw": clf}, Dataset.load(SMALL))
+    assert decided == []
+
+
+def test_decide_sees_the_text_classify_texts_scores(tax):
+    from docrooter import SectionView
+
+    long_text = " ".join(f"word{i}" for i in range(200))
+    clf = Classifier(tax, backend=KeywordBackend(), threshold=0, view=SectionView(max_tokens=10))
+    cut = clf.prepare_texts([long_text, "  "])
+    assert len(cut[0].split()) < 200 and cut[0] == " ".join(
+        long_text.split()[: len(cut[0].split())]
+    )
+    assert cut[1] == "  "
+    seen = []
+    real = clf.decide
+    clf.decide = lambda texts, node_id: (seen.append(list(texts)), real(texts, node_id))[1]
+    ds = Dataset([Example(text=long_text, path=["financial"]), Example(text="x", path=["legal"])])
+    evaluate(clf, ds)
+    assert seen and all(long_text not in batch for batch in seen)
+    assert cut[0] in seen[0]

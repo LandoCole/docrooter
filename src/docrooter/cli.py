@@ -129,6 +129,66 @@ def classify(
     console.print(Text(f"wrote {out}"))
 
 
+@app.command("eval")
+def eval_(
+    taxonomy: Annotated[
+        Path,
+        typer.Option(
+            "--taxonomy",
+            "-t",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Taxonomy file (JSON or CSV).",
+        ),
+    ],
+    dataset: Annotated[
+        Path,
+        typer.Option(
+            "--dataset",
+            "-d",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Labelled examples (JSONL or CSV).",
+        ),
+    ],
+    backend: Annotated[
+        str, typer.Option("--backend", "-b", help="Backend spec, e.g. keyword or embedding:MODEL.")
+    ] = DEFAULT_BACKEND,
+    strategy: Annotated[str, typer.Option(help="Traversal: greedy, beam:N or flat.")] = "beam:3",
+    threshold: Annotated[float, typer.Option(help="Minimum probability to follow a label.")] = 0.35,
+    fmt: Annotated[
+        str, typer.Option("--format", help="Output format: table, md or json.")
+    ] = "table",
+) -> None:
+    """Evaluate a backend on a labelled dataset: accuracy, hierarchical F1, speed."""
+    from docrooter.classify.classifier import Classifier
+    from docrooter.evaluate import evaluate
+    from docrooter.train.dataset import Dataset
+
+    if fmt not in ("table", "md", "json"):
+        raise typer.BadParameter(
+            f"invalid format {fmt!r}; use 'table', 'md' or 'json'", param_hint="--format"
+        )
+    chosen = _parse_strategy(strategy)
+    try:
+        classifier = Classifier(
+            Taxonomy.load(taxonomy), backend, strategy=chosen, threshold=threshold
+        )
+        report = evaluate(classifier, Dataset.load(dataset))
+    except (DocrooterError, ImportError) as exc:
+        Console(stderr=True, highlight=False).print(Text(f"error: {exc}", style="red"))
+        raise typer.Exit(1) from exc
+
+    if fmt == "json":
+        typer.echo(report.to_json())
+    elif fmt == "md":
+        typer.echo(report.to_markdown())
+    else:
+        report.print()
+
+
 @taxonomy_app.callback()
 def taxonomy_main() -> None:
     """Work with taxonomy files."""

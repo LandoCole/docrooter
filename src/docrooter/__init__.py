@@ -3,6 +3,7 @@
 from docrooter.classify import Beam, Classifier, Flat, Greedy
 from docrooter.document import Document, Section
 from docrooter.document.load import load
+from docrooter.evaluate import compare, evaluate
 from docrooter.taxonomy import Taxonomy, TaxonomyNode
 from docrooter.train import Dataset
 from docrooter.views import SectionView
@@ -21,5 +22,7 @@ __all__ = [
     "Taxonomy",
     "TaxonomyNode",
     "__version__",
+    "compare",
+    "evaluate",
     "load",
 ]

@@ -57,16 +57,23 @@ def _load_factory(kind: str) -> Callable[..., Backend]:
     return obj
 
 
-def resolve_backend(spec: str | Backend, **kwargs: Any) -> Backend:
-    """Return a backend for ``spec``; backend instances pass through unchanged."""
-    if not isinstance(spec, str):
-        return spec
+def check_spec(spec: str) -> tuple[str, str, str | None]:
+    """Parse ``spec`` like :func:`parse_spec`, raising ``BackendError`` for an unknown kind or
+    a missing required model. Nothing is imported or loaded."""
     kind, model, revision = parse_spec(spec)
     if kind not in _KINDS:
         known = ", ".join(sorted(_KINDS))
         raise BackendError(f"unknown backend kind {kind!r}; known kinds: {known}")
     if not model and kind in _MODEL_REQUIRED and _KINDS[kind] == _BUILTIN[kind]:
         raise BackendError(_MODEL_REQUIRED[kind])
+    return kind, model, revision
+
+
+def resolve_backend(spec: str | Backend, **kwargs: Any) -> Backend:
+    """Return a backend for ``spec``; backend instances pass through unchanged."""
+    if not isinstance(spec, str):
+        return spec
+    kind, model, revision = check_spec(spec)
     factory = _load_factory(kind)
     if revision is not None:
         kwargs["revision"] = revision

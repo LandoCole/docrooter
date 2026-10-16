@@ -883,10 +883,12 @@ def serve(
 
     with _errors_exit_1():
         uvicorn = require("uvicorn", "ui")
-        from docrooter.ui.server import create_app, load_env_file
+        from docrooter.ui.server import check_backend_spec, create_app, load_env_file
 
+        check_backend_spec(backend)
         if env_file is not None:
             load_env_file(env_file)
+        application = create_app(backend, host=host, port=port)
     err = Console(stderr=True, highlight=False)
     if not _is_loopback(host):
         err.print(
@@ -898,7 +900,7 @@ def serve(
             soft_wrap=True,
         )
     url = _browser_url(host, port)
-    server = uvicorn.Server(uvicorn.Config(create_app(backend), host=host, port=port))
+    server = uvicorn.Server(uvicorn.Config(application, host=host, port=port))
     if open_browser:
         threading.Thread(target=_open_when_started, args=(server, url), daemon=True).start()
     err.print(Text(f"docrooter playground: {url}"))

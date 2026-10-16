@@ -2,10 +2,13 @@
 cleanup, history, backend switching and the static page. Torch-free: keyword backend and
 generated PDFs."""
 
+import asyncio
 import json
+import logging
 import os
 import tempfile
 import threading
+import time
 
 import pytest
 
@@ -41,9 +44,15 @@ def pdf_bytes(pages: int = 3) -> bytes:
     return data
 
 
+def make_client(backend="keyword", host="127.0.0.1", port=8765):
+    """A TestClient that addresses the app the way a browser would (Host 127.0.0.1:8765)."""
+    app = server.create_app(backend, host=host, port=port)
+    return TestClient(app, base_url=f"http://{host}:{port}")
+
+
 @pytest.fixture
 def client():
-    with TestClient(server.create_app("keyword")) as test_client:
+    with make_client() as test_client:
         yield test_client
 
 
@@ -318,7 +327,7 @@ def test_backend_is_reused_and_switching_closes_the_previous_classifier(monkeypa
     monkeypatch.setitem(registry._KINDS, "closing", ClosingBackend)
     monkeypatch.setattr(ClosingBackend, "made", 0)
     monkeypatch.setattr(ClosingBackend, "closed", 0)
-    with TestClient(server.create_app("closing")) as client:
+    with make_client("closing") as client:
         playground = client.app.state.playground
         for _ in range(2):
             _, events = run(client, "a.md", MARKDOWN)
@@ -337,7 +346,7 @@ def test_backend_is_reused_and_switching_closes_the_previous_classifier(monkeypa
 def test_shutdown_closes_the_loaded_backend(monkeypatch):
     monkeypatch.setitem(registry._KINDS, "closing", ClosingBackend)
     monkeypatch.setattr(ClosingBackend, "closed", 0)
-    with TestClient(server.create_app("closing")) as client:
+    with make_client("closing") as client:
         run(client, "a.md", MARKDOWN)
     assert ClosingBackend.closed == 1
 
@@ -438,10 +447,10 @@ def test_serve_warns_on_a_non_local_host(monkeypatch):
 
     started = []
     monkeypatch.setattr(uvicorn.Server, "run", lambda self: started.append(self.config.host))
-    result = CliRunner().invoke(cli.app, ["serve", "--host", "0.0.0.0", "--port", "8799"])
+    result = CliRunner().invoke(cli.app, ["serve", "--host", "192.168.1.4", "--port", "8799"])
     assert result.exit_code == 0, result.output
-    assert started == ["0.0.0.0"]
-    assert "warning: binding to 0.0.0.0" in result.output
+    assert started == ["192.168.1.4"]
+    assert "warning: binding to 192.168.1.4" in result.output
 
     result = CliRunner().invoke(cli.app, ["serve"])
     assert result.exit_code == 0 and "warning" not in result.output
@@ -465,3 +474,262 @@ def test_open_waits_for_the_server_then_opens_the_browser(monkeypatch):
     fake.started = True
     thread.join(5)
     assert opened == ["http://x/"]
+
+
+@pytest.mark.parametrize(
+    ("spec", "message"),
+    [("nope:x", "unknown backend kind 'nope'"), ("openai", "openai needs a model")],
+)
+def test_serve_refuses_an_unknown_backend_at_startup(monkeypatch, spec, message):
+    import uvicorn
+
+    started = []
+    monkeypatch.setattr(uvicorn.Server, "run", lambda self: started.append(True))
+    result = CliRunner().invoke(cli.app, ["serve", "--backend", spec])
+    assert result.exit_code == 1
+    assert message in result.output and started == []
+
+
+# --- review round 1: host guard, body limits, queue bound, cleanup ------------------------
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "evil.example",
+        "evil.example:8765",
+        "127.0.0.1:9999",
+        "127.0.0.1",  # port 80
+        "127.0.0.1.evil.example:8765",
+        "user@127.0.0.1:8765",
+    ],
+)
+def test_foreign_host_headers_are_refused_on_every_route(client, host):
+    for path in ("/", "/static/app.js", "/api/runs", "/api/backends", "/api/runs/x/events"):
+        response = client.get(path, headers={"Host": host})
+        assert response.status_code == 400, path
+    response = client.post(
+        "/api/runs", files={"file": ("doc.md", MARKDOWN)}, headers={"Host": host}
+    )
+    assert response.status_code == 400
+    assert client.get("/api/runs").json() == []
+
+
+@pytest.mark.parametrize(
+    "host", ["127.0.0.1:8765", "localhost:8765", "LOCALHOST:8765", "[::1]:8765"]
+)
+def test_loopback_host_headers_are_accepted(client, host):
+    assert client.get("/api/backends", headers={"Host": host}).status_code == 200
+
+
+def test_a_non_loopback_bind_accepts_its_own_host_only():
+    with make_client(host="192.168.1.4", port=9000) as lan:
+        assert lan.get("/api/backends").status_code == 200
+        assert lan.get("/", headers={"Host": "evil.example:9000"}).status_code == 400
+        assert lan.get("/", headers={"Host": "192.168.1.4:8765"}).status_code == 400
+
+
+def test_any_address_bind_accepts_this_machine(monkeypatch):
+    monkeypatch.setattr(server.socket, "gethostname", lambda: "Bench")
+    monkeypatch.setattr(
+        server.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("10.0.0.7", 0))]
+    )
+    names = server.allowed_host_names("0.0.0.0")
+    assert {"127.0.0.1", "localhost", "::1", "bench", "bench.local", "10.0.0.7"} <= names
+    assert "evil.example" not in names
+    assert server.allowed_host_names("127.0.0.1") == {"127.0.0.1", "localhost", "::1"}
+
+
+def test_null_origin_is_refused(client):
+    response = client.post(
+        "/api/runs", files={"file": ("doc.md", MARKDOWN)}, headers={"Origin": "null"}
+    )
+    assert response.status_code == 403
+
+
+def test_same_origin_upload_is_accepted(client):
+    response = post(client, "doc.md", MARKDOWN)
+    assert response.status_code == 202
+    response = client.post(
+        "/api/runs",
+        files={"file": ("doc.md", MARKDOWN)},
+        headers={"Origin": "http://127.0.0.1:8765"},
+    )
+    assert response.status_code == 202
+
+
+def multipart(name: str, data: bytes, boundary: str = "x0x0x0") -> tuple[bytes, bytes]:
+    body = (
+        (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="file"; filename="{name}"\r\n'
+            "Content-Type: application/octet-stream\r\n\r\n"
+        ).encode()
+        + data
+        + f"\r\n--{boundary}--\r\n".encode()
+    )
+    return body, f"multipart/form-data; boundary={boundary}".encode()
+
+
+def test_chunked_upload_without_content_length_is_411(client, temp_paths):
+    body, content_type = multipart("doc.md", MARKDOWN)
+
+    def chunks():
+        yield body[:50]
+        yield body[50:]
+
+    response = client.post(
+        "/api/runs", content=chunks(), headers={"Content-Type": content_type.decode()}
+    )
+    assert response.status_code == 411
+    assert temp_paths == [] and client.get("/api/runs").json() == []
+
+
+def test_non_numeric_content_length_is_411():
+    status = asyncio.run(drive_post([b"x"], content_length=b"12abc"))
+    assert status == 411
+
+
+async def drive_post(chunks: list[bytes], content_length: bytes, content_type: bytes = b"") -> int:
+    """POST ``chunks`` to the app over raw ASGI with any declared Content-Length (TestClient
+    always sends the true one); returns the response status."""
+    app = server.create_app("keyword")
+    messages = [
+        {"type": "http.request", "body": chunk, "more_body": i < len(chunks) - 1}
+        for i, chunk in enumerate(chunks)
+    ]
+    sent = []
+
+    async def receive():
+        return messages.pop(0) if messages else {"type": "http.disconnect"}
+
+    async def send(message):
+        sent.append(message)
+
+    headers = [(b"host", b"127.0.0.1:8765"), (b"content-length", content_length)]
+    if content_type:
+        headers.append((b"content-type", content_type))
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": "/api/runs",
+        "raw_path": b"/api/runs",
+        "query_string": b"",
+        "root_path": "",
+        "headers": headers,
+        "client": ("127.0.0.1", 50000),
+        "server": ("127.0.0.1", 8765),
+    }
+    await app(scope, receive, send)
+    return next(m["status"] for m in sent if m["type"] == "http.response.start")
+
+
+def test_body_larger_than_its_declared_content_length_is_413(monkeypatch, temp_paths):
+    monkeypatch.setattr(server, "MAX_UPLOAD_BYTES", 1000)
+    body, content_type = multipart("doc.pdf", b"%PDF" + b"0" * 300_000)
+    chunks = [body[i : i + 16_384] for i in range(0, len(body), 16_384)]
+    status = asyncio.run(drive_post(chunks, content_length=b"100", content_type=content_type))
+    assert status == 413
+    assert temp_paths == []
+
+
+def test_text_is_decoded_incrementally(client, monkeypatch):
+    monkeypatch.setattr(server, "_CHUNK", 3)  # split multi-byte characters across reads
+    text = "# Résumé\n\nCafé, naïve, ✓ and 日本語.\n".encode()
+    assert post(client, "notes.md", text).status_code == 202
+    assert post(client, "bom.txt", b"\xef\xbb\xbf" + text).status_code == 202
+    assert post(client, "bad.md", text + b"\xff more").status_code == 415
+    assert post(client, "cut.txt", text + "é".encode()[:1]).status_code == 415
+
+
+def blocking_load(monkeypatch):
+    """Make the worker's ``load`` wait for ``release``; ``started`` is set once it is inside."""
+    started, release = threading.Event(), threading.Event()
+    real = server.load
+
+    def slow(path, **kwargs):
+        started.set()
+        release.wait(10)
+        return real(path, **kwargs)
+
+    monkeypatch.setattr(server, "load", slow)
+    return started, release
+
+
+def test_queue_is_bounded(monkeypatch, temp_paths):
+    started, release = blocking_load(monkeypatch)
+    with make_client() as client:
+        try:
+            first = post(client, "a.md", MARKDOWN)
+            assert first.status_code == 202
+            assert started.wait(5)  # the worker took it: the queue is empty again
+            waiting = [post(client, f"w{i}.md", MARKDOWN) for i in range(server.MAX_PENDING)]
+            assert [r.status_code for r in waiting] == [202] * server.MAX_PENDING
+            refused = post(client, "late.md", MARKDOWN)
+            assert refused.status_code == 503
+            assert len(temp_paths) == server.MAX_PENDING + 1  # none made for the refused one
+        finally:
+            release.set()
+        for response in [first, *waiting]:
+            events, _ = stream(client, response.json()["run_id"])
+            assert events[-1]["data"]["status"] == "done"
+    assert not any(os.path.exists(p) for p in temp_paths)
+
+
+def test_stop_deletes_the_running_jobs_file_when_the_join_times_out(
+    monkeypatch, temp_paths, caplog
+):
+    started, release = blocking_load(monkeypatch)
+    monkeypatch.setattr(server, "STOP_TIMEOUT_SECONDS", 0.2)
+    with make_client() as client:
+        playground = client.app.state.playground
+        assert post(client, "a.md", MARKDOWN).status_code == 202
+        assert started.wait(5)
+        assert os.path.exists(temp_paths[0])
+    assert not os.path.exists(temp_paths[0])  # deleted by stop(), the job still running
+    with caplog.at_level(logging.CRITICAL):  # the late job fails quietly on its own
+        release.set()
+        playground._worker.join(5)
+    assert not playground._worker.is_alive()
+
+
+def test_startup_sweeps_stale_temp_files(tmp_path, monkeypatch):
+    monkeypatch.setattr(server.tempfile, "gettempdir", lambda: str(tmp_path))
+    hour_ago = time.time() - 3700
+    stale = tmp_path / "docrooter-stale.pdf"
+    fresh = tmp_path / "docrooter-fresh.pdf"
+    other = tmp_path / "someone-else.pdf"
+    for path in (stale, fresh, other):
+        path.write_bytes(b"%PDF")
+    for path in (stale, other):
+        os.utime(path, (hour_ago, hour_ago))
+    with make_client():
+        pass
+    assert not stale.exists() and fresh.exists() and other.exists()
+
+
+def test_load_env_file_strips_inline_comments_and_is_silent(tmp_path, capsys, caplog):
+    env = tmp_path / ".env"
+    env.write_text(
+        "KEY=value # the key\n"
+        "URL=http://host/#fragment\n"
+        'QUOTED="a # b" # trailing\n'
+        "SINGLE='x' \n"
+        "TABBED=v\t# tab comment\n",
+        encoding="utf-8",
+    )
+    environ: dict[str, str] = {}
+    with caplog.at_level(logging.DEBUG):
+        server.load_env_file(env, environ)
+    assert environ == {
+        "KEY": "value",
+        "URL": "http://host/#fragment",
+        "QUOTED": "a # b",
+        "SINGLE": "x",
+        "TABBED": "v",
+    }
+    assert capsys.readouterr() == ("", "")
+    assert caplog.records == []

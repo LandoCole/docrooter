@@ -18,6 +18,10 @@ const FLAG_NAMES = {
   level_from_bookmark: "level from bookmark",
   low_heading_confidence: "low confidence",
 };
+const ENGINE_LABELS = {
+  both: "both (slower: runs two engines)",
+  pymupdf4llm: "pymupdf4llm (legacy, slow)",
+};
 const PREFS_KEY = "docrooter.playground.options";
 
 const state = {
@@ -129,7 +133,7 @@ async function loadOptions() {
   const specs = info.backends.map((b) => b.spec);
   backend.value = specs.includes(prefs.backend) ? prefs.backend : info.default;
   const engine = $("engine");
-  engine.replaceChildren(...info.engines.map((e) => h("option", { value: e }, e)));
+  engine.replaceChildren(...info.engines.map((e) => h("option", { value: e }, ENGINE_LABELS[e] ?? e)));
   engine.value = info.engines.includes(prefs.engine) ? prefs.engine : "auto";
   if (info.modes.includes(prefs.mode)) $("mode").value = prefs.mode;
   if (typeof prefs.normalize === "boolean") $("normalize").checked = prefs.normalize;

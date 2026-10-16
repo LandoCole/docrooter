@@ -10,11 +10,13 @@ from docrooter.document.models import RawHeading
 _BASE_SCORE = 0.6
 _LOW_CONFIDENCE = 0.7
 _NUMBERING = re.compile(
-    r"^(\d+(\.\d+)*\.?|[IVXLC]+\.|(Article|Section|Chapter|Part|Item|Appendix)\s+\w+)\b"
+    r"^((\d+(\.\d+)*\.?|(Article|Section|Chapter|Part|Item|Appendix)\s+\w+)\b|[IVXLC]+\.(?=\s|$))",
+    re.IGNORECASE,
 )
 _PAGE_NUMBER = re.compile(r"^(page\s*)?\d+(\s*(of|/)\s*\d+)?$", re.IGNORECASE)
 _URL_OR_EMAIL = re.compile(r"https?://|www\.|\S+@\S+\.\S+", re.IGNORECASE)
-_WORD = re.compile(r"[^\W\d_]+")
+# A title-case token: letters, optionally joined by apostrophes or hyphens ("Company's").
+_WORD = re.compile(r"[^\W\d_]+(?:['\u2019-][^\W\d_]+)*")
 _CONNECTORS = frozenset({"and", "of", "the", "in", "for", "to", "a", "an", "on", "with"})
 _TITLE_CASE_RATIO = 0.7
 _MAX_WORDS = 20

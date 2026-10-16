@@ -1,0 +1,94 @@
+{
+  "nodes": [
+    {
+      "id": "shareholder_letter",
+      "label": "Shareholder letter",
+      "description": "A narrative letter from the chairman or CEO to shareholders that reviews the year and outlook, as opposed to the formal Business or MD&A sections.",
+      "children": []
+    },
+    {
+      "id": "business_overview",
+      "label": "Business overview",
+      "description": "A description of what the company does, its products, markets, competition, customers, and strategy (Form 10-K Item 1).",
+      "children": []
+    },
+    {
+      "id": "risk_factors",
+      "label": "Risk factors",
+      "description": "A discussion of the risks and uncertainties that could materially harm the business or the value of its securities (Item 1A).",
+      "children": []
+    },
+    {
+      "id": "management_discussion",
+      "label": "Management discussion and analysis",
+      "description": "Management's narrative explanation of results of operations, liquidity, capital resources, and trends, including market-risk disclosures (MD&A, Items 7 and 7A).",
+      "children": []
+    },
+    {
+      "id": "financial_statements",
+      "label": "Financial statements",
+      "description": "The primary statements themselves (balance sheet, income statement, cash flows, changes in equity) and the auditor's report on them, not the accompanying notes.",
+      "children": []
+    },
+    {
+      "id": "notes_to_financial_statements",
+      "label": "Notes to financial statements",
+      "description": "The numbered explanatory notes on accounting policies, estimates, and line-item detail that accompany and support the financial statements.",
+      "children": []
+    },
+    {
+      "id": "corporate_governance",
+      "label": "Corporate governance",
+      "description": "Information about the board of directors, its committees, director independence, officers, and governance practices and policies.",
+      "children": []
+    },
+    {
+      "id": "executive_compensation",
+      "label": "Executive compensation",
+      "description": "Disclosure of pay for senior executives and directors, including salary, bonuses, equity awards, and pay-versus-performance tables.",
+      "children": []
+    },
+    {
+      "id": "controls_and_procedures",
+      "label": "Controls and procedures",
+      "description": "Management's evaluation of disclosure controls and internal control over financial reporting, including any material weaknesses (Item 9A).",
+      "children": []
+    },
+    {
+      "id": "legal_proceedings",
+      "label": "Legal proceedings",
+      "description": "A description of pending or threatened litigation, regulatory actions, and other legal matters involving the company (Item 3).",
+      "children": []
+    },
+    {
+      "id": "properties",
+      "label": "Properties",
+      "description": "A description of the company's principal physical facilities, such as plants, offices, and real estate it owns or leases (Item 2).",
+      "children": []
+    },
+    {
+      "id": "market_for_equity",
+      "label": "Market for equity",
+      "description": "Information on the market for the company's common stock, including listing, holders, dividends, share repurchases, and stock performance (Item 5).",
+      "children": []
+    },
+    {
+      "id": "exhibits",
+      "label": "Exhibits",
+      "description": "The list of exhibits and filed documents, signatures, and schedules incorporated by reference, which carries no narrative content of its own (Item 15).",
+      "children": []
+    },
+    {
+      "id": "sustainability",
+      "label": "Sustainability",
+      "description": "Material on environmental, social, and governance topics, climate commitments, human capital, and corporate responsibility.",
+      "children": []
+    },
+    {
+      "id": "other",
+      "label": "Other",
+      "description": "Content that fits none of the other categories, such as cover pages, tables of contents, forward-looking-statement legends, and miscellaneous disclosures.",
+      "children": []
+    }
+  ]
+}

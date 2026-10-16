@@ -1,0 +1,82 @@
+{
+  "nodes": [
+    {
+      "id": "abstract",
+      "label": "Abstract",
+      "description": "A short self-contained summary of the problem, approach, and main findings placed at the start of the paper.",
+      "children": []
+    },
+    {
+      "id": "introduction",
+      "label": "Introduction",
+      "description": "The opening section that motivates the problem, states the research questions or contributions, and outlines the paper.",
+      "children": []
+    },
+    {
+      "id": "related_work",
+      "label": "Related work",
+      "description": "A survey of prior literature that positions the paper against existing approaches.",
+      "children": []
+    },
+    {
+      "id": "background",
+      "label": "Background",
+      "description": "Preliminary definitions, notation, and technical context the reader needs before the method, distinct from the review of competing work.",
+      "children": []
+    },
+    {
+      "id": "method",
+      "label": "Method",
+      "description": "The description of the proposed approach, model, algorithm, or study design, including how data were collected or processed.",
+      "children": []
+    },
+    {
+      "id": "experiments",
+      "label": "Experiments",
+      "description": "The experimental setup: datasets, baselines, metrics, implementation details, and evaluation protocol, before the numbers are discussed.",
+      "children": []
+    },
+    {
+      "id": "results",
+      "label": "Results",
+      "description": "The reported outcomes of the experiments or analyses, with tables, figures, and their direct interpretation.",
+      "children": []
+    },
+    {
+      "id": "discussion",
+      "label": "Discussion",
+      "description": "An interpretation of the results that examines implications, explanations, and comparison with expectations beyond the raw numbers.",
+      "children": []
+    },
+    {
+      "id": "limitations",
+      "label": "Limitations",
+      "description": "An explicit statement of the weaknesses, assumptions, threats to validity, and scope boundaries of the work.",
+      "children": []
+    },
+    {
+      "id": "conclusion",
+      "label": "Conclusion",
+      "description": "The closing summary of what was shown, with future directions.",
+      "children": []
+    },
+    {
+      "id": "acknowledgements",
+      "label": "Acknowledgements",
+      "description": "Thanks to funders, colleagues, and reviewers, including funding statements and author contributions.",
+      "children": []
+    },
+    {
+      "id": "references",
+      "label": "References",
+      "description": "The bibliography listing the cited works.",
+      "children": []
+    },
+    {
+      "id": "appendix",
+      "label": "Appendix",
+      "description": "Supplementary material placed after the main text, such as extra proofs, tables, derivations, and additional experiments.",
+      "children": []
+    }
+  ]
+}

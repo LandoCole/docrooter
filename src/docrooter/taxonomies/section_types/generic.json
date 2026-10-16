@@ -1,0 +1,46 @@
+{
+  "nodes": [
+    {
+      "id": "front_matter",
+      "label": "Front matter",
+      "description": "Material that precedes the main content, such as title page, table of contents, preface, copyright notices, and list of figures.",
+      "children": []
+    },
+    {
+      "id": "summary",
+      "label": "Summary",
+      "description": "A condensed statement of the key points or findings, such as an executive summary or abstract.",
+      "children": []
+    },
+    {
+      "id": "introduction",
+      "label": "Introduction",
+      "description": "The opening section that states the purpose, context, and scope of the document.",
+      "children": []
+    },
+    {
+      "id": "body",
+      "label": "Body",
+      "description": "The substantive main content of the document that is neither introductory, concluding, nor back matter.",
+      "children": []
+    },
+    {
+      "id": "conclusion",
+      "label": "Conclusion",
+      "description": "The closing section that wraps up the document with conclusions, recommendations, or next steps.",
+      "children": []
+    },
+    {
+      "id": "references",
+      "label": "References",
+      "description": "Bibliography, citations, footnotes, and links to sources used by the document.",
+      "children": []
+    },
+    {
+      "id": "appendix",
+      "label": "Appendix",
+      "description": "Supplementary material placed after the main content, such as extra data, tables, forms, and glossaries.",
+      "children": []
+    }
+  ]
+}

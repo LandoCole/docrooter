@@ -144,3 +144,21 @@ def test_repair_leaves_preamble_alone():
 def test_repair_deep_input_is_iterative():
     raw = [RawHeading(title=f"{i} H", level=6, text="", line=i) for i in range(1, 31)]
     assert [h.level for h in repair_levels(raw)] == [1] * 30
+
+
+def test_roman_numeral_prefix_gets_numbering_bonus():
+    score, reasons = score_heading("IV. Results")
+    assert score >= 0.85
+    assert "numbering_prefix" in reasons
+    assert "numbering_prefix" not in score_heading("Civilization")[1]
+
+
+def test_numbering_prefix_is_case_insensitive():
+    assert "numbering_prefix" in score_heading("ITEM 7. MANAGEMENT'S DISCUSSION")[1]
+    assert "numbering_prefix" in score_heading("ARTICLE IV")[1]
+
+
+def test_title_case_tokens_keep_apostrophes_and_hyphens():
+    assert "title_case" in score_heading("Company's Results Year-over-Year")[1]
+    assert "title_case" in score_heading("Management’s Discussion")[1]
+    assert "title_case" not in score_heading("the company's results over time")[1]

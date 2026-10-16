@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -47,6 +48,7 @@ class Document(BaseModel):
     title: str | None = None
     sections: dict[str, Section] = Field(default_factory=dict)
     root_ids: list[str] = Field(default_factory=list)
+    meta: dict[str, Any] = Field(default_factory=dict)
 
     def walk(self) -> Iterator[Section]:
         """Yield every section in pre-order (reading order). Iterative, no recursion."""

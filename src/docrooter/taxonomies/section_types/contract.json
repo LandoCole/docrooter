@@ -1,0 +1,88 @@
+{
+  "nodes": [
+    {
+      "id": "parties_recitals",
+      "label": "Parties and recitals",
+      "description": "The preamble that names the contracting parties, the effective date, and the background recitals (the whereas clauses) that explain the purpose.",
+      "children": []
+    },
+    {
+      "id": "definitions",
+      "label": "Definitions",
+      "description": "Clauses that define capitalised terms and rules of interpretation used throughout the agreement.",
+      "children": []
+    },
+    {
+      "id": "scope_services",
+      "label": "Scope and services",
+      "description": "The clauses describing what each party must deliver or perform, including the products, services, license grant, or deliverables.",
+      "children": []
+    },
+    {
+      "id": "term",
+      "label": "Term",
+      "description": "The clauses fixing the duration of the agreement, its effective period, and renewal or extension mechanics.",
+      "children": []
+    },
+    {
+      "id": "payment",
+      "label": "Payment",
+      "description": "The clauses on fees, prices, invoicing, payment timing, expenses, taxes, and late-payment consequences.",
+      "children": []
+    },
+    {
+      "id": "confidentiality",
+      "label": "Confidentiality",
+      "description": "The clauses obliging the parties to protect each other's non-public information and limiting its use and disclosure.",
+      "children": []
+    },
+    {
+      "id": "intellectual_property",
+      "label": "Intellectual property",
+      "description": "The clauses allocating ownership of, and licence rights in, inventions, work product, trademarks, and other intellectual property.",
+      "children": []
+    },
+    {
+      "id": "warranties",
+      "label": "Warranties",
+      "description": "The clauses in which parties represent facts and promise quality or performance standards, together with disclaimers of other warranties.",
+      "children": []
+    },
+    {
+      "id": "indemnification",
+      "label": "Indemnification",
+      "description": "The clauses requiring one party to compensate the other for specified third-party claims, losses, or damages.",
+      "children": []
+    },
+    {
+      "id": "limitation_of_liability",
+      "label": "Limitation of liability",
+      "description": "The clauses capping or excluding damages and defining which types of loss each party cannot recover.",
+      "children": []
+    },
+    {
+      "id": "termination",
+      "label": "Termination",
+      "description": "The clauses stating how and when either party may end the agreement early, for cause or convenience, and what happens afterwards.",
+      "children": []
+    },
+    {
+      "id": "governing_law_disputes",
+      "label": "Governing law and disputes",
+      "description": "The clauses selecting the governing law, jurisdiction or venue, and dispute-resolution method such as arbitration or mediation.",
+      "children": []
+    },
+    {
+      "id": "general_provisions",
+      "label": "General provisions",
+      "description": "Boilerplate clauses such as notices, assignment, amendment, severability, entire agreement, force majeure, and counterparts.",
+      "children": []
+    },
+    {
+      "id": "signatures_exhibits",
+      "label": "Signatures and exhibits",
+      "description": "The signature blocks and the attached schedules, exhibits, or annexes that complete the agreement.",
+      "children": []
+    }
+  ]
+}

@@ -11,6 +11,7 @@ from docrooter.errors import (
     TaxonomyError,
 )
 from docrooter.evaluate import compare, evaluate
+from docrooter.taxonomies import builtin_taxonomy
 from docrooter.taxonomy import Taxonomy, TaxonomyNode
 from docrooter.train import Dataset
 from docrooter.train.bundle import TrainedModel
@@ -38,6 +39,7 @@ __all__ = [
     "TaxonomyNode",
     "TrainedModel",
     "__version__",
+    "builtin_taxonomy",
     "calibrate",
     "compare",
     "evaluate",

@@ -20,6 +20,7 @@ PUBLIC_NAMES = [
     "evaluate",
     "compare",
     "calibrate",
+    "builtin_taxonomy",
     "DocrooterError",
     "TaxonomyError",
     "BackendError",

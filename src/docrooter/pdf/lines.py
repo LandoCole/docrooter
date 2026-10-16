@@ -23,8 +23,9 @@ _BOLD_FLAG = 16
 _BOLD_NAMES = ("bold", "black", "heavy", "semibold")
 _BOLD_FRACTION = 0.5
 _LINE_TOLERANCE = 2.0  # pdfplumber: words whose tops differ by at most this share a line
-_COLUMN_GAP_FACTOR = 3.0  # pdfplumber: a gap above this many median char widths splits a line
+_COLUMN_GAP_FACTOR = 3.0  # a gap above this many char widths splits a line (both engines)
 _BLOCK_GAP_FACTOR = 0.5  # pdfplumber: a gap above this fraction of the line height starts a block
+_ROW_OVERLAP = 0.5  # pymupdf: lines overlapping vertically by half the shorter height share a row
 
 
 class Line(BaseModel):
@@ -122,6 +123,7 @@ def _pymupdf_rows(doc: Any, pymupdf: Any) -> Iterator[dict[str, Any]]:
             if block.get("type") != 0:
                 continue
             block_no += 1
+            fragments: list[dict[str, Any]] = []
             for raw in block["lines"]:
                 dx, dy = raw.get("dir", (1.0, 0.0))
                 if abs(dy) > abs(dx):  # rotated text (margin stamps, vertical labels)
@@ -137,15 +139,48 @@ def _pymupdf_rows(doc: Any, pymupdf: Any) -> Iterator[dict[str, Any]]:
                     if s["text"].strip()
                 ]
                 text = "".join(s["text"] for s in raw["spans"]).strip()
-                if not spans or not _has_alnum(text):
+                if spans:
+                    x0, y0, x1, y1 = (float(v) for v in raw["bbox"])
+                    fragments.append(
+                        {"spans": spans, "text": text, "x0": x0, "y0": y0, "x1": x1, "y1": y1}
+                    )
+            for frag in _join_row_fragments(fragments):
+                if not _has_alnum(frag["text"]):
                     continue
-                size, font, bold = _summarise(spans)
-                x0, y0, x1, y1 = (float(v) for v in raw["bbox"])
+                size, font, bold = _summarise(frag["spans"])
                 yield {
-                    "page": page_index + 1, "text": text, "size": size, "bold": bold,
-                    "font": font, "x0": x0, "y0": y0, "x1": x1, "y1": y1,
-                    "page_height": height, "page_width": width, "block": block_no,
+                    "page": page_index + 1, "text": frag["text"], "size": size, "bold": bold,
+                    "font": font, "x0": frag["x0"], "y0": frag["y0"], "x1": frag["x1"],
+                    "y1": frag["y1"], "page_height": height, "page_width": width,
+                    "block": block_no,
                 }  # fmt: skip
+
+
+def _join_row_fragments(fragments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Join consecutive pymupdf lines of one block that sit on the same row (a section number
+    and its title, a run-in bold label and its text) unless a column-sized gap separates them,
+    so a ``Line`` is one visual line as with the pdfplumber engine."""
+    out: list[dict[str, Any]] = []
+    for frag in fragments:
+        if out and _same_row(out[-1], frag):
+            prev = out[-1]
+            gap = frag["x0"] - prev["x1"]
+            chars = len(prev["text"]) + len(frag["text"])
+            char_width = ((prev["x1"] - prev["x0"]) + (frag["x1"] - frag["x0"])) / max(chars, 1)
+            if -char_width <= gap <= _COLUMN_GAP_FACTOR * char_width:
+                prev["text"] = f"{prev['text']} {frag['text']}"
+                prev["spans"] = prev["spans"] + frag["spans"]
+                prev["x0"], prev["y0"] = min(prev["x0"], frag["x0"]), min(prev["y0"], frag["y0"])
+                prev["x1"], prev["y1"] = max(prev["x1"], frag["x1"]), max(prev["y1"], frag["y1"])
+                continue
+        out.append(dict(frag))
+    return out
+
+
+def _same_row(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """Vertical overlap of at least half the shorter fragment's height."""
+    overlap = min(a["y1"], b["y1"]) - max(a["y0"], b["y0"])
+    return overlap >= _ROW_OVERLAP * min(a["y1"] - a["y0"], b["y1"] - b["y0"])
 
 
 def _split_columns(words: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:

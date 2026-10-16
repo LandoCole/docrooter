@@ -137,3 +137,20 @@ def test_text_outside_the_media_box_is_not_extracted(tmp_path):
     doc.close()
     lines, _ = extract_lines(path, engine="pymupdf")
     assert [line.text for line in lines] == ["Inside text"]
+
+
+def test_same_row_fragments_join_unless_a_column_gap_separates_them(tmp_path):
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    # pymupdf reports the number and the title of "1  Introduction" as two lines of one block.
+    page.insert_text((72, 100), "1", fontname="hebo", fontsize=12)
+    page.insert_text((90, 100), "Introduction", fontname="hebo", fontsize=12)
+    page.insert_text((72, 160), "Revenue", fontsize=10)
+    page.insert_text((400, 160), "21,268", fontsize=10)  # table cell, far to the right
+    path = tmp_path / "row.pdf"
+    doc.save(path)
+    doc.close()
+    lines, _ = extract_lines(path, engine="pymupdf")
+    assert [line.text for line in lines] == ["1 Introduction", "Revenue", "21,268"]
+    first = lines[0]
+    assert first.bold and first.size == 12.0 and first.x0 == 72.0 and first.x1 > 150.0

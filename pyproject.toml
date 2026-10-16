@@ -10,6 +10,30 @@ readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
+keywords = [
+    "table of contents",
+    "document structure",
+    "taxonomy",
+    "text classification",
+    "hierarchical classification",
+    "zero-shot",
+    "embeddings",
+    "nlp",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing",
+]
 dependencies = [
     "pydantic>=2",
     "numpy",
@@ -32,6 +56,13 @@ jev = ["typesafe-sdk>=0.7.5"]
 bench = ["datasets", "pandas"]
 all = ["docrooter[models,pdf,llm,jev]"]
 
+[project.urls]
+# Placeholder: replace with the real repository before the first release.
+Homepage = "https://github.com/docrooter/docrooter"
+Documentation = "https://github.com/docrooter/docrooter#readme"
+Repository = "https://github.com/docrooter/docrooter"
+Issues = "https://github.com/docrooter/docrooter/issues"
+
 [project.scripts]
 docrooter = "docrooter.cli:app"
 
@@ -40,6 +71,17 @@ dev = ["pytest", "ruff"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/docrooter"]
+
+[tool.hatch.build.targets.sdist]
+# benchmarks/ and the tests that import it stay out of the source distribution
+include = [
+    "/src",
+    "/examples",
+    "/docs/taxonomy-formats.md",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

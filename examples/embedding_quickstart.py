@@ -36,7 +36,8 @@ taxonomy = Taxonomy.from_dict(
 )
 
 # With no backend argument, Classifier uses "embedding:dmis-lab/UltraBERT-Embed-150M".
-classifier = Classifier(taxonomy, strategy=Beam(3))
+# Beam(3) and threshold 0.35 are the defaults, spelled out here.
+classifier = Classifier(taxonomy, strategy=Beam(3), threshold=0.35)
 result = classifier.classify(load(MARKDOWN))
 for section in result.sections.values():
     best = section.best

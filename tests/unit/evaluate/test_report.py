@@ -106,6 +106,25 @@ def test_device_is_selected_only_for_model_backends(tax, monkeypatch):
     assert evaluate(clf, Dataset.load(SMALL), node_decisions=False).device == "mps"
 
 
+def test_trained_model_counts_as_a_device_backend(tax, monkeypatch):
+    """A loaded bundle runs its body on the selected device, so the report must say so."""
+    import docrooter.backends.loading as loading
+    from docrooter.train.bundle import TrainedModel
+
+    monkeypatch.setattr(loading, "select_device", lambda *a, **k: "mps")
+    manifest = {
+        "base_model": "m",
+        "taxonomy_hash": tax.content_hash(),
+        "recipe": {"query_prompt": "{instruction}"},
+        "instruction": "x",
+        "heads": {},
+    }
+    body = type("Body", (), {"name": "embedding:fake", "_device": None})()
+    model = TrainedModel(manifest, {}, body)  # type: ignore[arg-type]
+    clf = Classifier(tax, backend=KeywordBackend(), fallback=model, threshold=0)
+    assert evaluate(clf, Dataset.load(SMALL), node_decisions=False).device == "mps"
+
+
 def test_report_json_roundtrip_and_print(tax, capsys):
     rep = evaluate(Classifier(tax, backend=KeywordBackend(), threshold=0), Dataset.load(SMALL))
     again = Report.model_validate_json(rep.to_json())

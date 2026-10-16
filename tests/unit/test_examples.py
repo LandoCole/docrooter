@@ -62,3 +62,31 @@ def test_taxonomy_format_docs_load():
     assert len(blocks) == 6
     assert len(hashes) == 5
     assert len(set(hashes)) == 1
+
+
+def _code(line: str) -> str:
+    """A source line without its trailing comment (README comments differ from the examples')."""
+    return line.split("  #")[0].strip()
+
+
+def test_every_readme_python_snippet_line_is_in_an_example():
+    import docrooter
+
+    example_lines = {
+        _code(line)
+        for path in EXAMPLES.glob("*.py")
+        for line in path.read_text(encoding="utf-8").splitlines()
+    }
+    text = README.read_text(encoding="utf-8")
+    snippets = re.findall(r"```python\n(.*?)```", text, re.DOTALL)
+    assert len(snippets) >= 6
+    for snippet in snippets:
+        for line in snippet.splitlines():
+            code = _code(line)
+            if not code:
+                continue
+            if code.startswith("from docrooter import "):
+                for name in code.removeprefix("from docrooter import ").split(","):
+                    assert hasattr(docrooter, name.strip()), code
+            else:
+                assert code in example_lines, f"README line not in any example: {code!r}"

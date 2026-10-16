@@ -99,9 +99,14 @@ Leave the backend out to use the default, UltraBERT embeddings
 ([`examples/embedding_quickstart.py`](examples/embedding_quickstart.py), needs `docrooter[models]`):
 
 ```python
-classifier = Classifier(taxonomy)                 # "embedding:dmis-lab/UltraBERT-Embed-150M"
-classifier = Classifier(taxonomy, strategy=Beam(3), threshold=0.35)   # the defaults, spelled out
+from docrooter import Beam, Classifier
+
+classifier = Classifier(taxonomy)  # zero-shot
+classifier = Classifier(taxonomy, strategy=Beam(3), threshold=0.35)
 ```
+
+The first line uses `"embedding:dmis-lab/UltraBERT-Embed-150M"` and the second spells out the
+other defaults.
 
 `Greedy()` follows the best child at each level, `Beam(n)` keeps the `n` best paths and `Flat()`
 scores every leaf in a single call, by its full path. A path stops early, with a `stopped_reason`, when no child reaches the
@@ -218,40 +223,54 @@ and `path` columns, the path joined by `>`). A path lists node ids or labels fro
 each section with its best path, then fix the mistakes by hand and train on the result:
 
 ```python
-classifier = Classifier(taxonomy)                        # zero-shot
+from docrooter import Classifier, Dataset
+
+classifier = Classifier(taxonomy)  # zero-shot
 result = classifier.classify(doc)
 pseudo = Dataset.from_results(result, doc, classifier.view)
-pseudo.save("pseudo.jsonl")                              # review and correct, then load it back
+pseudo.save("pseudo.jsonl")  # review and correct, then load it back
 ```
 
 **3. Split, train, save.**
 
 ```python
+from docrooter import Dataset, train
+
 dataset = Dataset.load("labelled.jsonl")
-train_set, test_set = dataset.split(test_size=0.2)       # stratified by top-level category
-model = train(taxonomy, train_set)                       # fine-tunes the body, then fits the heads
+train_set, test_set = dataset.split(test_size=0.2)  # stratified by top-level category
+model = train(taxonomy, train_set, finetune_body=False, min_examples_per_child=2)
 model.save("bundle/")
 ```
 
-`train(..., finetune_body=False)` fits only the heads, which is much faster. The CLI equivalent is
+This fits only the heads, which is fast. Leave out `finetune_body=False` to fine-tune the body
+first (the default, and usually better with enough data). The CLI equivalent is
 `docrooter train -t taxonomy.json -d labelled.jsonl -o bundle/ [--no-finetune-body]`. A node gets a
 head only when each of its children has at least `min_examples_per_child` examples (default 4).
 
 **4. Evaluate against zero-shot.**
 
 ```python
-trained = Classifier(taxonomy, TrainedModel.load("bundle/"))   # or backend "trained:bundle/"
+from docrooter import Classifier, TrainedModel, compare, evaluate
+
+trained = Classifier(taxonomy, TrainedModel.load("bundle/"))  # or backend "trained:bundle/"
 compare({"zero-shot": Classifier(taxonomy), "trained": trained}, test_set).print()
-evaluate(trained, test_set).print()        # adds per-node accuracy and sibling confusions
+evaluate(trained, test_set).print()  # adds per-node accuracy and sibling confusions
 ```
 
 Reports give exact-path accuracy, hierarchical precision/recall/F1, leaf macro-F1, the share of
 sections that stopped early, selective accuracy and throughput. `docrooter eval` does the same
 from the command line.
 
-**5. Calibrate (optional).** `calibrate(classifier, dev_set)` returns a copy of the classifier
-whose backend temperatures are tuned on a development set, so the probabilities (and the
-`threshold`) mean what they say.
+**5. Calibrate (optional).** `calibrate` returns a copy of the classifier whose backend
+temperatures are tuned on a development set (hold one out of the training data), so the
+probabilities, and with them the `threshold`, mean what they say.
+
+```python
+from docrooter import calibrate
+
+calibrated = calibrate(trained, dev_set)
+print(calibrated.calibration_report)
+```
 
 > **Security: trained bundles contain pickles.** A bundle stores its heads as `joblib` files,
 > which are Python pickles, and loading a pickle can run arbitrary code. Only load bundles you

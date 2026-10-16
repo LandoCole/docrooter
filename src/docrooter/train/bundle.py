@@ -72,6 +72,14 @@ class TrainedModel:
         return self._path
 
     @property
+    def _device(self) -> str | None:
+        """The body's requested device (``None``: chosen by ``select_device`` on first use).
+
+        Reports look for this attribute to tell that a backend runs on a device.
+        """
+        return getattr(self._body, "_device", None)
+
+    @property
     def taxonomy_hash(self) -> str:
         """Content hash of the taxonomy the model was trained on."""
         return self.manifest["taxonomy_hash"]

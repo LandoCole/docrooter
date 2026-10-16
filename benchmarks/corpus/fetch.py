@@ -54,7 +54,9 @@ def download(url: str) -> bytes:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawTextHelpFormatter
+    )
     parser.add_argument("--manifest", type=Path, default=HERE / "manifest.jsonl")
     parser.add_argument("--dest", type=Path, default=HERE / "pdfs", help="output directory")
     parser.add_argument("--only", nargs="*", default=None, help="restrict to these doc ids")
@@ -89,11 +91,17 @@ def main() -> int:
             print(f"OK       {entry['id']} {len(data)} bytes")
             ok += 1
         else:
-            print(f"MISMATCH {entry['id']} sha256 differs from manifest (publisher changed the file): {entry['url']}")
+            print(
+                f"MISMATCH {entry['id']} sha256 differs from manifest "
+                f"(publisher changed the file): {entry['url']}"
+            )
             mismatched += 1
         time.sleep(DELAY_SECONDS)
 
-    print(f"downloaded={ok} already_ok={skipped} sha_mismatch={mismatched} failed={failed} total={len(entries)}")
+    print(
+        f"downloaded={ok} already_ok={skipped} sha_mismatch={mismatched} "
+        f"failed={failed} total={len(entries)}"
+    )
     if failed or (mismatched and not args.lenient):
         return 1
     return 0

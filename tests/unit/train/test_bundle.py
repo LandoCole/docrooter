@@ -192,6 +192,19 @@ def test_load_remote_code_body_trusts_only_when_the_base_needed_it(nested, tmp_p
     assert body.recipe.query_prompt == "Instruct: {instruction}\nQuery: "
 
 
+def test_load_follows_the_device_order_unless_one_is_passed(nested, tmp_path, monkeypatch):
+    from docrooter.backends.loading import select_device
+
+    model, _ = _model(nested)
+    model.save(tmp_path / "b")
+    monkeypatch.setenv("DOCROOTER_DEVICE", "from-env")
+    loaded = TrainedModel.load(tmp_path / "b")
+    assert loaded._body._device is None  # nothing pinned: resolved by select_device() on first use
+    assert select_device(loaded._body._device) == "from-env"
+    assert loaded._device is None
+    assert TrainedModel.load(tmp_path / "b", device="explicit")._body._device == "explicit"
+
+
 def test_load_errors(tmp_path):
     with pytest.raises(BackendError, match="manifest.json not found"):
         TrainedModel.load(tmp_path)

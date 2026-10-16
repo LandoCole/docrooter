@@ -22,8 +22,9 @@ def _skip_front_matter(lines: list[str]) -> int:
     Deliberately conservative, so content is never lost: the document must open with ``---``,
     a closing ``---``/``...`` must follow within ``_FRONT_MATTER_MAX_LINES`` lines, the block must
     contain a top-level ``key:`` line, and every non-blank line must be a ``key:`` line, indented,
-    or a ``- `` list item. A line starting with ``#`` disqualifies the block (YAML comments in
-    front matter are not supported). Otherwise the leading ``---`` is ordinary text.
+    or a ``- `` list item. A line whose stripped form starts with ``#`` disqualifies the block
+    (YAML comments in front matter are not supported). Otherwise the leading ``---`` is ordinary
+    text.
     """
     if not lines or lines[0].rstrip() != "---":
         return 0
@@ -36,6 +37,8 @@ def _skip_front_matter(lines: list[str]) -> int:
     if not any(_YAML_KEY.match(line) for line in block):
         return 0
     for line in block:
+        if line.lstrip().startswith("#"):
+            return 0  # may be an (indented) ATX heading
         if line.strip() and not (
             _YAML_KEY.match(line) or line[0] in " \t" or line.startswith("- ")
         ):

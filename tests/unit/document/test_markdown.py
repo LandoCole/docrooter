@@ -59,6 +59,8 @@ def test_front_matter_edge_cases():
     assert [h.title for h in extract_headings("---\ntitle: x\ntags:\n  - a\n---\n# A")] == ["A"]
     commented = extract_headings("---\ntitle: x\n# note\n---\n# A")  # '#' line: kept as content
     assert [h.title for h in commented if h.level > 0] == ["note", "A"]
+    indented_heading = extract_headings("---\ntitle: x\n  # Title\n---\n# A")
+    assert "Title" in [h.title for h in indented_heading]
     far = "---\ntitle: x\n" + "a: b\n" * 60 + "---\n# A"
     assert extract_headings(far)[0].level == 0  # closing marker too far away: not front matter
 

@@ -334,3 +334,23 @@ def test_printed_toc_matching_scales_to_long_tocs():
     start = time.perf_counter()
     find_headings(lines, signals, min_score=0.0)
     assert time.perf_counter() - start < 2.0
+
+
+def test_one_off_styles_do_not_consume_levels():
+    # A cover title and a one-off front-matter style used once each must not push the
+    # document's recurring chapter/section styles down to levels 3 and 4.
+    pages = [
+        [item("Annual Review", size=28, bold=True), *para(2),
+         item("Letter From The Chair", size=18, bold=True, gap=HEAD_GAP), *para(4)],
+    ]  # fmt: skip
+    for n, name in enumerate(["Strategy", "Operations", "Finance", "Governance"], start=1):
+        pages.append(
+            [item(f"Chapter {name}", size=14, bold=True), *para(3),
+             item(f"{name} Overview", size=12, bold=True, gap=HEAD_GAP), *para(3),
+             item(f"{name} Outlook", size=12, bold=True, gap=HEAD_GAP), *para(3)]
+        )  # fmt: skip
+    _, found = run(pages)
+    levels = dict(titles(found))
+    assert levels["Annual Review"] == 1 and levels["Letter From The Chair"] == 1
+    assert {levels[f"Chapter {n}"] for n in ["Strategy", "Finance"]} == {1}
+    assert {levels[t] for t in ["Strategy Overview", "Finance Outlook"]} == {2}

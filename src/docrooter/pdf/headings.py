@@ -3,6 +3,7 @@ merge, scoring, and level assignment."""
 
 from __future__ import annotations
 
+import math
 import re
 from bisect import bisect_left, bisect_right
 from collections import Counter, defaultdict
@@ -26,6 +27,10 @@ _ISOLATION_SIZE_FACTOR = 0.5  # x line size; the median gap alone is ordinary le
 _MERGE_GAP_FACTOR = 1.5  # x median gap
 _STYLE_TOLERANCE = 0.5  # pt
 _MAX_LEVEL = 6
+# A style used by fewer headings than min(3, 10% of them) is "one-off" (cover, front matter)
+# and takes the level of the next recurring style instead of a level of its own (P5b).
+_LEVEL_STYLE_MIN_COUNT = 3
+_LEVEL_STYLE_MIN_SHARE = 0.1
 _NUMBERED_FRACTION = 0.5
 _BOOKMARK_PAGE_SLACK = 1
 _LOW_CONFIDENCE = 0.7  # same cut as v0.1 validate_headings
@@ -299,14 +304,29 @@ def find_headings(
     return [heading for heading, _ in kept]
 
 
+def _style_levels(keys: Sequence[tuple[float, bool]]) -> dict[tuple[float, bool], int]:
+    """Level of each heading style: recurring styles are ranked by size (bold first at equal
+    size); a one-off style shares the level of the next recurring style below it, or sits one
+    level below the last recurring style."""
+    counts = Counter(keys)
+    needed = min(_LEVEL_STYLE_MIN_COUNT, math.ceil(_LEVEL_STYLE_MIN_SHARE * len(keys)))
+    ordered = sorted(counts, key=lambda key: (-key[0], not key[1]))
+    recurring = [key for key in ordered if counts[key] >= needed] or ordered
+    level = {key: index + 1 for index, key in enumerate(recurring)}
+    below = len(recurring) + 1
+    for key in reversed(ordered):
+        if key in level:
+            below = level[key]
+        else:
+            level[key] = below
+    return level
+
+
 def _assign_levels(kept: list[tuple[HeadingCandidate, int | None]]) -> None:
     """Set ``level`` and level flags on the kept headings in place."""
     if not kept:
         return
-    styles = sorted(
-        {_style_key(h.size, h.bold) for h, _ in kept}, key=lambda key: (-key[0], not key[1])
-    )
-    rank = {key: index + 1 for index, key in enumerate(styles)}
+    rank = _style_levels([_style_key(h.size, h.bold) for h, _ in kept])
     dotted = [_DOTTED.match(h.text.strip()) for h, _ in kept]
     use_numbering = sum(1 for m in dotted if m) / len(kept) >= _NUMBERED_FRACTION
     for (heading, bookmark_level), match in zip(kept, dotted, strict=True):

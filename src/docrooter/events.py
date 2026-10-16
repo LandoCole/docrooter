@@ -17,6 +17,18 @@ so no function below the public ones takes a sink.
 
 A sink that raises never breaks processing: the exception is logged once and the sink is
 disabled for the rest of the run. Without a sink nothing is built or emitted.
+
+Threads and async code. Sinks are called synchronously on the thread that runs the pipeline,
+so a sink that feeds an event loop or another thread must hand each event over with
+``loop.call_soon_threadsafe`` or a queue. The run lives in a :class:`~contextvars.ContextVar`:
+a new thread starts without it, and it does not cross ``loop.run_in_executor`` or
+``ThreadPoolExecutor.submit``. Enter :func:`pipeline_run` (or pass ``on_event``) inside the
+worker, or use ``asyncio.to_thread`` / ``contextvars.copy_context().run``, which carry the
+context along. Runs in different threads are independent.
+
+``model_load`` reports the device chosen when loading began on ``start`` and the device
+actually used on ``end``; they differ after an out-of-memory fallback to the CPU. A stage still
+open when a run finishes normally is closed with ``{"aborted": True}`` just before ``done``.
 """
 
 from __future__ import annotations
@@ -136,31 +148,47 @@ def finish(stage: str, **data: Any) -> None:
         _Stage(run, stage).end(**data)
 
 
+def _is_cancellation(exc: BaseException) -> bool:
+    import asyncio
+
+    return isinstance(exc, asyncio.CancelledError)
+
+
 @contextmanager
 def pipeline_run(on_event: EventSink | None) -> Iterator[None]:
     """Run a block as one pipeline run reporting to ``on_event``.
 
     The run starts a clock (reusing the clock of an enclosing run), reports ``done`` when the
     block finishes and ``error`` (``{"message": ...}``, plus the open ``stage`` if any) when it
-    raises; the exception propagates. Inside an enclosing run with the same sink, or with
+    raises (any ``BaseException``, so an interrupt or ``asyncio.CancelledError`` too; the latter
+    adds ``"cancelled": True``); the exception propagates. Stages still open at a normal finish
+    are ended with ``{"aborted": True}`` before ``done``. Inside an enclosing run with an equal
+    sink (``==``, so a bound method such as ``job.push`` matches itself), or with
     ``on_event=None``, the block joins that run and reports nothing extra. The public functions
     do this themselves; call it to share one clock and one ``done`` across several of them.
+
+    Sinks run on the calling thread, and the run does not follow work handed to another thread
+    or executor; see the module docstring.
     """
     parent = _current.get()
-    if on_event is None or (parent is not None and parent.origin is on_event):
+    if on_event is None or (parent is not None and parent.origin == on_event):
         yield
         return
     run = _Run(on_event, parent.started if parent is not None else time.perf_counter())
     token = _current.set(run)
     try:
         yield
-    except Exception as exc:
+    except BaseException as exc:
         data: dict[str, Any] = {"message": str(exc)[:ERROR_MESSAGE_CHARS]}
         if run.open:
             data["stage"] = run.open[-1]
+        if _is_cancellation(exc):
+            data["cancelled"] = True
         run.emit("error", "error", data)
         raise
     else:
+        while run.open:
+            run.emit(run.open.pop(), "end", {"aborted": True})
         run.emit("done", "end")
     finally:
         _current.reset(token)

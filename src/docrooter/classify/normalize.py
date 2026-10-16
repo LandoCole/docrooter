@@ -94,12 +94,13 @@ def normalize_sections(
     the section classifier loads a model) and a final ``done``.
     """
     owned: list[Backend | Classifier] = []  # what this call loaded, closed when it returns
-    try:
-        with events.pipeline_run(on_event):
+    with events.pipeline_run(on_event):
+        try:
             return _normalize(doc, doc_type, taxonomy, backend, levels, classifier, view, owned)
-    finally:
-        for item in owned:
-            close_backend(item)
+        finally:
+            # Before ``done``: the memory is released by the time a listener sees it.
+            for item in owned:
+                close_backend(item)
 
 
 def _normalize(

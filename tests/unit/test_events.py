@@ -1,9 +1,12 @@
 """Pipeline events (``on_event``): stage order, start/end pairing, timing, progress, errors,
 failing sinks and the no-sink path. Torch-free: keyword backend and generated PDFs."""
 
+import asyncio
 import json
 import logging
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -11,6 +14,7 @@ import docrooter
 from docrooter import Document, Taxonomy, TaxonomyNode, events
 from docrooter.backends import KeywordBackend, loading
 from docrooter.classify import Classifier, classify_document, normalize_sections
+from docrooter.classify import normalize as normalize_module
 from docrooter.errors import DocrooterError
 from docrooter.events import Event, pipeline_run
 from docrooter.pdf.load import load_pdf
@@ -405,3 +409,146 @@ def test_run_state_is_restored_after_a_call(pdf_path):
     with pytest.raises(DocrooterError):
         load_pdf(pdf_path, engine="bogus", on_event=Recorder())
     assert events._current.get() is None
+
+
+# --- fix round 1: bound-method sinks, threads, interrupts, aborted stages -----------------------
+
+
+class Job:
+    """A sink that is a bound method: ``job.push`` is a new object on every access."""
+
+    def __init__(self):
+        self.events: list[Event] = []
+
+    def push(self, event: Event) -> None:
+        self.events.append(event)
+
+
+def test_bound_method_sink_joins_the_enclosing_run(pdf_path):
+    job = Job()
+    assert job.push is not job.push
+    with pipeline_run(job.push):
+        doc = load_pdf(pdf_path, engine="pymupdf", on_event=job.push)
+        classify_document(doc, doc_type_taxonomy(), backend="keyword", on_event=job.push)
+    rec = Recorder()
+    rec.events = job.events
+    assert_well_formed(rec)  # exactly one done, every start ended
+    assert rec.stages("start") == [
+        "extract",
+        "signals",
+        "headings",
+        "assemble",  # fmt: skip
+        "view",
+        "classify",
+    ]
+
+
+def test_bound_method_sink_reports_a_nested_error_once(tmp_path):
+    bad = tmp_path / "bad.pdf"
+    bad.write_bytes(b"nope")
+    job = Job()
+    with pytest.raises(DocrooterError), pipeline_run(job.push):
+        load_pdf(bad, engine="pymupdf", on_event=job.push)
+    assert [e.stage for e in job.events].count("error") == 1
+
+
+def test_concurrent_runs_in_threads_only_see_their_own_events(tmp_path):
+    paths = [_pdf(tmp_path, pages=pages, name=f"t{pages}.pdf") for pages in (2, 5)]
+    recorders = [Recorder(), Recorder()]
+    barrier = threading.Barrier(2)
+
+    def work(path, rec):
+        barrier.wait()
+        for _ in range(3):
+            load_pdf(path, engine="pymupdf", on_event=rec)
+
+    threads = [threading.Thread(target=work, args=a) for a in zip(paths, recorders, strict=True)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    for rec, pages in zip(recorders, (2, 5), strict=True):
+        assert rec.stages().count("done") == 3
+        assert {
+            e.data["pages"] for e in rec.events if e.stage == "extract" and e.status == "end"
+        } == {pages}
+
+
+def test_run_entered_inside_a_worker_thread_works_end_to_end(pdf_path):
+    rec = Recorder()
+
+    def work():
+        with pipeline_run(rec):
+            doc = load_pdf(pdf_path, engine="pymupdf")
+            classify_document(doc, doc_type_taxonomy(), backend="keyword")
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pool.submit(work).result()
+    assert_well_formed(rec)
+    assert rec.stages("start")[-2:] == ["view", "classify"]
+
+
+def test_the_run_does_not_cross_into_an_executor_thread(pdf_path):
+    rec = Recorder()
+    with pipeline_run(rec), ThreadPoolExecutor(max_workers=1) as pool:
+        pool.submit(load_pdf, pdf_path, engine="pymupdf").result()
+    assert rec.stages() == ["done"]  # documented: enter the run inside the worker
+
+
+def test_asyncio_to_thread_carries_the_run(pdf_path):
+    rec = Recorder()
+
+    async def main():
+        with pipeline_run(rec):
+            await asyncio.to_thread(load_pdf, pdf_path, engine="pymupdf")
+
+    asyncio.run(main())
+    assert rec.stages("start") == ["extract", "signals", "headings", "assemble"]
+    assert_well_formed(rec)
+
+
+def test_keyboard_interrupt_emits_error_and_propagates():
+    rec = Recorder()
+    with pytest.raises(KeyboardInterrupt), pipeline_run(rec):
+        events.start("extract")
+        raise KeyboardInterrupt("stop")
+    last = rec.events[-1]
+    assert (last.stage, last.status) == ("error", "error")
+    assert last.data == {"message": "stop", "stage": "extract"}
+
+
+def test_cancelled_error_is_marked_cancelled():
+    rec = Recorder()
+    with pytest.raises(asyncio.CancelledError), pipeline_run(rec):
+        raise asyncio.CancelledError()
+    assert rec.events[-1].data == {"message": "", "cancelled": True}
+
+
+def test_open_stages_are_ended_as_aborted_before_done():
+    rec = Recorder()
+    with pipeline_run(rec):
+        events.start("model_load")
+        events.start("classify")
+    assert [(e.stage, e.status, e.data) for e in rec.events] == [
+        ("model_load", "start", {}),
+        ("classify", "start", {}),
+        ("classify", "end", {"aborted": True}),
+        ("model_load", "end", {"aborted": True}),
+        ("done", "end", {}),
+    ]
+    assert_well_formed(rec)
+
+
+def test_normalize_closes_the_backends_it_loaded_before_done(monkeypatch):
+    rec = Recorder()
+    seen: list[list[str]] = []
+    real = normalize_module.close_backend
+
+    def spy(item):
+        seen.append(rec.stages())
+        real(item)
+
+    monkeypatch.setattr(normalize_module, "close_backend", spy)
+    normalize_sections(paper(), backend="keyword", on_event=rec)
+    assert seen and all("done" not in stages for stages in seen)
+    assert rec.stages()[-1] == "done"

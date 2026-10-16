@@ -109,3 +109,38 @@ def test_deep_document_path():
     last = list(d.sections)[-1]
     out = SectionView(fields=("path",)).render_all(d, [last])[last].text
     assert out.startswith("Path: T0 > ") and out.endswith("T29")
+
+
+@pytest.fixture
+def signatures():
+    return Document.from_sections([{"title": "Signatures", "level": 1}])
+
+
+@pytest.mark.parametrize("fields", [("keyphrases",), ("lead",), ("keyphrases", "lead")])
+def test_view_never_empty_when_fields_render_nothing(signatures, fields):
+    v = SectionView(fields=fields).render_all(signatures, ["s1"])["s1"]
+    assert v.text == "Title: Signatures" and not v.truncated
+
+
+def test_view_never_empty_under_tiny_budget(signatures):
+    v = SectionView(fields=("text",), max_tokens=1).render_all(signatures, ["s1"])["s1"]
+    assert v.text == "Signatures" and v.truncated
+
+
+def test_title_fallback_cut_to_budget_keeps_first_word():
+    d = Document.from_sections([{"title": "Alpha Beta Gamma Delta Epsilon", "level": 1}])
+    view = SectionView(fields=("lead",), max_tokens=4)
+    v = view.render_all(d, ["s1"])["s1"]
+    assert v.truncated and v.text == "Title: Alpha Beta" and v.n_tokens <= 4
+    assert SectionView(fields=("lead",), max_tokens=1).render_all(d, ["s1"])["s1"].text == "Alpha"
+
+
+def test_multiline_earlier_field_does_not_confuse_truncation():
+    d = Document.from_sections(
+        [{"title": "one two three four five six seven eight", "level": 1, "text": "l1\nl2\nl3"}]
+    )
+    v = SectionView(fields=("text", "title"), max_tokens=14).render_all(d, ["s1"])["s1"]
+    assert v.truncated and v.n_tokens <= 14
+    assert v.text.splitlines()[:3] == ["Text: l1", "l2", "l3"]
+    assert v.text.splitlines()[3].startswith("Title: one two")
+    assert v.text.count("l2") == 1

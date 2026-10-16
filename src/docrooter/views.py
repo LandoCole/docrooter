@@ -75,27 +75,51 @@ class SectionView(BaseModel):
             if fitted is not None:
                 lines.append(fitted)
             break
+        if not lines:
+            fallback, cut = self._title_fallback(section.title, count)
+            lines.append(fallback)
+            truncated = truncated or cut
         text = "\n".join(lines)
         return RenderedView(text=text, truncated=truncated, n_tokens=count(text))
 
     def _fit(self, lines: list[str], label: str, content: str, count) -> str | None:
-        """Longest word-prefix of ``content`` that fits the budget, or None if not even one word."""
+        """Longest word-prefix line of ``content`` that fits the budget, else None."""
         words = content.split()
 
-        def build(n: int) -> str:
+        def line_of(n: int) -> str:
             body = " ".join(words[:n])
-            return "\n".join([*lines, f"{label} {body}" if label else body])
+            return f"{label} {body}" if label else body
+
+        def fits(n: int) -> bool:
+            return count("\n".join([*lines, line_of(n)])) <= self.max_tokens
 
         low, high = 0, len(words) - 1  # the full content is already known not to fit
         while low < high:
             mid = (low + high + 1) // 2
-            if count(build(mid)) <= self.max_tokens:
+            if fits(mid):
                 low = mid
             else:
                 high = mid - 1
-        if low == 0:
-            return None
-        return build(low).split("\n")[len(lines)]
+        return line_of(low) if low else None
+
+    def _title_fallback(self, title: str, count) -> tuple[str, bool]:
+        """A never-empty view: ``Title: <title>``, cut to the budget, keeping at least one word.
+
+        Returns the line and whether it was cut (or the label dropped) to fit.
+        """
+        words = title.split() or [title]
+        labeled = f"Title: {' '.join(words)}"
+        if count(labeled) <= self.max_tokens:
+            return labeled, False
+        for n in range(len(words), 0, -1):
+            candidate = f"Title: {' '.join(words[:n])}"
+            if count(candidate) <= self.max_tokens:
+                return candidate, True
+        for n in range(len(words), 1, -1):
+            candidate = " ".join(words[:n])
+            if count(candidate) <= self.max_tokens:
+                return candidate, True
+        return words[0], True
 
     def _field(
         self, doc: Document, section: Section, name: str, df, n_docs

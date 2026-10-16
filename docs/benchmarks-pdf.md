@@ -103,6 +103,11 @@ The spec §2.3 score weights and the 0.55 default threshold were not changed.
 - **Shallow gold (doc_001, F1 0.05).** The Berkshire annual report has 9 bookmarks. The extractor finds the Form 10-K `Item` headings and the letter's section titles, which the bookmarks do not list.
 - **Engineering drawings and "(continued)" titles (doc_041, doc_049).** Package drawing pages (`JG0008A`, `5.08 MAX`) and repeated box titles ending in "(continued)" are still predicted. Each is a small, single-document effect.
 
+### Known limitations
+
+- **Headings set below body size are never detected.** Since `5d3e621`, a line smaller than the body size by more than 0.5 pt is not a heading candidate. Small-caps headings, whose measured size is often the small-capital glyph size, and compact run-in headings in documents with large body text are lost even when they are bold and isolated. No matched heading in this benchmark is below 0.95 x body, so the rule costs nothing here, but other corpora may differ.
+- **Section running lines need only 3 pages.** A non-candidate edge-band line, or a bold large one at a fixed height, that repeats on 3 pages is excluded, however long the document. A genuine heading printed in the top or bottom 8% of the page at the same height on 3 or more pages with identical text (for example, a recurring "Notes" page title) is therefore lost.
+
 ## Document-type classification
 
 **Headline.** On 51 real PDFs and 18 defined leaf types, TypeSafe Jev given docrooter's DocumentView (`jev-view`) is the most accurate system: 49/51 correct (leaf accuracy 0.961, macro F1 0.944), at 1.74 s/doc end to end and $0.0044 for the whole corpus. The best local docrooter backend, `ultrabert-hybrid`, gets 40/51 (0.784, macro F1 0.733), and the plain `ultrabert-view` 39/51 (0.765, macro F1 0.719) at the same 1.78 s/doc with no API. Jev on naive raw-text chunks (`jev-chunks`, the suggested baseline) gets 47/51 (0.922) using 10.7x the input tokens. The trained leave-one-out head (`ultrabert-loo`) is the worst system at 12/51 (0.235); see the analysis below. These are single-run numbers on a small corpus.
@@ -320,9 +325,3 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 - Parsed documents are cached in `benchmarks/.cache/docs/`. Four of them (doc_026-028, doc_041) were parsed during a smoke run a few minutes earlier, at a similar load.
 - Another benchmark job was running on the machine but was light during this run (load average 3-5, against 20-30 earlier in the day).
 - Raw rows, including the top-3 probabilities and per-document tokens, are in `benchmarks/results/2026-10-16/pdf.json`.
-
-### Known limitations
-
-- **Headings set below body size are never detected.** Since `5d3e621`, a line smaller than the body size by more than 0.5 pt is not a heading candidate. Small-caps headings, whose measured size is often the small-capital glyph size, and compact run-in headings in documents with large body text are lost even when they are bold and isolated. No matched heading in this benchmark is below 0.95 x body, so the rule costs nothing here, but other corpora may differ.
-- **Section running lines need only 3 pages.** A non-candidate edge-band line, or a bold large one at a fixed height, that repeats on 3 pages is excluded, however long the document. A genuine heading printed in the top or bottom 8% of the page at the same height on 3 or more pages with identical text (for example, a recurring "Notes" page title) is therefore lost.
-

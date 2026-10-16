@@ -565,7 +565,7 @@ def render_section(result: Mapping[str, Any]) -> str:
         "parser junk, i.e. not a real section, and excluded from accuracy). **These are "
         "agent-assigned silver labels, not human gold:** an agent (Claude Opus 5.5) read each "
         "heading and the first ~300 characters of its body and chose the best node of the doc "
-        "type's section taxonomy from the node definitions, before any model was run "
+        "type's section taxonomy from the node definitions, before any normalisation run "
         f"(labelled {meta['labelled_at']}, documents loaded at `{meta['src_commit']}`). "
         "Ambiguous cases carry a `note` in the file. Expect a few points of label noise.",
         "",

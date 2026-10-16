@@ -6,7 +6,7 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from docrooter.backends.base import Backend
+from docrooter.backends.base import Backend, close_backend
 from docrooter.classify.classifier import DEFAULT_BACKEND, Classifier
 from docrooter.classify.documents import classify_document
 from docrooter.classify.strategies import Flat
@@ -83,8 +83,28 @@ def normalize_sections(
     its lead added, so its view is not empty.
 
     A prebuilt ``classifier`` must be built on the chosen taxonomy (else ``ValueError``); it
-    classifies as configured and also supplies the backend for the doc-type step.
+    classifies as configured and also supplies the backend for the doc-type step. A model
+    loaded here from a spec string is released before returning; a prebuilt ``classifier``
+    and a backend instance are left open.
     """
+    owned: list[Backend | Classifier] = []  # what this call loaded, closed when it returns
+    try:
+        return _normalize(doc, doc_type, taxonomy, backend, levels, classifier, view, owned)
+    finally:
+        for item in owned:
+            close_backend(item)
+
+
+def _normalize(
+    doc: Document,
+    doc_type: str | None,
+    taxonomy: Taxonomy | str | None,
+    backend: str | Backend,
+    levels: Sequence[int],
+    classifier: Classifier | None,
+    view: SectionView | None,
+    owned: list[Backend | Classifier],
+) -> NormalizationResult:
     confidence: float | None = None
     doc_types: Taxonomy | None = None  # loaded at most once, only when needed
     if isinstance(taxonomy, Taxonomy):
@@ -100,7 +120,10 @@ def normalize_sections(
             else:
                 # Resolved once and reused for the section step: a spec would load its
                 # model twice, once per Classifier.
+                spec = backend
                 backend = doc_type_backend = _resolved(backend)
+                if isinstance(spec, str):
+                    owned.append(backend)
             result = classify_document(doc, doc_types, backend=doc_type_backend)
             doc_type = result.best.node_ids[-1] if result.best.node_ids else None
             confidence = result.confidence
@@ -131,6 +154,7 @@ def normalize_sections(
             instruction=f"Which standard section of a {label} is this?",
             threshold=0.0,
         )
+        owned.append(classifier)  # closes what it loads from a spec; instances stay open
 
     wanted = set(levels) - {0}
     sections = [s for s in doc.walk() if s.level in wanted]

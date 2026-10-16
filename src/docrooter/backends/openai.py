@@ -199,6 +199,9 @@ class OpenAIBackend:
         bodies = [self._request(t, options, instruction or DEFAULT_INSTRUCTION) for t in texts]
         return Scores(run_sync(self._score_all(bodies, n)), "softmax")
 
+    def close(self) -> None:
+        """Nothing to release: each ``score`` call opens and closes its own client."""
+
     def supports(self, node_id: str) -> bool:
         return True
 

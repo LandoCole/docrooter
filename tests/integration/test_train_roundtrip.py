@@ -23,9 +23,17 @@ def test_train_save_load_classify(tmp_path):
 
     started = time.perf_counter()
     model = train(
-        tax, data, base_model=BASE, finetune_body=True, epochs=1, min_examples_per_child=2
+        tax,
+        data,
+        base_model=BASE,
+        finetune_body=True,
+        epochs=1,
+        min_examples_per_child=2,
+        max_seq_len=128,
     )
     trained_s = time.perf_counter() - started
+    assert model.as_zero_shot()._load().max_seq_length == 128
+    assert model.manifest["recipe"]["max_seq_len"] == 128
     metrics = model.manifest["train_metrics"]
     assert metrics["triplets"] == 7 + 4 + 2  # root, financial, legal (litigation has no positive)
     assert metrics["epochs"] == 1
@@ -33,6 +41,7 @@ def test_train_save_load_classify(tmp_path):
 
     model.save(tmp_path / "bundle")
     loaded = TrainedModel.load(tmp_path / "bundle")
+    assert loaded.as_zero_shot()._load().max_seq_length == 128  # the saved recipe's limit
     for node_id in model.manifest["heads"]:
         assert loaded.supports(node_id)
     assert not loaded.supports("legal")
@@ -56,4 +65,15 @@ def test_train_save_load_classify(tmp_path):
     data_dict["nodes"][0]["description"] = "Money matters"
     with pytest.warns(UserWarning, match="different taxonomy"):
         Classifier(Taxonomy.from_dict(data_dict), backend=loaded)
+
+    # closing frees the models; both reload the fine-tuned body from the bundle, not the hub
+    before = loaded.score(texts, candidates).values
+    loaded.close()
+    assert loaded.as_zero_shot()._model is None
+    assert np.allclose(loaded.score(texts, candidates).values, before, atol=1e-5)
+    loaded.close()
+    model.close()
+    assert model.as_zero_shot()._model is None
+    assert np.allclose(model.score(texts, candidates).values, before, atol=1e-4)
+    model.close()
     print(f"\ntrain (incl. model load, 1 epoch, heads): {trained_s:.1f}s; manifest: {metrics}")

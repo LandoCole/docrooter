@@ -29,10 +29,10 @@ def test_trust_requires_pin_or_explicit():
 def test_builtin_recipes():
     ultra = get_recipe(ULTRA)
     assert ultra.revision == ULTRA_REV and ultra.trust_remote_code
-    assert (ultra.max_seq_len, ultra.finetune_lr) == (8192, 5e-5)
+    assert (ultra.max_seq_len, ultra.finetune_lr) == (1024, 5e-5)
     big = get_recipe("dmis-lab/UltraBERT-380M")
     assert big.revision == "65bbbfeefb03bc93b9965d1d511708dabcee8511"
-    assert (big.trust_remote_code, big.max_seq_len, big.finetune_lr) == (True, 8192, 3e-5)
+    assert (big.trust_remote_code, big.max_seq_len, big.finetune_lr) == (True, 1024, 3e-5)
     bge = get_recipe("BAAI/bge-small-en-v1.5")
     assert bge.query_prompt == "Represent this sentence for searching relevant passages: "
     assert get_recipe("MoritzLaurer/deberta-v3-base-zeroshot-v2.0").temperature == 1.0
@@ -99,3 +99,12 @@ def test_attn_implementation(monkeypatch):
     assert attn_implementation("cuda") == "sdpa"
     monkeypatch.setitem(sys.modules, "flash_attn", types.ModuleType("flash_attn"))
     assert attn_implementation("cuda") == "flash_attention_2"
+
+
+def test_batch_size_defaults_by_device():
+    recipe = get_recipe(ULTRA)
+    assert recipe.batch_size is None
+    assert recipe.batch_size_for("cpu") == 16 and recipe.batch_size_for("mps") == 16
+    assert recipe.batch_size_for("cuda") == 32 and recipe.batch_size_for("cuda:1") == 32
+    pinned = get_recipe(ULTRA, batch_size=8)
+    assert pinned.batch_size_for("cuda") == 8 and pinned.batch_size_for("cpu") == 8

@@ -52,17 +52,19 @@ def classify_document(
     ``instruction=None`` is the document-type default. ``classifier_kwargs`` go to
     :class:`Classifier` (``fallback``, ``batch_size``, ...). This is
     ``Classifier(taxonomy, backend, **classifier_kwargs).classify_documents([doc], ...)``; see
-    :meth:`Classifier.classify_documents` for the modes and ``leaf_probs``.
+    :meth:`Classifier.classify_documents` for the modes and ``leaf_probs``. A model loaded
+    from a spec string is released before returning; pass a backend instance to reuse one
+    across calls.
     """
-    classifier = Classifier(taxonomy, backend, **classifier_kwargs)
-    return classifier.classify_documents(
-        [doc],
-        view=view,
-        mode=mode,
-        strategy=strategy,
-        threshold=threshold,
-        instruction=instruction,
-    )[0]
+    with Classifier(taxonomy, backend, **classifier_kwargs) as classifier:
+        return classifier.classify_documents(
+            [doc],
+            view=view,
+            mode=mode,
+            strategy=strategy,
+            threshold=threshold,
+            instruction=instruction,
+        )[0]
 
 
 def classify_documents(

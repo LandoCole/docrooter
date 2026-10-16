@@ -43,6 +43,9 @@ class KeywordBackend:
                     values[i, j] = len(words & cw) / union
         return Scores(values, "similarity")
 
+    def close(self) -> None:
+        """Nothing to release: this backend holds no model."""
+
     def supports(self, node_id: str) -> bool:
         return True
 

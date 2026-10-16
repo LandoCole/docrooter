@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 
 from docrooter.backends import registry
-from docrooter.backends.base import Backend
+from docrooter.backends.base import Backend, close_backend
 from docrooter.classify import engine
 from docrooter.classify._beams import TreeResult
 from docrooter.classify.engine import EngineSettings
@@ -54,6 +54,9 @@ class Classifier:
 
     ``sections`` picks what a document contributes: ``"leaves"``, ``"all"`` (every section,
     but not a blank preamble), a list of heading levels, or a predicate on ``Section``.
+
+    :meth:`close` (also on leaving a ``with`` block) releases the models this classifier
+    loaded from spec strings; backend instances you passed in are yours to close.
     """
 
     def __init__(
@@ -104,6 +107,28 @@ class Classifier:
         for spec in (backend, fallback, *self.overrides.values()):
             if spec is not None and not isinstance(spec, str):
                 self._check_taxonomy_hash(spec, stacklevel=4)
+
+    # --- lifecycle ------------------------------------------------------------------------
+
+    def close(self) -> None:
+        """Close every backend this classifier loaded from a spec string, and the zero-shot
+        fallback of such a backend. Backend instances passed in are left open. The classifier
+        stays usable: specs are loaded again on next use."""
+        resolved, self._resolved = list(self._resolved.values()), {}
+        zero_shot, self._zero_shot = self._zero_shot, _UNSET
+        if isinstance(self.backend, str) and zero_shot not in (None, _UNSET):
+            resolved.append(zero_shot)  # a trained spec's body: ours too
+        seen: set[int] = set()
+        for backend in resolved:
+            if id(backend) not in seen:
+                seen.add(id(backend))
+                close_backend(backend)
+
+    def __enter__(self) -> Classifier:
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.close()
 
     # --- routing --------------------------------------------------------------------------
 

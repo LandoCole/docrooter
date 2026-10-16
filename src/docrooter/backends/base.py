@@ -38,9 +38,11 @@ class Scores(NamedTuple):
 class Backend(Protocol):
     """Scores texts against candidate labels.
 
-    The classifier and ``calibrate`` treat two members as optional, so a custom backend may
-    leave them out: ``temperature`` (1.0 when absent) and the ``multi_label`` argument of
-    ``score``, which is passed (as ``True``) only for decisions at multi-label nodes.
+    The classifier and ``calibrate`` treat three members as optional, so a custom backend may
+    leave them out: ``temperature`` (1.0 when absent), the ``multi_label`` argument of
+    ``score``, which is passed (as ``True``) only for decisions at multi-label nodes, and
+    ``close()``, which releases the model and caches (see :func:`close_backend`). A closed
+    backend reloads on its next use.
     """
 
     name: str
@@ -59,6 +61,13 @@ class Backend(Protocol):
     def supports(self, node_id: str) -> bool: ...
 
     def tokenizer(self) -> Callable[[str], int] | None: ...
+
+
+def close_backend(backend: object) -> None:
+    """Call ``backend.close()`` if the backend has one (``close`` is optional)."""
+    close = getattr(backend, "close", None)
+    if callable(close):
+        close()
 
 
 def _row_softmax(x: np.ndarray) -> np.ndarray:

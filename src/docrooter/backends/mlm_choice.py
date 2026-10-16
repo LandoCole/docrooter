@@ -10,7 +10,14 @@ import numpy as np
 
 from docrooter._extras import require
 from docrooter.backends.base import Candidate, Scores, _row_softmax
-from docrooter.backends.loading import attn_implementation, select_device, trust_decision
+from docrooter.backends.loading import (
+    after_model_load,
+    attn_implementation,
+    prepare_model_load,
+    release_memory,
+    run_with_cpu_fallback,
+    trust_decision,
+)
 from docrooter.backends.recipes import Recipe, get_recipe
 from docrooter.errors import BackendError
 
@@ -81,8 +88,8 @@ class MLMChoiceBackend:
 
     def _load(self) -> Any:
         if self._model is None:
+            device = prepare_model_load(self._device)
             transformers = require("transformers", "models")
-            device = select_device(self._device)
             kwargs: dict[str, Any] = {
                 "revision": self.recipe.revision,
                 "trust_remote_code": self.trust_remote_code,
@@ -98,9 +105,11 @@ class MLMChoiceBackend:
             if not getattr(tokenizer, "mask_token", None):
                 raise BackendError(f"{self.model_id} has no mask token; it is not a masked LM")
             model = transformers.AutoModelForMaskedLM.from_pretrained(self.model_id, **kwargs)
+            self._device_in_use = device  # before the move, so an MPS OOM there is caught
             model.to(device)
             model.eval()
-            self._tokenizer, self._model, self._device_in_use = tokenizer, model, device
+            after_model_load(device)
+            self._tokenizer, self._model = tokenizer, model
         return self._model
 
     def _marker_id(self, letter: str) -> int:
@@ -141,6 +150,22 @@ class MLMChoiceBackend:
         instruction: str | None = None,
         multi_label: bool = False,
     ) -> Scores:
+        return run_with_cpu_fallback(
+            self,
+            "scoring",
+            lambda: self._score(
+                texts, candidates, instruction=instruction, multi_label=multi_label
+            ),
+        )
+
+    def _score(
+        self,
+        texts: Sequence[str],
+        candidates: Sequence[Candidate],
+        *,
+        instruction: str | None = None,
+        multi_label: bool = False,
+    ) -> Scores:
         n_cands = len(candidates)
         if self.max_candidates is not None and n_cands > self.max_candidates:
             raise BackendError(
@@ -164,12 +189,13 @@ class MLMChoiceBackend:
 
         values = np.zeros((len(texts), n_cands), dtype=np.float64)
         order = sorted(range(len(prompts)), key=lengths.__getitem__)
+        batch_size = self.recipe.batch_size_for(self._device_in_use)
         start = 0
         while start < len(order):
             stop = start + 1  # lengths ascend, so the batch's longest is its last member
             while (
                 stop < len(order)
-                and stop - start < self.recipe.batch_size
+                and stop - start < batch_size
                 and (stop - start + 1) * lengths[order[stop]] <= _BATCH_TOKEN_BUDGET
             ):
                 stop += 1
@@ -191,6 +217,12 @@ class MLMChoiceBackend:
             values[batch] = _row_softmax(np.asarray(at_mask.float().cpu(), dtype=np.float64))
             start = stop
         return Scores(values, "softmax")
+
+    def close(self) -> None:
+        """Drop the model and tokenizer and release their memory; the next call reloads."""
+        self._model = self._tokenizer = None
+        self._marker_ids.clear()
+        release_memory()
 
     def supports(self, node_id: str) -> bool:
         return True

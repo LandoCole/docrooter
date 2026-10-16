@@ -39,6 +39,8 @@ PUBLIC_NAMES = [
     "DocumentView",
     "DocTypeResult",
     "NormalizationResult",
+    # v0.3
+    "configure",
 ]
 
 

@@ -155,6 +155,9 @@ class JevBackend:
         )
         return Scores(values, kind)
 
+    def close(self) -> None:
+        """Nothing to release: each ``score`` call opens and closes its own client."""
+
     def supports(self, node_id: str) -> bool:
         return True
 

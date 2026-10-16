@@ -24,11 +24,18 @@ def _check(backend):
 
 def test_nli_zero_shot_sanity():
     backend = NLIBackend()
-    _check(backend)
-    independent = backend.score([TEXT], CANDIDATES, multi_label=True)
-    assert independent.kind == "independent"
-    assert independent.values[0, 0] > independent.values[0, 1]
+    try:
+        _check(backend)
+        independent = backend.score([TEXT], CANDIDATES, multi_label=True)
+        assert independent.kind == "independent"
+        assert independent.values[0, 0] > independent.values[0, 1]
+    finally:
+        backend.close()
 
 
 def test_mlm_choice_zero_shot_sanity():
-    _check(MLMChoiceBackend())
+    backend = MLMChoiceBackend()
+    try:
+        _check(backend)
+    finally:
+        backend.close()

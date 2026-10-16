@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from docrooter._extras import require
-from docrooter.backends.base import Candidate, Scores
+from docrooter.backends.base import Candidate, Scores, close_backend
 from docrooter.errors import BackendError
 
 if TYPE_CHECKING:
@@ -124,6 +124,22 @@ class TrainedModel:
         """
         return self._body
 
+    def close(self) -> None:
+        """Release the body (also the :meth:`as_zero_shot` backend) and reloadable heads.
+
+        A saved or loaded model reloads both from its bundle on its next use. A body fine-tuned
+        in memory and never saved cannot be reloaded: using the model after ``close`` then
+        raises ``BackendError``, so save it first if you still need it.
+        """
+        if self._path is not None:
+            self._heads.clear()  # reloaded from the bundle on demand
+        elif self.manifest.get("train_metrics", {}).get("triplets"):
+            self._body._unrecoverable = (
+                f"{self.name} was fine-tuned in memory and closed before it was saved; "
+                "its fine-tuned weights are gone (save the model before closing it)"
+            )
+        close_backend(self._body)
+
     def _head(self, node_id: str) -> Any:
         if node_id not in self._heads:
             if self._path is None:
@@ -146,6 +162,16 @@ class TrainedModel:
             json.dumps(self.manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
         self._path = out
+        self._reload_body_from(out / BODY_DIR)
+
+    def _reload_body_from(self, body_dir: Path) -> None:
+        """Make the body reload from ``body_dir`` after :meth:`close`, not from the hub (where
+        a fine-tuned body's weights do not exist). The weights in memory are unchanged."""
+        from docrooter.backends.embedding import EmbeddingBackend
+
+        if isinstance(self._body, EmbeddingBackend):
+            self._body.model_id = str(body_dir)
+            self._body.recipe = self._body.recipe.model_copy(update={"revision": None})
 
     @classmethod
     def load(

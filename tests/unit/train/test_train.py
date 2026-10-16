@@ -13,6 +13,8 @@ from docrooter.train import Dataset, Example
 from docrooter.train.bundle import head_file
 from docrooter.train.trainer import train
 
+REAL_EMBEDDING = embedding.EmbeddingBackend
+
 pytest.importorskip("sklearn.linear_model")
 
 FIXTURES = Path(__file__).parents[2] / "fixtures"
@@ -24,9 +26,20 @@ class FakeEmbedding:
 
     def __init__(self, model, *, device=None, batch_size=None, **kw):
         self.name = f"embedding:{model}"
-        self.recipe = get_recipe(model, batch_size=batch_size)
+        self.model_id = model
+        self.recipe = get_recipe(model, batch_size=batch_size, **kw)
         self.prompts = []
+        self._device = device
+        self._device_in_use = device or "cpu"
+        self.closed = 0
         FakeEmbedding.instances.append(self)
+
+    @property
+    def batch_size(self):
+        return self.recipe.batch_size_for(self._device_in_use)
+
+    def close(self):
+        self.closed += 1
 
     def encode(self, texts, *, prompt):
         self.prompts.append(prompt)
@@ -123,6 +136,147 @@ def test_train_default_instruction_from_recipe(nested):
     model = train(nested, _data(DATA), finetune_body=False, min_examples_per_child=2)
     recipe = get_recipe("dmis-lab/UltraBERT-Embed-150M")
     assert model.manifest["instruction"] == recipe.default_instruction
-    assert model.manifest["recipe"] == recipe.model_dump()
+    assert model.manifest["recipe"] == {**recipe.model_dump(), "max_seq_len": 512}
     (body,) = FakeEmbedding.instances
     assert body.prompts[0] == "Instruct: Classify this document section\nQuery: "
+
+
+def test_max_seq_len_is_capped_by_the_recipe(nested):
+    model = train(nested, _data(DATA), finetune_body=False, min_examples_per_child=2)
+    assert model.manifest["recipe"]["max_seq_len"] == 512  # UltraBERT's recipe allows 1024
+    model = train(
+        nested, _data(DATA), finetune_body=False, min_examples_per_child=2, max_seq_len=4096
+    )
+    assert model.manifest["recipe"]["max_seq_len"] == 1024
+    with pytest.raises(ValueError, match="max_seq_len"):
+        train(nested, _data(DATA), max_seq_len=0)
+
+
+def test_max_seq_len_applied_to_the_sentence_transformer(nested, monkeypatch):
+    """A real EmbeddingBackend over a fake SentenceTransformer: the length is set before
+    fine-tuning and holds while the heads' examples are encoded."""
+    import sys
+    import types
+
+    from docrooter.train import trainer
+
+    monkeypatch.setattr(embedding, "EmbeddingBackend", REAL_EMBEDDING)
+    models = []
+
+    class FakeST:
+        def __init__(self, model_id, **kwargs):
+            self.max_seq_length = None
+            self.seen = []
+            models.append(self)
+
+        def encode(self, texts, **kwargs):
+            self.seen.append(self.max_seq_length)
+            return np.array([[float(w in t) for w in WORDS] + [1.0] for t in texts])
+
+    monkeypatch.setitem(sys.modules, "sentence_transformers", types.SimpleNamespace(
+        SentenceTransformer=FakeST
+    ))  # fmt: skip
+    monkeypatch.setenv("DOCROOTER_DEVICE", "cpu")
+    finetuned = []
+
+    def fake_finetune(body, triplets, **kwargs):
+        model = body._load()
+        finetuned.append((model.max_seq_length, body.batch_size))
+
+    monkeypatch.setattr(trainer, "_finetune", fake_finetune)
+    model = train(nested, _data(DATA), min_examples_per_child=2, max_seq_len=256)
+    (st,) = models
+    assert finetuned == [(256, 16)]
+    assert st.seen and set(st.seen) == {256}
+    assert model.manifest["recipe"]["max_seq_len"] == 256
+
+
+def test_hf_model_only_when_checkpointing_is_supported():
+    from types import SimpleNamespace
+
+    from docrooter.train.trainer import _hf_model
+
+    supported = SimpleNamespace(supports_gradient_checkpointing=True)
+    assert _hf_model([SimpleNamespace(auto_model=supported)]) is supported
+    unsupported = SimpleNamespace(supports_gradient_checkpointing=False)
+    assert _hf_model([SimpleNamespace(auto_model=unsupported)]) is None
+    assert _hf_model([SimpleNamespace()]) is None and _hf_model(object()) is None
+
+
+@pytest.mark.parametrize("flag", [True, False])
+def test_gradient_checkpointing_is_passed_to_finetuning(nested, monkeypatch, flag):
+    from docrooter.train import trainer
+
+    seen = []
+    monkeypatch.setattr(
+        trainer, "_finetune", lambda body, triplets, **kw: seen.append(kw["gradient_checkpointing"])
+    )
+    train(nested, _data(DATA), min_examples_per_child=2, gradient_checkpointing=flag)
+    assert seen == [flag]
+
+
+OOM = "MPS backend out of memory (MPS allocated: 7.9 GB, max allowed: 8.0 GB)"
+
+
+@pytest.mark.parametrize(
+    ("failures", "expected"),
+    [
+        (0, [("mps", 16)]),
+        (1, [("mps", 16), ("mps", 8)]),
+        (2, [("mps", 16), ("mps", 8), ("cpu", 8)]),
+    ],
+)
+def test_finetuning_retries_half_batch_then_cpu_on_mps_oom(
+    nested, monkeypatch, caplog, failures, expected
+):
+    from docrooter.train import trainer
+
+    runs = []
+
+    def flaky(body, triplets, **kw):
+        if body._device == "cpu":
+            body._device_in_use = "cpu"
+        runs.append((body._device_in_use, body.batch_size))
+        if len(runs) <= failures:
+            raise RuntimeError(OOM)
+
+    monkeypatch.setattr(trainer, "_finetune", flaky)
+    with caplog.at_level("WARNING"):
+        model = train(nested, _data(DATA), min_examples_per_child=2, device="mps")
+    assert runs == expected
+    (body,) = FakeEmbedding.instances
+    assert body.closed == failures  # each retry starts again from the base weights
+    metrics = model.manifest["train_metrics"]
+    assert (metrics["device"], metrics["batch_size"]) == expected[-1]
+    assert model.manifest["recipe"]["batch_size"] == (None if failures == 0 else 8)
+    if failures:
+        assert "retrying with batch 8" in caplog.text
+    if failures == 2:
+        assert "falling back to the CPU" in caplog.text
+
+
+def test_finetuning_gives_up_after_the_cpu_attempt(nested, monkeypatch):
+    from docrooter.train import trainer
+
+    def always(body, triplets, **kw):
+        body._device_in_use = "mps"  # pretend: every attempt hits the OOM
+        raise RuntimeError(OOM)
+
+    monkeypatch.setattr(trainer, "_finetune", always)
+    with pytest.raises(RuntimeError, match="out of memory"):
+        train(nested, _data(DATA), min_examples_per_child=2, device="mps")
+
+
+def test_other_finetuning_errors_are_not_retried(nested, monkeypatch):
+    from docrooter.train import trainer
+
+    calls = []
+
+    def broken(body, triplets, **kw):
+        calls.append(1)
+        raise RuntimeError("shape mismatch")
+
+    monkeypatch.setattr(trainer, "_finetune", broken)
+    with pytest.raises(RuntimeError, match="shape mismatch"):
+        train(nested, _data(DATA), min_examples_per_child=2, device="mps")
+    assert calls == [1]

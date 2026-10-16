@@ -20,6 +20,8 @@ class FakeSentenceTransformer:
         self.model_id = model_id
         self.kwargs = kwargs
         self.calls: list[tuple[str, list[str]]] = []
+        self.batch_sizes: list[int] = []
+        self.seq_lengths: list[int | None] = []
         self.max_seq_length = None
         self.tokenizer = types.SimpleNamespace(
             encode=lambda text, add_special_tokens=True: text.split()
@@ -29,6 +31,8 @@ class FakeSentenceTransformer:
     def encode(self, texts, prompt="", **kwargs):
         assert kwargs["normalize_embeddings"] is True
         self.calls.append((prompt, list(texts)))
+        self.batch_sizes.append(kwargs["batch_size"])
+        self.seq_lengths.append(self.max_seq_length)
         out = np.array([[(prompt + t).count(c) for c in "abc"] for t in texts], dtype=float)
         out = out + 0.01
         return out / np.linalg.norm(out, axis=1, keepdims=True)
@@ -59,7 +63,7 @@ def test_load_arguments(fake_st):
     assert model.kwargs["revision"] == "367d5343b5a0164d57b810cedf5de4b8983d5984"
     assert model.kwargs["trust_remote_code"] is True
     assert model.kwargs["model_kwargs"] == {"attn_implementation": "sdpa", "dtype": "float32"}
-    assert model.max_seq_length == 8192
+    assert model.max_seq_length == 1024
 
 
 @pytest.mark.parametrize(
@@ -134,3 +138,91 @@ def test_trust_gate(fake_st):
     assert EmbeddingBackend(ULTRA, revision="main", trust_remote_code=True).trust_remote_code
     assert EmbeddingBackend("some/model", revision="main").trust_remote_code is False
     assert EmbeddingBackend(ULTRA, revision="367d5343b5a0164d57b810cedf5de4b8983d5984")
+
+
+@pytest.mark.parametrize(("device", "batch"), [("cpu", 16), ("mps", 16), ("cuda", 32)])
+def test_default_batch_size_follows_the_device(fake_st, device, batch):
+    EmbeddingBackend("some/model", device=device).encode(["a"], prompt="")
+    assert fake_st.instances[0].batch_sizes == [batch]
+    EmbeddingBackend("some/model", device=device, batch_size=4).encode(["a"], prompt="")
+    assert fake_st.instances[1].batch_sizes == [4]
+
+
+def test_cache_is_lru_bounded(fake_st):
+    backend = EmbeddingBackend("some/model", cache_size=2)
+    backend.encode(["a", "b"], prompt="")
+    backend.encode(["a"], prompt="")  # hit: "a" becomes the most recent
+    backend.encode(["c"], prompt="")  # evicts "b", the least recent
+    assert list(backend._cache) == [("", "a"), ("", "c")]
+    backend.encode(["b", "a"], prompt="")
+    (model,) = fake_st.instances
+    assert model.calls == [("", ["a", "b"]), ("", ["c"]), ("", ["b"])]
+    assert EmbeddingBackend("some/model").cache_size == 50_000
+
+
+def test_batch_larger_than_the_cache_still_returns_every_row(fake_st):
+    backend = EmbeddingBackend("some/model", cache_size=1)
+    out = backend.encode(["aa", "bb", "cc", "aa"], prompt="")
+    assert out.shape == (4, 3) and np.allclose(out[0], out[3])
+    assert len(backend._cache) == 1
+    unbounded = EmbeddingBackend("some/model", cache_size=0)
+    unbounded.encode(["aa"], prompt="")
+    assert len(unbounded._cache) == 0
+    with pytest.raises(ValueError, match="cache_size"):
+        EmbeddingBackend("some/model", cache_size=-1)
+
+
+def test_close_drops_model_and_caches_then_reloads(fake_st):
+    backend = EmbeddingBackend("some/model")
+    backend.score(["aaa"], [Candidate("x", "bbb")])
+    assert backend._cache and backend._label_cache
+    backend.close()
+    assert backend._model is None and not backend._cache and not backend._label_cache
+    backend.encode(["aaa"], prompt="")
+    assert len(fake_st.instances) == 2
+
+
+OOM = "MPS backend out of memory (MPS allocated: 7.9 GB, max allowed: 8.0 GB)"
+
+
+def test_mps_oom_while_loading_falls_back_to_cpu(fake_st, monkeypatch, caplog):
+    real_init = fake_st.__init__
+
+    def init(self, model_id, **kwargs):
+        if kwargs["device"] == "mps":
+            raise RuntimeError(OOM)
+        real_init(self, model_id, **kwargs)
+
+    monkeypatch.setattr(fake_st, "__init__", init)
+    backend = EmbeddingBackend("some/model", device="mps")
+    with caplog.at_level("WARNING"):
+        backend.encode(["a"], prompt="")
+    (model,) = fake_st.instances
+    assert model.kwargs["device"] == "cpu" and backend._device_in_use == "cpu"
+    assert "falling back to the CPU" in caplog.text
+
+
+def test_mps_oom_while_encoding_falls_back_to_cpu_once(fake_st, monkeypatch):
+    real_encode = fake_st.encode
+
+    def encode(self, texts, prompt="", **kwargs):
+        if self.kwargs["device"] == "mps":
+            raise RuntimeError(OOM)
+        return real_encode(self, texts, prompt, **kwargs)
+
+    monkeypatch.setattr(fake_st, "encode", encode)
+    backend = EmbeddingBackend("some/model", device="mps")
+    out = backend.encode(["aa", "bb"], prompt="")
+    assert out.shape == (2, 3)
+    assert [m.kwargs["device"] for m in fake_st.instances] == ["mps", "cpu"]
+    assert backend._device == "cpu"
+
+
+def test_other_errors_while_encoding_are_raised(fake_st, monkeypatch):
+    def encode(self, texts, prompt="", **kwargs):
+        raise RuntimeError("shape mismatch")
+
+    monkeypatch.setattr(fake_st, "encode", encode)
+    with pytest.raises(RuntimeError, match="shape mismatch"):
+        EmbeddingBackend("some/model", device="mps").encode(["a"], prompt="")
+    assert len(fake_st.instances) == 1

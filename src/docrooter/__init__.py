@@ -23,6 +23,7 @@ from docrooter.errors import (
 )
 from docrooter.evaluate import compare, evaluate
 from docrooter.pdf.load import load_pdf
+from docrooter.runtime import configure
 from docrooter.taxonomies import builtin_taxonomy, list_builtin_taxonomies
 from docrooter.taxonomy import Taxonomy, TaxonomyNode
 from docrooter.train import Dataset
@@ -59,6 +60,7 @@ __all__ = [
     "calibrate",
     "classify_document",
     "compare",
+    "configure",
     "evaluate",
     "list_builtin_taxonomies",
     "load",

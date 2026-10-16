@@ -253,3 +253,55 @@ def test_exported_from_package():
 
     assert docrooter.TrainedModel is TrainedModel
     assert docrooter.train is trainer.train
+
+
+def test_close_of_a_saved_model_drops_heads_and_closes_the_body(nested, tmp_path):
+    model, _ = _model(nested)
+    model.save(tmp_path / "b")
+    loaded = TrainedModel.load(tmp_path / "b")
+    body = FakeBody()
+    body.closed = 0
+    body.close = lambda: setattr(body, "closed", body.closed + 1)
+    loaded._body = body
+    candidates = [Candidate("financial.audit", "A"), Candidate("financial.tax", "T")]
+    before = loaded.score(["audit opinion"], candidates).values
+    assert loaded._heads
+    loaded.close()
+    assert body.closed == 1 and loaded._heads == {}
+    assert np.allclose(loaded.score(["audit opinion"], candidates).values, before)  # reloaded
+
+
+def test_close_of_an_unsaved_fine_tuned_model_refuses_reuse(nested, monkeypatch, tmp_path):
+    import sys
+    import types
+
+    monkeypatch.setitem(sys.modules, "sentence_transformers", types.SimpleNamespace(
+        SentenceTransformer=lambda *a, **k: pytest.fail("must not reload base weights")
+    ))  # fmt: skip
+    monkeypatch.setenv("DOCROOTER_DEVICE", "cpu")
+    model, _ = _model(nested)
+    model.manifest["train_metrics"]["triplets"] = 10
+    model._body = body = EmbeddingBackend("BAAI/bge-small-en-v1.5")
+    model.close()
+    assert model._heads  # the only copy of the heads is kept
+    with pytest.raises(BackendError, match="closed before it was saved"):
+        body.encode(["tax"], prompt="")
+    unsaved_heads_only, _ = _model(nested)  # no fine-tuning: the base body reloads fine
+    unsaved_heads_only.close()
+    assert getattr(unsaved_heads_only._body, "_unrecoverable", None) is None
+
+
+def test_save_points_an_embedding_body_at_the_bundle(nested, tmp_path):
+    class SavingST:
+        def save(self, path):
+            Path(path).mkdir(parents=True, exist_ok=True)
+
+    model, _ = _model(nested, base="dmis-lab/UltraBERT-Embed-150M")
+    model._body = body = EmbeddingBackend("dmis-lab/UltraBERT-Embed-150M")
+    body._model = SavingST()  # "loaded": save writes it without a real model
+    model.manifest["train_metrics"]["triplets"] = 10  # a fine-tuned body
+    model.save(tmp_path / "b")
+    assert body.model_id == str(tmp_path / "b" / "body") and body.recipe.revision is None
+    assert body.trust_remote_code is True
+    model.close()
+    assert body._model is None and body._unrecoverable is None  # reloads from the bundle

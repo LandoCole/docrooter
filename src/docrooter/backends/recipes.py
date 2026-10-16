@@ -6,9 +6,15 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from docrooter.runtime import default_batch_size
+
 
 class Recipe(BaseModel):
-    """How to talk to one model. Defaults suit a plain sentence-embedding model."""
+    """How to talk to one model. Defaults suit a plain sentence-embedding model.
+
+    ``batch_size`` is the encoding (and fine-tuning) batch; ``None`` means 32 on CUDA and,
+    elsewhere, 16 within the default 8 GiB memory budget (see :meth:`batch_size_for`).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -19,9 +25,15 @@ class Recipe(BaseModel):
     default_instruction: str = "Classify this document section"
     max_seq_len: int = 512
     temperature: float = 0.05
-    batch_size: int = 32
+    batch_size: int | None = None
     finetune_lr: float = 2e-5
     finetune_epochs: int = 1
+
+    def batch_size_for(self, device: str) -> int:
+        """The batch size to use on ``device``: ``batch_size`` if set, else the device default."""
+        if self.batch_size is not None:
+            return self.batch_size
+        return default_batch_size(device)
 
 
 _RECIPES: dict[str, Recipe] = {
@@ -30,13 +42,13 @@ _RECIPES: dict[str, Recipe] = {
         trust_remote_code=True,
         query_prompt="Instruct: {instruction}\nQuery: ",
         label_prompt="Label: ",
-        max_seq_len=8192,
+        max_seq_len=1024,
         finetune_lr=5e-5,
     ),
     "dmis-lab/UltraBERT-380M": Recipe(
         revision="65bbbfeefb03bc93b9965d1d511708dabcee8511",
         trust_remote_code=True,
-        max_seq_len=8192,
+        max_seq_len=1024,
         finetune_lr=3e-5,
     ),
     "BAAI/bge-small-en-v1.5": Recipe(

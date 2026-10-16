@@ -347,7 +347,7 @@ def test_mlm_prompt_uses_mask_token_and_instruction(fake_mlm):
     MLMChoiceBackend().score(["Alpha"], [Candidate("a", "Alpha")], instruction="Pick one")
     prompts, kwargs = fake_mlm.tokenizer.calls[0]
     assert prompts == ["Pick one\nText: Alpha\nOptions:\nA. Alpha\nAnswer: <mask>"]
-    assert kwargs["max_length"] == 8192 and kwargs["padding"] is True
+    assert kwargs["max_length"] == 1024 and kwargs["padding"] is True
     MLMChoiceBackend().score(["Alpha"], [Candidate("a", "Alpha")])
     assert fake_mlm.tokenizer.calls[1][0][0].startswith("Classify this document section\nText:")
 
@@ -432,3 +432,24 @@ def test_nli_temperature_is_one_for_any_recipe(fake_transformers):
     embedding similarities and would sharpen them to p**20."""
     assert NLIBackend("facebook/bart-large-mnli").temperature == 1.0
     assert resolve_backend("nli:facebook/bart-large-mnli").temperature == 1.0
+
+
+def test_nli_default_batch_is_16_off_cuda_and_close_reloads(fake_transformers):
+    b = NLIBackend()
+    texts = [f"tax filing {i}" for i in range(9)]
+    b.score(texts, [TAX, LIT])  # 18 pairs
+    assert fake_transformers.models[0].batches == [16, 2]
+    b.close()
+    assert b._model is None and b._tokenizer is None
+    b.score(["tax filing"], [TAX, LIT])
+    assert len(fake_transformers.models) == 2  # loaded again after close
+
+
+def test_mlm_close_reloads(fake_mlm):
+    b = MLMChoiceBackend()
+    cands = [Candidate("a", "Alpha"), Candidate("b", "Beta")]
+    b.score(["Alpha"], cands)
+    b.close()
+    assert b._model is None and b._tokenizer is None and b._marker_ids == {}
+    b.score(["Beta"], cands)
+    assert len(fake_mlm.model_kwargs) == 2

@@ -9,7 +9,12 @@ import numpy as np
 
 from docrooter._extras import require
 from docrooter.backends.base import Candidate, Scores, _row_softmax
-from docrooter.backends.loading import select_device
+from docrooter.backends.loading import (
+    after_model_load,
+    prepare_model_load,
+    release_memory,
+    run_with_cpu_fallback,
+)
 from docrooter.backends.recipes import Recipe, get_recipe
 from docrooter.errors import BackendError
 
@@ -78,8 +83,8 @@ class NLIBackend:
 
     def _load(self) -> Any:
         if self._model is None:
+            device = prepare_model_load(self._device)
             transformers = require("transformers", "models")
-            device = select_device(self._device)
             # No attn_implementation: DeBERTa-v2 has its own attention and rejects "sdpa".
             kwargs: dict[str, Any] = {"revision": self.recipe.revision}
             if device.split(":")[0] != "cuda":
@@ -91,9 +96,11 @@ class NLIBackend:
                 self.model_id, **kwargs
             )
             self._entail, self._other = _label_indices(dict(model.config.label2id), self.model_id)
+            self._device_in_use = device  # before the move, so an MPS OOM there is caught
             model.to(device)
             model.eval()
-            self._tokenizer, self._model, self._device_in_use = tokenizer, model, device
+            after_model_load(device)
+            self._tokenizer, self._model = tokenizer, model
         return self._model
 
     def _pair_logits(self, premises: list[str], hypotheses: list[str]) -> np.ndarray:
@@ -101,8 +108,9 @@ class NLIBackend:
         model = self._load()
         torch = require("torch", "models")
         rows: list[np.ndarray] = []
-        for start in range(0, len(premises), self.recipe.batch_size):
-            stop = start + self.recipe.batch_size
+        batch_size = self.recipe.batch_size_for(self._device_in_use)
+        for start in range(0, len(premises), batch_size):
+            stop = start + batch_size
             enc = self._tokenizer(
                 premises[start:stop],
                 hypotheses[start:stop],
@@ -132,6 +140,22 @@ class NLIBackend:
         instruction: str | None = None,
         multi_label: bool = False,
     ) -> Scores:
+        return run_with_cpu_fallback(
+            self,
+            "scoring",
+            lambda: self._score(
+                texts, candidates, instruction=instruction, multi_label=multi_label
+            ),
+        )
+
+    def _score(
+        self,
+        texts: Sequence[str],
+        candidates: Sequence[Candidate],
+        *,
+        instruction: str | None = None,
+        multi_label: bool = False,
+    ) -> Scores:
         kind = "independent" if multi_label else "softmax"
         n_texts, n_cands = len(texts), len(candidates)
         if not n_texts or not n_cands:
@@ -144,6 +168,11 @@ class NLIBackend:
         else:
             probs = _row_softmax(pairs[:, 0].reshape(n_texts, n_cands)).reshape(-1)
         return Scores(probs.reshape(n_texts, n_cands), kind)
+
+    def close(self) -> None:
+        """Drop the model and tokenizer and release their memory; the next call reloads."""
+        self._model = self._tokenizer = None
+        release_memory()
 
     def supports(self, node_id: str) -> bool:
         return True

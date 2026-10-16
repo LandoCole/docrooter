@@ -6,6 +6,7 @@ Python. :func:`train` needs the ``models`` extra.
 
 from __future__ import annotations
 
+import logging
 import math
 import random
 import time
@@ -13,12 +14,15 @@ import warnings
 from typing import TYPE_CHECKING, Any
 
 from docrooter._extras import require
+from docrooter.backends.recipes import get_recipe
 from docrooter.taxonomy import Taxonomy
 
 if TYPE_CHECKING:
     from docrooter.backends.embedding import EmbeddingBackend
     from docrooter.train.bundle import TrainedModel
     from docrooter.train.dataset import Dataset
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_MODEL = "dmis-lab/UltraBERT-Embed-150M"
 WARMUP_RATIO = 0.05
@@ -136,15 +140,18 @@ def _finetune(
     prompt: str,
     epochs: int,
     lr: float,
-    batch_size: int,
     seed: int,
+    gradient_checkpointing: bool = True,
 ) -> None:
     """Fine-tune ``body``'s SentenceTransformer in place with MultipleNegativesRankingLoss.
 
     Mirrors ``SentenceTransformerTrainer`` defaults (AdamW, linear decay after
     ``WARMUP_RATIO`` warmup, gradient clipping at 1.0) without its ``accelerate`` dependency.
     Each batch holds three columns (anchor, positive, negative), every text prefixed with the
-    query ``prompt``.
+    query ``prompt``. The batch is the body's (recipe ``batch_size``, else 16, 32 on CUDA),
+    and texts are truncated to the body's ``max_seq_len``. With ``gradient_checkpointing``
+    (when the model supports it) activations are recomputed in the backward pass instead of
+    kept: a batch of 16 triplets at 512 tokens otherwise holds about 10 GB of activations.
     """
     torch = require("torch", "models")
     transformers = require("transformers", "models")
@@ -152,6 +159,13 @@ def _finetune(
     st_util = require("sentence_transformers.util", "models")
 
     model = body._load()
+    model.max_seq_length = body.recipe.max_seq_len
+    batch_size = body.batch_size
+    transformer = _hf_model(model) if gradient_checkpointing else None
+    if transformer is not None:
+        transformer.gradient_checkpointing_enable(
+            gradient_checkpointing_kwargs={"use_reentrant": False}
+        )
     torch.manual_seed(seed)
     loss_fn = losses.MultipleNegativesRankingLoss(model)
     rows = [tuple(prompt + text for text in triplet) for triplet in triplets]
@@ -181,6 +195,47 @@ def _finetune(
                 optimizer.zero_grad()
     finally:
         model.eval()
+        if transformer is not None:
+            transformer.gradient_checkpointing_disable()
+
+
+def _finetune_with_fallback(body: EmbeddingBackend, triplets: list[Triplet], **kwargs: Any) -> None:
+    """:func:`_finetune`; on an MPS out-of-memory error, again from the base weights with half
+    the batch, then on the CPU (with that half batch). Each retry logs a warning."""
+    from docrooter.backends.loading import is_mps_oom, release_memory, warn_cpu_fallback
+
+    for attempt in ("mps", "half batch", "cpu"):
+        try:
+            _finetune(body, triplets, **kwargs)
+            return
+        except Exception as exc:
+            if attempt == "cpu" or not is_mps_oom(exc, body._device_in_use):
+                raise
+        # Outside the handler, so the failed attempt's activations can be freed. The body
+        # reloads from its base model: a partly fine-tuned one would be a different start.
+        body.close()
+        if attempt == "mps":
+            half = max(1, body.batch_size // 2)
+            logger.warning(
+                "fine-tuning %s ran out of MPS memory at batch %d; retrying with batch %d",
+                body.model_id,
+                body.batch_size,
+                half,
+            )
+            body.recipe = body.recipe.model_copy(update={"batch_size": half})
+        else:
+            warn_cpu_fallback(body.name, "fine-tuning")
+            body._device = "cpu"
+        release_memory()
+
+
+def _hf_model(model: Any) -> Any:
+    """The Hugging Face model inside a SentenceTransformer, if it supports checkpointing."""
+    try:
+        transformer = model[0].auto_model
+    except (AttributeError, IndexError, TypeError):
+        return None
+    return transformer if getattr(transformer, "supports_gradient_checkpointing", False) else None
 
 
 def train(
@@ -197,6 +252,8 @@ def train(
     device: str | None = None,
     seed: int = 0,
     instruction: str | None = None,
+    max_seq_len: int = 512,
+    gradient_checkpointing: bool = True,
 ) -> TrainedModel:
     """Train a :class:`TrainedModel`: a shared embedding body and one head per trainable node.
 
@@ -205,14 +262,24 @@ def train(
     ``LogisticRegression`` on the body's embeddings of its examples. ``epochs``, ``lr`` and
     ``batch_size`` default to the base model's recipe. Texts are embedded with the recipe's
     query prompt around ``instruction`` (default: the recipe's), at training and at inference.
+
+    Texts are truncated to ``max_seq_len`` tokens (capped at the recipe's own limit) for
+    fine-tuning, for the heads' embeddings and, through the saved recipe, at inference: long
+    training texts would otherwise allocate attention quadratic in the recipe's limit.
+    ``gradient_checkpointing`` (default on) recomputes activations during fine-tuning instead
+    of storing them, which bounds its memory (about 6 GB instead of 10 GB on CPU for
+    UltraBERT at batch 16); turn it off for speed when memory is plentiful.
     """
     from docrooter import __version__
     from docrooter.backends.embedding import EmbeddingBackend
     from docrooter.train.bundle import TrainedModel, head_file
 
     linear_model = require("sklearn.linear_model", "models")
+    if max_seq_len < 1:
+        raise ValueError(f"max_seq_len must be >= 1, got {max_seq_len}")
     started = time.perf_counter()
-    body = EmbeddingBackend(base_model, device=device, batch_size=batch_size)
+    seq_len = min(max_seq_len, get_recipe(base_model).max_seq_len)
+    body = EmbeddingBackend(base_model, device=device, batch_size=batch_size, max_seq_len=seq_len)
     recipe = body.recipe
     instruction = instruction or recipe.default_instruction
     prompt = recipe.query_prompt.format(instruction=instruction)
@@ -233,15 +300,16 @@ def train(
             used_epochs = epochs if epochs is not None else recipe.finetune_epochs
             used_lr = lr if lr is not None else recipe.finetune_lr
             n_triplets = len(triplets)
-            _finetune(
+            _finetune_with_fallback(
                 body,
                 triplets,
                 prompt=prompt,
                 epochs=used_epochs,
                 lr=used_lr,
-                batch_size=recipe.batch_size,
                 seed=seed,
+                gradient_checkpointing=gradient_checkpointing,
             )
+            recipe = body.recipe  # a retry may have halved the batch
             body.name = f"embedding:{base_model} (fine-tuned)"
         else:
             warnings.warn(
@@ -286,6 +354,8 @@ def train(
             "triplets": n_triplets,
             "epochs": used_epochs,
             "lr": used_lr,
+            "device": body._device_in_use,
+            "batch_size": body.batch_size,
             "seconds": round(time.perf_counter() - started, 3),
         },
     }

@@ -8,6 +8,7 @@ without network access; with ``rows=None`` the real dataset is fetched from the 
 from __future__ import annotations
 
 import functools
+import hashlib
 import random
 import re
 from collections.abc import Iterable, Iterator, Mapping
@@ -183,6 +184,23 @@ def strip_item_heading(text: str, item: str) -> str:
     return " ".join(rest[i:])
 
 
+_TRAILING_MARKER = re.compile(
+    r"\s*(?:part\s+[ivx]+\b\W*(?:item\s*\d+[a-c]?\b\W*)?|item\s*\d+[a-c]?\b\W*)$",
+    re.IGNORECASE,
+)
+
+
+def strip_trailing_markers(text: str) -> str:
+    """Remove the next section's marker that EDGAR-CORPUS leaves at the end of an item.
+
+    Short items end like ``... Not applicable. PART II Item 5.``, which names the *next*
+    item (and so is a wrong label as well as a leak). Handles ``PART x``, ``Item n`` and both.
+    """
+    while (match := _TRAILING_MARKER.search(text)) is not None and match.start() > 0:
+        text = text[: match.start()]
+    return text
+
+
 def _filing_examples(filing: Mapping[str, Any], doc_id: str, strip_headings: bool) -> list[Example]:
     out = []
     for item in ITEM_PART:
@@ -191,7 +209,7 @@ def _filing_examples(filing: Mapping[str, Any], doc_id: str, strip_headings: boo
             continue
         text = collapse_whitespace(text)
         if strip_headings:
-            text = strip_item_heading(text, item)
+            text = strip_trailing_markers(strip_item_heading(text, item))
         if len(text.split()) < MIN_ITEM_WORDS:
             continue
         out.append(
@@ -238,7 +256,8 @@ def load_b1(
     are dropped. The test set is ``n_test`` items sampled from the test half of the filings.
 
     Every item in the corpus starts with its own heading (``ITEM 7A. QUANTITATIVE AND ...``),
-    which would hand the label to the model; ``strip_headings`` (default) removes it before the
+    which would hand the label to the model, and short items end with the next item's marker
+    (``... None. PART III Item 10.``); ``strip_headings`` (default) removes both before the
     length filter, ``strip_headings=False`` keeps the text verbatim.
     """
     if rows is None:
@@ -335,8 +354,12 @@ def load_b3(
 ) -> BenchData:
     """LEDGAR (``text``, integer ``label``) as a flat taxonomy of the ``label_names``.
 
-    ``subset_ids`` are the first ``subset_size`` indices of the (seeded, shuffled) test sample,
-    so the subset is the same for any ``n_test`` of at least ``subset_size``.
+    The full test split is put in a fixed pseudo-random order (a SHA-256 ranking of
+    ``seed:index``, so it does not depend on the Python version or on ``n_test``). The test
+    sample is the first ``max(n_test, subset_size)`` of that order and ``subset_ids`` the first
+    ``subset_size`` of them, so the subset is the same examples in the same order for every
+    ``n_test`` and the test sample always contains it. (With fewer than ``subset_size`` rows
+    in the split, the subset is all of them.)
     """
     if rows is None:
         rows, train_rows, label_names = _hf_ledgar(seed)
@@ -348,7 +371,12 @@ def load_b3(
     def example(row: Mapping[str, Any]) -> Example:
         return Example(text=str(row["text"]), path=[ids[int(row["label"])]])
 
-    test = _sample([example(r) for r in rows], n_test, random.Random(seed))
+    everything = [example(r) for r in rows]
+    order = sorted(
+        range(len(everything)),
+        key=lambda i: hashlib.sha256(f"{seed}:{i}".encode()).digest(),
+    )
+    test = [everything[i] for i in order[: max(n_test, subset_size)]]
     pool = _cap_per_leaf((example(r) for r in train_rows or ()), pool_per_leaf)
     return BenchData(
         name="b3",

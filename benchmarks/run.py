@@ -175,12 +175,19 @@ def run_zero_shot(
 ) -> list[dict[str, Any]]:
     """Every available system on every benchmark: Beam(3), threshold 0.0, text-only view."""
     systems = available_systems(only, environ)
-    data = _load_data(datasets, n_test, loaders)
+    plan = {system.name: dataset_runs(system, datasets) for system in systems}
+    # load only the benchmarks the selected systems run on (EDGAR and DBPedia are big downloads)
+    needed = [
+        key
+        for key in DATASET_KEYS
+        if any(run.removesuffix("-subset") == key for runs in plan.values() for run in runs)
+    ]
+    data = _load_data(needed, n_test, loaders)
     rows: list[dict[str, Any]] = []
     failed: list[str] = []
     for system in systems:
         env = collect_env(device, [system.spec])
-        for run_name in dataset_runs(system, datasets):
+        for run_name in plan[system.name]:
             try:
                 row = _run_cell(
                     "zero-shot",

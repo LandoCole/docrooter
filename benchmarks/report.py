@@ -7,11 +7,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("benchmarks")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_ROOT = Path(__file__).parent / "results"
@@ -54,28 +57,49 @@ def _link(path: Path, link_base: Path) -> str:
 
 
 def _summary(rows: list[dict[str, Any]]) -> list[str]:
-    """hF1 per system on the like-for-like datasets, the mean over all of them, slowest speed."""
+    """hF1 (and n) per system on the like-for-like datasets, the mean, the slowest speed.
+
+    Followed by a warning line for every dataset column whose ``n`` differs between systems.
+    """
     systems = list(dict.fromkeys((r["system"], r["strategy"], r["shots"]) for r in rows))
     out = []
+    sizes: dict[str, dict[str, int]] = {}
     for system, strategy, shots in systems:
         mine = {
             r["dataset"]: r
             for r in rows
             if (r["system"], r["strategy"], r["shots"]) == (system, strategy, shots)
         }
+        for dataset in SUMMARY_DATASETS:
+            if dataset in mine:
+                sizes.setdefault(dataset, {})[system] = mine[dataset]["report"]["n"]
         scores = [mine[d]["report"]["hf1"] if d in mine else None for d in SUMMARY_DATASETS]
+        cells = [
+            f"{_num(s)} (n={mine[d]['report']['n']})" if s is not None else "n/a"
+            for s, d in zip(scores, SUMMARY_DATASETS, strict=True)
+        ]
         complete = all(s is not None for s in scores)
         mean = sum(scores) / len(scores) if complete else None  # type: ignore[arg-type]
         speeds = [r["sections_per_sec"] for r in mine.values()]
-        out.append((mean, system, strategy, shots, scores, min(speeds) if speeds else None))
+        out.append((mean, system, strategy, shots, cells, min(speeds) if speeds else None))
     out.sort(key=lambda t: (t[0] is None, -(t[0] or 0.0), t[1]))
     header = ["System", "Strategy", "Shots", *(f"{d} hF1" for d in SUMMARY_DATASETS)]
     header += ["Mean hF1", "Min sections/s"]
     body = [
-        [system, strategy, str(shots), *(_num(s) for s in scores), _num(mean), _num(speed, ".1f")]
-        for mean, system, strategy, shots, scores, speed in out
+        [system, strategy, str(shots), *cells, _num(mean), _num(speed, ".1f")]
+        for mean, system, strategy, shots, cells, speed in out
     ]
-    return _table(header, body)
+    lines = _table(header, body)
+    for dataset, by_system in sizes.items():
+        if len(set(by_system.values())) > 1:
+            detail = ", ".join(f"{name} n={n}" for name, n in by_system.items())
+            message = (
+                f"the {dataset} column mixes sample sizes ({detail}); "
+                "scores are not directly comparable"
+            )
+            logger.warning(message)
+            lines += ["", f"> Warning: {message}."]
+    return lines
 
 
 def _dataset_table(rows: list[dict[str, Any]]) -> list[str]:

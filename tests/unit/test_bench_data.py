@@ -21,6 +21,7 @@ from benchmarks.data import (
     pool_shots,
     split_camel,
     strip_item_heading,
+    strip_trailing_markers,
 )
 from docrooter import Dataset
 from docrooter.evaluate.report import Report
@@ -98,6 +99,30 @@ def test_b1_strips_the_leading_item_heading():
     assert len(load_b1(rows=short, n_test=1).test) == 0
 
 
+def test_b1_strips_trailing_next_section_markers():
+    cases = {
+        "Not applicable. PART II Item 5.": "Not applicable.",
+        "None Item 9A.": "None",
+        "None. PART III. ITEM 10.": "None.",
+        "Not applicable PART II ITEM 5.": "Not applicable",
+        "None. Item 2.": "None.",
+        "None. PART IV": "None.",
+        "repeal of Item 301 of S-K. Item 7.": "repeal of Item 301 of S-K.",
+        "not required to provide the information required by this Item.": None,  # no number
+        "see Item 7 for details.": None,  # marker not at the end
+        "Item 7.": None,  # nothing else left: keep it
+    }
+    for text, expected in cases.items():
+        assert strip_trailing_markers(text) == (text if expected is None else expected), text
+    body = prose(60)
+    kept = load_b1(rows=[{"section_4": f"ITEM 4. MINE SAFETY {body} PART II Item 5."}], n_test=1)
+    assert kept.test.examples[0].text == body
+    verbatim = load_b1(
+        rows=[{"section_4": f"{body} PART II Item 5."}], n_test=1, strip_headings=False
+    )
+    assert verbatim.test.examples[0].text.endswith("PART II Item 5.")
+
+
 def test_b1_deterministic_for_a_seed():
     filings = [{"filename": str(i), "section_5": prose(60)} for i in range(20)]
     a = load_b1(rows=filings, n_test=4, seed=1)
@@ -143,16 +168,37 @@ def test_b3_flat_taxonomy_and_fixed_subset():
     rows = [{"text": f"clause {i}", "label": i % 3} for i in range(40)]
     data = load_b3(rows=rows, label_names=names, n_test=30, subset_size=10)
     assert data.taxonomy.depth() == 1 and len(data.taxonomy) == 3
+    assert len(data.test) == 30
     assert data.subset_ids == list(range(10)) and len(data.subset()) == 10
-    again = load_b3(rows=rows, label_names=names, n_test=30, subset_size=10)
-    assert [e.text for e in data.subset()] == [e.text for e in again.subset()]
     example = data.test.examples[0]
     assert data.taxonomy.node(example.path[0]).label in names
 
 
-def test_b3_subset_is_capped_by_test_size():
-    rows = [{"text": "x", "label": 0}] * 5
-    assert load_b3(rows=rows, label_names=["A"], n_test=3).subset_ids == [0, 1, 2]
+def test_b3_subset_is_identical_for_any_n_test():
+    rows = [{"text": f"clause {i}", "label": i % 3} for i in range(400)]
+    names = ["A", "B", "C"]
+
+    def subset_texts(n_test):
+        data = load_b3(rows=rows, label_names=names, n_test=n_test, subset_size=60)
+        assert {e.text for e in data.subset()} <= {e.text for e in data.test}
+        return [e.text for e in data.subset()]
+
+    reference = subset_texts(300)
+    assert len(reference) == 60 and len(set(reference)) == 60
+    assert subset_texts(100) == reference  # a smaller test sample keeps the same subset
+    assert subset_texts(10) == reference  # ... even one smaller than the subset
+    assert subset_texts(400) == reference
+    # the order is a function of the seed only, and a different seed gives a different subset
+    other = load_b3(rows=rows, label_names=names, n_test=10, seed=1, subset_size=60).subset()
+    assert [e.text for e in other] != reference
+
+
+def test_b3_test_sample_grows_to_hold_the_subset():
+    rows = [{"text": f"clause {i}", "label": 0} for i in range(50)]
+    data = load_b3(rows=rows, label_names=["A"], n_test=5, subset_size=20)
+    assert len(data.test) == 20 and data.subset_ids == list(range(20))
+    small = load_b3(rows=rows[:5], label_names=["A"], n_test=3)  # fewer rows than the subset
+    assert small.subset_ids == [0, 1, 2, 3, 4] and len(small.test) == 5
 
 
 def test_instructions_cover_every_benchmark():
@@ -271,6 +317,33 @@ def _tiny_loaders():
         )
 
     return {"b1": b1, "b3": b3}
+
+
+def test_only_loads_the_datasets_the_selected_systems_run_on(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        systems,
+        "REGISTRY",
+        {
+            "kw-b3": systems._fixed("keyword", datasets=("b3",)),
+            "kw-b1": systems._fixed("keyword", datasets=("b1",)),
+        },
+    )
+    loaders, loaded = _tiny_loaders(), []
+    for key, loader in list(loaders.items()):
+        loaders[key] = lambda n_test, seed, key=key, loader=loader: (
+            loaded.append(key) or loader(n_test, seed)
+        )
+    kwargs = {
+        "out_dir": tmp_path,
+        "datasets": ["b1", "b2", "b3"],
+        "loaders": loaders,
+        "environ": {},
+    }
+    bench_run.run_suite("zero-shot", None, 6, only=["kw-b3"], **kwargs)
+    assert loaded == ["b3"]  # no b1/b2 download for a b3-only system
+    loaded.clear()
+    bench_run.run_suite("zero-shot", None, 6, **kwargs)
+    assert sorted(loaded) == ["b1", "b3"]  # b2 is run by nobody
 
 
 def test_run_suite_writes_rows_incrementally(tmp_path, monkeypatch):
@@ -413,7 +486,9 @@ def test_render_markdown_table(tmp_path):
     # summary: alpha mean (0.8+0.7+0.6)/3 = 0.700, beta mean 0.600, incomplete systems have none
     summary = md.split("### Summary")[1].split("###")[0]
     lines = [ln for ln in summary.splitlines() if ln.startswith("| ") and "---" not in ln]
-    assert lines[1].startswith("| alpha | Beam(3) | 0 | 0.800 | 0.700 | 0.600 | 0.700 | 40.0 |")
+    assert lines[1].startswith(
+        "| alpha | Beam(3) | 0 | 0.800 (n=100) | 0.700 (n=100) | 0.600 (n=100) | 0.700 | 40.0 |"
+    )
     assert lines[2].startswith("| beta |") and "| 0.600 | 4.0 |" in lines[2]
     assert lines[3].startswith("| gamma\\|pipe |") and "n/a" in lines[3]
     # per-dataset tables sort by hF1 and carry speed and device
@@ -422,6 +497,21 @@ def test_render_markdown_table(tmp_path):
     assert "| 50.0 | 0.0200 | mps |" in b1
     assert "revisions: embedding:m @ 367d5343" in md and "torch 2.9.0" in md
     assert md.rstrip().endswith("Pick alpha.")
+
+
+def test_render_markdown_warns_when_sample_sizes_differ(tmp_path, caplog):
+    small = _fixture_row("beta", "b3-subset", 0.4, 6.0)
+    small["report"]["n"] = 20
+    rows = [_fixture_row("alpha", "b3-subset", 0.6, 45.0), small]
+    (tmp_path / "zero-shot.json").write_text(json.dumps(rows))
+    with caplog.at_level("WARNING", logger="benchmarks"):
+        md = bench_report.render_markdown(tmp_path, link_base=tmp_path)
+    assert "0.400 (n=20)" in md and "0.600 (n=100)" in md
+    assert "> Warning: the b3-subset column mixes sample sizes (alpha n=100, beta n=20)" in md
+    assert "mixes sample sizes" in caplog.text
+    same = [_fixture_row("alpha", "b1", 0.6, 45.0), _fixture_row("beta", "b1", 0.4, 6.0)]
+    (tmp_path / "zero-shot.json").write_text(json.dumps(same))
+    assert "Warning" not in bench_report.render_markdown(tmp_path, link_base=tmp_path)
 
 
 def test_render_markdown_handles_empty_dir_and_missing_suites(tmp_path):

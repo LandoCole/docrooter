@@ -16,7 +16,14 @@ from pydantic import BaseModel, Field
 from docrooter.errors import MissingExtraError
 from docrooter.pdf.lines import Line, _import_pymupdf
 
-__all__ = ["DocSignals", "compute_signals", "fuzzy_match", "normalize_title", "read_bookmarks"]
+__all__ = [
+    "DocSignals",
+    "compute_signals",
+    "fuzzy_match",
+    "is_fuzzy_match",
+    "normalize_title",
+    "read_bookmarks",
+]
 
 _EDGE_FRACTION = 0.08  # top/bottom share of the page where running headers/footers sit
 _RECURRENCE_FRACTION = 0.30
@@ -171,7 +178,9 @@ def compute_signals(
 
 
 def read_bookmarks(path: str | Path) -> list[tuple[int, str, int]]:
-    """PDF outline as ``(level, title, page)``; ``[]`` when pymupdf is missing or unreadable."""
+    """PDF outline as ``(level, title, page)``; ``[]`` when pymupdf is missing or unreadable.
+
+    Items without a target page (page < 1) are dropped."""
     try:
         pymupdf = _import_pymupdf()
     except MissingExtraError:
@@ -186,7 +195,7 @@ def read_bookmarks(path: str | Path) -> list[tuple[int, str, int]]:
         return [
             (int(level), str(title).strip(), int(page))
             for level, title, page, *_ in doc.get_toc()
-            if str(title).strip()
+            if str(title).strip() and int(page) >= 1  # page -1: outline item with no target
         ]
     except Exception:
         return []

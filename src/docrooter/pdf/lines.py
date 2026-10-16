@@ -113,7 +113,8 @@ def _finalise(rows: list[dict[str, Any]]) -> list[Line]:
 
 
 def _pymupdf_rows(doc: Any, pymupdf: Any) -> Iterator[dict[str, Any]]:
-    flags = pymupdf.TEXT_PRESERVE_WHITESPACE
+    # Drop glyphs outside the media box (pymupdf >= 1.2x also clips to the page rect by default).
+    flags = pymupdf.TEXT_PRESERVE_WHITESPACE | pymupdf.TEXT_MEDIABOX_CLIP
     for page_index, page in enumerate(doc):
         width, height = float(page.rect.width), float(page.rect.height)
         block_no = -1

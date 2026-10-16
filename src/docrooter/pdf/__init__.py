@@ -5,6 +5,7 @@ from docrooter.pdf.signals import (
     DocSignals,
     compute_signals,
     fuzzy_match,
+    is_fuzzy_match,
     normalize_title,
     read_bookmarks,
 )
@@ -15,6 +16,7 @@ __all__ = [
     "compute_signals",
     "extract_lines",
     "fuzzy_match",
+    "is_fuzzy_match",
     "normalize_title",
     "read_bookmarks",
 ]

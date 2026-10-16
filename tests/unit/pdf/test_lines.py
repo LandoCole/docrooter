@@ -111,3 +111,29 @@ def test_unknown_engine_raises(pdf_path):
 def test_read_bookmarks(pdf_path, tmp_path):
     assert read_bookmarks(pdf_path) == [(1, "Chapter 1 Overview", 1), (1, "Chapter 2 Overview", 2)]
     assert read_bookmarks(tmp_path / "missing.pdf") == []
+
+
+def test_read_bookmarks_drops_items_without_target_page(tmp_path):
+    doc = pymupdf.open()
+    doc.new_page()
+    doc.new_page()
+    doc.set_toc([[1, "Kept", 1], [1, "No target", -1], [1, "Also kept", 2]])
+    path = tmp_path / "toc.pdf"
+    doc.save(path)
+    doc.close()
+    assert read_bookmarks(path) == [(1, "Kept", 1), (1, "Also kept", 2)]
+
+
+def test_text_outside_the_media_box_is_not_extracted(tmp_path):
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((72, 100), "Inside text", fontsize=11)
+    xref = page.get_contents()[0]
+    outside = b"\nq BT /helv 11 Tf 1 0 0 1 700 500 Tm (Outside text) Tj ET Q\n"
+    stream = doc.xref_stream(xref) + outside
+    doc.update_stream(xref, stream)
+    path = tmp_path / "outside.pdf"
+    doc.save(path)
+    doc.close()
+    lines, _ = extract_lines(path, engine="pymupdf")
+    assert [line.text for line in lines] == ["Inside text"]

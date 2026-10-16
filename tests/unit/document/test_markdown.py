@@ -49,6 +49,20 @@ def test_front_matter_skipped():
     assert extract_headings("---\ntitle: X\n---\nbody")[0].text == "body"
 
 
+def test_front_matter_edge_cases():
+    kept = extract_headings("---\nNote: x\n# Title\n## Sub\n---\nmore")
+    assert [h.title for h in kept if h.level > 0] == ["Title", "Sub"]
+    doc = build_document(extract_headings("---\n\ntitle: x\n---\n# A\nbody"), source="a.md")
+    assert [e.title for e in doc.toc()] == ["A"] and list(doc.sections) == ["s1"]
+    indented_only = extract_headings("---\n  title: x\n---\n# A")
+    assert "A" in [h.title for h in indented_only]
+    assert [h.title for h in extract_headings("---\ntitle: x\ntags:\n  - a\n---\n# A")] == ["A"]
+    commented = extract_headings("---\ntitle: x\n# note\n---\n# A")  # '#' line: kept as content
+    assert [h.title for h in commented if h.level > 0] == ["note", "A"]
+    far = "---\ntitle: x\n" + "a: b\n" * 60 + "---\n# A"
+    assert extract_headings(far)[0].level == 0  # closing marker too far away: not front matter
+
+
 def test_hr_led_document_keeps_headings():
     md = "---\n# Title\nbody\n## Sub\n---\nmore\n# Next\nx"
     headings = extract_headings(md)

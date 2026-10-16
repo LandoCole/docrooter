@@ -10,7 +10,8 @@ _ATX = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$")
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 _SETEXT_H1 = re.compile(r"^ {0,3}=+[ \t]*$")
 _SETEXT_H2 = re.compile(r"^ {0,3}-+[ \t]*$")
-_YAML_KEY = re.compile(r"^[\w-]+[ \t]*:")
+_YAML_KEY = re.compile(r"^[A-Za-z_][\w-]*\s*:")
+_FRONT_MATTER_MAX_LINES = 50
 # A line that cannot be the text of a setext heading (it starts another block type).
 _NOT_SETEXT_TEXT = re.compile(r"^ {0,3}(?:[-*+][ \t]|\d+[.)][ \t]|>|\||#{1,6}(?:[ \t]|$))")
 
@@ -18,23 +19,25 @@ _NOT_SETEXT_TEXT = re.compile(r"^ {0,3}(?:[-*+][ \t]|\d+[.)][ \t]|>|\||#{1,6}(?:
 def _skip_front_matter(lines: list[str]) -> int:
     """Return the index of the first line after a leading YAML front-matter block.
 
-    The block only counts when it looks like YAML: it opens with a ``key:`` line and every
-    non-blank line is a ``key:`` line, indented, a ``- `` list item or a ``#`` comment.
-    Otherwise the leading ``---`` is an ordinary horizontal rule and nothing is skipped.
+    Deliberately conservative, so content is never lost: the document must open with ``---``,
+    a closing ``---``/``...`` must follow within ``_FRONT_MATTER_MAX_LINES`` lines, the block must
+    contain a top-level ``key:`` line, and every non-blank line must be a ``key:`` line, indented,
+    or a ``- `` list item. A line starting with ``#`` disqualifies the block (YAML comments in
+    front matter are not supported). Otherwise the leading ``---`` is ordinary text.
     """
-    if not lines or lines[0].strip() != "---":
+    if not lines or lines[0].rstrip() != "---":
         return 0
-    for end in range(1, len(lines)):
-        if lines[end].strip() in ("---", "..."):
-            block = lines[1:end]
+    for end in range(1, min(len(lines), _FRONT_MATTER_MAX_LINES + 1)):
+        if lines[end].rstrip() in ("---", "..."):
             break
     else:
         return 0
-    if not block or not _YAML_KEY.match(block[0]):
+    block = lines[1:end]
+    if not any(_YAML_KEY.match(line) for line in block):
         return 0
     for line in block:
         if line.strip() and not (
-            _YAML_KEY.match(line) or line[0] in " \t" or line.startswith(("- ", "#"))
+            _YAML_KEY.match(line) or line[0] in " \t" or line.startswith("- ")
         ):
             return 0
     return end + 1

@@ -20,7 +20,7 @@
 
 - Package import name `docrooter`; distribution name `docrooter`; console script `docrooter`; license Apache-2.0; `requires-python = ">=3.10"`; src layout.
 - Core dependencies are exactly `pydantic>=2`, `numpy`, `typer`, `rich`. Every other import is lazy, through `docrooter._extras.require`.
-- Extras: `models` = `torch`, `transformers>=5`, `sentence-transformers>=6`, `scikit-learn`, `joblib`, `datasets`; `pdf` = `pymupdf4llm`; `llm` = `httpx`; `bench` = `datasets`, `pandas`; `all` = models + pdf + llm.
+- Extras: `models` = `torch`, `transformers>=5`, `sentence-transformers>=6`, `scikit-learn`, `joblib`, `datasets`; `pdf` = `pymupdf4llm`; `llm` = `httpx`; `jev` = `typesafe-sdk>=0.7.5`; `bench` = `datasets`, `pandas`; `all` = models + pdf + llm + jev.
 - No recursion over document or taxonomy trees. All traversal is iterative, and tests cover depth 30.
 - `trust_remote_code=True` only when the model's recipe has a pinned `revision` and `trust_remote_code=True`, or the caller passes `trust_remote_code=True` explicitly.
 - Pinned revisions: `dmis-lab/UltraBERT-Embed-150M` @ `367d5343b5a0164d57b810cedf5de4b8983d5984`; `dmis-lab/UltraBERT-380M` @ `65bbbfeefb03bc93b9965d1d511708dabcee8511`.
@@ -723,6 +723,7 @@ Dataset specifics (spec Section 9):
   - `nli:MoritzLaurer/deberta-v3-base-zeroshot-v2.0`, on B3 run only on `subset_ids`
   - `mlm-choice:dmis-lab/UltraBERT-380M`, B1 and B2 only
   - `openai:$DOCROOTER_BENCH_LLM_MODEL`, only when `DOCROOTER_BENCH_LLM_URL` is set (this will be skipped until Task 16)
+  - `jev:jev-1.13.0`, only when `TYPESAFE_API_KEY` is set (skipped until Task 16; rerun the zero-shot suite for this system after Task 16)
 - **Strategy for the zero-shot suite:** `Beam(3)`, threshold 0.0 (forced to a leaf so accuracy is comparable).
 - **B3 like-for-like:** every system is also reported on the B3 subset.
 
@@ -814,10 +815,10 @@ Dataset specifics (spec Section 9):
   Update the defaults in `train`, `Classifier` and the CLI, and set the embedding recipes' `temperature` to the value from calibrating each one on its B1 train pool. Record each decision with a link.
 - [ ] **Step 6:** Commit `bench: few-shot and strategy results; set defaults`.
 
-### Task 16: PDF loader, OpenAI-compatible backend
+### Task 16: PDF loader, OpenAI-compatible backend, Jev backend
 
 **Files:**
-- Create: `src/docrooter/document/pdf.py`, `src/docrooter/backends/openai.py`, `tests/unit/document/test_pdf.py`, `tests/unit/backends/test_openai.py`, `tests/fixtures/docs/bookmarked.pdf` (generated in a test fixture with PyMuPDF; skipped when the extra is absent)
+- Create: `src/docrooter/document/pdf.py` (replaces the Task 4 stub), `src/docrooter/backends/openai.py`, `src/docrooter/backends/jev.py`, `tests/unit/document/test_pdf.py`, `tests/unit/backends/test_openai.py`, `tests/unit/backends/test_jev.py`, `tests/integration/test_jev_live.py`, `tests/fixtures/docs/bookmarked.pdf` (generated in a test fixture with PyMuPDF; skipped when the extra is absent)
 
 **Interfaces:**
 - Produces:
@@ -833,12 +834,23 @@ Dataset specifics (spec Section 9):
     - With logprobs: probabilities are the softmax over the first token's top_logprobs restricted to option numbers, with missing options set to `-inf`.
     - Otherwise: parse the first integer, which gets 1.0. An unparseable answer gives a uniform distribution and one logged warning per run.
     - Calls run concurrently via `httpx.AsyncClient` and a semaphore of `concurrency`.
+  - `JevBackend(model: str = "jev-1.13.0", *, api_key: str | None = None, concurrency: int = 16, timeout: float = 30)` (extra `jev`; API facts in `docs/dev/typesafe-jev-notes.md`):
+    - `api_key` falls back to env `TYPESAFE_API_KEY`; missing key raises `BackendError` naming the env var.
+    - `name = f"jev:{model}"`, `max_candidates=255`, `temperature=1.0`.
+    - Single-label: one `Choice` per text. `criteria` uses opaque keys `c0..cN` mapped to `candidate.text` (plus `" Examples: " + "; ".join(examples)` when present). `instructions` = the classifier instruction (default `"Which option best describes this document section?"`). State = `{"section": text}`. Kind `softmax`; values are the returned per-key probabilities in candidate order.
+    - Multi-label: one `Noul` per candidate in the same request (`instructions`: `"Does this option apply to the section: <candidate.text>?"`). Kind `independent`; values = noul probabilities.
+    - Calls run through `AsyncTypeSafeClient` with an `asyncio.Semaphore(concurrency)`; the SDK's own retry handles 408/429/5xx. `score` is synchronous and runs the event loop internally (works when no loop is running; raise `BackendError` with a clear message if called inside a running loop).
+  - `jev` is registered as a backend kind (`jev:jev-1.13.0`).
 
 - [ ] **Step 1: Write failing tests:**
   - `test_pdf_bookmark_levels` (skip if `pymupdf4llm` is missing): the fixture PDF has bookmarks at levels 1/2/1, and the resulting TOC levels match them.
   - `test_openai_logprob_parsing` uses `httpx.MockTransport` returning a canned completion with top_logprobs `{"2": -0.1, "1": -2.5}` and expects argmax = candidate index 1.
   - `test_openai_fallback_parse` (no logprobs, content `"2"`).
   - `test_openai_garbage_uniform`.
+  - `test_jev_choice_mapping`: monkeypatch the client with a fake returning probabilities `{"c0": 0.1, "c1": 0.9}`; expect values `[[0.1, 0.9]]`, kind `softmax`, and that criteria keys sent were `c0`, `c1` with candidate texts as descriptions.
+  - `test_jev_multilabel_nouls`: fake returns nouls; expect kind `independent`.
+  - `test_jev_missing_key`: no env var → `BackendError` mentioning `TYPESAFE_API_KEY`.
+  - `tests/integration/test_jev_live.py` (`@pytest.mark.models`, skipped without `TYPESAFE_API_KEY`; load it from `.env` via a small conftest helper that never prints it): the tax-vs-litigation sanity check from Task 10 passes with `JevBackend()`.
 - [ ] **Step 2:** Run and expect a FAIL. Then implement and run again for a PASS.
 - [ ] **Step 3:** Commit `feat: PDF loader with bookmarks; OpenAI-compatible backend`.
 

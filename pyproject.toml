@@ -42,13 +42,13 @@ packages = ["src/docrooter"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 markers = ["models: downloads and runs ML models"]
 addopts = "-m 'not models'"
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests"]
+src = ["src", "tests", "."]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

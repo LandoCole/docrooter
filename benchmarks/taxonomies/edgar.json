@@ -1,0 +1,132 @@
+{
+  "nodes": [
+    {
+      "id": "part-i",
+      "label": "Part I",
+      "description": "Business overview, risk factors, properties and legal matters of the company.",
+      "children": [
+        {
+          "id": "part-i.item-1",
+          "label": "Item 1. Business",
+          "description": "Description of the company's business: its products and services, customers, competition, employees and regulation."
+        },
+        {
+          "id": "part-i.item-1a",
+          "label": "Item 1A. Risk Factors",
+          "description": "Discussion of the most significant risks that could harm the company's business, finances or stock price."
+        },
+        {
+          "id": "part-i.item-1b",
+          "label": "Item 1B. Unresolved Staff Comments",
+          "description": "Disclosure of unresolved comments from the SEC staff on the company's earlier filings."
+        },
+        {
+          "id": "part-i.item-2",
+          "label": "Item 2. Properties",
+          "description": "Description of the company's principal physical properties, such as offices, plants, stores and real estate."
+        },
+        {
+          "id": "part-i.item-3",
+          "label": "Item 3. Legal Proceedings",
+          "description": "Description of material pending legal proceedings and litigation involving the company."
+        },
+        {
+          "id": "part-i.item-4",
+          "label": "Item 4. Mine Safety Disclosures",
+          "description": "Disclosure of mine safety violations and related regulatory information for mining operations."
+        }
+      ]
+    },
+    {
+      "id": "part-ii",
+      "label": "Part II",
+      "description": "Market information, financial results and management's analysis, financial statements and controls.",
+      "children": [
+        {
+          "id": "part-ii.item-5",
+          "label": "Item 5. Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+          "description": "Market for the company's common stock, number of holders, dividends, securities authorized for equity compensation plans, share repurchases and stock performance graph."
+        },
+        {
+          "id": "part-ii.item-6",
+          "label": "Item 6. Selected Financial Data",
+          "description": "Summary table of selected financial data for the last five years."
+        },
+        {
+          "id": "part-ii.item-7",
+          "label": "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+          "description": "Management's discussion of results of operations, liquidity, capital resources, critical accounting estimates and trends."
+        },
+        {
+          "id": "part-ii.item-7a",
+          "label": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+          "description": "Exposure to market risks such as interest rate, foreign currency and commodity price risk."
+        },
+        {
+          "id": "part-ii.item-8",
+          "label": "Item 8. Financial Statements and Supplementary Data",
+          "description": "The audited financial statements, auditor's report, notes to the financial statements and supplementary data."
+        },
+        {
+          "id": "part-ii.item-9",
+          "label": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+          "description": "Disclosure of any changes in or disagreements with the company's independent accountants."
+        },
+        {
+          "id": "part-ii.item-9a",
+          "label": "Item 9A. Controls and Procedures",
+          "description": "Evaluation of disclosure controls and procedures and management's report on internal control over financial reporting."
+        },
+        {
+          "id": "part-ii.item-9b",
+          "label": "Item 9B. Other Information",
+          "description": "Other information required to be disclosed that was not reported in another filing."
+        }
+      ]
+    },
+    {
+      "id": "part-iii",
+      "label": "Part III",
+      "description": "Directors, executive officers, compensation, ownership, related transactions and auditor fees.",
+      "children": [
+        {
+          "id": "part-iii.item-10",
+          "label": "Item 10. Directors, Executive Officers and Corporate Governance",
+          "description": "Information about the company's directors, executive officers, code of ethics, audit committee and corporate governance."
+        },
+        {
+          "id": "part-iii.item-11",
+          "label": "Item 11. Executive Compensation",
+          "description": "Compensation of the company's executive officers and directors, including salary, bonuses, equity awards and compensation policies."
+        },
+        {
+          "id": "part-iii.item-12",
+          "label": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matters",
+          "description": "Stock ownership of large shareholders, directors and officers, and equity compensation plan information."
+        },
+        {
+          "id": "part-iii.item-13",
+          "label": "Item 13. Certain Relationships and Related Transactions, and Director Independence",
+          "description": "Transactions between the company and its insiders or related parties, and the independence of directors."
+        },
+        {
+          "id": "part-iii.item-14",
+          "label": "Item 14. Principal Accountant Fees and Services",
+          "description": "Fees paid to the independent auditor and the audit committee's pre-approval policies."
+        }
+      ]
+    },
+    {
+      "id": "part-iv",
+      "label": "Part IV",
+      "description": "Exhibits and financial statement schedules.",
+      "children": [
+        {
+          "id": "part-iv.item-15",
+          "label": "Item 15. Exhibits and Financial Statement Schedules",
+          "description": "List of exhibits filed with the report, financial statement schedules and index to the financial statements."
+        }
+      ]
+    }
+  ]
+}

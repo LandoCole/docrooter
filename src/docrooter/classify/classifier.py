@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import functools
+import json
 import re
 import warnings
 from collections.abc import Callable, Iterator, Sequence
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -93,6 +95,7 @@ class Classifier:
         self._resolved: dict[str, Backend] = {}
         self._zero_shot: Backend | None | object = _UNSET
         self._taxonomy_hash: str | None = None
+        self.calibration_report: dict[str, dict[str, Any]] | None = None
         for spec in (backend, fallback, *self.overrides.values()):
             if spec is not None and not isinstance(spec, str):
                 self._check_taxonomy_hash(spec, stacklevel=4)
@@ -174,6 +177,67 @@ class Classifier:
     def decide(self, texts: Sequence[str], node_id: str) -> tuple[list[str], np.ndarray, str]:
         """Child ids, probabilities ``(len(texts), n_children)`` and backend name at a node."""
         return engine.decide(texts, node_id, self.taxonomy, self.router, self.settings)
+
+    # --- configuration --------------------------------------------------------------------
+
+    def save_config(self, path: str | Path) -> None:
+        """Write the configuration as JSON; :meth:`from_config` rebuilds the classifier from it.
+
+        Backends are saved as spec strings; a ``TrainedModel`` as ``"trained:<bundle path>"``, so
+        it must have been saved (or loaded) from a bundle. Any other backend object, and a
+        callable ``sections``, cannot be written and raise ``ValueError``.
+        """
+        if callable(self.sections):
+            raise ValueError("cannot save a classifier whose sections is a callable")
+        settings = self.settings
+        config = {
+            "backend": _backend_spec(self.backend, "backend"),
+            "fallback": None if self.fallback is None else _backend_spec(self.fallback, "fallback"),
+            "overrides": {
+                key: _backend_spec(value, f"override {key!r}")
+                for key, value in self.overrides.items()
+            },
+            "strategy": _strategy_to_dict(self.strategy),
+            "view": self.view.model_dump(),
+            "settings": {
+                "threshold": settings.threshold,
+                "min_margin": settings.min_margin,
+                "max_fanout": settings.max_fanout,
+                "batch_size": settings.batch_size,
+                "instruction": settings.instruction,
+                "temperatures": dict(settings.temperatures),
+            },
+            "sections": self.sections,
+            "taxonomy_hash": self.taxonomy.content_hash(),
+        }
+        Path(path).write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", "utf-8")
+
+    @classmethod
+    def from_config(cls, path: str | Path, taxonomy: Taxonomy) -> Classifier:
+        """A classifier from a :meth:`save_config` file, for ``taxonomy``.
+
+        Warns when ``taxonomy`` differs from the one the configuration was saved with.
+        """
+        config = json.loads(Path(path).read_text(encoding="utf-8"))
+        saved_hash = config.get("taxonomy_hash")
+        if saved_hash is not None and saved_hash != taxonomy.content_hash():
+            warnings.warn(
+                f"{path} was saved for a different taxonomy (content hash {saved_hash[:12]}, "
+                f"this one is {taxonomy.content_hash()[:12]})",
+                UserWarning,
+                stacklevel=2,
+            )
+        settings = config.get("settings", {})
+        return cls(
+            taxonomy,
+            config["backend"],
+            fallback=config.get("fallback"),
+            overrides=config.get("overrides") or None,
+            strategy=_strategy_from_dict(config.get("strategy")),
+            view=SectionView(**config["view"]) if config.get("view") else None,
+            sections=config.get("sections", "leaves"),
+            **settings,
+        )
 
     # --- classification -------------------------------------------------------------------
 
@@ -337,6 +401,46 @@ class _LazyBackends(Sequence[Backend]):
         while self._advance():
             pass
         return len(self._items)
+
+
+def _backend_spec(backend: str | Backend, where: str) -> str:
+    """The spec string that rebuilds ``backend``; backend objects other than saved bundles fail."""
+    if isinstance(backend, str):
+        return backend
+    from docrooter.train.bundle import TrainedModel
+
+    if isinstance(backend, TrainedModel):
+        if backend.path is None:
+            raise ValueError(
+                f"the {where} is a TrainedModel that was never saved; call model.save(path) "
+                "first so the configuration can point to its bundle"
+            )
+        return f"trained:{backend.path}"
+    raise ValueError(
+        f"cannot save the {where}: a backend object ({type(backend).__name__}) has no spec; "
+        "use a spec string or a saved TrainedModel"
+    )
+
+
+def _strategy_to_dict(strategy: Greedy | Beam | Flat) -> dict[str, Any]:
+    if isinstance(strategy, Beam):
+        return {"type": "beam", "width": strategy.width}
+    if isinstance(strategy, Flat):
+        return {"type": "flat", "allow_internal": strategy.allow_internal}
+    return {"type": "greedy"}
+
+
+def _strategy_from_dict(spec: dict[str, Any] | None) -> Greedy | Beam | Flat:
+    if spec is None:
+        return DEFAULT_STRATEGY
+    kind = spec.get("type")
+    if kind == "greedy":
+        return Greedy()
+    if kind == "beam":
+        return Beam(int(spec.get("width", 3)))
+    if kind == "flat":
+        return Flat(allow_internal=bool(spec.get("allow_internal", False)))
+    raise ValueError(f"unknown strategy {spec!r} in the configuration; use greedy, beam or flat")
 
 
 def _check_sections(sections: SectionSelector) -> SectionSelector:

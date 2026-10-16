@@ -7,6 +7,7 @@ from docrooter.evaluate import compare, evaluate
 from docrooter.taxonomy import Taxonomy, TaxonomyNode
 from docrooter.train import Dataset
 from docrooter.train.bundle import TrainedModel
+from docrooter.train.calibrate import calibrate
 from docrooter.train.trainer import train
 from docrooter.views import SectionView
 
@@ -25,6 +26,7 @@ __all__ = [
     "TaxonomyNode",
     "TrainedModel",
     "__version__",
+    "calibrate",
     "compare",
     "evaluate",
     "load",

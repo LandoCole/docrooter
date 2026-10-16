@@ -67,6 +67,11 @@ class TrainedModel:
         self._prompt: str = recipe["query_prompt"].format(instruction=manifest["instruction"])
 
     @property
+    def path(self) -> Path | None:
+        """Where the bundle was saved or loaded from (absolute), else ``None``."""
+        return self._path
+
+    @property
     def taxonomy_hash(self) -> str:
         """Content hash of the taxonomy the model was trained on."""
         return self.manifest["taxonomy_hash"]
@@ -124,7 +129,7 @@ class TrainedModel:
     def save(self, path: str | Path) -> None:
         """Write the bundle: ``manifest.json``, ``body/`` and ``heads/*.joblib``."""
         joblib = require("joblib", "models")
-        out = Path(path)
+        out = Path(path).resolve()
         (out / "heads").mkdir(parents=True, exist_ok=True)
         self._body._load().save(str(out / BODY_DIR))
         for node_id, info in self.manifest["heads"].items():
@@ -132,6 +137,7 @@ class TrainedModel:
         (out / MANIFEST).write_text(
             json.dumps(self.manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
+        self._path = out
 
     @classmethod
     def load(
@@ -147,7 +153,7 @@ class TrainedModel:
 
         if revision is not None:
             raise BackendError(f"trained bundles have no revisions (got @{revision})")
-        root = Path(path)
+        root = Path(path).resolve()
         try:
             manifest = json.loads((root / MANIFEST).read_text(encoding="utf-8"))
         except FileNotFoundError:

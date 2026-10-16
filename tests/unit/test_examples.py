@@ -5,6 +5,8 @@ import re
 import runpy
 from pathlib import Path
 
+import pytest
+
 from docrooter import Taxonomy
 from docrooter.taxonomy.io import from_csv
 
@@ -103,3 +105,35 @@ def test_readme_documents_the_backend_protocol():
     for member in ("name", "max_candidates", "temperature", "score(", "supports(", "tokenizer("):
         assert f"`{member}" in section, member
     assert "examples/custom_backend.py" in section
+
+
+def test_doc_types_example_runs(capsys, monkeypatch):
+    monkeypatch.setattr("sys.argv", ["doc_types.py"])
+    runpy.run_path(str(EXAMPLES / "doc_types.py"), run_name="__main__")
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("doc_types, section_types/annual_report")
+    assert lines[1:] == [
+        "Research > Research paper 0.11",
+        "Abstract: abstract",
+        "Methods: method",
+        "Results: results",
+        "References: references",
+    ]
+    readme = README.read_text(encoding="utf-8")
+    assert "\n".join(lines[1:]) in readme  # the README shows this output
+
+
+def test_doc_types_example_loads_a_pdf_with_pdfplumber(capsys, monkeypatch, tmp_path):
+    pymupdf = pytest.importorskip("pymupdf")
+    pytest.importorskip("pdfplumber")
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=612, height=792)
+    page.insert_text((72, 90), "Abstract", fontsize=22, fontname="hebo")
+    for k in range(4):
+        page.insert_text((72, 140 + 15 * k), f"We report experiments {k}.", fontsize=11)
+    path = tmp_path / "paper.pdf"
+    pdf.save(str(path))
+    pdf.close()
+    monkeypatch.setattr("sys.argv", ["doc_types.py", str(path)])
+    runpy.run_path(str(EXAMPLES / "doc_types.py"), run_name="__main__")
+    assert len(capsys.readouterr().out.splitlines()) >= 2

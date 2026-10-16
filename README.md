@@ -19,19 +19,23 @@ pip install 'docrooter[models]'    # + local models (embedding, NLI, MLM) and tr
 | --- | --- | --- |
 | *(none)* | `pydantic`, `numpy`, `typer`, `rich` | Markdown/text loading, taxonomies, the `keyword` backend, the CLI |
 | `models` | `torch`, `transformers>=5`, `sentence-transformers>=6`, `scikit-learn`, `joblib`, `datasets` | `embedding`, `nli`, `mlm-choice` and `trained` backends; `docrooter train`; `docrooter models` |
-| `pdf` | `pymupdf4llm` | Loading `.pdf` files (see the licence note below) |
+| `pdf` | `pymupdf4llm` (which installs PyMuPDF) | Loading `.pdf` files with PyMuPDF, the default engine (AGPL; see the licence note below) |
+| `pdf-mit` | `pdfplumber` | Loading `.pdf` files with the MIT-licensed pdfplumber engine |
 | `llm` | `httpx` | The `openai` backend (any OpenAI-compatible server) |
 | `jev` | `typesafe-sdk` | The `jev` backend (TypeSafe Jev) |
 | `bench` | `datasets`, `pandas` | The benchmarks, `DocumentResult.to_dataframe()` |
-| `all` | `models` + `pdf` + `llm` + `jev` | Everything above except `bench` |
+| `all` | `models` + `pdf` + `pdf-mit` + `llm` + `jev` | Everything above except `bench` |
 
 Python 3.10 or newer. Asking for something an extra provides without installing it fails with
 the exact command to run, e.g. `pip install 'docrooter[models]'`.
 
-**PDF and the AGPL.** PDF support uses PyMuPDF through `pymupdf4llm`, which is licensed under
-the AGPL-3.0, unlike docrooter itself (Apache-2.0). It is installed only by the `[pdf]` extra
-(and so by `[all]`) and imported only when a `.pdf` file is loaded. Read the AGPL terms before
-you distribute software or run a network service that includes it.
+**PDF engines and the AGPL.** The default PDF engine is PyMuPDF, which is licensed under the
+AGPL-3.0, unlike docrooter itself (Apache-2.0). It comes with the `[pdf]` extra (and so with
+`[all]`) and is imported only when a `.pdf` file is loaded. Read the AGPL terms before you
+distribute software or run a network service that includes it. For a permissive stack, install
+`[pdf-mit]` instead: it adds `pdfplumber` (MIT), which `load(path)` uses automatically when
+PyMuPDF is not installed, or explicitly with `engine="pdfplumber"`. The `pymupdf4llm` engine is
+the legacy v0.1 Markdown path, kept for comparison (`engine="pymupdf4llm"`, AGPL).
 
 **`trust_remote_code` and UltraBERT.** The default model, `dmis-lab/UltraBERT-Embed-150M`
 (and `UltraBERT-380M`, used by `mlm-choice`), ships its own modelling code, which
@@ -111,6 +115,57 @@ other defaults.
 `Greedy()` follows the best child at each level, `Beam(n)` keeps the `n` best paths and `Flat()`
 scores every leaf in a single call, by its full path. A path stops early, with a `stopped_reason`, when no child reaches the
 threshold.
+
+## Document types, section labels and PDFs (v0.2)
+
+Two built-in taxonomies ship with the package: `doc_types` (18 document types in 6 groups) and
+one section taxonomy per family (`list_builtin_taxonomies()` lists them; `builtin_taxonomy(name)`
+returns a fresh copy). `classify_document` labels a whole document from a `DocumentView` (its
+title, page and section counts, headings, opening text and keyphrases, within a token budget),
+and `normalize_sections` maps each heading to a canonical section of its type. This runs with
+the `keyword` backend; it lives in [`examples/doc_types.py`](examples/doc_types.py):
+
+```python
+from docrooter import DocumentView, builtin_taxonomy, classify_document, load, normalize_sections
+
+doc = load(path, engine="pdfplumber") if path else load(MARKDOWN)
+doc_types = builtin_taxonomy("doc_types")
+view = DocumentView(fields=("title", "toc", "lead"), max_tokens=512)
+result = classify_document(doc, doc_types, backend="keyword", view=view)
+print(" > ".join(result.best.labels), f"{result.confidence:.2f}")
+doc_type = result.best.node_ids[-1]
+norm = normalize_sections(doc, doc_type=doc_type, backend="keyword", levels=[2])
+for section in norm.sections.values():
+    print(f"{section.title}: {section.canonical}")
+```
+
+```text
+Research > Research paper 0.11
+Abstract: abstract
+Methods: method
+Results: results
+References: references
+```
+
+- **PDF engines.** `load(path, engine=...)` (or `load_pdf`) reads PDFs natively, without OCR:
+  `"auto"` (the default: PyMuPDF if installed, else pdfplumber), `"pymupdf"` (extra `pdf`),
+  `"pdfplumber"` (extra `pdf-mit`), `"both"` (PyMuPDF headings that pdfplumber agrees with) or
+  `"pymupdf4llm"` (the legacy v0.1 path). `doc.meta` records the engine, page count and timings.
+- **`classify_document`** uses `Flat()` and threshold 0 by default, so a document with text always
+  gets a label; gate on `result.confidence`. For many documents, build one classifier and call
+  `Classifier(taxonomy, backend).classify_documents(docs, threshold=0.0)`, which gives the same
+  results in one batch. `mode="sections"` or `"hybrid"` also scores the section headings.
+- **`normalize_sections(doc)`** without `doc_type` classifies the document type first, with the
+  same backend.
+
+The `doctype` and `normalize` commands do the same from the shell. `--keep` filters by type id
+(a group such as `financial` keeps all its leaves) and `--paths-only` prints just the kept
+files, so the type can gate a pipeline:
+
+```bash
+docrooter doctype inbox/ -b keyword --keep financial --paths-only > financial.txt
+while read -r f; do docrooter normalize "$f" -b keyword --json; done < financial.txt
+```
 
 ## Command line
 
@@ -405,4 +460,4 @@ Tests marked `models` are deselected by default. The live `jev` test skips unles
 ## Licence
 
 Apache-2.0 for docrooter. See [LICENSE](LICENSE). The optional `[pdf]` extra pulls in the
-AGPL-3.0 PyMuPDF, as noted above.
+AGPL-3.0 PyMuPDF, as noted above; `[pdf-mit]` (pdfplumber) is MIT.

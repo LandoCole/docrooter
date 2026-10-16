@@ -3,16 +3,19 @@ merge, scoring, and level assignment."""
 
 from __future__ import annotations
 
-from collections import Counter
-from collections.abc import Sequence
+import re
+from bisect import bisect_left, bisect_right
+from collections import Counter, defaultdict
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 
 from pydantic import BaseModel, Field
 
 from docrooter.document.headings import _DOTTED, _NUMBERING, repair_levels, score_heading
 from docrooter.document.models import RawHeading
 from docrooter.pdf.lines import Line
-from docrooter.pdf.signals import DocSignals, is_fuzzy_match
+from docrooter.pdf.signals import _FUZZY_THRESHOLD, DocSignals, is_fuzzy_match, normalize_title
 
 __all__ = ["HeadingCandidate", "find_headings"]
 
@@ -26,6 +29,10 @@ _MAX_LEVEL = 6
 _NUMBERED_FRACTION = 0.5
 _BOOKMARK_PAGE_SLACK = 1
 _LOW_CONFIDENCE = 0.7  # same cut as v0.1 validate_headings
+_ROW_WINDOW = 4  # lines either side searched for same-row neighbours
+_MIN_LETTERS = 2  # number-only lines ("12%", "21,268", "3.") are never headings
+# A leading section number, uppercase roman numeral or single-letter label ("2.1", "IV.", "a)").
+_NUMBER_PREFIX = re.compile(r"^\(?(?:\d+(?:\.\d+)*[.)]?|[IVXLC]+[.)]|[A-Za-z][.)])(?=\s|$)")
 
 # Score weights (spec §2.3).
 _W_TITLE = 0.4
@@ -70,28 +77,75 @@ def _style_key(size: float, bold: bool) -> tuple[float, bool]:
     return round(size * 2) / 2, bold
 
 
-def _is_isolated(lines: Sequence[Line], i: int, gap_floor: float) -> bool:
-    """First line of its page or block, or ``gap_above >= max(1.2 x median gap, 0.5 x size)``."""
+def _same_row(a: Line, b: Line) -> bool:
+    """Vertical overlap of at least half the shorter line's height."""
+    overlap = min(a.y1, b.y1) - max(a.y0, b.y0)
+    return overlap >= 0.5 * min(a.y1 - a.y0, b.y1 - b.y0)
+
+
+def _has_text_to_the_left(lines: Sequence[Line], i: int) -> bool:
+    """Whether a nearby line (reading order may interleave rows) ends left of line ``i`` on
+    the same row."""
     line = lines[i]
-    if i == 0 or lines[i - 1].page != line.page or lines[i - 1].block != line.block:
+    for j in range(max(0, i - _ROW_WINDOW), min(len(lines), i + _ROW_WINDOW + 1)):
+        other = lines[j]
+        if j != i and other.page == line.page and other.x1 <= line.x0 + 1.0:
+            if _same_row(other, line):
+                return True
+    return False
+
+
+def _is_isolated(lines: Sequence[Line], i: int, gap_floor: float) -> bool:
+    """First line of its page or block, or ``gap_above >= max(1.2 x median gap, 0.5 x size)``.
+
+    A line with text to its left on the same row (an inline fragment such as a link that
+    pymupdf put in a block of its own) is never isolated.
+    """
+    line = lines[i]
+    if _has_text_to_the_left(lines, i):
+        return False
+    if i == 0 or lines[i - 1].page != line.page:
+        return True
+    if lines[i - 1].block != line.block:
         return True
     return line.gap_above >= max(gap_floor, _ISOLATION_SIZE_FACTOR * line.size)
+
+
+def _is_body_style(line: Line, body: float) -> bool:
+    return not line.bold and abs(line.size - body) <= _STYLE_TOLERANCE
 
 
 def _is_candidate(line: Line, isolated: bool, body: float) -> bool:
     text = line.text.strip()
     if len(text.split()) > _MAX_WORDS:
         return False
+    if sum(c.isalpha() for c in _NUMBER_PREFIX.sub("", text, count=1)) < _MIN_LETTERS:
+        return False
     if body > 0 and line.size >= _SIZE_FACTOR * body:
         return True
     return isolated and (line.bold or bool(_NUMBERING.match(text)))
 
 
+def _extends_run(
+    lines: Sequence[Line], first: int, last: int, nxt: int, candidate: list[bool], body: float,
+    merge_gap: float,
+) -> bool:  # fmt: skip
+    """Whether line ``nxt`` continues the title ``first..last``: same page and style as the first
+    line, never body-styled, and either a candidate itself within ``merge_gap`` or the rest of
+    the last line's row (a title set apart from its number, e.g. "Item 1B." | "Unresolved…")."""
+    line = lines[nxt]
+    if line.page != lines[first].page or not _same_style(lines[first], line):
+        return False
+    if _is_body_style(line, body):
+        return False
+    return (candidate[nxt] and line.gap_above < merge_gap) or _same_row(lines[last], line)
+
+
 def _merge_runs(
-    lines: Sequence[Line], candidate: list[bool], skip: set[int], merge_gap: float
+    lines: Sequence[Line], candidate: list[bool], skip: set[int], body: float, merge_gap: float
 ) -> list[_Run]:
-    """Join each candidate with the following lines on its page that share its style and sit
-    closer than ``merge_gap``. A run longer than the word limit is a paragraph and is dropped."""
+    """Join each candidate with the title lines that follow it (see :func:`_extends_run`).
+    A run longer than the word limit is a paragraph and is dropped."""
     runs: list[_Run] = []
     i = 0
     while i < len(lines):
@@ -102,9 +156,7 @@ def _merge_runs(
         while (
             end + 1 < len(lines)
             and end + 1 not in skip
-            and lines[end + 1].page == lines[i].page
-            and _same_style(lines[i], lines[end + 1])
-            and lines[end + 1].gap_above < merge_gap
+            and _extends_run(lines, i, end, end + 1, candidate, body, merge_gap)
         ):
             end += 1
         text = " ".join(lines[k].text.strip() for k in range(i, end + 1))
@@ -121,13 +173,63 @@ def _next_line(i: int, n: int, excluded: set[int]) -> int | None:
     return j if j < n else None
 
 
-def _bookmark_level(text: str, page: int, bookmarks: Sequence[tuple[int, str, int]]) -> int | None:
+class _TocMatcher:
+    """``any(is_fuzzy_match(text, title) for title in titles)``, fast for long printed TOCs.
+
+    Titles are normalised once and an exact match short-circuits. A title is only compared
+    when two upper bounds of the ``SequenceMatcher`` ratio reach the threshold: the length
+    bound (``real_quick_ratio``, applied as a window over the length-sorted titles) and the
+    character-multiset bound (``quick_ratio``, computed from precomputed counts). Survivors get
+    the exact ``ratio()`` from a per-title matcher (title as ``b``, as in
+    :func:`is_fuzzy_match`). Results are memoised by normalised text.
+    """
+
+    def __init__(self, titles: Iterable[str]) -> None:
+        norms = sorted({normalize_title(t) for t in titles} - {""}, key=len)
+        self._exact = set(norms)
+        self._lengths = [len(norm) for norm in norms]
+        self._counts = [dict(Counter(norm)) for norm in norms]
+        self._matchers = [SequenceMatcher(None, "", norm) for norm in norms]
+        self._memo: dict[str, bool] = {}
+
+    def matches(self, text: str) -> bool:
+        norm = normalize_title(text)
+        if not norm or not self._matchers:
+            return False
+        if norm not in self._memo:
+            self._memo[norm] = norm in self._exact or self._compare(norm)
+        return self._memo[norm]
+
+    def _compare(self, norm: str) -> bool:
+        t, size = _FUZZY_THRESHOLD, len(norm)
+        # real_quick_ratio = 2 * min(la, lb) / (la + lb) >= t bounds the title length.
+        lo = bisect_left(self._lengths, size * t / (2 - t) - 1e-9)
+        hi = bisect_right(self._lengths, size * (2 - t) / t + 1e-9)
+        counts = Counter(norm).items()
+        for k in range(lo, hi):
+            total = size + self._lengths[k]
+            if 2.0 * min(size, self._lengths[k]) / total < t:
+                continue
+            title_counts = self._counts[k].get
+            shared = sum(min(n, title_counts(c, 0)) for c, n in counts)  # as quick_ratio
+            if 2.0 * shared / total < t:
+                continue
+            matcher = self._matchers[k]
+            matcher.set_seq1(norm)
+            if matcher.ratio() >= t:
+                return True
+        return False
+
+
+def _bookmark_level(
+    text: str, page: int, by_page: dict[int, list[tuple[int, str, int]]]
+) -> int | None:
     """Level of the nearest-page bookmark within one page whose title fuzzy-matches ``text``."""
     best: tuple[int, int] | None = None  # (page distance, level)
-    for level, title, bm_page in bookmarks:
-        distance = abs(bm_page - page)
-        if distance <= _BOOKMARK_PAGE_SLACK and is_fuzzy_match(text, title):
-            if best is None or distance < best[0]:
+    for near in range(page - _BOOKMARK_PAGE_SLACK, page + _BOOKMARK_PAGE_SLACK + 1):
+        for level, title, bm_page in by_page.get(near, ()):
+            distance = abs(bm_page - page)
+            if (best is None or distance < best[0]) and is_fuzzy_match(text, title):
                 best = (distance, level)
     return best[1] if best else None
 
@@ -158,10 +260,12 @@ def find_headings(
     gap_floor = _ISOLATION_GAP_FACTOR * signals.median_gap
     isolated = [_is_isolated(lines, i, gap_floor) for i in range(n)]
     candidate = [i not in skip and _is_candidate(lines[i], isolated[i], body) for i in range(n)]
-    runs = _merge_runs(lines, candidate, skip, _MERGE_GAP_FACTOR * signals.median_gap)
+    runs = _merge_runs(lines, candidate, skip, body, _MERGE_GAP_FACTOR * signals.median_gap)
     repeats = Counter(_normalise(run.text) for run in runs)
-    toc_titles = [title for title, _ in signals.printed_toc] if use_printed_toc else []
-    bookmarks = signals.bookmarks if use_bookmarks else []
+    toc = _TocMatcher(title for title, _ in signals.printed_toc) if use_printed_toc else None
+    bookmarks: defaultdict[int, list[tuple[int, str, int]]] = defaultdict(list)
+    for bookmark in signals.bookmarks if use_bookmarks else []:
+        bookmarks[bookmark[2]].append(bookmark)
 
     kept: list[tuple[HeadingCandidate, int | None]] = []
     for run in runs:
@@ -173,7 +277,7 @@ def find_headings(
         score += _W_BOLD * line.bold
         score += _W_ISOLATED * isolated[run.start]
         score += _W_NUMBERED * ("numbering_prefix" in reasons)
-        if any(is_fuzzy_match(run.text, title) for title in toc_titles):
+        if toc is not None and toc.matches(run.text):
             score += _W_PRINTED_TOC
         bookmark_level = _bookmark_level(run.text, line.page, bookmarks)
         if bookmark_level is not None:

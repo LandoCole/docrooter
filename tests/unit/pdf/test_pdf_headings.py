@@ -252,3 +252,84 @@ def test_min_score_filters_and_output_is_reading_order():
 def test_empty_input():
     signals = compute_signals([], 0)
     assert find_headings([], signals) == []
+
+
+def test_tight_leading_equal_size_numbered_headings_do_not_swallow_their_body():
+    pages = [
+        [item("1 Introduction", gap=HEAD_GAP), *[item(BODY) for _ in range(4)],
+         item("2 Background", gap=HEAD_GAP), *[item(BODY) for _ in range(3)],
+         item("2.1 Scope", gap=HEAD_GAP), *[item(BODY) for _ in range(3)]],
+        [item("2.2 Terminology", gap=HEAD_GAP), *[item(BODY) for _ in range(3)],
+         item("3 Protocol Overview", gap=HEAD_GAP), *[item(BODY) for _ in range(4)]],
+    ]  # fmt: skip
+    _, found = run(pages)
+    assert titles(found) == [
+        ("1 Introduction", 1), ("2 Background", 1), ("2.1 Scope", 2), ("2.2 Terminology", 2),
+        ("3 Protocol Overview", 1),
+    ]  # fmt: skip
+
+
+def test_short_body_line_under_a_heading_is_not_merged_into_it():
+    pages = [[item("1 Introduction", gap=HEAD_GAP), item("See below."), *para(3)]]
+    _, found = run(pages)
+    assert [h.text for h in found] == ["1 Introduction"]
+
+
+def test_title_on_the_same_row_as_its_number_is_merged():
+    lines = layout([[*para(3), item("Item 1B.", bold=True, gap=HEAD_GAP), *para(3)]])
+    number = lines[3]
+    title = number.model_copy(update={"text": "Unresolved Staff Comments", "x0": 140.0,
+                                      "gap_above": 0.0})  # fmt: skip
+    lines = lines[:4] + [title] + lines[4:]
+    found = find_headings(lines, compute_signals(lines, 1))
+    assert [(h.text, h.line_index) for h in found] == [("Item 1B. Unresolved Staff Comments", 3)]
+
+
+def test_number_only_lines_are_never_headings():
+    numeric = ["12%", "21,268", "3.", "29,600 76% 50% 60%", "IV.", "(a)"]
+    pages = [[*para(2)]]
+    for text in numeric:
+        pages[0] += [item(text, size=18, bold=True, gap=HEAD_GAP), *para(2)]
+    pages[0] += [item("PART II", size=18, bold=True, gap=HEAD_GAP), *para(2),
+                 item("IV. Results", size=18, bold=True, gap=HEAD_GAP), *para(2)]  # fmt: skip
+    _, found = run(pages, min_score=0.0)
+    assert [h.text for h in found] == ["PART II", "IV. Results"]
+
+
+def _random_titles(rng, n):
+    vocab = [f"{a}{b}" for a in ("risk", "cash", "tax", "plan", "data", "cost", "fund", "asset")
+             for b in ("", "s", "ing", "ed", "ion", "al", "ity", "ment")]  # fmt: skip
+    return [" ".join(rng.choice(vocab) for _ in range(rng.randint(2, 6))).title()
+            for _ in range(n)]  # fmt: skip
+
+
+def test_toc_matcher_agrees_with_is_fuzzy_match():
+    import random
+
+    from docrooter.pdf import is_fuzzy_match
+    from docrooter.pdf.headings import _TocMatcher
+
+    rng = random.Random(1)
+    titles = _random_titles(rng, 60)
+    probes = _random_titles(rng, 150) + [t[:-1] for t in titles[:30]] + titles[30:40]
+    probes += ["", "12", "1.2 " + titles[0]]
+    matcher = _TocMatcher(titles + [""])
+    for probe in probes:
+        assert matcher.matches(probe) == any(is_fuzzy_match(probe, t) for t in titles), probe
+
+
+def test_printed_toc_matching_scales_to_long_tocs():
+    import random
+    import time
+
+    from docrooter.pdf import DocSignals
+
+    rng = random.Random(0)
+    entries = [(t, str(k)) for k, t in enumerate(_random_titles(rng, 300), start=1)]
+    pages = [[item(t, bold=True, gap=HEAD_GAP) for t in _random_titles(rng, 40)]
+             for _ in range(50)]  # fmt: skip
+    lines = layout(pages)
+    signals = DocSignals(body_size=10.0, median_gap=BODY_GAP, printed_toc=entries)
+    start = time.perf_counter()
+    find_headings(lines, signals, min_score=0.0)
+    assert time.perf_counter() - start < 2.0

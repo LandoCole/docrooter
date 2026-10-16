@@ -60,12 +60,16 @@ class EmbeddingBackend:
         if self._model is None:
             st = require("sentence_transformers", "models")
             device = select_device(self._device)
+            model_kwargs: dict[str, Any] = {"attn_implementation": attn_implementation(device)}
+            if device.split(":")[0] != "cuda":
+                # transformers 5 defaults to dtype="auto" (the checkpoint's); pin float32 off CUDA
+                model_kwargs["dtype"] = "float32"
             model = st.SentenceTransformer(
                 self.model_id,
                 device=device,
                 revision=self.recipe.revision,
                 trust_remote_code=self.trust_remote_code,
-                model_kwargs={"attn_implementation": attn_implementation(device)},
+                model_kwargs=model_kwargs,
             )
             model.max_seq_length = self.recipe.max_seq_len
             self._model = model

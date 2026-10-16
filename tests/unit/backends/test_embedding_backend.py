@@ -39,7 +39,8 @@ def fake_st(monkeypatch):
     FakeSentenceTransformer.instances = []
     module = types.SimpleNamespace(SentenceTransformer=FakeSentenceTransformer)
     monkeypatch.setitem(sys.modules, "sentence_transformers", module)
-    monkeypatch.delenv("DOCROOTER_DEVICE", raising=False)
+    # an explicit device keeps ``select_device`` from importing the real torch
+    monkeypatch.setenv("DOCROOTER_DEVICE", "cpu")
     return FakeSentenceTransformer
 
 
@@ -57,8 +58,17 @@ def test_load_arguments(fake_st):
     assert model.kwargs["device"] == "cpu"
     assert model.kwargs["revision"] == "367d5343b5a0164d57b810cedf5de4b8983d5984"
     assert model.kwargs["trust_remote_code"] is True
-    assert model.kwargs["model_kwargs"] == {"attn_implementation": "sdpa"}
+    assert model.kwargs["model_kwargs"] == {"attn_implementation": "sdpa", "dtype": "float32"}
     assert model.max_seq_length == 8192
+
+
+@pytest.mark.parametrize(
+    ("device", "dtype"), [("cpu", "float32"), ("mps", "float32"), ("cuda", None)]
+)
+def test_float32_enforced_off_cuda(fake_st, device, dtype):
+    EmbeddingBackend("some/model", device=device).encode(["a"], prompt="")
+    model_kwargs = fake_st.instances[0].kwargs["model_kwargs"]
+    assert model_kwargs.get("dtype") == dtype
 
 
 def test_encode_caches_by_prompt_and_text(fake_st):

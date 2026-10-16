@@ -42,6 +42,7 @@ packages = ["src/docrooter"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 markers = ["models: downloads and runs ML models"]
 addopts = "-m 'not models'"
 

@@ -51,10 +51,11 @@ models = [
     "datasets",
 ]
 pdf = ["pymupdf4llm"]
+pdf-mit = ["pdfplumber"]
 llm = ["httpx"]
 jev = ["typesafe-sdk>=0.7.5"]
 bench = ["datasets", "pandas"]
-all = ["docrooter[models,pdf,llm,jev]"]
+all = ["docrooter[models,pdf,pdf-mit,llm,jev]"]
 
 [project.urls]
 # Placeholder: replace with the real repository before the first release.

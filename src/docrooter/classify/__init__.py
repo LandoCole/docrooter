@@ -3,6 +3,7 @@
 from docrooter.classify.classifier import Classifier
 from docrooter.classify.documents import classify_document
 from docrooter.classify.engine import EngineSettings, Router, decide, run_flat, run_tree
+from docrooter.classify.normalize import NormalizationResult, SectionNorm, normalize_sections
 from docrooter.classify.results import (
     DocTypeResult,
     DocumentResult,
@@ -20,12 +21,15 @@ __all__ = [
     "EngineSettings",
     "Flat",
     "Greedy",
+    "NormalizationResult",
     "PathResult",
     "Router",
+    "SectionNorm",
     "SectionResult",
     "Step",
     "classify_document",
     "decide",
+    "normalize_sections",
     "run_flat",
     "run_tree",
 ]

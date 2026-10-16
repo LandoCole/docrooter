@@ -1,6 +1,15 @@
 """docrooter: document TOC extraction and taxonomy-based section classification."""
 
-from docrooter.classify import Beam, Classifier, DocTypeResult, Flat, Greedy, classify_document
+from docrooter.classify import (
+    Beam,
+    Classifier,
+    DocTypeResult,
+    Flat,
+    Greedy,
+    NormalizationResult,
+    classify_document,
+    normalize_sections,
+)
 from docrooter.doc_view import DocumentView
 from docrooter.document import Document, Section
 from docrooter.document.load import load
@@ -35,6 +44,7 @@ __all__ = [
     "Flat",
     "Greedy",
     "MissingExtraError",
+    "NormalizationResult",
     "Section",
     "SectionView",
     "Taxonomy",
@@ -48,5 +58,6 @@ __all__ = [
     "compare",
     "evaluate",
     "load",
+    "normalize_sections",
     "train",
 ]

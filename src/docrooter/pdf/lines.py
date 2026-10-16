@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib
 import math
+import re
 import statistics
 from collections import Counter
 from collections.abc import Iterator
@@ -26,6 +27,10 @@ _LINE_TOLERANCE = 2.0  # pdfplumber: words whose tops differ by at most this sha
 _COLUMN_GAP_FACTOR = 3.0  # a gap above this many char widths splits a line (both engines)
 _BLOCK_GAP_FACTOR = 0.5  # pdfplumber: a gap above this fraction of the line height starts a block
 _ROW_OVERLAP = 0.5  # pymupdf: lines overlapping vertically by half the shorter height share a row
+_WIDE_GAP_FACTOR = 2.0  # pymupdf: past this many char widths only a short label joins its row
+_SHORT_LABEL_CHARS = 12
+_LABEL = re.compile(r"^\(?[\dA-Za-z]{1,4}[.)]?$")  # "1", "3.", "(a)", "IV)"
+_NO_SPACE_FACTOR = 0.15  # pymupdf: a gap under this many char widths joins without a space
 
 
 class Line(BaseModel):
@@ -158,8 +163,14 @@ def _pymupdf_rows(doc: Any, pymupdf: Any) -> Iterator[dict[str, Any]]:
 
 def _join_row_fragments(fragments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Join consecutive pymupdf lines of one block that sit on the same row (a section number
-    and its title, a run-in bold label and its text) unless a column-sized gap separates them,
-    so a ``Line`` is one visual line as with the pdfplumber engine."""
+    and its title, a run-in bold label and its text, a drop cap) so a ``Line`` is one visual
+    line as with the pdfplumber engine.
+
+    With ``w`` the average character width of the pair: a gap over ``3w`` never joins; a gap
+    over ``2w`` joins only after a short left part (at most 12 characters, or a label such as
+    "3." or "(a)"), since longer text there is usually an adjacent column or box; a gap under
+    ``0.15w`` joins without a space ("T" + "his").
+    """
     out: list[dict[str, Any]] = []
     for frag in fragments:
         if out and _same_row(out[-1], frag):
@@ -167,8 +178,13 @@ def _join_row_fragments(fragments: list[dict[str, Any]]) -> list[dict[str, Any]]
             gap = frag["x0"] - prev["x1"]
             chars = len(prev["text"]) + len(frag["text"])
             char_width = ((prev["x1"] - prev["x0"]) + (frag["x1"] - frag["x0"])) / max(chars, 1)
-            if -char_width <= gap <= _COLUMN_GAP_FACTOR * char_width:
-                prev["text"] = f"{prev['text']} {frag['text']}"
+            left = prev["text"].strip()
+            short_left = len(left) <= _SHORT_LABEL_CHARS or bool(_LABEL.match(left))
+            if -char_width <= gap <= _COLUMN_GAP_FACTOR * char_width and (
+                gap <= _WIDE_GAP_FACTOR * char_width or short_left
+            ):
+                sep = "" if gap < _NO_SPACE_FACTOR * char_width else " "
+                prev["text"] = f"{prev['text']}{sep}{frag['text']}"
                 prev["spans"] = prev["spans"] + frag["spans"]
                 prev["x0"], prev["y0"] = min(prev["x0"], frag["x0"]), min(prev["y0"], frag["y0"])
                 prev["x1"], prev["y1"] = max(prev["x1"], frag["x1"]), max(prev["y1"], frag["y1"])

@@ -154,3 +154,36 @@ def test_same_row_fragments_join_unless_a_column_gap_separates_them(tmp_path):
     assert [line.text for line in lines] == ["1 Introduction", "Revenue", "21,268"]
     first = lines[0]
     assert first.bold and first.size == 12.0 and first.x0 == 72.0 and first.x1 > 150.0
+
+
+def test_wide_row_gap_joins_only_a_short_left_label(tmp_path):
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    # ~2.4 char widths after a 15-character phrase: an adjacent column, kept apart.
+    page.insert_text((72, 200), "Risk Management", fontsize=10)
+    page.insert_text((164.6, 200), "a. Risk Assessment and Control", fontsize=10)
+    # ~2.5 char widths after a short label: the label's title, joined.
+    page.insert_text((72, 260), "Item 5.", fontname="hebo", fontsize=10)
+    page.insert_text((115.8, 260), "Market Information", fontname="hebo", fontsize=10)
+    path = tmp_path / "wide.pdf"
+    doc.save(path)
+    doc.close()
+    lines, _ = extract_lines(path, engine="pymupdf")
+    assert [line.text for line in lines] == [
+        "Risk Management", "a. Risk Assessment and Control", "Item 5. Market Information",
+    ]  # fmt: skip
+
+
+def test_touching_row_fragments_join_without_a_space():
+    from docrooter.pdf.lines import _join_row_fragments
+
+    def frag(text, x0, x1, y0, y1, size):
+        return {"spans": [(text, size, "Helvetica", False)], "text": text,
+                "x0": x0, "y0": y0, "x1": x1, "y1": y1}  # fmt: skip
+
+    drop_cap = frag("T", 72.0, 90.3, 98.0, 139.0, 30.0)
+    rest = frag("his is the opening sentence", 90.4, 211.8, 125.0, 139.0, 10.0)
+    joined = _join_row_fragments([drop_cap, rest])
+    assert [f["text"] for f in joined] == ["This is the opening sentence"]
+    spaced = frag("his", 95.0, 110.0, 125.0, 139.0, 10.0)
+    assert _join_row_fragments([drop_cap, spaced])[0]["text"] == "T his"

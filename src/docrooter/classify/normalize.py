@@ -18,7 +18,10 @@ from docrooter.views import SectionView
 DOC_TYPES = "doc_types"
 GENERIC_TAXONOMY = "section_types/generic"
 CUSTOM_TAXONOMY = "<custom>"
-NORMALIZE_VIEW = SectionView(fields=("title", "lead"), max_tokens=96)
+# Headings only: the path of parent titles, then the title. With the heading-synonym examples
+# of the built-in section taxonomies this beat title + lead by 10-15 points of accuracy for
+# both local embedding backends on the silver benchmark (docs/benchmarks-pdf.md).
+NORMALIZE_VIEW = SectionView(fields=("path", "title"), max_tokens=96)
 
 
 class SectionNorm(BaseModel):
@@ -57,6 +60,7 @@ def normalize_sections(
     backend: str | Backend = DEFAULT_BACKEND,
     levels: Sequence[int] = (1, 2),
     classifier: Classifier | None = None,
+    view: SectionView | None = None,
 ) -> NormalizationResult:
     """Map each section of ``doc`` at ``levels`` to a canonical section of a section taxonomy.
 
@@ -65,11 +69,13 @@ def normalize_sections(
     from ``doc_type`` (a leaf id, or a group id, which uses its first leaf; unknown types use
     ``section_types/generic``). With neither, :func:`classify_document` finds the doc type
     first. Every selected section is always assigned a label, in one batched classification
-    (``Flat``, title and lead only). The preamble (level 0) is never normalised.
+    (``Flat``) of each section rendered with ``view`` (default :data:`NORMALIZE_VIEW`). The
+    preamble (level 0) is never normalised.
 
     A prebuilt ``classifier`` must be built on the chosen taxonomy (else ``ValueError``); it
     classifies as configured and also supplies the backend for the doc-type step.
     """
+    view = view or NORMALIZE_VIEW
     confidence: float | None = None
     if isinstance(taxonomy, Taxonomy):
         section_taxonomy, name = taxonomy, CUSTOM_TAXONOMY
@@ -99,7 +105,7 @@ def normalize_sections(
             section_taxonomy,
             backend,
             strategy=Flat(),
-            view=NORMALIZE_VIEW,
+            view=view,
             instruction=f"Which standard section of a {_doc_type_label(doc_type)} is this?",
             threshold=0.0,
         )
@@ -110,7 +116,7 @@ def normalize_sections(
     todo = [s for s in sections if s.title.strip() or s.text.strip()]
     norms: dict[str, SectionNorm] = {}
     if todo:
-        views = NORMALIZE_VIEW.render_all(doc, [s.id for s in todo], classifier._token_counter())
+        views = view.render_all(doc, [s.id for s in todo], classifier._token_counter())
         results = classifier.classify_texts([views[s.id].text for s in todo])
         for section, result in zip(todo, results, strict=True):
             best = result.best

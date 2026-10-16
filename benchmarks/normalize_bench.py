@@ -15,6 +15,11 @@ extra run uses ``doc_type=None`` (the auto doc-type path) with the default backe
 ``benchmarks/results/<date>/normalize.json`` and, with ``--docs``, to the generated block of the
 ``## Section normalisation`` section of ``docs/benchmarks-pdf.md``.
 
+``--configs`` picks settings from :data:`CONFIGS` (section view x built-in heading synonyms on or
+off). Each run's summary goes to ``variants``; only :data:`FINAL_CONFIG` (the package default)
+fills ``systems`` and gets the auto doc-type run. ``baseline_p10`` keeps the original P10 run
+(title + lead at 96 tokens, no synonyms) untouched, for the before/after table.
+
 Timing: each system first normalises one tiny synthetic document untimed (model load; reported
 as ``load_s``). Seconds per section is the wall time of each document's ``normalize_sections``
 call (label encoding and view rendering included) summed over documents, divided by the number
@@ -28,7 +33,7 @@ import datetime
 import json
 import os
 import time
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,7 +43,9 @@ from benchmarks import jev_chunks, pdf_bench
 from benchmarks.toc import git_revision
 from docrooter.document import Document
 from docrooter.evaluate.metrics import leaf_prf
-from docrooter.taxonomies import DOC_TYPE_TO_SECTION_TAXONOMY
+from docrooter.taxonomies import DOC_TYPE_TO_SECTION_TAXONOMY, builtin_taxonomy
+from docrooter.taxonomy import Taxonomy
+from docrooter.views import SectionView
 
 GOLD_PATH = pdf_bench.CORPUS / "section_gold.jsonl"
 GOLD_FIELDS = ("doc_id", "section_title", "page", "level", "canonical")
@@ -53,6 +60,30 @@ TABLE_DOCS = ("doc_027", "doc_002")  # per-entry tables: one research paper, one
 SECTION = "## Section normalisation"
 BEGIN, END = "<!-- normalize-benchmark:begin -->", "<!-- normalize-benchmark:end -->"
 log = pdf_bench.log
+
+
+@dataclass(frozen=True)
+class Config:
+    """One ``normalize_sections`` setting: the section view and whether the built-in section
+    taxonomies keep their heading-synonym ``examples`` (False strips them: the P10 setting)."""
+
+    view: SectionView
+    synonyms: bool
+
+
+VIEWS: dict[str, SectionView] = {
+    "title+lead@96": SectionView(fields=("title", "lead"), max_tokens=96),  # P10 default
+    "title": SectionView(fields=("title",), max_tokens=96),
+    "path+title": SectionView(fields=("path", "title"), max_tokens=96),
+    "title+lead@48": SectionView(fields=("title", "lead"), max_tokens=48),
+}
+CONFIGS: dict[str, Config] = {
+    f"{view}{'+syn' if synonyms else ''}": Config(VIEWS[view], synonyms)
+    for synonyms in (False, True)
+    for view in VIEWS
+}
+BASELINE_CONFIG = "title+lead@96"  # the P10 setting: no synonyms, title + lead at 96 tokens
+FINAL_CONFIG = "path+title+syn"  # the package default (NORMALIZE_VIEW + built-in synonyms)
 
 
 # --- gold --------------------------------------------------------------------------------
@@ -174,6 +205,14 @@ def load_documents(doc_ids: Sequence[str], corpus: Path) -> dict[str, Document]:
     return {i: load_pdf(corpus / entries[i]["file"]) for i in doc_ids}
 
 
+def without_synonyms(name: str) -> Taxonomy:
+    """The built-in taxonomy ``name`` with every node's ``examples`` removed."""
+    data = builtin_taxonomy(name).to_dict()
+    for node in data["nodes"]:
+        node["examples"] = []
+    return Taxonomy.from_dict(data)
+
+
 def _backend(name: str) -> Any:
     if name == "jev":
         return jev_chunks.UsageJevBackend(
@@ -184,7 +223,7 @@ def _backend(name: str) -> Any:
     return resolve_backend(SYSTEMS[name])
 
 
-def _warmup(backend: Any) -> float:
+def _warmup(backend: Any, config: Config) -> float:
     from docrooter.classify.normalize import normalize_sections
 
     doc = Document.from_sections(
@@ -192,7 +231,7 @@ def _warmup(backend: Any) -> float:
         source="warmup.txt",
     )
     start = time.perf_counter()
-    normalize_sections(doc, doc_type="research.research_paper", backend=backend)
+    normalize_sections(doc, doc_type="research.research_paper", backend=backend, view=config.view)
     return time.perf_counter() - start
 
 
@@ -211,13 +250,17 @@ def run_system(
     doc_types: Mapping[str, str | None],
     gold: Mapping[str, Sequence[Mapping[str, Any]]],
     true_types: Mapping[str, str],
+    config: Config = CONFIGS[FINAL_CONFIG],
 ) -> dict[str, Any]:
-    """Normalise every document with backend ``name``; ``doc_types[id]`` is passed as
-    ``doc_type`` (None = auto). Rows carry gold and prediction for every matched section."""
-    from docrooter.classify.normalize import normalize_sections
+    """Normalise every document with backend ``name`` under ``config``; ``doc_types[id]`` is
+    passed as ``doc_type`` (None = auto, which needs a config with synonyms). Rows carry gold
+    and prediction for every matched section."""
+    from docrooter.classify.normalize import CUSTOM_TAXONOMY, normalize_sections
 
+    if not config.synonyms and any(t is None for t in doc_types.values()):
+        raise ValueError("a config without synonyms needs a known doc type for every document")
     backend = _backend(name)
-    load_s = _warmup(backend)
+    load_s = _warmup(backend, config)
     is_jev = isinstance(backend, jev_chunks.UsageJevBackend)
     log(f"{name}: warm-up (load) {load_s:.1f} s")
     rows: list[dict[str, Any]] = []
@@ -226,9 +269,20 @@ def run_system(
     for doc_id, doc in docs.items():
         if is_jev:
             backend.usage.clear()
+        doc_type = doc_types[doc_id]
+        stripped = None if config.synonyms else DOC_TYPE_TO_SECTION_TAXONOMY[doc_type]
         start = time.perf_counter()
-        result = normalize_sections(doc, doc_type=doc_types[doc_id], backend=backend, levels=LEVELS)
+        result = normalize_sections(
+            doc,
+            doc_type=doc_type,
+            taxonomy=None if stripped is None else without_synonyms(stripped),
+            backend=backend,
+            levels=LEVELS,
+            view=config.view,
+        )
         seconds = time.perf_counter() - start
+        # the stripped copy is a custom taxonomy; it stands for the built-in it came from
+        pred_taxonomy = stripped if result.taxonomy == CUSTOM_TAXONOMY else result.taxonomy
         match = match_gold(gold[doc_id], [doc.sections[sid] for sid in result.sections])
         gold_taxonomy = DOC_TYPE_TO_SECTION_TAXONOMY[true_types[doc_id]]
         doc_rows = []
@@ -241,7 +295,7 @@ def run_system(
                     "page": g["page"],
                     "level": g["level"],
                     "taxonomy": gold_taxonomy,
-                    "pred_taxonomy": result.taxonomy,
+                    "pred_taxonomy": pred_taxonomy,
                     "gold": g["canonical"],
                     "pred": norm.canonical,
                     "score": round(norm.score, 4),
@@ -254,7 +308,7 @@ def run_system(
             "doc_type": result.doc_type,
             "doc_type_confidence": result.doc_type_confidence,
             "doc_type_matched": result.doc_type == true_types[doc_id],
-            "taxonomy": result.taxonomy,
+            "taxonomy": pred_taxonomy,
             "unmatched_gold": [
                 {k: g[k] for k in ("section_title", "page", "level")} for g in match.unmatched_gold
             ],
@@ -283,6 +337,7 @@ def run_system(
     seconds = sum(d["seconds"] for d in per_doc.values())
     out: dict[str, Any] = {
         "backend": SYSTEMS[name],
+        "config": next(k for k, c in CONFIGS.items() if c == config),
         "load_s": load_s,
         "seconds": seconds,
         "n_labelled": n_labelled,
@@ -299,6 +354,21 @@ def run_system(
         }
     del backend
     pdf_bench.free_memory()
+    return out
+
+
+def summarize(run: Mapping[str, Any], top: int = 3) -> dict[str, Any]:
+    """The headline numbers of one run, plus its ``top`` most frequent predicted labels over
+    the scored rows (a collapse onto few labels shows up here)."""
+    o = run["overall"]
+    preds = Counter(r["pred"] for r in run["rows"] if r["gold"] is not None)
+    out = {k: o[k] for k in ("accuracy", "macro_f1", "n_correct", "n_scored")} | {
+        "s_per_section": run["s_per_section"],
+        "top_preds": preds.most_common(top),
+    }
+    for k in ("tokens", "tokens_estimated", "cost_usd"):
+        if k in run:
+            out[k] = run[k]
     return out
 
 
@@ -319,6 +389,94 @@ def _cell(text: str) -> str:
     return text.replace("|", "\\|")
 
 
+def _config_text(result: Mapping[str, Any], name: str) -> str:
+    c = result["configs"][name]
+    fields = " + ".join(c["fields"])
+    syn = "with" if c["synonyms"] else "without"
+    return f"view {fields} at {c['max_tokens']} tokens, {syn} the taxonomies' heading synonyms"
+
+
+def _acc(o: Mapping[str, Any]) -> str:
+    return f"{_f(o['accuracy'])} ({o['n_correct']}/{o['n_scored']})"
+
+
+def _before_after(result: Mapping[str, Any], names: Sequence[str]) -> list[str]:
+    base = result.get("baseline_p10")
+    if not base:
+        return []
+    lines = [
+        "",
+        "### Before / after",
+        "",
+        f"*Baseline (P10)* is the original run ({base['date']} at `{base['commit']}`: "
+        f"{_config_text(result, base['config'])}); *after* is this run.",
+        "",
+        "| System | Baseline (P10) accuracy | After accuracy | Change | Baseline macro F1 "
+        "| After macro F1 |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    runs = [(n, base["systems"].get(n), result["systems"][n]) for n in names]
+    if "auto_doc_type" in base and "overall" in result.get("auto_doc_type", {}):
+        runs.append(("auto_doc_type", base["auto_doc_type"], result["auto_doc_type"]))
+    for n, before, after in runs:
+        if not before or "overall" not in before:
+            continue
+        b, a = before["overall"], after["overall"]
+        lines.append(
+            f"| `{n}` | {_acc(b)} | {_acc(a)} | {100 * (a['accuracy'] - b['accuracy']):+.1f} pts "
+            f"| {_f(b['macro_f1'])} | {_f(a['macro_f1'])} |"
+        )
+    return lines
+
+
+def _variants(result: Mapping[str, Any]) -> list[str]:
+    variants = result.get("variants") or {}
+    if not variants:
+        return []
+    names = [n for n in SYSTEMS if any(n in v for v in variants.values())]
+    lines = [
+        "",
+        "### Configurations tried (the silver set used as a dev set)",
+        "",
+        "Every configuration that was run, all on the same 145 scored sections, so the chosen "
+        f"default (`{result['final_config']}`) is selected on the evaluation data and its margin "
+        "over the others is optimistic. *Top prediction* is the most frequent predicted label "
+        "over the scored sections and its count (a collapse onto one label shows up here).",
+        "",
+        "| Config | View | Synonyms | "
+        + " | ".join(f"`{n}` accuracy" for n in names)
+        + " | "
+        + " | ".join(f"`{n}` top prediction" for n in names)
+        + " |",
+        "| --- | --- | --- | "
+        + " | ".join("---" for _ in names)
+        + " | "
+        + " | ".join("---" for _ in names)
+        + " |",
+    ]
+    for config in CONFIGS:
+        if config not in variants:
+            continue
+        c, runs = result["configs"][config], variants[config]
+        acc, top = [], []
+        for n in names:
+            v = runs.get(n)
+            if v is None or "error" in v:
+                acc.append("-" if v is None else "error")
+                top.append("-")
+                continue
+            acc.append(_acc(v))
+            top.append(
+                f"`{v['top_preds'][0][0]}` ({v['top_preds'][0][1]})" if v["top_preds"] else "-"
+            )
+        mark = " (default)" if config == result["final_config"] else ""
+        lines.append(
+            f"| `{config}`{mark} | {' + '.join(c['fields'])} @ {c['max_tokens']} "
+            f"| {'yes' if c['synonyms'] else 'no'} | " + " | ".join(acc + top) + " |"
+        )
+    return lines
+
+
 def render_section(result: Mapping[str, Any]) -> str:
     meta, systems = result["gold"]["meta"], result["systems"]
     names = [n for n in SYSTEMS if n in systems and "error" not in systems[n]]
@@ -335,12 +493,15 @@ def render_section(result: Mapping[str, Any]) -> str:
         "",
         f"Run {result['date']} at `{result['commit']}`, device `{result['env']['device']}` "
         f"({result['env']['device_note']}). Each system calls `normalize_sections(doc, "
-        "doc_type=<gold type>, backend=...)` (Flat, title + lead, 96 tokens) once per document. "
+        "doc_type=<gold type>, backend=...)` once per document with the package defaults: Flat, "
+        f"{_config_text(result, result['final_config'])}. "
         "*Macro F1* averages over the gold classes (per document over that document's classes; "
         "overall over all classes, qualified by taxonomy). *s/section* is the summed wall time "
         "of the per-document calls (view rendering and label encoding included) divided by the "
         "sections labelled, junk included; model load is excluded (*Load s*). Jev cost is input "
         f"tokens x ${pdf_bench.JEV_USD_PER_M_INPUT}/M as reported by the API.",
+        *_before_after(result, names),
+        *_variants(result),
         "",
         "### Aggregate",
         "",
@@ -451,6 +612,12 @@ def update_docs(path: Path, block: str) -> None:
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Section-normalisation silver benchmark")
     parser.add_argument("--systems", default=",".join(SYSTEMS))
+    parser.add_argument(
+        "--configs",
+        default=FINAL_CONFIG,
+        help=f"comma-separated configs from {list(CONFIGS)}; only {FINAL_CONFIG} gets full "
+        "per-document results and the auto doc-type run, the others a summary",
+    )
     parser.add_argument("--no-auto", action="store_true", help="skip the doc_type=None run")
     parser.add_argument("--gold", type=Path, default=GOLD_PATH)
     parser.add_argument("--corpus", type=Path, default=pdf_bench.CORPUS)
@@ -470,6 +637,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     unknown = [s for s in systems if s not in SYSTEMS]
     if unknown:
         parser.error(f"unknown systems {unknown}; choose from {list(SYSTEMS)}")
+    configs = [c.strip() for c in args.configs.split(",") if c.strip()]
+    unknown = [c for c in configs if c not in CONFIGS]
+    if unknown:
+        parser.error(f"unknown configs {unknown}; choose from {list(CONFIGS)}")
 
     pdf_bench.load_env()  # silent: never prints names or values
     meta, gold_rows = read_gold(args.gold)
@@ -495,6 +666,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"systems": {}}
     )
     result |= {
+        "final_config": FINAL_CONFIG,
+        "configs": {
+            k: {"fields": list(c.view.fields), "max_tokens": c.view.max_tokens}
+            | {"synonyms": c.synonyms}
+            for k, c in CONFIGS.items()
+        },
         "date": datetime.date.today().isoformat(),
         "commit": git_revision(),
         "env": pdf_bench.collect_env() | {"device": device, "device_note": note},
@@ -516,13 +693,16 @@ def main(argv: Sequence[str] | None = None) -> None:
             for i in doc_ids
         ],
     }
-    runs: list[tuple[str, str, dict[str, str | None]]] = [(s, s, true_types) for s in systems]
-    if not args.no_auto:
-        runs.append(("auto_doc_type", AUTO_SYSTEM, dict.fromkeys(doc_ids)))
-    for key, name, doc_types in runs:
-        log(f"== {key} (load average {os.getloadavg()[0]:.1f})")
+    runs: list[tuple[str, str, str, dict[str, str | None]]] = [
+        (c, s, s, true_types) for c in configs for s in systems
+    ]
+    if FINAL_CONFIG in configs and not args.no_auto:
+        runs.append((FINAL_CONFIG, "auto_doc_type", AUTO_SYSTEM, dict.fromkeys(doc_ids)))
+    variants = result.setdefault("variants", {})
+    for config, key, name, doc_types in runs:
+        log(f"== {config} {key} (load average {os.getloadavg()[0]:.1f})")
         try:
-            run = run_system(name, docs, doc_types, gold, true_types)
+            run = run_system(name, docs, doc_types, gold, true_types, CONFIGS[config])
         except Exception as exc:  # noqa: BLE001 - one failing system must not lose the others
             log(f"{key} FAILED: {type(exc).__name__}: {str(exc)[:500]}")
             run = {"error": f"{type(exc).__name__}: {str(exc)[:500]}"}
@@ -532,11 +712,13 @@ def main(argv: Sequence[str] | None = None) -> None:
                 run["matched"] = sum(d["doc_type_matched"] for d in run["per_doc"].values())
                 run["n"] = len(run["per_doc"])
             o = run["overall"]
-            log(f"{key}: accuracy {_f(o['accuracy'])}, macro F1 {_f(o['macro_f1'])}")
+            log(f"{config} {key}: accuracy {_f(o['accuracy'])}, macro F1 {_f(o['macro_f1'])}")
         if key == "auto_doc_type":
             result["auto_doc_type"] = run
         else:
-            result["systems"][key] = run
+            variants.setdefault(config, {})[key] = run if "error" in run else summarize(run)
+            if config == FINAL_CONFIG:
+                result["systems"][key] = run
         path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     if args.docs:
         update_docs(args.docs, render_section(result))

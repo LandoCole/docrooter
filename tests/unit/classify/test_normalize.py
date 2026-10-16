@@ -144,12 +144,21 @@ def test_one_batched_call_with_instruction_and_view():
     assert backend.calls == 1
     assert backend.last_instruction == "Which standard section of a Research paper is this?"
     assert len(backend.last_texts) == 4
-    assert backend.last_texts[0].startswith("Title: Abstract\nLead:")
-    assert "Text:" not in backend.last_texts[0]
+    # default view: the heading path and the title, no body text
+    assert backend.last_texts[0] == "Path: Abstract\nTitle: Abstract"
+    assert backend.last_texts[2] == "Path: Method > Datasets\nTitle: Datasets"
 
     backend = RecordingBackend(KeywordBackend())
     normalize_sections(paper(), taxonomy="generic", backend=backend)
     assert backend.last_instruction == "Which standard section of a document is this?"
+
+
+def test_view_override_renders_sections_with_that_view():
+    backend = RecordingBackend(KeywordBackend())
+    view = SectionView(fields=("path", "title"), max_tokens=32)
+    normalize_sections(paper(), doc_type="research.research_paper", backend=backend, view=view)
+    assert backend.calls == 1
+    assert backend.last_texts[2] == "Path: Method > Datasets\nTitle: Datasets"
 
 
 def test_prebuilt_classifier():

@@ -146,3 +146,73 @@ def test_a_prediction_from_another_taxonomy_is_wrong():
         assert s["n_correct"] == 1
         # One gold class: P 1/1 (the foreign "other" is not a guess of it), R 1/2.
         assert s["macro_f1"] == pytest.approx(2 / 3)
+
+
+# --- configurations ----------------------------------------------------------------------
+
+
+def test_baseline_config_is_the_p10_setting_and_final_is_the_package_default():
+    from docrooter.classify.normalize import NORMALIZE_VIEW
+    from docrooter.views import SectionView
+
+    base = nb.CONFIGS[nb.BASELINE_CONFIG]
+    assert base == nb.Config(SectionView(fields=("title", "lead"), max_tokens=96), False)
+    final = nb.CONFIGS[nb.FINAL_CONFIG]
+    assert final.view == NORMALIZE_VIEW and final.synonyms
+
+
+def test_without_synonyms_strips_only_the_examples():
+    from docrooter.taxonomies import builtin_taxonomy
+
+    name = "section_types/research_paper"
+    builtin, stripped = builtin_taxonomy(name), nb.without_synonyms(name)
+    assert any(n.examples for n in builtin.nodes.values())
+    assert all(not n.examples for n in stripped.nodes.values())
+    assert [(n.id, n.label, n.description) for n in stripped.nodes.values()] == [
+        (n.id, n.label, n.description) for n in builtin.nodes.values()
+    ]
+
+
+def _run(accuracy, n_correct, preds, **extra):
+    rows = [{"gold": "a", "pred": p} for p in preds] + [{"gold": None, "pred": "junk"}] * 3
+    overall = {"accuracy": accuracy, "macro_f1": 0.5, "n_correct": n_correct, "n_scored": 4}
+    return {"overall": overall, "s_per_section": 0.01, "rows": rows, **extra}
+
+
+def test_summarize_counts_top_predictions_over_scored_rows_only():
+    s = nb.summarize(_run(0.5, 2, ["a", "b", "b", "c"], tokens=10, cost_usd=0.1))
+    assert s["top_preds"] == [("b", 2), ("a", 1), ("c", 1)]
+    assert (s["accuracy"], s["n_correct"], s["tokens"], s["cost_usd"]) == (0.5, 2, 10, 0.1)
+    assert "rows" not in s
+
+
+def test_before_after_and_variant_tables():
+    configs = {
+        k: {"fields": list(c.view.fields), "max_tokens": c.view.max_tokens, "synonyms": c.synonyms}
+        for k, c in nb.CONFIGS.items()
+    }
+    before, after = _run(0.25, 1, ["a", "b", "b", "b"]), _run(0.75, 3, ["a", "a", "a", "b"])
+    result = {
+        "final_config": nb.FINAL_CONFIG,
+        "configs": configs,
+        "systems": {"ultrabert": after},
+        "baseline_p10": {
+            "date": "2026-10-16",
+            "commit": "abc1234",
+            "config": nb.BASELINE_CONFIG,
+            "systems": {"ultrabert": before},
+        },
+        "variants": {
+            nb.BASELINE_CONFIG: {"ultrabert": nb.summarize(before)},
+            nb.FINAL_CONFIG: {"ultrabert": nb.summarize(after)},
+        },
+    }
+    table = "\n".join(nb._before_after(result, ["ultrabert"]))
+    assert "| `ultrabert` | 0.250 (1/4) | 0.750 (3/4) | +50.0 pts |" in table
+    assert "without the taxonomies' heading synonyms" in table
+    variants = "\n".join(nb._variants(result))
+    assert (
+        f"| `{nb.BASELINE_CONFIG}` | title + lead @ 96 | no | 0.250 (1/4) | `b` (3) |" in variants
+    )
+    assert f"| `{nb.FINAL_CONFIG}` (default) |" in variants
+    assert "dev set" in variants

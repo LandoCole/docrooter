@@ -14,6 +14,10 @@ from docrooter.keyphrases import document_frequencies, keyphrases_from_frequenci
 
 _FIELD_NAMES = ("path", "title", "keyphrases", "lead", "text")
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+# Before a line is counted its content is cut to this many words per budget token, so a
+# whole section never reaches the (possibly slow, length-limited) tokenizer. No real
+# tokenizer fits four words in one token, so the cut never changes which prefix fits.
+_WORDS_PER_TOKEN = 4
 
 
 def estimate_tokens(text: str) -> int:
@@ -96,16 +100,27 @@ def render_budgeted(
     ``None`` entries are skipped. The first line that does not fit is cut to its longest
     fitting word prefix (dropped if not even one word fits) and rendering stops there. The
     result is never empty: with no line at all it is ``Title: <fallback_title>``, cut to fit.
+
+    Content longer than ``4 * max_tokens`` words is cut to that many words before ``count``
+    sees it; should the cut line still fit, it is kept, marked truncated, and rendering stops.
     """
+    word_cap = max(1, _WORDS_PER_TOKEN * max_tokens)
     lines: list[str] = []
     truncated = False
     for entry in entries:
         if entry is None:
             continue
         label, content = entry
+        words = content.split()
+        cut = len(words) > word_cap
+        if cut:
+            content = " ".join(words[:word_cap])
         line = f"{label} {content}" if label else content
         if count("\n".join([*lines, line])) <= max_tokens:
             lines.append(line)
+            if cut:
+                truncated = True
+                break
             continue
         truncated = True
         fitted = _fit(lines, label, content, max_tokens, count)
@@ -113,7 +128,7 @@ def render_budgeted(
             lines.append(fitted)
         break
     if not lines:
-        fallback, cut = _title_fallback(fallback_title, max_tokens, count)
+        fallback, cut = _title_fallback(fallback_title, max_tokens, count, word_cap)
         lines.append(fallback)
         truncated = truncated or cut
     text = "\n".join(lines)
@@ -143,15 +158,20 @@ def _fit(
     return line_of(low) if low else None
 
 
-def _title_fallback(title: str, max_tokens: int, count: Callable[[str], int]) -> tuple[str, bool]:
+def _title_fallback(
+    title: str, max_tokens: int, count: Callable[[str], int], word_cap: int
+) -> tuple[str, bool]:
     """A never-empty view: ``Title: <title>``, cut to the budget, keeping at least one word.
 
-    Returns the line and whether it was cut (or the label dropped) to fit.
+    The title is first cut to ``word_cap`` words. Returns the line and whether it was cut (or
+    the label dropped) to fit.
     """
     words = title.split() or [title]
+    over_cap = len(words) > word_cap
+    words = words[:word_cap]
     labeled = f"Title: {' '.join(words)}"
     if count(labeled) <= max_tokens:
-        return labeled, False
+        return labeled, over_cap
     for n in range(len(words), 0, -1):
         candidate = f"Title: {' '.join(words[:n])}"
         if count(candidate) <= max_tokens:

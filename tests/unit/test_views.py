@@ -144,3 +144,47 @@ def test_multiline_earlier_field_does_not_confuse_truncation():
     assert v.text.splitlines()[:3] == ["Text: l1", "l2", "l3"]
     assert v.text.splitlines()[3].startswith("Title: one two")
     assert v.text.count("l2") == 1
+
+
+def _recording_word_counter(seen: list[int]):
+    def count(text: str) -> int:
+        seen.append(len(text.split()))
+        return len(text.split())
+
+    return count
+
+
+def test_long_text_is_cut_before_the_counter_sees_it():
+    body = " ".join(f"w{i}" for i in range(20_000))
+    d = Document.from_sections([{"title": "Long", "level": 1, "text": body}])
+    seen: list[int] = []
+    v = SectionView(fields=("title", "text"), max_tokens=10).render_all(
+        d, ["s1"], count_tokens=_recording_word_counter(seen)
+    )["s1"]
+    # same view as without the cut: the longest fitting word prefix
+    assert v.text == "Title: Long\nText: " + " ".join(f"w{i}" for i in range(7))
+    assert v.truncated and v.n_tokens == 10
+    assert max(seen) <= 4 * 10 + 3  # never the whole section: at most ~4 words per token
+
+
+def test_long_title_fallback_is_cut_before_the_counter_sees_it():
+    title = " ".join(f"t{i}" for i in range(20_000))
+    d = Document.from_sections([{"title": title, "level": 1}])
+    seen: list[int] = []
+    v = SectionView(fields=("lead",), max_tokens=4).render_all(
+        d, ["s1"], count_tokens=_recording_word_counter(seen)
+    )["s1"]
+    assert v.text == "Title: t0 t1 t2" and v.truncated
+    assert max(seen) <= 4 * 4 + 1
+
+
+def test_cut_text_that_fits_is_still_marked_truncated():
+    body = " ".join(f"w{i}" for i in range(1000))
+    d = Document.from_sections([{"title": "Long", "level": 1, "text": body}])
+    v = SectionView(fields=("text", "title"), max_tokens=5).render_all(
+        d,
+        ["s1"],
+        count_tokens=lambda text: 1,  # a counter no real text can exceed
+    )["s1"]
+    assert v.truncated
+    assert v.text == "Text: " + " ".join(f"w{i}" for i in range(20))  # 4 x 5 words, then stop

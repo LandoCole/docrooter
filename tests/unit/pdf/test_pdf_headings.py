@@ -392,3 +392,17 @@ def test_page_top_heading_listed_on_an_earlier_contents_page_is_kept():
     lines[top] = lines[top].model_copy(update={"y0": 20.0, "y1": 37.0})  # in the top band
     found = find_headings(lines, compute_signals(lines, 5))
     assert ("Item 3. Market Risk", 5) in [(h.text, h.page) for h in found]
+
+
+def test_large_title_wrapped_with_its_own_leading_is_merged():
+    # A 24 pt title wraps with a 12 pt gap: well above 1.5 x the body's median gap, but tight
+    # leading for its own size.
+    pages = [
+        [item("Appendix D. Use other Integrated", size=24, bold=True),
+         item("Development Environments", size=24, bold=True, gap=12.0), *para(4),
+         item("D.1. Use CLion", size=16, bold=True, gap=HEAD_GAP), *para(4)],
+    ]  # fmt: skip
+    _, found = run(pages)
+    assert [h.text for h in found] == [
+        "Appendix D. Use other Integrated Development Environments", "D.1. Use CLion",
+    ]  # fmt: skip

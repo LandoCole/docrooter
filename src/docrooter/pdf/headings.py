@@ -32,6 +32,7 @@ _SIZE_FACTOR = 1.15  # size >= 1.15 x body makes a line a candidate on its own
 _ISOLATION_GAP_FACTOR = 1.2  # x median gap
 _ISOLATION_SIZE_FACTOR = 0.5  # x line size; the median gap alone is ordinary leading
 _MERGE_GAP_FACTOR = 1.5  # x median gap
+_MERGE_SIZE_FACTOR = 0.6  # x line size: a large title's own leading also continues it (P5b)
 _STYLE_TOLERANCE = 0.5  # pt
 _MAX_LEVEL = 6
 # A style used by fewer headings than min(3, 10% of them) is "one-off" (cover, front matter)
@@ -146,14 +147,16 @@ def _extends_run(
     merge_gap: float,
 ) -> bool:  # fmt: skip
     """Whether line ``nxt`` continues the title ``first..last``: same page and style as the first
-    line, never body-styled, and either a candidate itself within ``merge_gap`` or the rest of
-    the last line's row (a title set apart from its number, e.g. "Item 1B." | "Unresolved…")."""
+    line, never body-styled, and either a candidate itself within ``max(merge_gap, 0.6 x size)``
+    or the rest of the last line's row (a title set apart from its number, e.g. "Item 1B." |
+    "Unresolved…")."""
     line = lines[nxt]
     if line.page != lines[first].page or not _same_style(lines[first], line):
         return False
     if _is_body_style(line, body):
         return False
-    return (candidate[nxt] and line.gap_above < merge_gap) or _same_row(lines[last], line)
+    gap = max(merge_gap, _MERGE_SIZE_FACTOR * lines[first].size)
+    return (candidate[nxt] and line.gap_above < gap) or _same_row(lines[last], line)
 
 
 def _merge_runs(

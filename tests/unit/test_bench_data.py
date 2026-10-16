@@ -417,9 +417,7 @@ def test_failed_cell_is_reported_but_finished_rows_are_kept(tmp_path, monkeypatc
     assert [(r["system"], r["dataset"]) for r in saved] == [("kw", "b3"), ("kw", "b3-subset")]
 
 
-def test_unimplemented_suites_and_bad_arguments(tmp_path):
-    with pytest.raises(NotImplementedError, match="Task 15"):
-        bench_run.run_suite("few-shot", None, 5, out_dir=tmp_path)
+def test_bad_arguments(tmp_path):
     with pytest.raises(ValueError, match="unknown dataset"):
         bench_run.run_suite("zero-shot", None, 5, out_dir=tmp_path, datasets=["b9"])
     with pytest.raises(ValueError, match="unknown suite"):

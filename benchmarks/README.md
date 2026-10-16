@@ -21,9 +21,38 @@ uv run python -m benchmarks.report          # writes docs/benchmarks.md
 ```
 
 `--only SYSTEM` (repeatable) reruns just those systems and updates their rows in place, e.g.
-`--only deberta-nli --device cpu`. `--datasets b1,b2` limits the benchmarks. The few-shot and
-strategies suites are not implemented yet. Results go to `benchmarks/results/<date>/<suite>.json`
-and are rewritten after every system x dataset, so a crashed run keeps its finished rows.
+`--only deberta-nli --device cpu`. `--datasets b1,b2` limits the benchmarks. Results go to
+`benchmarks/results/<date>/<suite>.json` and are rewritten after every system x dataset, so a
+crashed run keeps its finished rows.
+
+### Few-shot
+
+```bash
+uv run python -m benchmarks.run --suite few-shot --device mps --shots 4,8,16,64 \
+    --bases ultrabert-embed,bge-small
+```
+
+For each benchmark, base and k, two models are trained on `pool_shots(train_pool, k, seed=0)`:
+`<base>/heads` (`finetune_body=False`) and `<base>/finetuned`, then scored with Beam(3) and
+threshold 0.0. Rows carry `shots`, `train_seconds` and `n_train` (the pools hold at most 20
+examples per leaf, so k=64 trains on the whole pool). Bundles are kept under
+`benchmarks/.cache/bundles/<dataset>/<base>/<k>/<variant>/` (git-ignored) and reused; delete a
+directory to retrain it. Fine-tuning at the 512-token view is memory-hungry: on a 16 GB machine batch 32 (the recipe
+default) runs out of memory even for bge-small, so use `--train-batch-size 4` (or less) and
+`--train-max-triplets N` to cap the fine-tuning set. Either option gives the bundle its own
+directory (`finetuned-bs4-mt2000`) and is recorded in each row's `env`.
+Here `--only` takes a base name (`--only bge-small`) or one variant (`--only bge-small/heads`).
+
+### Strategies
+
+```bash
+uv run python -m benchmarks.run --suite strategies --device mps
+```
+
+B2 only: Greedy, Beam(3) and Flat (embedding backends only) with the best zero-shot system, and
+Greedy and Beam(3) with the best `--trained-shots` (default 16) trained model. "Best" is the
+highest B2 hF1 in `zero-shot.json` / `few-shot.json` of the same `--out` directory; override with
+`--zero-shot-system NAME` and `--trained-system BASE/VARIANT`.
 
 Systems (`benchmarks/systems.py`): `ultrabert-embed`, `bge-small`, `deberta-nli` (B3 subset only),
 `ultrabert-mlm` (B1 and B2 only), `openai` (needs `DOCROOTER_BENCH_LLM_URL` and

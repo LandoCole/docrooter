@@ -5,11 +5,13 @@ from __future__ import annotations
 import importlib.util
 import logging
 import os
+import shutil
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
-from benchmarks.data import BENCH_VIEW, INSTRUCTIONS, BenchData
-from docrooter import Beam, Classifier
+from benchmarks.data import BENCH_VIEW, INSTRUCTIONS, BenchData, pool_shots
+from docrooter import Beam, Classifier, TrainedModel
 from docrooter.classify.strategies import Flat, Greedy
 
 logger = logging.getLogger("benchmarks")
@@ -137,6 +139,99 @@ def build_classifier(
     return Classifier(
         data.taxonomy,
         backend=system.spec,
+        strategy=strategy,
+        view=BENCH_VIEW,
+        instruction=INSTRUCTIONS[data.name],
+        threshold=threshold,
+    )
+
+
+# --- few-shot: trained models -----------------------------------------------------------
+
+FEW_SHOT_KS = (4, 8, 16, 64)
+BASE_MODELS = {
+    "ultrabert-embed": "dmis-lab/UltraBERT-Embed-150M",
+    "bge-small": "BAAI/bge-small-en-v1.5",
+}
+VARIANTS = {"heads": False, "finetuned": True}  # variant name -> finetune_body
+BUNDLE_ROOT = Path(__file__).parent / ".cache" / "bundles"
+TRAIN_SEED = 0
+
+
+def bundle_dir(dataset: str, base: str, k: int, variant: str, root: Path | None = None) -> Path:
+    """Where the bundle of ``base``/``variant`` trained on ``k`` shots of ``dataset`` lives."""
+    return (root or BUNDLE_ROOT) / dataset / base / str(k) / variant
+
+
+def trained_model(
+    data: BenchData,
+    base: str,
+    k: int,
+    variant: str,
+    *,
+    device: str | None = None,
+    root: Path | None = None,
+    batch_size: int | None = None,
+    max_triplets: int | None = None,
+) -> tuple[TrainedModel, float, int]:
+    """The model trained on ``k`` shots per leaf of ``data.train_pool``: ``(model, seconds, n)``.
+
+    A bundle already under :func:`bundle_dir` (for the same taxonomy) is loaded instead of
+    retrained; ``seconds`` is then the training time recorded in it. ``n`` is the number of
+    training examples (a leaf with fewer than ``k`` in the pool gives all it has).
+    ``batch_size`` (default: the base model's recipe) is the fine-tuning and encoding batch size;
+    a smaller one saves memory but changes the contrastive loss. ``max_triplets`` (default:
+    ``train``'s 20000) caps the fine-tuning set. Either one gives the bundle its own directory.
+    """
+    from docrooter import train
+
+    shots = pool_shots(data.train_pool, k, seed=TRAIN_SEED)
+    suffix = ("" if batch_size is None else f"-bs{batch_size}") + (
+        "" if max_triplets is None else f"-mt{max_triplets}"
+    )
+    path = bundle_dir(data.name, base, k, variant + suffix, root)
+    if (path / "manifest.json").exists():
+        model = TrainedModel.load(path, device=device)
+        if model.taxonomy_hash == data.taxonomy.content_hash():
+            logger.info("reusing trained bundle %s", path)
+            return model, float(model.manifest["train_metrics"]["seconds"]), len(shots)
+        logger.warning("bundle %s was trained on another taxonomy; retraining", path)
+    shutil.rmtree(path, ignore_errors=True)
+    model = train(
+        data.taxonomy,
+        shots,
+        base_model=BASE_MODELS[base],
+        finetune_body=VARIANTS[variant],
+        device=device,
+        seed=TRAIN_SEED,
+        instruction=INSTRUCTIONS[data.name],
+        batch_size=batch_size,
+        **({} if max_triplets is None else {"max_triplets": max_triplets}),
+    )
+    model.save(path)
+    seconds = float(model.manifest["train_metrics"]["seconds"])
+    del model  # the weights stay on disk; classifiers load their own copy (see below)
+    return TrainedModel.load(path, device=device), seconds, len(shots)
+
+
+def build_trained_classifier(
+    model: TrainedModel,
+    data: BenchData,
+    *,
+    strategy: Greedy | Beam | Flat = ZERO_SHOT_STRATEGY,
+    threshold: float = ZERO_SHOT_THRESHOLD,
+    device: str | None = None,
+) -> Classifier:
+    """A classifier around a trained model, with the same view and settings as zero-shot.
+
+    The classifier gets its own copy of the model, loaded from the model's bundle, so its
+    embedding cache starts empty and timings do not benefit from an earlier cell's texts.
+    """
+    path = getattr(model, "path", None)
+    backend = TrainedModel.load(path, device=device) if path is not None else model
+    return Classifier(
+        data.taxonomy,
+        backend=backend,
         strategy=strategy,
         view=BENCH_VIEW,
         instruction=INSTRUCTIONS[data.name],

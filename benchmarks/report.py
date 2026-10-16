@@ -105,6 +105,9 @@ def _summary(rows: list[dict[str, Any]]) -> list[str]:
 def _dataset_table(rows: list[dict[str, Any]]) -> list[str]:
     header = ["System", "Strategy", "Shots", "n", "Exact", "hP", "hR", "hF1", "Macro-P", "Macro-R"]
     header += ["Macro-F1", "Stop rate", "Sections/s", "s/example", "Device"]
+    trained = any(r.get("train_seconds") is not None for r in rows)
+    if trained:
+        header.append("Train s")
     ordered = sorted(rows, key=lambda r: (-r["report"]["hf1"], r["system"]))
     body = []
     for r in ordered:
@@ -126,6 +129,7 @@ def _dataset_table(rows: list[dict[str, Any]]) -> list[str]:
                 _num(r["sections_per_sec"], ".1f"),
                 _num(r["seconds_per_example"], ".4f"),
                 rep["device"],
+                *([_num(r.get("train_seconds"), ".0f")] if trained else []),
             ]
         )
     return _table(header, body)

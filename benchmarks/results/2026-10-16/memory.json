@@ -2,6 +2,8 @@
   {
     "case": "classify",
     "device": "cpu",
+    "peak_total_gb": 1.129,
+    "total_method": "peak RSS (CPU run: no Metal memory)",
     "peak_rss_gb": 1.129,
     "peak_rss_after_parse_gb": 0.292,
     "target_gb": 8.0,
@@ -32,6 +34,8 @@
   {
     "case": "classify",
     "device": "mps",
+    "peak_total_gb": 1.913,
+    "total_method": "peak RSS + peak MPS driver (measured before footprint was recorded)",
     "peak_rss_gb": 0.772,
     "peak_rss_after_parse_gb": 0.449,
     "target_gb": 8.0,
@@ -58,11 +62,15 @@
       "machine": "arm64",
       "system": "macOS-26.5-arm64-arm-64bit",
       "cpu_count": 8
-    }
+    },
+    "mps_fraction": 0.6757,
+    "note": "measured with the earlier MPS cap (the full 8 GiB budget for Metal, fraction 0.6757)"
   },
   {
     "case": "train",
     "device": "cpu",
+    "peak_total_gb": 6.233,
+    "total_method": "peak RSS (CPU run: no Metal memory)",
     "peak_rss_gb": 6.233,
     "peak_rss_after_data_gb": 0.875,
     "target_gb": 8.0,
@@ -95,11 +103,13 @@
   {
     "case": "train",
     "device": "mps",
-    "peak_rss_gb": 1.132,
-    "peak_rss_after_data_gb": 0.852,
+    "peak_total_gb": 7.59,
+    "total_method": "peak phys_footprint (task_info)",
+    "peak_rss_gb": 1.213,
+    "peak_rss_after_data_gb": 0.872,
     "target_gb": 8.0,
     "within_target": true,
-    "seconds": 1109.4,
+    "seconds": 1069.1,
     "dataset": "b1",
     "k": 16,
     "n_train": 306,
@@ -109,15 +119,16 @@
     "max_seq_len": 512,
     "batch_size": 16,
     "trained_on": "mps",
-    "peak_mps_driver_gb": 7.024,
-    "peak_mps_allocated_gb": 4.512,
+    "peak_mps_driver_gb": 6.393,
+    "peak_mps_allocated_gb": 4.516,
+    "mps_fraction": 0.549,
     "env": {
       "OMP_NUM_THREADS": "4",
       "TOKENIZERS_PARALLELISM": "false",
       "DOCROOTER_THREADS": "4",
       "DOCROOTER_MEMORY_BUDGET_GB": "8",
-      "PYTORCH_MPS_HIGH_WATERMARK_RATIO": "0.6757",
-      "PYTORCH_MPS_LOW_WATERMARK_RATIO": "0.5405"
+      "PYTORCH_MPS_HIGH_WATERMARK_RATIO": "0.549",
+      "PYTORCH_MPS_LOW_WATERMARK_RATIO": "0.4392"
     },
     "platform": {
       "python": "3.12.13",

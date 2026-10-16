@@ -454,12 +454,14 @@ with docrooter.Classifier(taxonomy) as clf:  # closes the models it loaded
     results = clf.classify(doc)
 ```
 
-The device order stays CUDA, MPS, CPU. On Apple silicon the budget is a hard cap on GPU memory
-(`torch.mps.set_per_process_memory_fraction(budget / recommended_max_memory)`, preceded by the
+The device order stays CUDA, MPS, CPU. On Apple silicon, Metal and the host share memory, so
+Metal gets a hard cap of the budget minus 1.5 GiB of headroom
+(`torch.mps.set_per_process_memory_fraction(...)`, preceded by the
 `PYTORCH_MPS_HIGH_WATERMARK_RATIO` / `PYTORCH_MPS_LOW_WATERMARK_RATIO` variables when
-`configure` runs before torch is imported; variables you set yourself win). If a model still
-runs out of MPS memory while loading or encoding, it moves to the CPU once and logs a warning;
-fine-tuning first retries with half the batch. On the CPU nothing caps the resident set: a
+`configure` runs before torch is imported; variables you set yourself win). The cap covers
+Metal memory, not the process total. If a model still runs out of MPS memory while loading or
+encoding, it moves to the CPU once, with the same weights, and logs a warning; fine-tuning
+first retries with half the batch. On the CPU nothing caps the resident set: a
 smaller budget only shrinks the default batch sizes.
 
 Every backend has `close()`; a `TrainedModel` closes its body too (save it first if it was

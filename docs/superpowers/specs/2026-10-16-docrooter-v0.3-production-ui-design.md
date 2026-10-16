@@ -19,31 +19,46 @@
 
 ## 2. Memory containment
 
+Revised mid-task at the user's request: a configurable **8 GB memory budget** replaces the earlier fixed 3 GB / 6 GB CPU targets and the 0.5 MPS fraction, and the device stays "GPU or CPU as needed".
+
 ### Package defaults
 
 - **UltraBERT recipe `max_seq_len`:** reduce from 8192 to **1024**. Document views are at most 1024 tokens, and longer inputs are truncated. This affects `dmis-lab/UltraBERT-Embed-150M` and `UltraBERT-380M`.
-- **`train()` gains `max_seq_len: int = 512`.** It is applied to the SentenceTransformer during fine-tuning, so long training texts cannot allocate O(8k²) attention. This fixes the observed 19.5 GB MPS OOM.
-- **Encoding batch size:** default 16 on CPU and MPS, 32 on CUDA. It is configurable per recipe and per call.
+- **`train()` gains `max_seq_len: int = 512` and `gradient_checkpointing: bool = True`.**
+  - The length is applied to the SentenceTransformer during fine-tuning and saved with the bundle, so long training texts cannot allocate O(8k²) attention. This fixes the observed 19.5 GB MPS OOM.
+  - Checkpointing bounds fine-tuning activations.
+- **Memory budget:** `configure(memory_budget_gb=8.0)`, or the env var `DOCROOTER_MEMORY_BUDGET_GB` (default 8, in GiB). It is meant for the whole process.
+  - **On MPS (unified memory):** Metal gets the budget minus 1.5 GiB of host headroom, but at least half the budget. This is applied as `torch.mps.set_per_process_memory_fraction(min(1, metal / torch.mps.recommended_max_memory()))` once torch is loaded. Before torch is imported, `PYTORCH_MPS_HIGH/LOW_WATERMARK_RATIO` are set from an estimate as the fallback. Watermarks set by the user win.
+  - **On CPU:** nothing caps the resident set. The budget only scales the default batch sizes.
+- **Encoding batch size:** 32 on CUDA. Otherwise 16 at a budget of 8 GiB or more, halved for each halving below that, and never under 4. It is configurable per recipe and per call.
+- **Device:** GPU or CPU as needed. The order stays CUDA → MPS → CPU.
+  - An MPS out-of-memory error during a model load or encode moves the backend to the CPU once, logging a warning. The loaded model is moved, not reloaded, so fine-tuned weights are kept.
+  - Training first retries from the base weights with half the batch, then falls back to the CPU.
 - **`docrooter.configure(...)`:** a new process-level setup function.
-  - Signature: `configure(*, device=None, threads=None, mps_memory_fraction=None)`.
-  - Each value is applied when torch is first used: `torch.set_num_threads`, and `torch.mps.set_per_process_memory_fraction`.
-  - Matching environment variables: `DOCROOTER_DEVICE`, `DOCROOTER_THREADS`, `DOCROOTER_MPS_MEMORY_FRACTION`.
-- **Releasing models:** backends get `close()`, which drops the model, empties the caches, calls `gc.collect()`, and calls `torch.mps.empty_cache()` or `torch.cuda.empty_cache()` where available. `Classifier` gets `close()` and context-manager support. Embedding caches become a bounded LRU, 50,000 entries by default.
+  - Signature: `configure(*, device=None, threads=None, memory_budget_gb=None, mps_memory_fraction=None)`. `mps_memory_fraction` is an explicit override of the derived fraction.
+  - Values are applied at model load: the watermark variables before torch is imported, then `torch.set_num_threads` and the MPS fraction.
+  - Matching environment variables: `DOCROOTER_DEVICE`, `DOCROOTER_THREADS`, `DOCROOTER_MEMORY_BUDGET_GB`, `DOCROOTER_MPS_MEMORY_FRACTION`.
+- **Releasing models:**
+  - Backends get `close()`, which drops the model, empties the caches, calls `gc.collect()`, and calls `torch.mps.empty_cache()` or `torch.cuda.empty_cache()` where available.
+  - `Classifier` gets `close()` and context-manager support.
+  - Embedding caches become a bounded LRU, 50,000 entries by default.
 
 ### Tests and benchmarks
 
 - Unit tests stay torch-free.
 - `-m models` integration tests run in a single process. Each test module closes its backends.
-- Benchmark entry points set conservative defaults unless the user overrides them: threads 4, MPS memory fraction 0.5, `TOKENIZERS_PARALLELISM=false`. They refuse to start when another docrooter benchmark process is already running, unless `--allow-concurrent` is passed.
+- Benchmark entry points set conservative defaults unless the user overrides them: threads 4, `TOKENIZERS_PARALLELISM=false`, an 8 GiB budget, and the MPS watermark caps derived from it. They refuse to start when another docrooter model process is already running, unless `--allow-concurrent` is passed. They use the default device order: they do not force the CPU.
 
 ### Verification
 
-A memory test script, `benchmarks/memory_check.py`, records peak RSS and, where available, MPS-allocated memory for:
+A memory test script, `benchmarks/memory_check.py`, runs on the default device (MPS on Apple silicon). It records the process total, peak RSS, and the MPS current and driver allocated memory for:
 
 - `load` + `classify_document` on a 600-page PDF with UltraBERT;
 - `train()` on B1 with k=16.
 
-Targets: peak RSS under 3 GB for classification and under 6 GB for training, on CPU.
+The process total is the peak physical footprint on macOS. It counts both Metal and host memory; elsewhere it is RSS + Metal driver.
+
+Target: a peak process total of at most 8 GiB for both cases. The results are in `docs/performance.md`.
 
 ## 3. Held-out generalisation evaluation
 

@@ -116,8 +116,12 @@ def classify(
     for section in result.sections.values():
         best = section.best
         # Text, not str: titles and labels may contain "[...]" that rich would read as markup.
-        path = " > ".join(best.labels) if best and best.labels else "-"
-        table.add_row(Text(section.title), Text(path), f"{best.score:.2f}" if best else "-")
+        if best is not None and best.node_ids:
+            path, score = " > ".join(best.labels), f"{best.score:.2f}"
+        else:  # no label was chosen; an empty path's score of 1.0 would only mislead
+            path = "-"
+            score = (best.stopped_reason if best else None) or "-"
+        table.add_row(Text(section.title), Text(path), Text(score))
     console.print(table)
     console.print(Text(f"wrote {out}"))
 

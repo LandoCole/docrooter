@@ -260,9 +260,8 @@ def test_specs_resolved_once_per_spec_string(tax, monkeypatch):
 
     monkeypatch.setattr("docrooter.backends.registry.resolve_backend", fake_resolve)
     clf = Classifier(tax, backend="x", overrides={"depth>=1": "y", "node:legal": "y"})
-    clf.router("legal")
-    clf.router("financial")
-    clf.router(Taxonomy.ROOT_ID)
+    for node_id in ("legal", "financial", Taxonomy.ROOT_ID):
+        list(clf.router(node_id))
     assert sorted(calls) == ["x", "y"]
 
 
@@ -653,3 +652,72 @@ def test_cli_classify_default_backend_is_ultrabert():
     from docrooter.cli import DEFAULT_BACKEND
 
     assert DEFAULT_BACKEND == "embedding:dmis-lab/UltraBERT-Embed-150M"
+
+
+# --- fix round 1 ------------------------------------------------------------------------------
+
+
+def test_cli_classify_table_shows_stop_reason_instead_of_score(tmp_path):
+    out = tmp_path / "o.json"
+    r = runner.invoke(
+        app,
+        ["classify", SIMPLE, "-t", NESTED, "-b", "keyword", "--threshold", "0.99", "-o", str(out)],
+    )
+    assert r.exit_code == 0, r.output
+    assert "low_confidence" in r.output and "1.00" not in r.output
+    data = json.loads(out.read_text())
+    assert all(s["best"]["node_ids"] == [] for s in data["sections"].values())
+
+
+def test_fallback_not_resolved_while_primary_handles_every_node(tax, doc, monkeypatch):
+    def boom(spec):
+        raise AssertionError(f"resolved {spec!r}")
+
+    monkeypatch.setattr("docrooter.backends.registry.resolve_backend", boom)
+    clf = Classifier(tax, backend=KeywordBackend(), fallback="nli:never-loaded", threshold=0)
+    res = clf.classify(doc)
+    assert all(r.best.stopped_reason is None for r in res.sections.values())
+    assert clf.router("financial")[0].name == "keyword"  # indexing stays lazy too
+    Classifier(
+        tax, backend=KeywordBackend(), fallback="nli:never-loaded", strategy=Flat(), threshold=0
+    ).classify(doc)
+
+
+def test_zero_shot_fallback_not_built_while_trained_primary_suffices(tax, doc):
+    class Trained(KeywordBackend):
+        def as_zero_shot(self):
+            raise AssertionError("zero-shot fallback built needlessly")
+
+    Classifier(tax, backend=Trained(), threshold=0).classify(doc)
+
+
+def test_fallback_resolved_when_primary_unsupported(tax, doc, monkeypatch):
+    seen = []
+
+    def fake(spec):
+        seen.append(spec)
+        return KeywordBackend(name=spec)
+
+    monkeypatch.setattr("docrooter.backends.registry.resolve_backend", fake)
+    Classifier(tax, backend=NeverSupports(), fallback="fb", threshold=0).classify(doc)
+    assert seen == ["fb"]
+
+
+def test_blank_texts_are_not_scored(tax):
+    spy = RecordingBackend(KeywordBackend())
+    clf = Classifier(tax, backend=spy, strategy=Greedy(), threshold=0)
+    out = clf.classify_texts(["", "financial tax", "  \n\t "])
+    assert [r.section_id for r in out] == ["0", "1", "2"]
+    for i in (0, 2):
+        assert out[i].best == PathResult(node_ids=[], stopped_reason="empty_text")
+        assert out[i].selected == [] and out[i].alternatives == [] and out[i].truncated is False
+    assert out[1].best.node_ids == ["financial", "financial.tax"]
+    assert spy.last_texts == ["financial tax"]
+
+
+def test_all_blank_texts_make_no_backend_call(tax):
+    spy = CountingBackend(KeywordBackend())
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        out = Classifier(tax, backend=spy).classify_texts(["", " "])
+    assert spy.calls == 0 and {r.best.stopped_reason for r in out} == {"empty_text"}

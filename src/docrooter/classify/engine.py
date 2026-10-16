@@ -8,7 +8,7 @@ The traversal is iterative: no recursion over the tree.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,8 +20,10 @@ from docrooter.classify.strategies import Beam, Flat, Greedy
 from docrooter.errors import BackendError
 from docrooter.taxonomy import Taxonomy, TaxonomyNode
 
-Router = Callable[[str], list[Backend]]
-"""Candidate backends for a decision at a node id, in priority order."""
+Router = Callable[[str], Iterable[Backend]]
+"""Candidate backends for a decision at a node id, in priority order.
+
+The iterable may be lazy; ``pick_backend`` stops consuming at the first usable backend."""
 
 AUTO_BACKEND = "(auto)"
 """``Step.backend`` for a single-child node, which is chosen with p=1.0 and no backend call."""

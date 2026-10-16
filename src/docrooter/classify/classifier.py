@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import functools
 import re
 import warnings
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 
 import numpy as np
@@ -14,7 +15,7 @@ from docrooter.backends.base import Backend
 from docrooter.classify import engine
 from docrooter.classify._beams import TreeResult
 from docrooter.classify.engine import EngineSettings
-from docrooter.classify.results import DocumentResult, SectionResult
+from docrooter.classify.results import DocumentResult, PathResult, SectionResult
 from docrooter.classify.strategies import Beam, Flat, Greedy
 from docrooter.document import Document, Section
 from docrooter.taxonomy import Taxonomy
@@ -126,8 +127,12 @@ class Classifier:
             self._zero_shot = as_zero_shot() if callable(as_zero_shot) else None
         return self._zero_shot  # type: ignore[return-value]
 
-    def router(self, node_id: str) -> list[Backend]:
-        """The backends to try for a decision at ``node_id``, best match first."""
+    def router(self, node_id: str) -> Sequence[Backend]:
+        """The backends to try for a decision at ``node_id``, best match first.
+
+        The result is lazy: a backend (the fallback in particular) is only resolved when the
+        caller reaches it, so a fallback model is never loaded while earlier ones suffice.
+        """
         specs: list[str | Backend] = []
         if node_id in self._node_overrides:
             specs.append(self._node_overrides[node_id])
@@ -139,13 +144,11 @@ class Classifier:
                 specs.append(spec)
                 break
         specs.append(self.backend)
-        backends = [self._resolve(spec) for spec in specs]
-        if (fallback := self._fallback()) is not None:
-            backends.append(fallback)
-        unique: dict[int, Backend] = {}
-        for backend in backends:
-            unique.setdefault(id(backend), backend)
-        return list(unique.values())
+        thunks: list[Callable[[], Backend | None]] = [
+            functools.partial(self._resolve, spec) for spec in specs
+        ]
+        thunks.append(self._fallback)
+        return _LazyBackends(thunks)
 
     def decide(self, texts: Sequence[str], node_id: str) -> tuple[list[str], np.ndarray, str]:
         """Child ids, probabilities ``(len(texts), n_children)`` and backend name at a node."""
@@ -188,15 +191,23 @@ class Classifier:
 
     def classify_texts(self, texts: list[str]) -> list[SectionResult]:
         """Classify plain texts; the results have section ids ``"0"``, ``"1"``, ..."""
-        count = self._token_counter() if texts else estimate_tokens
+        count = self._token_counter() if any(t.strip() for t in texts) else estimate_tokens
         keyed: dict[str, str] = {}
         truncated: dict[str, bool] = {}
         for i, text in enumerate(texts):
-            keyed[str(i)], truncated[str(i)] = _truncate(text, self.view.max_tokens, count)
+            if text.strip():  # blank text is never sent to a backend
+                keyed[str(i)], truncated[str(i)] = _truncate(text, self.view.max_tokens, count)
         results = self._run(keyed)
         out = []
         for i, text in enumerate(texts):
-            best, alternatives, chosen = results[str(i)]
+            if str(i) in results:
+                best, alternatives, chosen = results[str(i)]
+            else:
+                best, alternatives, chosen = (
+                    PathResult(node_ids=[], stopped_reason="empty_text"),
+                    [],
+                    [],
+                )
             out.append(
                 SectionResult(
                     section_id=str(i),
@@ -204,7 +215,7 @@ class Classifier:
                     best=best,
                     alternatives=alternatives,
                     selected=chosen,
-                    truncated=truncated[str(i)],
+                    truncated=truncated.get(str(i), False),
                     n_tokens=estimate_tokens(text),
                 )
             )
@@ -255,6 +266,47 @@ class Classifier:
                 UserWarning,
                 stacklevel=3,
             )
+
+
+class _LazyBackends(Sequence[Backend]):
+    """Backends produced one at a time from thunks, de-duplicated by identity, skipping ``None``.
+
+    Iterating or indexing resolves only as many thunks as needed; ``len`` resolves them all.
+    """
+
+    def __init__(self, thunks: list[Callable[[], Backend | None]]):
+        self._pending = iter(thunks)
+        self._items: list[Backend] = []
+        self._seen: set[int] = set()
+
+    def _advance(self) -> bool:
+        for thunk in self._pending:
+            backend = thunk()
+            if backend is not None and id(backend) not in self._seen:
+                self._seen.add(id(backend))
+                self._items.append(backend)
+                return True
+        return False
+
+    def __iter__(self) -> Iterator[Backend]:
+        i = 0
+        while i < len(self._items) or self._advance():
+            yield self._items[i]
+            i += 1
+
+    def __getitem__(self, index):  # type: ignore[override]
+        if isinstance(index, int) and index >= 0:
+            while len(self._items) <= index and self._advance():
+                pass
+        else:
+            while self._advance():
+                pass
+        return self._items[index]
+
+    def __len__(self) -> int:
+        while self._advance():
+            pass
+        return len(self._items)
 
 
 def _check_sections(sections: SectionSelector) -> SectionSelector:

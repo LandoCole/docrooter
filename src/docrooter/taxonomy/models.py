@@ -1,0 +1,155 @@
+"""Taxonomy data model: a flat id -> node map with iterative traversal."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from collections import deque
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from docrooter.errors import TaxonomyError
+from docrooter.taxonomy.validate import ROOT_ID, TaxonomyIssue, validate_nodes
+
+
+class TaxonomyNode(BaseModel):
+    """One category. In a built :class:`Taxonomy`, ``children`` holds child ids."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    label: str
+    description: str | None = None
+    examples: list[str] = Field(default_factory=list)
+    parent_id: str | None = None
+    children: list[str] = Field(default_factory=list)
+    multi_label: bool = False
+    threshold: float | None = None
+    backend: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class Taxonomy:
+    """A validated hierarchy of categories.
+
+    ``nodes`` maps id to node for the real nodes. The virtual root ``ROOT_ID`` is not stored there;
+    ``children(ROOT_ID)`` (the default) returns the top-level nodes. Child lists and parent links
+    are derived from ``parent_id`` in input order. All traversal is iterative.
+    """
+
+    ROOT_ID = ROOT_ID
+
+    def __init__(
+        self, nodes: Sequence[TaxonomyNode], *, locations: Sequence[str | None] | None = None
+    ):
+        nodes = list(nodes)
+        issues = validate_nodes(nodes, locations=locations)
+        errors = [i for i in issues if i.severity == "error"]
+        if errors:
+            shown = "; ".join(_describe(i) for i in errors[:3])
+            more = f" (+{len(errors) - 3} more)" if len(errors) > 3 else ""
+            raise TaxonomyError(f"invalid taxonomy, {len(errors)} error(s): {shown}{more}", issues)
+        self.warnings: list[TaxonomyIssue] = [i for i in issues if i.severity == "warning"]
+
+        child_ids: dict[str, list[str]] = {ROOT_ID: [], **{n.id: [] for n in nodes}}
+        for n in nodes:
+            child_ids[ROOT_ID if n.parent_id in (None, ROOT_ID) else n.parent_id].append(n.id)
+        self.nodes: dict[str, TaxonomyNode] = {
+            n.id: n.model_copy(
+                update={
+                    "children": child_ids[n.id],
+                    "parent_id": None if n.parent_id == ROOT_ID else n.parent_id,
+                }
+            )
+            for n in nodes
+        }
+        self._children = child_ids
+        self._depth: dict[str, int] = {ROOT_ID: 0}
+        queue = deque([ROOT_ID])
+        while queue:
+            current = queue.popleft()
+            for child in child_ids[current]:
+                self._depth[child] = self._depth[current] + 1
+                queue.append(child)
+
+    def __len__(self) -> int:
+        return len(self.nodes)
+
+    def __contains__(self, node_id: object) -> bool:
+        return node_id in self.nodes
+
+    def node(self, id: str) -> TaxonomyNode:
+        return self.nodes[id]
+
+    def children(self, node_id: str = ROOT_ID) -> list[TaxonomyNode]:
+        return [self.nodes[c] for c in self._children[node_id]]
+
+    def path(self, node_id: str) -> list[TaxonomyNode]:
+        """Nodes from the top level down to ``node_id`` (root excluded)."""
+        chain = [self.nodes[node_id]]
+        while chain[-1].parent_id is not None:
+            chain.append(self.nodes[chain[-1].parent_id])
+        return chain[::-1]
+
+    def node_depth(self, node_id: str) -> int:
+        """Depth of a node; the virtual root is 0 and top-level nodes are 1."""
+        return self._depth[node_id]
+
+    def depth(self) -> int:
+        """Number of nodes on the longest root-to-leaf path."""
+        return max(self._depth.values())
+
+    def leaves(self) -> list[TaxonomyNode]:
+        return [n for n in self.nodes.values() if not n.children]
+
+    def validate(self) -> list[TaxonomyIssue]:
+        return validate_nodes(list(self.nodes.values()))
+
+    def resolve_path(self, parts: list[str]) -> list[str]:
+        """Resolve ids or case-insensitive labels, one per level, to a list of node ids."""
+        resolved: list[str] = []
+        current = ROOT_ID
+        for part in parts:
+            options = self.children(current)
+            match = next((n for n in options if n.id == part), None)
+            if match is None:
+                wanted = part.strip().casefold()
+                match = next((n for n in options if n.label.strip().casefold() == wanted), None)
+            if match is None:
+                valid = ", ".join(f"{n.id} ({n.label})" for n in options) or "none (leaf node)"
+                where = "the top level" if current == ROOT_ID else f"node {current!r}"
+                raise KeyError(f"{part!r} not found under {where}; valid options: {valid}")
+            resolved.append(match.id)
+            current = match.id
+        return resolved
+
+    def to_dict(self) -> dict[str, Any]:
+        """Flat representation that :meth:`from_dict` reads back."""
+        return {"nodes": [n.model_dump() for n in self.nodes.values()]}
+
+    def content_hash(self) -> str:
+        """sha256 of the canonical JSON; equal for the same tree whatever format it came from."""
+        ordered = sorted((n.model_dump() for n in self.nodes.values()), key=lambda d: d["id"])
+        canonical = json.dumps(ordered, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def from_dict(cls, data: Any) -> Taxonomy:
+        from docrooter.taxonomy.io import from_dict
+
+        return from_dict(data)
+
+    @classmethod
+    def load(cls, path: str | Path, *, sep: str = ">") -> Taxonomy:
+        """Load a JSON or CSV taxonomy file (format auto-detected). Raises on errors."""
+        from docrooter.taxonomy.io import load
+
+        return load(path, sep=sep)
+
+
+def _describe(issue: TaxonomyIssue) -> str:
+    where = f" at {issue.location}" if issue.location else ""
+    return f"{issue.code}{where}: {issue.message}"

@@ -7,8 +7,15 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.console import Console
+from rich.table import Table
+
+from docrooter.errors import TaxonomyError
+from docrooter.taxonomy import Taxonomy, TaxonomyIssue, validate_nodes
 
 app = typer.Typer(no_args_is_help=True, help="Document TOC extraction and section classification.")
+taxonomy_app = typer.Typer(no_args_is_help=True, help="Work with taxonomy files.")
+app.add_typer(taxonomy_app, name="taxonomy")
 
 
 @app.callback()
@@ -32,3 +39,48 @@ def toc(
         return
     for entry in entries:
         typer.echo("  " * entry.depth + entry.title)
+
+
+@taxonomy_app.callback()
+def taxonomy_main() -> None:
+    """Work with taxonomy files."""
+
+
+def _print_issues(console: Console, issues: list[TaxonomyIssue]) -> None:
+    table = Table("Severity", "Code", "Location", "Message")
+    for issue in issues:
+        style = "red" if issue.severity == "error" else "yellow"
+        table.add_row(
+            f"[{style}]{issue.severity}[/{style}]",
+            issue.code,
+            issue.location or "-",
+            issue.message,
+        )
+    console.print(table)
+
+
+@taxonomy_app.command("validate")
+def taxonomy_validate(
+    file: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Taxonomy file.")
+    ],
+    sep: Annotated[str, typer.Option(help="Path separator for 'path' CSV files.")] = ">",
+) -> None:
+    """Check a JSON or CSV taxonomy file; exit 1 if it has errors."""
+    from docrooter.taxonomy.io import read_nodes
+
+    console = Console(highlight=False)
+    try:
+        nodes, locations = read_nodes(file, sep=sep)
+    except TaxonomyError as exc:
+        # Parse failures carry their own issues; show them like validation errors.
+        _print_issues(console, exc.issues)
+        raise typer.Exit(1) from exc
+    issues = validate_nodes(nodes, locations=locations)
+    if any(i.severity == "error" for i in issues):
+        _print_issues(console, issues)
+        raise typer.Exit(1)
+    taxonomy = Taxonomy(nodes, locations=locations)
+    console.print(f"valid: {len(taxonomy)} nodes, depth {taxonomy.depth()}")
+    if issues:
+        _print_issues(console, issues)

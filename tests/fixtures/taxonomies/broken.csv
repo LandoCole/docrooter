@@ -1,0 +1,6 @@
+id,parent_id,label,description
+a,,Alpha,Fine root
+b,a,Beta,Fine child
+c,ghost,Gamma,Parent does not exist
+d,e,Delta,Part of a cycle
+e,d,Epsilon,Part of a cycle

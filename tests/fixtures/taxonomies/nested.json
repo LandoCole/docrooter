@@ -1,0 +1,12 @@
+{"nodes": [
+  {"id": "financial", "label": "Financial", "description": "Money, accounting, results",
+   "children": [
+     {"id": "financial.tax", "label": "Tax", "description": "Income tax and deferred tax"},
+     {"id": "financial.audit", "label": "Audit", "description": "Audit reports and findings"}
+   ]},
+  {"id": "legal", "label": "Legal", "description": "Legal matters",
+   "children": [
+     {"id": "legal.contracts", "label": "Contracts", "description": "Agreements and obligations"},
+     {"id": "legal.litigation", "label": "Litigation", "description": "Disputes and proceedings"}
+   ]}
+]}

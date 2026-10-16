@@ -1,0 +1,7 @@
+id,parent_id,label,description
+financial,,Financial,"Money, accounting, results"
+financial.tax,financial,Tax,Income tax and deferred tax
+financial.audit,financial,Audit,Audit reports and findings
+legal,,Legal,Legal matters
+legal.contracts,legal,Contracts,Agreements and obligations
+legal.litigation,legal,Litigation,Disputes and proceedings

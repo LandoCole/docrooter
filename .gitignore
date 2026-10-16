@@ -20,3 +20,4 @@ benchmarks/.cache/
 
 # OS
 .DS_Store
+.venv.nosync/

@@ -92,6 +92,10 @@ class Classifier:
         self._parse_overrides()
         self._resolved: dict[str, Backend] = {}
         self._zero_shot: Backend | None | object = _UNSET
+        self._taxonomy_hash: str | None = None
+        for spec in (backend, fallback, *self.overrides.values()):
+            if spec is not None and not isinstance(spec, str):
+                self._check_taxonomy_hash(spec, stacklevel=4)
 
     # --- routing --------------------------------------------------------------------------
 
@@ -116,7 +120,24 @@ class Classifier:
             return spec
         if spec not in self._resolved:
             self._resolved[spec] = registry.resolve_backend(spec)
+            self._check_taxonomy_hash(self._resolved[spec], stacklevel=5)
         return self._resolved[spec]
+
+    def _check_taxonomy_hash(self, backend: Backend, *, stacklevel: int) -> None:
+        """Warn when a trained backend was trained on a different taxonomy."""
+        trained_on = getattr(backend, "taxonomy_hash", None)
+        if trained_on is None:
+            return
+        if self._taxonomy_hash is None:
+            self._taxonomy_hash = self.taxonomy.content_hash()
+        if trained_on != self._taxonomy_hash:
+            warnings.warn(
+                f"{backend.name} was trained on a different taxonomy (content hash "
+                f"{trained_on[:12]}, this one is {self._taxonomy_hash[:12]}); its heads may "
+                "not match the nodes they are used for",
+                UserWarning,
+                stacklevel=stacklevel,
+            )
 
     def _fallback(self) -> Backend | None:
         """The fallback backend: ``fallback``, else a trained primary's zero-shot version."""

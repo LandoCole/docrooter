@@ -189,6 +189,90 @@ def eval_(
         report.print()
 
 
+@app.command("train")
+def train_(
+    taxonomy: Annotated[
+        Path,
+        typer.Option(
+            "--taxonomy",
+            "-t",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Taxonomy file (JSON or CSV).",
+        ),
+    ],
+    dataset: Annotated[
+        Path,
+        typer.Option(
+            "--dataset",
+            "-d",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Labelled examples (JSONL or CSV).",
+        ),
+    ],
+    out: Annotated[
+        Path, typer.Option("--out", "-o", file_okay=False, help="Directory to write the bundle to.")
+    ],
+    base: Annotated[str, typer.Option("--base", help="Base embedding model.")] = (
+        "dmis-lab/UltraBERT-Embed-150M"
+    ),
+    finetune_body: Annotated[
+        bool,
+        typer.Option(
+            "--finetune-body/--no-finetune-body",
+            help="Fine-tune the shared body before fitting the heads.",
+        ),
+    ] = True,
+    epochs: Annotated[
+        int | None, typer.Option(min=1, help="Fine-tuning epochs (default: the model recipe's).")
+    ] = None,
+    lr: Annotated[
+        float | None, typer.Option(min=0, help="Learning rate (default: the model recipe's).")
+    ] = None,
+    min_examples: Annotated[
+        int, typer.Option(min=1, help="Examples each child needs for its node to get a head.")
+    ] = 4,
+) -> None:
+    """Train per-node heads (and fine-tune the shared body) and save a model bundle."""
+    from docrooter.train import trainer
+    from docrooter.train.dataset import Dataset
+
+    console = Console(highlight=False)
+    try:
+        model = trainer.train(
+            Taxonomy.load(taxonomy),
+            Dataset.load(dataset),
+            base_model=base,
+            finetune_body=finetune_body,
+            epochs=epochs,
+            lr=lr,
+            min_examples_per_child=min_examples,
+        )
+        model.save(out)
+    except (DocrooterError, ImportError) as exc:
+        Console(stderr=True, highlight=False).print(
+            Text(f"error: {exc}", style="red"), soft_wrap=True
+        )
+        raise typer.Exit(1) from exc
+
+    manifest = model.manifest
+    table = Table("Node with head", "Children", "Examples")
+    for node_id, info in manifest["heads"].items():
+        # Text, not str: ids may contain "[...]" that rich would read as markup.
+        table.add_row(Text(node_id), Text(", ".join(info["classes"])), Text(str(info["n"])))
+    console.print(table)
+    metrics = manifest["train_metrics"]
+    console.print(
+        Text(
+            f"{len(manifest['heads'])} head(s), {metrics['triplets']} triplet(s), "
+            f"{metrics['seconds']:.1f}s; wrote {out}"
+        )
+    )
+
+
 @taxonomy_app.callback()
 def taxonomy_main() -> None:
     """Work with taxonomy files."""

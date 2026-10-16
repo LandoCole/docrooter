@@ -34,6 +34,18 @@ _RECURRENCE_MINIMUM = 3
 _SECTION_RECURRENCE_MINIMUM = 3
 _TOC_MIN_LINES = 5
 _TOC_HEADED_MIN_LINES = 3
+# Contents pages that the leader regex misses (P5b): the page number is a separate line on the
+# title's row, the line ends in leaders without a number, or (RFC style) the page is a list of
+# short section-numbered lines with no page numbers at all. Tables and code listings look alike,
+# so same-row page numbers must run in order (>= 80% of consecutive pairs), be mostly distinct
+# and not exceed the page count, and RFC-style lists must be mostly dotted ("2.1.") numbers.
+_TOC_ROW_WINDOW = 3  # following lines searched for a same-row page number
+_TOC_ORDERED_FRACTION = 0.8
+_TOC_DISTINCT_FRACTION = 0.5
+_TOC_DOTTED_FRACTION = 0.5
+_TOC_NUMBERED_MIN_LINES = 8
+_TOC_NUMBERED_PAGE_SHARE = 0.6
+_TOC_NUMBERED_MAX_WORDS = 12
 _MIN_POSITIVE_GAP = 0.5  # gaps at or below this (pt) are line-box overlap, not spacing
 
 _PAGE_NUMBER = re.compile(
@@ -44,6 +56,8 @@ _PAGE_NUMBER = re.compile(
 _ROMAN = re.compile(r"^m{0,3}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$", re.IGNORECASE)
 _TOC_LINE = re.compile(r"^(.*?)[\s.·…_-]{2,}(\d{1,4})$")
 _TOC_TRAILING = re.compile(r"[\s.·…_-]+$")
+_TOC_LEADERS = re.compile(r"^(.*?[^\W\d_].*?)\s*(?:[.·…_]\s?){5,}$")  # not an ellipsis
+_TOC_NUMBERED = re.compile(r"^(\d{1,3}(?:\.\d{1,3})*)\.?\s+\S")
 _TOC_HEADINGS = frozenset({"contents", "table of contents"})
 _DIGITS = re.compile(r"\d+")
 _EDGE_PAGE_NUMBER = re.compile(r"^\d{1,4}\s+|\s+\d{1,4}$")
@@ -148,8 +162,80 @@ def _find_excluded(lines: Sequence[Line], n_pages: int) -> set[int]:
     return excluded
 
 
+def _same_row(a: Line, b: Line) -> bool:
+    overlap = min(a.y1, b.y1) - max(a.y0, b.y0)
+    return overlap >= 0.5 * min(a.y1 - a.y0, b.y1 - b.y0)
+
+
+def _row_page_number(lines: Sequence[Line], i: int) -> str | None:
+    """A page-number line to the right of line ``i`` on its row (a contents entry whose number
+    is a separate text object), if any."""
+    line = lines[i]
+    for j in range(i + 1, min(len(lines), i + 1 + _TOC_ROW_WINDOW)):
+        other = lines[j]
+        if other.page != line.page:
+            break
+        if other.x0 >= line.x1 - 1.0 and _same_row(line, other) and _is_page_number(other.text):
+            label = other.text.strip()
+            return label if label.isdigit() else None
+    return None
+
+
+def _mostly_ordered(values: Sequence[tuple[int, ...]]) -> bool:
+    pairs = list(zip(values, values[1:], strict=False))
+    if not pairs:
+        return True
+    return sum(a <= b for a, b in pairs) >= _TOC_ORDERED_FRACTION * len(pairs)
+
+
+def _toc_entries(
+    lines: Sequence[Line], indexes: Sequence[int], n_pages: int
+) -> dict[int, tuple[str, str]]:
+    """Contents entries on one page: leader lines with a trailing page number, a separate
+    same-row page number (kept only when those numbers run in order), or bare leaders."""
+    entries: dict[int, tuple[str, str]] = {}
+    row_entries: dict[int, tuple[str, str]] = {}
+    for i in indexes:
+        text = lines[i].text.strip()
+        match = _TOC_LINE.match(text)
+        if match and any(c.isalpha() for c in match.group(1)):
+            entries[i] = (_TOC_TRAILING.sub("", match.group(1)).strip(), match.group(2))
+        elif (label := _row_page_number(lines, i)) is not None and any(c.isalpha() for c in text):
+            row_entries[i] = (_TOC_TRAILING.sub("", text).strip(), label)
+        elif leaders := _TOC_LEADERS.match(text):
+            entries[i] = (leaders.group(1).strip(), "")
+    labels = [int(label) for _, label in row_entries.values()]
+    if (
+        _mostly_ordered([(label,) for label in labels])
+        and len(set(labels)) >= max(_TOC_MIN_LINES, _TOC_DISTINCT_FRACTION * len(labels))
+        and max(labels, default=0) <= n_pages
+    ):
+        entries.update(row_entries)
+    return dict(sorted(entries.items()))
+
+
+def _numbered_contents(lines: Sequence[Line], indexes: Sequence[int]) -> list[int]:
+    """Numbered entries of an RFC-style contents page (short section-numbered lines in order
+    making up most of the page), or ``[]``."""
+    numbered = [
+        (i, m)
+        for i in indexes
+        if (m := _TOC_NUMBERED.match(lines[i].text.strip()))
+        and len(lines[i].text.split()) <= _TOC_NUMBERED_MAX_WORDS
+    ]
+    numbers = [tuple(map(int, m.group(1).split("."))) for _, m in numbered]
+    if (
+        len(numbered) < _TOC_NUMBERED_MIN_LINES
+        or len(numbered) < _TOC_NUMBERED_PAGE_SHARE * len(indexes)
+        or sum(len(number) > 1 for number in numbers) < _TOC_DOTTED_FRACTION * len(numbers)
+        or not _mostly_ordered(numbers)
+    ):
+        return []
+    return [i for i, _ in numbered]
+
+
 def _find_printed_toc(
-    lines: Sequence[Line], excluded: set[int]
+    lines: Sequence[Line], excluded: set[int], n_pages: int
 ) -> tuple[list[tuple[str, str]], set[int]]:
     by_page: defaultdict[int, list[int]] = defaultdict(list)
     for i, line in enumerate(lines):
@@ -159,15 +245,37 @@ def _find_printed_toc(
     toc_lines: set[int] = set()
     for page in sorted(by_page):
         indexes = by_page[page]
-        matches = [(i, _TOC_LINE.match(lines[i].text.strip())) for i in indexes]
-        matches = [(i, m) for i, m in matches if m and any(c.isalpha() for c in m.group(1))]
-        headed = _SPACE.sub(" ", lines[indexes[0]].text.casefold()).strip(" :.") in _TOC_HEADINGS
-        if len(matches) >= _TOC_MIN_LINES or (headed and len(matches) >= _TOC_HEADED_MIN_LINES):
-            toc_lines.update(indexes)
-            entries.extend(
-                (_TOC_TRAILING.sub("", m.group(1)).strip(), m.group(2)) for _, m in matches
+        found = _toc_entries(lines, indexes, n_pages)
+        headed = _is_contents_heading(lines[indexes[0]].text)
+        if len(found) >= _TOC_MIN_LINES or (headed and len(found) >= _TOC_HEADED_MIN_LINES):
+            toc_lines.update(i for i in indexes if not _is_contents_heading(lines[i].text))
+            entries.extend(found.values())
+        elif numbered := _numbered_contents(lines, indexes):
+            end = _contents_end(lines, indexes, numbered)
+            toc_lines.update(
+                i for i in indexes if i < end and not _is_contents_heading(lines[i].text)
             )
+            entries.extend((lines[i].text.strip(), "") for i in numbered if i < end)
     return entries, toc_lines
+
+
+def _contents_end(lines: Sequence[Line], indexes: Sequence[int], numbered: Sequence[int]) -> int:
+    """Index where a numbered contents list stops on its page: the first entry numbered lower
+    than an earlier one (the document's own "1. Introduction" after the last contents entry),
+    or past the page's last line."""
+    highest: tuple[int, ...] = ()
+    for i in numbered:
+        match = _TOC_NUMBERED.match(lines[i].text.strip())
+        number = tuple(map(int, match.group(1).split("."))) if match else ()
+        if number < highest:
+            return i
+        highest = max(highest, number)
+    return indexes[-1] + 1
+
+
+def _is_contents_heading(text: str) -> bool:
+    """"Contents" / "Table of Contents": the TOC page's own heading, which may be a heading."""
+    return _SPACE.sub(" ", text.casefold()).strip(" :.") in _TOC_HEADINGS
 
 
 def compute_signals(
@@ -187,7 +295,7 @@ def compute_signals(
         for i, line in enumerate(lines)
         if i not in excluded and _MIN_POSITIVE_GAP < line.gap_above < math.inf
     ]
-    entries, toc_lines = _find_printed_toc(lines, excluded)
+    entries, toc_lines = _find_printed_toc(lines, excluded, n_pages)
     return DocSignals(
         body_size=_body_size(lines),
         median_gap=statistics.median(gaps) if gaps else 0.0,

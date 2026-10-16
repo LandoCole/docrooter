@@ -123,7 +123,7 @@ def test_contents_heading_lowers_threshold_to_three():
              mk(1, "Gamma .... 9")]  # fmt: skip
     s = compute_signals(lines, 1)
     assert s.printed_toc == [("Alpha", "1"), ("Beta", "5"), ("Gamma", "9")]
-    assert s.toc_page_lines == {0, 1, 2, 3}
+    assert s.toc_page_lines == {1, 2, 3}  # the page's own heading may still be a heading
 
 
 def test_toc_ignores_excluded_lines_and_digit_only_titles():
@@ -183,3 +183,74 @@ def test_section_running_header_with_changing_page_number_is_excluded():
             lines.append(mk(page, f"{page} Part 1: Recent Developments", y0=20))
         lines += body_page(page)
     assert compute_signals(lines, 40).excluded == header_idx
+
+
+def _row(page, title, label, y0):
+    """A contents row whose page number is a separate line on the same row, at the right."""
+    return [mk(page, title, y0=y0, w=300.0),
+            mk(page, label, y0=y0, w=20.0).model_copy(update={"x0": 500.0, "x1": 520.0})]
+
+
+def test_toc_page_numbers_on_separate_lines_of_the_same_row():
+    rows = [("Introduction", "3"), ("Approach", "6"), ("Training Dataset", "8"),
+            ("Results", "10"), ("Limitations", "33"), ("Broader Impacts", "34")]  # fmt: skip
+    lines = [mk(2, "Model and Architectures . . . . . . . . . .", y0=60.0)]
+    for k, (title, label) in enumerate(rows):
+        lines += _row(2, title, label, 100.0 + 20 * k)
+    lines += body_page(3)
+    s = compute_signals(lines, 40)
+    assert ("Introduction", "3") in s.printed_toc and ("Broader Impacts", "34") in s.printed_toc
+    assert ("Model and Architectures", "") in s.printed_toc
+    assert {i for i, line in enumerate(lines) if line.page == 2} - s.excluded <= s.toc_page_lines
+    assert not any(lines[i].page == 3 for i in s.toc_page_lines)
+
+
+def test_table_rows_with_unordered_numbers_are_not_a_toc():
+    rows = [("Office space", "655"), ("Physical stores", "22"), ("Fulfillment", "407"),
+            ("Data centers", "18"), ("Other", "301"), ("Total", "90")]  # fmt: skip
+    lines = []
+    for k, (title, label) in enumerate(rows):
+        lines += _row(1, title, label, 100.0 + 20 * k)
+    s = compute_signals(lines, 1)
+    assert s.printed_toc == [] and s.toc_page_lines == set()
+
+
+def test_numbered_contents_without_page_numbers_is_a_toc_page():
+    entries = ["1.\xa0\xa0Introduction", "1.1.\xa0\xa0Purpose", "1.2.\xa0\xa0History",
+               "2.\xa0\xa0Conformance", "2.1.\xa0\xa0Syntax Notation", "2.2.\xa0\xa0Requirements",
+               "3.\xa0\xa0Terminology", "3.1.\xa0\xa0Resources", "3.2.\xa0\xa0Representations"]  # fmt: skip
+    lines = [mk(2, e, y0=100.0 + 20 * k) for k, e in enumerate(entries)] + body_page(3)
+    s = compute_signals(lines, 3)
+    assert s.toc_page_lines == set(range(len(entries)))
+    assert ("1.1.\xa0\xa0Purpose", "") in s.printed_toc
+
+
+def test_numbered_steps_mixed_with_prose_are_not_a_toc_page():
+    lines = []
+    for k in range(9):
+        lines.append(mk(1, f"{k + 1}. Run the step", y0=100.0 + 40 * k))
+        lines.append(mk(1, "An ordinary sentence that explains the step in detail here.",
+                        y0=115.0 + 40 * k))  # fmt: skip
+    assert compute_signals(lines, 1).toc_page_lines == set()
+
+
+def test_code_listing_with_line_numbers_is_not_a_toc_page():
+    code = ["int main() {", "stdio_init_all();", "int x = 0;", "while (true) {", "x++;",
+            "sleep_ms(10);", "}", "return 0;", "}"]  # fmt: skip
+    lines = [mk(1, f"{19 + k} {c}", y0=100.0 + 15 * k) for k, c in enumerate(code)]
+    assert compute_signals(lines, 1).toc_page_lines == set()
+
+
+def test_ellipsis_is_not_a_toc_leader():
+    lines = [mk(1, f"Pass the value on to the{k}...", y0=100.0 + 15 * k) for k in range(6)]
+    assert compute_signals(lines, 1).toc_page_lines == set()
+
+
+def test_numbered_contents_stops_where_the_document_starts_on_the_same_page():
+    entries = [f"{n}.{k}.\xa0\xa0Entry {n} {k}" for n in (21, 22) for k in range(1, 6)]
+    lines = [mk(8, e, y0=60.0 + 18 * j) for j, e in enumerate(entries)]
+    lines.append(mk(8, "1.\xa0\xa0Overview", y0=300.0))
+    lines += [mk(8, "Body text of the overview section follows here.", y0=320.0 + 15 * k)
+              for k in range(2)]  # fmt: skip
+    s = compute_signals(lines, 20)
+    assert s.toc_page_lines == set(range(len(entries)))

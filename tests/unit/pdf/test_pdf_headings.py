@@ -133,14 +133,15 @@ def test_printed_toc_match_boosts_borderline_candidate():
     borderline = item("Overview of results", bold=True, gap=HEAD_GAP)  # sentence case, body size
     pages = [_toc_page(), [*para(3), borderline, *para(4)]]
     _, found = run(pages)
-    assert [h.text for h in found] == ["Overview of results"]
+    assert [h.text for h in found] == ["Contents", "Overview of results"]
     _, without = run(pages, use_printed_toc=False)
-    assert without == []
+    assert [h.text for h in without] == ["Contents"]
 
 
 def test_printed_toc_page_lines_are_never_headings():
+    # Only the page's own "Contents" title may be a heading (bookmarks usually list it).
     _, found = run([_toc_page(), para(5)])
-    assert found == []
+    assert [h.text for h in found] == ["Contents"]
 
 
 def test_bookmark_match_sets_level_and_flag():

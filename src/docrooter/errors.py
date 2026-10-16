@@ -23,3 +23,10 @@ class BackendError(DocrooterError):
 
 class DatasetError(DocrooterError):
     """Raised when a dataset is missing or malformed."""
+
+
+class MissingExtraError(DocrooterError, ImportError):
+    """Raised when an optional dependency is required but not installed.
+
+    It is an ``ImportError`` too, so ``except ImportError`` keeps working.
+    """

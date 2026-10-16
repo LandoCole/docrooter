@@ -20,6 +20,11 @@ PUBLIC_NAMES = [
     "evaluate",
     "compare",
     "calibrate",
+    "DocrooterError",
+    "TaxonomyError",
+    "BackendError",
+    "DatasetError",
+    "MissingExtraError",
 ]
 
 
@@ -41,3 +46,12 @@ def test_core_import_does_not_import_torch():
         text=True,
     )
     assert out.stdout.strip() == "False", out.stderr
+
+
+def test_errors_are_exported_from_their_module():
+    from docrooter import errors
+
+    for name in ("DocrooterError", "TaxonomyError", "BackendError", "DatasetError"):
+        assert getattr(docrooter, name) is getattr(errors, name)
+    assert issubclass(docrooter.MissingExtraError, docrooter.DocrooterError)
+    assert issubclass(docrooter.MissingExtraError, ImportError)

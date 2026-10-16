@@ -5,9 +5,9 @@ from __future__ import annotations
 import importlib
 import types
 
+from docrooter.errors import MissingExtraError
 
-class MissingExtraError(ImportError):
-    """Raised when an optional dependency is required but not installed."""
+__all__ = ["MissingExtraError", "require"]
 
 
 def require(module: str, extra: str) -> types.ModuleType:

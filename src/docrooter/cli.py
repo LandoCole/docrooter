@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Annotated, NoReturn
+from typing import Annotated
 
+import pydantic
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -24,6 +27,25 @@ models_app = typer.Typer(no_args_is_help=True, help="Download and inspect model 
 app.add_typer(models_app, name="models")
 
 
+# What a command reports as "error: ..." with exit status 1; anything else is a bug and shows
+# its traceback.
+_EXPECTED_ERRORS = (DocrooterError, ImportError, ValueError, OSError, pydantic.ValidationError)
+
+
+@contextmanager
+def _errors_exit_1() -> Iterator[None]:
+    """Print an expected error as ``error: <message>`` on stderr and exit with status 1."""
+    try:
+        yield
+    except _EXPECTED_ERRORS as exc:
+        # Text, not markup: messages quote user text that may contain "[...]". soft_wrap keeps
+        # a copy-pasteable "pip install 'docrooter[...]'" on one line.
+        Console(stderr=True, highlight=False).print(
+            Text(f"error: {exc}", style="red"), soft_wrap=True
+        )
+        raise typer.Exit(1) from exc
+
+
 @app.callback()
 def main() -> None:
     """Document TOC extraction and section classification."""
@@ -39,7 +61,8 @@ def toc(
     """Print a document's table of contents."""
     from docrooter.document.load import load
 
-    entries = load(file).toc()
+    with _errors_exit_1():
+        entries = load(file).toc()
     if as_json:
         typer.echo(json.dumps([e.model_dump() for e in entries], indent=2))
         return
@@ -97,7 +120,7 @@ def classify(
 
     chosen = _parse_strategy(strategy)
     console = Console(highlight=False)
-    try:
+    with _errors_exit_1():
         doc = load(file)
         classifier = Classifier(
             Taxonomy.load(taxonomy),
@@ -107,14 +130,12 @@ def classify(
             threshold=threshold,
         )
         result = classifier.classify(doc)
-    except (DocrooterError, ImportError) as exc:
-        Console(stderr=True, highlight=False).print(Text(f"error: {exc}", style="red"))
-        raise typer.Exit(1) from exc
+        if out is not None:
+            out.write_text(result.to_json(), encoding="utf-8")
 
     if out is None:
         typer.echo(result.to_json())
         return
-    out.write_text(result.to_json(), encoding="utf-8")
     table = Table("Section", "Path", "Score")
     for section in result.sections.values():
         best = section.best
@@ -172,14 +193,11 @@ def eval_(
             f"invalid format {fmt!r}; use 'table', 'md' or 'json'", param_hint="--format"
         )
     chosen = _parse_strategy(strategy)
-    try:
+    with _errors_exit_1():
         classifier = Classifier(
             Taxonomy.load(taxonomy), backend, strategy=chosen, threshold=threshold
         )
         report = evaluate(classifier, Dataset.load(dataset))
-    except (DocrooterError, ImportError) as exc:
-        Console(stderr=True, highlight=False).print(Text(f"error: {exc}", style="red"))
-        raise typer.Exit(1) from exc
 
     if fmt == "json":
         typer.echo(report.to_json())
@@ -241,7 +259,7 @@ def train_(
     from docrooter.train.dataset import Dataset
 
     console = Console(highlight=False)
-    try:
+    with _errors_exit_1():
         model = trainer.train(
             Taxonomy.load(taxonomy),
             Dataset.load(dataset),
@@ -252,11 +270,6 @@ def train_(
             min_examples_per_child=min_examples,
         )
         model.save(out)
-    except (DocrooterError, ImportError) as exc:
-        Console(stderr=True, highlight=False).print(
-            Text(f"error: {exc}", style="red"), soft_wrap=True
-        )
-        raise typer.Exit(1) from exc
 
     manifest = model.manifest
     table = Table("Node with head", "Children", "Examples")
@@ -303,17 +316,20 @@ def taxonomy_validate(
     from docrooter.taxonomy.io import read_nodes
 
     console = Console(highlight=False)
-    try:
-        parsed = read_nodes(file, sep=sep)
-    except TaxonomyError as exc:
-        # Parse failures carry their own issues; show them like validation errors.
-        _print_issues(console, exc.issues)
-        raise typer.Exit(1) from exc
-    issues = validate_nodes(parsed.nodes, locations=parsed.locations)
-    if any(i.severity == "error" for i in issues):
-        _print_issues(console, issues)
-        raise typer.Exit(1)
-    taxonomy = Taxonomy(parsed.nodes, locations=parsed.locations, root=parsed.root)
+    with _errors_exit_1():
+        try:
+            parsed = read_nodes(file, sep=sep)
+        except TaxonomyError as exc:
+            if not exc.issues:
+                raise
+            # Parse failures carry their own issues; show them like validation errors.
+            _print_issues(console, exc.issues)
+            raise typer.Exit(1) from exc
+        issues = validate_nodes(parsed.nodes, locations=parsed.locations)
+        if any(i.severity == "error" for i in issues):
+            _print_issues(console, issues)
+            raise typer.Exit(1)
+        taxonomy = Taxonomy(parsed.nodes, locations=parsed.locations, root=parsed.root)
     console.print(f"valid: {len(taxonomy)} nodes, depth {taxonomy.depth()}")
     if issues:
         _print_issues(console, issues)
@@ -322,12 +338,6 @@ def taxonomy_validate(
 @models_app.callback()
 def models_main() -> None:
     """Download and inspect model weights."""
-
-
-def _models_error(exc: ImportError) -> NoReturn:
-    # soft_wrap keeps the copy-pasteable "pip install 'docrooter[models]'" on one line
-    Console(stderr=True, highlight=False).print(Text(f"error: {exc}", style="red"), soft_wrap=True)
-    raise typer.Exit(1) from exc
 
 
 @models_app.command("pull")
@@ -342,12 +352,10 @@ def models_pull(
     """Download a model into the Hugging Face cache and print where it landed."""
     from docrooter.backends.recipes import get_recipe
 
-    try:
+    with _errors_exit_1():
         hub = require("huggingface_hub", "models")
         rev = revision or get_recipe(model_id).revision
         path = hub.snapshot_download(repo_id=model_id, revision=rev)
-    except ImportError as exc:
-        _models_error(exc)
     typer.echo(str(path))
 
 
@@ -364,13 +372,11 @@ def _human_size(n: int) -> str:
 def models_list() -> None:
     """List models in the Hugging Face cache."""
     console = Console(highlight=False)
-    try:
+    with _errors_exit_1():
         hub = require("huggingface_hub", "models")
         repos = [
             r for r in hub.scan_cache_dir().repos if getattr(r, "repo_type", "model") == "model"
         ]
-    except ImportError as exc:
-        _models_error(exc)
     if not repos:
         console.print("no cached models")
         return

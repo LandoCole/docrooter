@@ -27,7 +27,7 @@ import threading
 import time
 from collections import Counter
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +58,15 @@ BOOTSTRAP_RESAMPLES = 1000
 NONE_LABEL = "(none)"
 
 
+LEAD_FIRST = ("title", "lead", "toc", "keyphrases", "stats")
+TUNED_VIEW: dict[str, Any] = {"fields": LEAD_FIRST, "max_tokens": 1024, "lead_words": 400}
+"""The best zero-shot DocumentView for UltraBERT on this corpus (P9b; chosen on these 51 docs)."""
+BGE = "BAAI/bge-small-en-v1.5"
+LOGISTIC_C_GRID = (1.0, 10.0, 100.0, 1000.0)
+KNN_GRID = (1, 3, 5)
+MIX_GRID = (0.0, 0.25, 0.5, 0.75, 1.0)
+
+
 @dataclass(frozen=True)
 class System:
     id: str
@@ -65,6 +74,9 @@ class System:
     what: str
     backend: str | None = None
     mode: str = "view"
+    view: Mapping[str, Any] | None = None  # DocumentView(**view); None is the default view
+    method: str | None = None  # "loo" systems: "logistic-cv" or "ensemble-cv"
+    dev_tuned: bool = False  # settings chosen by looking at results on this corpus
 
     @property
     def is_jev(self) -> bool:
@@ -112,9 +124,27 @@ SYSTEMS: dict[str, System] = {
             "mean of per-chunk Choices (no docrooter)",
         ),
         System(
+            "ultrabert-view-tuned",
+            "docrooter",
+            "UltraBERT-Embed-150M, lead-first DocumentView (1,024 tokens, 400 lead words), Flat "
+            "(zero-shot; view chosen on this corpus, dev-tuned)",
+            f"embedding:{ULTRABERT}",
+            view=TUNED_VIEW,
+            dev_tuned=True,
+        ),
+        System(
             "ultrabert-loo",
             "loo",
-            "UltraBERT-Embed-150M view embeddings + logistic regression, trained (leave-one-out)",
+            "UltraBERT-Embed-150M view embeddings + logistic regression, C in {1, 10, 100, 1000} "
+            "by inner leave-one-out (trained, leave-one-out)",
+            method="logistic-cv",
+        ),
+        System(
+            "ultrabert-bge-loo",
+            "loo",
+            "Zero-shot UltraBERT-view and bge-view leaf distributions mixed, weight in "
+            "{0, .25, .5, .75, 1} by inner leave-one-out (leave-one-out)",
+            method="ensemble-cv",
         ),
     )
 }
@@ -126,6 +156,8 @@ DEFAULT_ORDER = (
     "ultrabert-loo",
     "nli-view",
     "ultrabert-hybrid",
+    "ultrabert-view-tuned",
+    "ultrabert-bge-loo",
 )
 
 
@@ -354,16 +386,228 @@ def loo_predict(
     return out
 
 
-def logistic_fit_predict(
-    train_x: Sequence[Any], train_y: Sequence[str], test_x: Any
-) -> tuple[str, dict[str, float]]:
-    from sklearn.linear_model import LogisticRegression
+@dataclass(frozen=True)
+class LooDoc:
+    """One document's leave-one-out features.
 
-    clf = LogisticRegression(max_iter=1000)
-    clf.fit(np.asarray(train_x), list(train_y))
-    proba = clf.predict_proba(np.asarray([test_x]))[0]
-    probs = {str(c): float(p) for c, p in zip(clf.classes_, proba, strict=True)}
-    return max(probs, key=lambda k: probs[k]), probs
+    ``vec`` is the L2-normalised view embedding; ``zero_shot`` the zero-shot leaf distribution
+    of the same model (all leaves, package temperature); ``other`` a second model's zero-shot
+    distribution (for ensembles; empty when unused).
+    """
+
+    vec: Any
+    zero_shot: Mapping[str, float]
+    other: Mapping[str, float] = field(default_factory=dict)
+
+
+def _argmax(probs: Mapping[str, float]) -> str:
+    """The most probable label; ties go to the first in ``probs``' order."""
+    return max(probs, key=lambda k: probs[k])
+
+
+def _softmax(scores: Mapping[str, float], temperature: float) -> dict[str, float]:
+    if not scores:
+        return {}
+    values = np.asarray(list(scores.values()), dtype=float) / temperature
+    exp = np.exp(values - values.max())
+    return {k: float(v) for k, v in zip(scores, exp / exp.sum(), strict=True)}
+
+
+def _vecs(docs: Sequence[Any]) -> np.ndarray:
+    return np.stack([np.asarray(d.vec if isinstance(d, LooDoc) else d, dtype=float) for d in docs])
+
+
+def _unit(x: np.ndarray) -> np.ndarray:
+    norm = np.linalg.norm(x, axis=-1, keepdims=True)
+    return x / np.where(norm > 0, norm, 1.0)
+
+
+def logistic(c: float = 1.0) -> FitPredict:
+    """Multinomial logistic regression on the view embeddings with inverse regularisation ``c``."""
+
+    def fit_predict(
+        train_x: Sequence[Any], train_y: Sequence[str], test_x: Any
+    ) -> tuple[str, dict[str, float]]:
+        from sklearn.linear_model import LogisticRegression
+
+        clf = LogisticRegression(C=c, max_iter=5000)
+        clf.fit(_vecs(train_x), list(train_y))
+        proba = clf.predict_proba(_vecs([test_x]))[0]
+        probs = {str(k): float(p) for k, p in zip(clf.classes_, proba, strict=True)}
+        return _argmax(probs), probs
+
+    return fit_predict
+
+
+logistic_fit_predict = logistic(1.0)
+"""The P9 head: ``LogisticRegression(max_iter=...)`` at the default ``C=1``."""
+
+
+def class_centroids(train_x: Sequence[Any], train_y: Sequence[str]) -> dict[str, np.ndarray]:
+    """``{label: unit-length mean of its training embeddings}``, in first-seen label order."""
+    vecs = _vecs(train_x)
+    labels = list(dict.fromkeys(train_y))
+    return {c: _unit(vecs[[y == c for y in train_y]].mean(axis=0)) for c in labels}
+
+
+def centroid_probs(
+    train_x: Sequence[Any], train_y: Sequence[str], test_x: Any, temperature: float
+) -> dict[str, float]:
+    """Softmax over the cosine similarity of ``test_x`` to each training class centroid."""
+    vec = _vecs([test_x])[0]
+    sims = {c: float(vec @ m) for c, m in class_centroids(train_x, train_y).items()}
+    return _softmax(sims, temperature)
+
+
+def centroid(temperature: float = 0.05) -> FitPredict:
+    """Nearest class centroid (cosine); classes absent from training cannot be predicted."""
+
+    def fit_predict(
+        train_x: Sequence[Any], train_y: Sequence[str], test_x: Any
+    ) -> tuple[str, dict[str, float]]:
+        probs = centroid_probs(train_x, train_y, test_x, temperature)
+        return _argmax(probs), probs
+
+    return fit_predict
+
+
+def knn(k: int) -> FitPredict:
+    """Cosine k-nearest neighbours; each neighbour votes with its similarity."""
+
+    def fit_predict(
+        train_x: Sequence[Any], train_y: Sequence[str], test_x: Any
+    ) -> tuple[str, dict[str, float]]:
+        sims = _vecs(train_x) @ _vecs([test_x])[0]
+        votes: dict[str, float] = {}
+        for j in np.argsort(-sims, kind="stable")[:k]:
+            votes[train_y[j]] = votes.get(train_y[j], 0.0) + max(float(sims[j]), 1e-9)
+        total = sum(votes.values())
+        probs = {c: v / total for c, v in votes.items()}
+        return _argmax(probs), probs
+
+    return fit_predict
+
+
+def prior_centroid_mix(weight: float, temperature: float = 0.05) -> FitPredict:
+    """``(1 - weight) * zero-shot + weight * centroid softmax`` (see ``mix_distributions``).
+
+    The zero-shot distribution covers every leaf, so a class with no training document can still
+    be predicted; the centroid part only covers classes seen in training.
+    """
+    from docrooter.classify.documents import mix_distributions
+
+    def fit_predict(
+        train_x: Sequence[LooDoc], train_y: Sequence[str], test_x: LooDoc
+    ) -> tuple[str, dict[str, float]]:
+        cent = centroid_probs(train_x, train_y, test_x, temperature) if weight > 0 else {}
+        probs = mix_distributions(test_x.zero_shot, cent, view_weight=1.0 - weight)
+        return _argmax(probs), probs
+
+    return fit_predict
+
+
+def ensemble(weight: float) -> FitPredict:
+    """``(1 - weight) * zero_shot + weight * other``: two zero-shot models, no training."""
+    from docrooter.classify.documents import mix_distributions
+
+    def fit_predict(
+        train_x: Sequence[LooDoc], train_y: Sequence[str], test_x: LooDoc
+    ) -> tuple[str, dict[str, float]]:
+        probs = mix_distributions(test_x.zero_shot, test_x.other, view_weight=1.0 - weight)
+        return _argmax(probs), probs
+
+    return fit_predict
+
+
+def examples_prototype(label_vecs: Mapping[str, Any], temperature: float = 0.05) -> FitPredict:
+    """The package's own few-shot mechanism (``TaxonomyNode.examples``): each leaf's vector is
+    the unit mean of its label vector and its training documents' embeddings."""
+
+    def fit_predict(
+        train_x: Sequence[Any], train_y: Sequence[str], test_x: Any
+    ) -> tuple[str, dict[str, float]]:
+        vecs = _vecs(train_x) if len(train_x) else np.zeros((0, 0))
+        test = _vecs([test_x])[0]
+        sims = {}
+        for c, label_vec in label_vecs.items():
+            rows = [np.asarray(label_vec, dtype=float)]
+            rows += [vecs[j] for j, y in enumerate(train_y) if y == c]
+            sims[c] = float(test @ _unit(np.mean(rows, axis=0)))
+        probs = _softmax(sims, temperature)
+        return _argmax(probs), probs
+
+    return fit_predict
+
+
+def pick_config(
+    preds: Sequence[Mapping[str, str]], labels: Sequence[str], configs: Sequence[str]
+) -> str:
+    """The config whose predictions in ``preds`` (one ``{config: label}`` per document) are most
+    often right on ``labels``; ties go to the first in ``configs``."""
+    hits = {c: sum(p[c] == y for p, y in zip(preds, labels, strict=True)) for c in configs}
+    return max(configs, key=lambda c: hits[c])
+
+
+def config_choice(configs: Sequence[str]) -> FitPredict:
+    """A "fit" that picks the zero-shot config most accurate on the training documents and
+    returns its prediction for the test document (features: ``{config: predicted label}``)."""
+
+    def fit_predict(
+        train_x: Sequence[Mapping[str, str]], train_y: Sequence[str], test_x: Mapping[str, str]
+    ) -> tuple[str, dict[str, float]]:
+        best = pick_config(train_x, train_y, configs)
+        return test_x[best], {test_x[best]: 1.0, f"config={best}": 0.0}
+
+    return fit_predict
+
+
+_NLL_FLOOR = 1e-6
+
+
+class InnerLoo:
+    """A ``FitPredict`` that tunes one hyperparameter by leave-one-out on its training set only.
+
+    For each candidate value in ``grid`` (in order), ``make(value)`` is evaluated by inner
+    leave-one-out over the training documents it is given: never the outer held-out document.
+    The value with the best inner accuracy wins; ties go to the lower inner mean negative
+    log-likelihood, then to the earlier value. The winner is refitted on all training documents.
+    Each call's chosen value is appended to ``chosen``.
+    """
+
+    def __init__(self, make: Callable[[Any], FitPredict], grid: Sequence[Any]) -> None:
+        if not grid:
+            raise ValueError("grid must not be empty")
+        self.make = make
+        self.grid = list(grid)
+        self.chosen: list[Any] = []
+
+    def select(self, train_x: Sequence[Any], train_y: Sequence[str]) -> Any:
+        if len(self.grid) == 1:
+            return self.grid[0]
+        best_key: tuple[float, float] | None = None
+        best = self.grid[0]
+        for value in self.grid:
+            preds = loo_predict(train_x, train_y, self.make(value))
+            acc = sum(p[0] == y for p, y in zip(preds, train_y, strict=True)) / len(train_y)
+            nll = float(
+                np.mean(
+                    [
+                        -np.log(max(p[1].get(y, 0.0), _NLL_FLOOR))
+                        for p, y in zip(preds, train_y, strict=True)
+                    ]
+                )
+            )
+            key = (acc, -nll)
+            if best_key is None or key > best_key:
+                best_key, best = key, value
+        return best
+
+    def __call__(
+        self, train_x: Sequence[Any], train_y: Sequence[str], test_x: Any
+    ) -> tuple[str, dict[str, float]]:
+        value = self.select(train_x, train_y)
+        self.chosen.append(value)
+        return self.make(value)(train_x, train_y, test_x)
 
 
 # --- running systems ---------------------------------------------------------------------
@@ -402,7 +646,7 @@ def run_docrooter(
     classifier = Classifier(
         taxonomy, backend, strategy=Flat(), instruction=INSTRUCTION, threshold=0.0
     )
-    view = DocumentView()
+    view = DocumentView(**(system.view or {}))
     start = time.perf_counter()
     classifier.classify_documents([_warmup_doc()], view=view, mode=system.mode)
     load_s = time.perf_counter() - start
@@ -467,43 +711,285 @@ def run_jev_chunks(
     return {"rows": rows, "load_s": 0.0}
 
 
+ZS_VIEWS: dict[str, dict[str, Any]] = {
+    "default512": {},
+    "lead1024": dict(TUNED_VIEW),
+    "toc1024": {"max_tokens": 1024, "toc_depth": 3, "toc_entries": 80},
+    "lead512": {"fields": LEAD_FIRST, "lead_words": 400},
+    "default1024-lead400": {"max_tokens": 1024, "lead_words": 400},
+}
+"""DocumentView variants tried for zero-shot (P9b). ``default512`` is ``DocumentView()``."""
+ZS_INSTRUCTIONS = {
+    "what": INSTRUCTION,
+    "identify": "Identify the type of document from its title, contents and opening text",
+}
+LABEL_STYLES = ("label-def", "def-first")
+ZERO_SHOT_GRID: tuple[tuple[str, str, str], ...] = (
+    *(
+        (v, i, lab)
+        for v in ("default512", "lead1024", "toc1024")
+        for i in ZS_INSTRUCTIONS
+        for lab in LABEL_STYLES
+    ),
+    *((v, "what", lab) for v in ("lead512", "default1024-lead400") for lab in LABEL_STYLES),
+)
+"""UltraBERT configs (view, instruction, label style): a 3x2x2 factorial, then two ablations of
+the lead-first view (budget, then field order). The first is the P9 ``ultrabert-view`` setup."""
+BGE_GRID: tuple[tuple[str, str, str], ...] = tuple(
+    (v, "what", lab) for v in ("default512", "lead512") for lab in LABEL_STYLES
+)
+"""bge-small configs (its query prompt has no instruction slot, so only view and labels vary)."""
+
+
+def label_text(taxonomy: Taxonomy, node_id: str, style: str) -> str:
+    """A leaf's candidate text: ``"label-def"`` is what ``Flat`` sends (full label path, then the
+    definition); ``"def-first"`` is the definition followed by the path in parentheses."""
+    from docrooter.backends.base import candidate_text
+
+    node = taxonomy.node(node_id)
+    if style == "label-def":
+        return candidate_text(node, taxonomy=taxonomy, full_path=True)
+    if style == "def-first":
+        path = " > ".join(n.label for n in taxonomy.path(node_id))
+        return f"{node.description} ({path})" if node.description else path
+    raise ValueError(f"unknown label style {style!r}")
+
+
+class ZeroShotEmbedder:
+    """View embeddings and zero-shot leaf distributions from one embedding model.
+
+    Equivalent to ``classify_documents`` with ``Flat`` and the given view and instruction (same
+    token counter, query prompt, label prompt and temperature), but it keeps the embeddings.
+    """
+
+    def __init__(self, model: str, taxonomy: Taxonomy) -> None:
+        from docrooter.backends.embedding import EmbeddingBackend
+
+        self.backend = EmbeddingBackend(model)
+        self.taxonomy = taxonomy
+        self.leaves = [n.id for n in taxonomy.leaves()]
+        start = time.perf_counter()
+        self.count = self.backend.tokenizer()  # loads the model
+        self.backend.encode(["warm-up"], prompt="")
+        self.load_s = time.perf_counter() - start
+
+    def label_vecs(self, style: str) -> np.ndarray:
+        prefix = self.backend.recipe.label_prompt
+        texts = [prefix + label_text(self.taxonomy, leaf, style) for leaf in self.leaves]
+        return self.backend.encode(texts, prompt="")
+
+    def views(
+        self,
+        view: Mapping[str, Any],
+        ids: Sequence[str],
+        docs: Mapping[str, tuple[Document, float]],
+    ) -> list[str]:
+        from docrooter.doc_view import DocumentView
+
+        doc_view = DocumentView(**view)
+        return [doc_view.render(docs[i][0], self.count).text for i in ids]
+
+    def embed(self, texts: Sequence[str], instruction: str) -> np.ndarray:
+        prompt = self.backend.recipe.query_prompt.format(instruction=instruction)
+        return self.backend.encode(list(texts), prompt=prompt)
+
+    def distributions(self, vecs: np.ndarray, label_vecs: np.ndarray) -> list[dict[str, float]]:
+        from docrooter.backends.base import Scores, to_probs
+
+        probs = to_probs(
+            Scores(vecs @ label_vecs.T, "similarity"),
+            temperature=self.backend.temperature,
+            multi_label=False,
+        )
+        return [dict(zip(self.leaves, map(float, row), strict=True)) for row in probs]
+
+
+def _loo_rows(
+    ids: Sequence[str],
+    docs: Mapping[str, tuple[Document, float]],
+    preds: Sequence[tuple[str, dict[str, float], float]],
+    classify_s: float,
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "doc_id": doc_id,
+            "pred": label,
+            "confidence": round(probs.get(label, 0.0), 4),
+            "leaf_probs_top3": _top3(probs),
+            "parse_s": docs[doc_id][1],
+            "classify_s": classify_s,
+            "fit_s": seconds,
+        }
+        for doc_id, (label, probs, seconds) in zip(ids, preds, strict=True)
+    ]
+
+
 def run_loo(
     system: System,
     ids: Sequence[str],
     docs: Mapping[str, tuple[Document, float]],
     gold: Mapping[str, str],
+    taxonomy: Taxonomy,
 ) -> dict[str, Any]:
-    from docrooter.backends.embedding import EmbeddingBackend
-    from docrooter.doc_view import DocumentView
-
-    backend = EmbeddingBackend(ULTRABERT)
-    prompt = backend.recipe.query_prompt.format(instruction=INSTRUCTION)
-    start = time.perf_counter()
-    count = backend.tokenizer()  # loads the model
-    backend.encode(["warm-up"], prompt=prompt)
-    load_s = time.perf_counter() - start
-    log(f"{system.id}: load {load_s:.1f} s; embedding {len(ids)} views")
-    start = time.perf_counter()
-    view = DocumentView()
-    texts = [view.render(docs[i][0], count).text for i in ids]
-    features = backend.encode(texts, prompt=prompt)
-    embed_s = time.perf_counter() - start
-    del backend
-    free_memory()
-    preds = loo_predict(list(features), [gold[i] for i in ids], logistic_fit_predict)
-    rows = [
-        {
-            "doc_id": doc_id,
-            "pred": label,
-            "confidence": round(probs[label], 4),
-            "leaf_probs_top3": _top3(probs),
-            "parse_s": docs[doc_id][1],
-            "classify_s": embed_s / len(ids),
-            "fit_s": seconds,
-        }
-        for doc_id, (label, probs, seconds) in zip(ids, preds, strict=True)
+    """A leave-one-out system: features from the default DocumentView (as P9), then
+    ``system.method`` with its hyperparameter tuned by inner leave-one-out."""
+    labels = [gold[i] for i in ids]
+    models = [ULTRABERT] + ([BGE] if system.method == "ensemble-cv" else [])
+    load_s, embed_s = 0.0, 0.0
+    vecs: dict[str, np.ndarray] = {}
+    dists: dict[str, list[dict[str, float]]] = {}
+    for model in models:
+        embedder = ZeroShotEmbedder(model, taxonomy)
+        load_s += embedder.load_s
+        log(f"{system.id}: {model} load {embedder.load_s:.1f} s; embedding {len(ids)} views")
+        start = time.perf_counter()
+        vecs[model] = embedder.embed(embedder.views({}, ids, docs), INSTRUCTION)
+        dists[model] = embedder.distributions(vecs[model], embedder.label_vecs("label-def"))
+        embed_s += time.perf_counter() - start
+        del embedder
+        free_memory()
+    features = [
+        LooDoc(vecs[ULTRABERT][k], dists[ULTRABERT][k], dists[BGE][k] if BGE in dists else {})
+        for k in range(len(ids))
     ]
-    return {"rows": rows, "load_s": load_s, "embed_s": embed_s}
+    if system.method == "logistic-cv":
+        fit_predict = InnerLoo(logistic, LOGISTIC_C_GRID)
+    elif system.method == "ensemble-cv":
+        fit_predict = InnerLoo(ensemble, MIX_GRID)
+    else:
+        raise ValueError(f"unknown leave-one-out method {system.method!r}")
+    preds = loo_predict(features, labels, fit_predict)
+    rows = _loo_rows(ids, docs, preds, embed_s / len(ids))
+    for row, value in zip(rows, fit_predict.chosen, strict=True):
+        row["chosen"] = value
+    return {
+        "rows": rows,
+        "load_s": load_s,
+        "embed_s": embed_s,
+        "chosen": dict(Counter(str(v) for v in fit_predict.chosen)),
+    }
+
+
+def _experiment(
+    exp_id: str,
+    group: str,
+    what: str,
+    ids: Sequence[str],
+    labels: Sequence[str],
+    preds: Sequence[str],
+    taxonomy: Taxonomy,
+    chosen: Sequence[Any] | None = None,
+) -> dict[str, Any]:
+    rows = [{"doc_id": i, "gold": g, "pred": p} for i, g, p in zip(ids, labels, preds, strict=True)]
+    m = system_metrics(rows, taxonomy)
+    keep = ("n", "leaf_accuracy", "leaf_accuracy_ci95", "level1_accuracy", "macro_f1")
+    out: dict[str, Any] = {
+        "id": exp_id,
+        "group": group,
+        "what": what,
+        "metrics": {k: m[k] for k in keep},
+        "preds": dict(zip(ids, preds, strict=True)),
+    }
+    if chosen is not None:
+        out["chosen"] = dict(Counter(str(v) for v in chosen))
+    return out
+
+
+EXP_ZERO_SHOT = "zero-shot, dev-tuned"
+EXP_LOO = "leave-one-out (honest)"
+EXP_DIAGNOSTIC = "diagnostic (fixed hyperparameter, not tuned honestly)"
+
+
+def run_experiments(
+    ids: Sequence[str],
+    docs: Mapping[str, tuple[Document, float]],
+    gold: Mapping[str, str],
+    taxonomy: Taxonomy,
+) -> list[dict[str, Any]]:
+    """P9b: the zero-shot grids (every config evaluated on all documents, so any choice among
+    them is dev-tuned) and the leave-one-out systems (honest: each held-out document's
+    prediction never depends on its own label)."""
+    labels = [gold[i] for i in ids]
+    leaves = [n.id for n in taxonomy.leaves()]
+    out: list[dict[str, Any]] = []
+    zs_preds: dict[str, list[str]] = {}
+    feats: dict[str, dict[str, Any]] = {}
+    for model, grid in ((ULTRABERT, ZERO_SHOT_GRID), (BGE, BGE_GRID)):
+        short = "ultrabert" if model == ULTRABERT else "bge"
+        embedder = ZeroShotEmbedder(model, taxonomy)
+        label_vecs = {style: embedder.label_vecs(style) for style in LABEL_STYLES}
+        texts = {}
+        for view, instr, style in grid:
+            if view not in texts:
+                texts[view] = embedder.views(ZS_VIEWS[view], ids, docs)
+            vecs = embedder.embed(texts[view], ZS_INSTRUCTIONS[instr])
+            dists = embedder.distributions(vecs, label_vecs[style])
+            preds = [_argmax(d) for d in dists]
+            exp_id = f"{short}/{view}/{instr}/{style}"
+            zs_preds[exp_id] = preds
+            feats[exp_id] = {"vecs": vecs, "dists": dists}
+            what = f"{short}, view {view}, instruction {instr}, labels {style}"
+            out.append(_experiment(exp_id, EXP_ZERO_SHOT, what, ids, labels, preds, taxonomy))
+            log(f"experiment {exp_id}: {out[-1]['metrics']['leaf_accuracy']:.3f}")
+        if model == ULTRABERT:
+            feats["ultrabert/label-vecs"] = dict(zip(leaves, label_vecs["label-def"], strict=True))
+        del embedder
+        free_memory()
+
+    base = feats[f"ultrabert/{'/'.join(ZERO_SHOT_GRID[0])}"]
+    other = feats[f"bge/{'/'.join(BGE_GRID[0])}"]["dists"]
+    features = [LooDoc(base["vecs"][k], base["dists"][k], other[k]) for k in range(len(ids))]
+
+    def loo(exp_id: str, group: str, what: str, fit_predict: FitPredict, xs: Any = None) -> None:
+        preds = loo_predict(features if xs is None else xs, labels, fit_predict)
+        chosen = getattr(fit_predict, "chosen", None)
+        out.append(
+            _experiment(exp_id, group, what, ids, labels, [p[0] for p in preds], taxonomy, chosen)
+        )
+        log(f"experiment {exp_id}: {out[-1]['metrics']['leaf_accuracy']:.3f}")
+
+    ub_configs = [f"ultrabert/{'/'.join(c)}" for c in ZERO_SHOT_GRID]
+    loo(
+        "zero-shot-config-loo",
+        EXP_LOO,
+        f"zero-shot UltraBERT config picked from the {len(ub_configs)} above by accuracy on the "
+        "other 50 documents (honest estimate of the dev-tuned choice)",
+        config_choice(ub_configs),
+        [{c: zs_preds[c][k] for c in ub_configs} for k in range(len(ids))],
+    )
+    loo(
+        "logistic-cv",
+        EXP_LOO,
+        "logistic regression, C in {1, 10, 100, 1000} by inner LOO",
+        InnerLoo(logistic, LOGISTIC_C_GRID),
+    )
+    loo("centroid", EXP_LOO, "nearest class centroid (cosine)", centroid())
+    loo("knn-cv", EXP_LOO, "cosine kNN, k in {1, 3, 5} by inner LOO", InnerLoo(knn, KNN_GRID))
+    loo(
+        "prior-centroid-cv",
+        EXP_LOO,
+        "(1 - w) zero-shot + w centroid softmax, w in {0, .25, .5, .75, 1} by inner LOO",
+        InnerLoo(prior_centroid_mix, MIX_GRID),
+    )
+    loo(
+        "examples",
+        EXP_LOO,
+        "package examples mechanism: leaf vector = unit mean of label vector and training views",
+        examples_prototype(feats["ultrabert/label-vecs"]),
+    )
+    loo(
+        "ensemble-cv",
+        EXP_LOO,
+        "(1 - w) UltraBERT zero-shot + w bge zero-shot, w in {0, .25, .5, .75, 1} by inner LOO",
+        InnerLoo(ensemble, MIX_GRID),
+    )
+    for c in LOGISTIC_C_GRID:
+        loo(f"logistic-C{c:g}", EXP_DIAGNOSTIC, f"logistic regression, fixed C={c:g}", logistic(c))
+    for k in KNN_GRID:
+        loo(f"knn-k{k}", EXP_DIAGNOSTIC, f"cosine kNN, fixed k={k}", knn(k))
+    for w in MIX_GRID[1:-1]:
+        loo(f"ensemble-w{w:g}", EXP_DIAGNOSTIC, f"ensemble, fixed bge weight {w:g}", ensemble(w))
+    return out
 
 
 def collect_env() -> dict[str, Any]:
@@ -600,10 +1086,11 @@ def render_section(result: Mapping[str, Any], taxonomy: Taxonomy) -> str:
         "shared by every system except `jev-chunks`, whose parse is pymupdf `page.get_text()` "
         "over all pages. *Classify* for the `classify_documents` systems (`*-view`, "
         "`ultrabert-hybrid`) is the wall time of one call over all documents divided by the "
-        "number of documents (DocumentView rendering included). For `ultrabert-loo` it is view "
-        "rendering plus embedding divided by the number of documents; the logistic-regression "
-        "fit per fold is listed separately. For `jev-chunks` it is the wall time of each "
-        "document's concurrent chunk requests. *Load* is a warm-up excluded from the averages: "
+        "number of documents (DocumentView rendering included). For the leave-one-out systems "
+        "(`*-loo`) it is view rendering, embedding and zero-shot scoring divided by the number "
+        "of documents; the fit per fold (with its inner leave-one-out tuning) is listed "
+        "separately. For `jev-chunks` it is the wall time of each document's concurrent chunk "
+        "requests. *Load* is a warm-up excluded from the averages: "
         "model load plus one classification of a tiny synthetic document (the label vectors are "
         f"encoded there). Jev cost is input tokens x ${JEV_USD_PER_M_INPUT}/M (output tokens are "
         "free), with tokens as reported by the API (`usage.input_tokens`)."
@@ -643,7 +1130,10 @@ def render_section(result: Mapping[str, Any], taxonomy: Taxonomy) -> str:
         extra = ""
         if SYSTEMS[s].kind == "loo":
             fits = [r.get("fit_s", 0.0) for r in entry["rows"]]
-            extra = f"; mean logistic-regression fit {sum(fits) / len(fits):.2f} s per fold"
+            extra = f"; mean fit {sum(fits) / len(fits):.2f} s per fold (inner LOO included)"
+            if entry.get("chosen"):
+                picks = ", ".join(f"{k} x{v}" for k, v in entry["chosen"].items())
+                extra += f"; hyperparameter chosen per fold: {picks}"
         if s == "jev-chunks":
             chunks = [r.get("n_chunks", 0) for r in entry["rows"]]
             extra = f"; {sum(chunks)} chunks sent ({sum(chunks) / len(chunks):.1f} per document)"
@@ -653,6 +1143,8 @@ def render_section(result: Mapping[str, Any], taxonomy: Taxonomy) -> str:
             f"`{entry.get('device')}`, load average {loadavg} at start{extra}."
         )
     out.append("")
+
+    out.extend(render_experiments(result))
 
     shown = []
     for name in (
@@ -724,6 +1216,49 @@ def render_section(result: Mapping[str, Any], taxonomy: Taxonomy) -> str:
     return "\n".join(out)
 
 
+def render_experiments(result: Mapping[str, Any]) -> list[str]:
+    """The ``### Configurations tried (P9b)`` tables, one per experiment group (empty when the
+    result has no experiments)."""
+    exps = result.get("experiments") or {}
+    runs = exps.get("runs") or []
+    if not runs:
+        return []
+    out = [
+        "### Configurations tried (P9b)",
+        "",
+        f"Every configuration evaluated in P9b ({exps.get('date')} at `{exps.get('commit')}`, "
+        f"device `{exps.get('device')}`), with its leaf accuracy, 95% bootstrap CI and macro F1 "
+        "on the same 51 documents. *Zero-shot, dev-tuned* configs need no labels, but each was "
+        "scored on this corpus, so the best of them is an optimistic estimate. *Leave-one-out "
+        "(honest)* systems predict each document from the other 50 only; every hyperparameter is "
+        "chosen by an inner leave-one-out over those 50 (ties: lower inner log-loss, then the "
+        "first value), so the held-out document never influences its own prediction. Their "
+        "features are the default `DocumentView()` embeddings with the P9 instruction, fixed "
+        "before P9b. *Diagnostic* rows fix a hyperparameter and are shown only to explain the "
+        "tuned ones.",
+    ]
+    groups = list(dict.fromkeys(r["group"] for r in runs))
+    for group in groups:
+        out += ["", f"**{group[0].upper()}{group[1:]}**", ""]
+        out.append("| Config | What | Leaf acc | 95% CI | Level-1 acc | Macro F1 | Chosen |")
+        out.append("| --- | --- | --- | --- | --- | --- | --- |")
+        for r in runs:
+            if r["group"] != group:
+                continue
+            m = r["metrics"]
+            lo, hi = m["leaf_accuracy_ci95"]
+            chosen = ", ".join(
+                f"{k}: {v}" for k, v in sorted(r.get("chosen", {}).items(), key=lambda kv: -kv[1])
+            )
+            out.append(
+                f"| `{r['id']}` | {r['what']} | {_f(m['leaf_accuracy'])} | "
+                f"{_f(lo, 2)}-{_f(hi, 2)} | {_f(m['level1_accuracy'])} | {_f(m['macro_f1'])} | "
+                f"{chosen or '-'} |"
+            )
+    out.append("")
+    return out
+
+
 def _confusion_table(
     confusion: Mapping[str, Mapping[str, int]], leaves: Sequence[str]
 ) -> list[str]:
@@ -772,6 +1307,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--device", default=None, help="skip the MPS probe and use this device")
     parser.add_argument("--docs", type=Path, default=None, help="also update this Markdown file")
     parser.add_argument("--report-only", action="store_true", help="render from existing pdf.json")
+    parser.add_argument(
+        "--experiments",
+        action="store_true",
+        help="also run the P9b zero-shot grid and leave-one-out experiments",
+    )
     args = parser.parse_args(argv)
 
     taxonomy = builtin_taxonomy("doc_types")
@@ -804,7 +1344,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         {"id": e["id"], "title": e["title"], "pages": e["pages"], "gold": e["label"]}
         for e in entries
     ]
-    if any(SYSTEMS[s].kind != "jev-chunks" and not SYSTEMS[s].is_jev for s in systems):
+    local = args.experiments or any(
+        SYSTEMS[s].kind != "jev-chunks" and not SYSTEMS[s].is_jev for s in systems
+    )
+    if local:
         if args.device:
             device, note = args.device, "set with --device"
         else:
@@ -833,7 +1376,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             elif system.kind == "jev-chunks":
                 run = run_jev_chunks(system, ids, by_id, taxonomy, args.corpus)
             else:
-                run = run_loo(system, ids, docs, gold)
+                run = run_loo(system, ids, docs, gold, taxonomy)
         except Exception as exc:  # noqa: BLE001 - one failing system must not lose the others
             log(f"{name} FAILED: {type(exc).__name__}: {str(exc)[:500]}")
             result["systems"][name] = {"error": f"{type(exc).__name__}: {str(exc)[:500]}"}
@@ -860,6 +1403,15 @@ def main(argv: Sequence[str] | None = None) -> None:
             f"{name}: leaf acc {m['leaf_accuracy']:.3f}, macro F1 {m['macro_f1']:.3f}, "
             f"classify {m['avg_classify_s']:.3f} s/doc"
         )
+        path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    if args.experiments:
+        log("== experiments (P9b)")
+        result["experiments"] = {
+            "date": datetime.date.today().isoformat(),
+            "commit": git_revision(),
+            "device": device,
+            "runs": run_experiments(ids, docs, gold, taxonomy),
+        }
         path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     if args.docs:
         update_docs(args.docs, render_section(result, taxonomy))

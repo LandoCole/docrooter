@@ -205,6 +205,22 @@ def _drop_edge_copies(lines: Sequence[Line], runs: list[_Run]) -> list[_Run]:
     return kept
 
 
+def _repeat_counts(lines: Sequence[Line], runs: Sequence[_Run]) -> list[int]:
+    """How often each run's title occurs among the runs set at least as large as it (P5b): an
+    overview or cross-reference repeating a section title in smaller type makes those copies
+    repeated titles, not the section's own larger heading."""
+    sizes: defaultdict[str, list[float]] = defaultdict(list)
+    for run in runs:
+        sizes[_normalise(run.text)].append(lines[run.start].size)
+    return [
+        sum(
+            other >= lines[run.start].size - _STYLE_TOLERANCE
+            for other in sizes[_normalise(run.text)]
+        )
+        for run in runs
+    ]
+
+
 def _next_line(i: int, n: int, excluded: set[int]) -> int | None:
     j = i + 1
     while j < n and j in excluded:
@@ -302,16 +318,16 @@ def find_headings(
     runs = _drop_edge_copies(
         lines, _merge_runs(lines, candidate, skip, body, _MERGE_GAP_FACTOR * signals.median_gap)
     )
-    repeats = Counter(_normalise(run.text) for run in runs)
+    repeats = _repeat_counts(lines, runs)
     toc = _TocMatcher(title for title, _ in signals.printed_toc) if use_printed_toc else None
     bookmarks: defaultdict[int, list[tuple[int, str, int]]] = defaultdict(list)
     for bookmark in signals.bookmarks if use_bookmarks else []:
         bookmarks[bookmark[2]].append(bookmark)
 
     kept: list[tuple[HeadingCandidate, int | None]] = []
-    for run in runs:
+    for run, repeat_count in zip(runs, repeats, strict=True):
         line = lines[run.start]
-        title_score, reasons = score_heading(run.text, repeat_count=repeats[_normalise(run.text)])
+        title_score, reasons = score_heading(run.text, repeat_count=repeat_count)
         score = _W_TITLE * title_score
         if body > 0:
             score += _W_SIZE * max(0.0, min((line.size / body - 1) / _SIZE_SPAN, 1.0))

@@ -421,3 +421,21 @@ def test_text_smaller_than_body_is_never_a_heading():
     ]  # fmt: skip
     _, found = run(pages)
     assert [h.text for h in found] == ["1. Overview", "2. Register Map", "3. Timing"]
+
+
+def test_section_title_repeated_in_smaller_overview_type_stays_a_heading():
+    # Overview pages list the sections in smaller bold type; the repeats penalise those copies,
+    # not the section's own (larger) opening heading.
+    names = ["Water Stewardship", "Circular Economy", "Net Zero Carbon"]
+    overview = [x for name in names for x in (item(name, size=14, bold=True, gap=HEAD_GAP),
+                                              *para(2))]  # fmt: skip
+    pages = [
+        [item("Environmental Report", size=30, bold=True), *para(3)],
+        [*overview], [*overview], [*overview],
+        *[[item(name, size=30, bold=True), *para(5)] for name in names],
+    ]  # fmt: skip
+    _, found = run(pages)
+    assert [(h.text, h.page) for h in found] == [
+        ("Environmental Report", 1), ("Water Stewardship", 5), ("Circular Economy", 6),
+        ("Net Zero Carbon", 7),
+    ]  # fmt: skip

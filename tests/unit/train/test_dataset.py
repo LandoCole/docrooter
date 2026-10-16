@@ -175,3 +175,14 @@ def test_from_results_roundtrip(tmp_path):
     assert all(e.doc_id == doc.source for e in data)
     data.save(tmp_path / "d.jsonl")
     assert list(Dataset.load(tmp_path / "d.jsonl")) == list(data)
+
+
+def test_jsonl_roundtrip_with_unicode_line_separators(tmp_path):
+    text = "first\u2028second\u2029third\u0085fourth\x0bfifth\x0csixth\x1csev"
+    data = Dataset([Example(text=text, path=["a"]), Example(text="plain", path=["b"])])
+    data.save(tmp_path / "d.jsonl")
+    loaded = Dataset.load(tmp_path / "d.jsonl")
+    assert list(loaded) == list(data)
+    assert loaded._lines == [1, 2]
+    data.save(tmp_path / "d.csv")
+    assert list(Dataset.load(tmp_path / "d.csv")) == list(data)

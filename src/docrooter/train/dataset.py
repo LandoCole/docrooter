@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
 import random
 from collections.abc import Iterator, Sequence
@@ -191,7 +192,10 @@ class Dataset:
 
 def _jsonl_records(raw: str, path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
     line = 0
-    for content in raw.splitlines():
+    # split on \n only: str.splitlines() also breaks on U+2028/U+2029/U+0085, which
+    # json.dumps(ensure_ascii=False) leaves unescaped inside strings
+    for content in raw.split("\n"):
+        content = content.rstrip("\r")
         if not content.strip():
             continue
         line += 1
@@ -205,7 +209,7 @@ def _jsonl_records(raw: str, path: Path) -> Iterator[tuple[int, dict[str, Any]]]
 
 
 def _csv_records(raw: str, path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
-    rows = (row for row in csv.reader(raw.splitlines(keepends=True)) if any(c.strip() for c in row))
+    rows = (row for row in csv.reader(io.StringIO(raw, newline="")) if any(c.strip() for c in row))
     header = next(rows, None)
     if header is None:
         return

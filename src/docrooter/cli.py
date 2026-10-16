@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -419,6 +419,7 @@ def models_list() -> None:
 # --- doctype and normalize ----------------------------------------------------------------
 
 _DOC_SUFFIXES = (".pdf", ".md", ".txt")
+_SKIPPED_DIRS = frozenset({".venv", "node_modules", "__pycache__"})  # and every hidden directory
 _DEFAULT_DOCTYPE_TAXONOMY = "builtin:doc_types"
 _BUILTIN_PREFIX = "builtin:"
 
@@ -441,14 +442,21 @@ def _load_taxonomy_spec(spec: str) -> Taxonomy:
 
 def _expand_paths(paths: list[Path]) -> list[Path]:
     """Files as given; directories expanded recursively to ``.pdf``, ``.md`` and ``.txt``
-    files in sorted order. Duplicates are dropped."""
+    files in sorted order, skipping hidden directories, ``node_modules`` and ``__pycache__``
+    (and so ``.venv``). Duplicates are dropped."""
     out: dict[Path, None] = {}
     for path in paths:
         if path.is_dir():
-            found = sorted(
-                p for p in path.rglob("*") if p.suffix.lower() in _DOC_SUFFIXES and p.is_file()
-            )
-            out.update(dict.fromkeys(found))
+            found: list[Path] = []
+            for folder, dirs, files in os.walk(path):
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in _SKIPPED_DIRS]
+                found += [
+                    Path(folder) / name
+                    for name in files
+                    if Path(name).suffix.lower() in _DOC_SUFFIXES
+                    and (Path(folder) / name).is_file()
+                ]
+            out.update(dict.fromkeys(sorted(found)))
         else:
             out[path] = None
     return list(out)
@@ -458,7 +466,7 @@ def _parse_one(path: str, engine: str) -> tuple[dict | None, float, str | None]:
     """Load one file: ``(Document.model_dump(), seconds, None)`` or ``(None, seconds, error)``.
 
     Module level and picklable results, so a process pool can run it. Never raises: a bad file
-    must not stop the batch.
+    must not stop the batch. The error message does not repeat the path (rows show it).
     """
     from docrooter.document.load import load
 
@@ -467,20 +475,66 @@ def _parse_one(path: str, engine: str) -> tuple[dict | None, float, str | None]:
         doc = load(Path(path), engine=engine) if path.lower().endswith(".pdf") else load(Path(path))
         return doc.model_dump(), time.perf_counter() - started, None
     except Exception as exc:
-        message = str(exc) or type(exc).__name__
+        message = _without_path(str(exc) or type(exc).__name__, path)
         return None, time.perf_counter() - started, message
 
 
-def _parse_all(
-    paths: list[Path], engine: str, workers: int
-) -> list[tuple[dict | None, float, str | None]]:
+def _without_path(message: str, path: str) -> str:
+    """``message`` without the file's path: ``"cannot open PDF <path>: Failed to open file
+    '<path>'"`` becomes ``"cannot open PDF: Failed to open the file"``."""
+    message = message.replace(f" {path}:", ":")
+    return message.replace(f"file '{path}'", "the file").replace(f"'{path}'", "the file")
+
+
+_Parsed = tuple[dict | None, float, str | None]
+
+
+def _parse_all(paths: list[Path], engine: str, workers: int) -> list[_Parsed]:
+    """Parse every file, in ``workers`` processes when there are several files. If a worker
+    dies (``BrokenProcessPool``), the files without a result are parsed again in this
+    process, one by one."""
     names = [str(p) for p in paths]
     if workers <= 1 or len(paths) <= 1:
-        return [_parse_one(name, engine) for name in names]
-    from concurrent.futures import ProcessPoolExecutor
+        return _parse_remaining(names, engine)
+    import concurrent.futures
+    from concurrent.futures import BrokenExecutor
 
-    with ProcessPoolExecutor(max_workers=min(workers, len(paths))) as pool:
-        return list(pool.map(_parse_one, names, [engine] * len(names)))
+    parsed: list[_Parsed | None] = [None] * len(names)
+    try:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=min(workers, len(paths))) as pool:
+            futures = [pool.submit(_parse_one, name, engine) for name in names]
+            for i, future in enumerate(futures):
+                parsed[i] = future.result()
+    except BrokenExecutor:
+        pass
+    todo = [i for i, result in enumerate(parsed) if result is None]
+    if todo:
+        Console(stderr=True, highlight=False).print(
+            Text(
+                f"warning: a parser process died; parsing the remaining {len(todo)} file(s) "
+                "in this process",
+                style="yellow",
+            ),
+            soft_wrap=True,
+        )
+        for i, result in zip(todo, _parse_remaining([names[i] for i in todo], engine), strict=True):
+            parsed[i] = result
+    return [result for result in parsed if result is not None]
+
+
+def _parse_remaining(
+    names: list[str], engine: str, parse: Callable[[str, str], _Parsed] = _parse_one
+) -> list[_Parsed]:
+    """Parse ``names`` in this process; a file whose parser raises anyway becomes an error."""
+    out: list[_Parsed] = []
+    for name in names:
+        started = time.perf_counter()
+        try:
+            out.append(parse(name, engine))
+        except Exception as exc:  # noqa: BLE001 - one bad file must not stop the batch
+            message = _without_path(str(exc) or type(exc).__name__, name)
+            out.append((None, time.perf_counter() - started, message))
+    return out
 
 
 @dataclass
@@ -575,7 +629,7 @@ def doctype(
 ) -> None:
     """Classify each document's type; a table by default, JSONL with --jsonl."""
     from docrooter.classify.classifier import Classifier
-    from docrooter.classify.documents import DEFAULT_INSTRUCTION, MODES
+    from docrooter.classify.documents import MODES
     from docrooter.document import Document
     from docrooter.pdf.load import ENGINES
 
@@ -605,16 +659,9 @@ def doctype(
         docs = [Document.model_validate(parsed[i][0]) for i in indexes]
         results = {}
         if docs:
-            classifier = Classifier(
-                tax,
-                backend,
-                strategy=Flat(),
-                instruction=DEFAULT_INSTRUCTION,
-                threshold=threshold,
-            )
-            results = dict(
-                zip(indexes, classifier.classify_documents(docs, mode=mode), strict=True)
-            )
+            classifier = Classifier(tax, backend)
+            classified = classifier.classify_documents(docs, mode=mode, threshold=threshold)
+            results = dict(zip(indexes, classified, strict=True))
 
         rows = [
             _DocRow(str(path), parse_s, error, results.get(i))

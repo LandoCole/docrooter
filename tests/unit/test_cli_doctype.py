@@ -309,3 +309,121 @@ def test_normalize_rejects_unknown_doc_type_and_bad_levels(paper):
     assert "financial.annual_report" in " ".join(bad_type.output.split())
     bad_levels = runner.invoke(app, ["normalize", str(paper), "--levels", "a,b", "-b", "keyword"])
     assert bad_levels.exit_code == 2
+
+
+def _write_pdf(path: Path, title: str, body: str) -> Path:
+    pymupdf = pytest.importorskip("pymupdf")
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=612, height=792)
+    page.insert_text((72, 90), title, fontsize=22, fontname="hebo")
+    for k in range(4):
+        page.insert_text((72, 140 + 15 * k), f"{body} Line {k}.", fontsize=11, fontname="helv")
+    pdf.save(str(path))
+    pdf.close()
+    return path
+
+
+@pytest.fixture
+def pdf_corpus(tmp_path: Path) -> Path:
+    root = tmp_path / "pdfs"
+    root.mkdir()
+    _write_pdf(root / "tax.pdf", "Income tax", "Income tax and deferred tax on revenue earnings.")
+    _write_pdf(root / "audit.pdf", "Audit findings", "The auditor reports audit findings.")
+    _write_pdf(root / "contract.pdf", "Agreement", "The parties agree to a termination clause.")
+    (root / "broken.pdf").write_bytes(b"%PDF-1.4 not really a pdf")
+    return root
+
+
+def test_real_pdfs_through_two_worker_processes(pdf_corpus, taxonomy, tmp_path):
+    out = tmp_path / "out.jsonl"
+    result = runner.invoke(
+        app,
+        ["doctype", str(pdf_corpus), "-t", taxonomy, "-b", "keyword", "--workers", "2"]
+        + ["--engine", "pymupdf", "--jsonl", str(out)],
+        env=WIDE,
+    )
+    assert result.exit_code == 0, result.output
+    records = _records(out)
+    assert records["tax.pdf"]["type"] == "financial.tax"
+    assert records["audit.pdf"]["type"] == "financial.audit"
+    assert records["contract.pdf"]["type"] == "legal.contract"
+    assert records["broken.pdf"]["error"] and records["broken.pdf"]["type"] is None
+
+
+class _BrokenFuture:
+    def result(self):
+        from concurrent.futures.process import BrokenProcessPool
+
+        raise BrokenProcessPool("a worker died")
+
+
+class _BrokenPool:
+    """A process pool whose worker dies: every future raises ``BrokenProcessPool``."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def submit(self, fn, *args):
+        return _BrokenFuture()
+
+
+def test_broken_process_pool_falls_back_to_parsing_in_process(
+    corpus, taxonomy, tmp_path, monkeypatch
+):
+    import concurrent.futures
+
+    monkeypatch.setattr(concurrent.futures, "ProcessPoolExecutor", _BrokenPool)
+    out = tmp_path / "out.jsonl"
+    result = runner.invoke(
+        app,
+        ["doctype", str(corpus), "-t", taxonomy, "-b", "keyword", "--workers", "2"]
+        + ["--jsonl", str(out)],
+        env=WIDE,
+    )
+    assert result.exit_code == 0, result.output
+    assert "parsing the remaining 3 file(s) in this process" in " ".join(result.output.split())
+    records = _records(out)
+    assert records["tax.md"]["type"] == "financial.tax" and records["tax.md"]["error"] is None
+    assert records["contract.md"]["type"] == "legal.contract"
+
+
+def test_file_that_crashes_again_in_process_is_an_error_row(corpus, taxonomy, tmp_path):
+    from docrooter import cli
+
+    def crash(path, engine):
+        if path.endswith("tax.md"):
+            raise MemoryError("parser crashed")
+        return real(path, engine)
+
+    real = cli._parse_one
+    parsed = cli._parse_remaining(
+        [str(corpus / "tax.md"), str(corpus / "audit.txt")], "auto", crash
+    )
+    assert parsed[0][0] is None and parsed[0][2] == "parser crashed"
+    assert parsed[1][0] is not None and parsed[1][2] is None
+
+
+def test_directory_expansion_skips_hidden_and_tool_directories(corpus, taxonomy):
+    for skipped in (".git", ".venv", "node_modules", "__pycache__", "sub/.hidden"):
+        (corpus / skipped).mkdir(parents=True, exist_ok=True)
+        (corpus / skipped / "noise.md").write_text(TAX_DOC, encoding="utf-8")
+    from docrooter.cli import _expand_paths
+
+    names = [p.relative_to(corpus).as_posix() for p in _expand_paths([corpus])]
+    assert names == ["audit.txt", "sub/contract.md", "tax.md"]
+
+
+def test_error_rows_name_the_path_once(tmp_path, taxonomy):
+    pytest.importorskip("pymupdf")
+    broken = tmp_path / "broken.pdf"
+    broken.write_bytes(b"%PDF-1.4 not really a pdf")
+    result = _doctype(str(broken), "-t", taxonomy, "--keep", "financial", "--paths-only")
+    assert result.exit_code == 0, result.output
+    text = " ".join(result.output.split())
+    assert "warning:" in text and text.count("broken.pdf") == 1

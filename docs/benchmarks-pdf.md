@@ -98,3 +98,221 @@ The spec §2.3 score weights and the 0.55 default threshold were not changed.
 - **Slide decks (doc_050/051, F1 0.07/0.27).** Gold titles are `Slide N: ...`, which never occur in the text.
 - **Shallow gold (doc_001, F1 0.05).** The Berkshire annual report has 9 bookmarks. The extractor finds the Form 10-K `Item` headings and the letter's section titles, which the bookmarks do not list.
 - **Engineering drawings and "(continued)" titles (doc_041, doc_049).** Package drawing pages (`JG0008A`, `5.08 MAX`) and repeated box titles ending in "(continued)" are still predicted. Each is a small, single-document effect.
+
+## Document-type classification
+
+**Headline.** On 51 real PDFs and 18 defined leaf types, TypeSafe Jev given docrooter's DocumentView (`jev-view`) is the most accurate system: 49/51 correct (leaf accuracy 0.961, macro F1 0.944), at 1.74 s/doc end to end and $0.0044 for the whole corpus. The best local docrooter backend, `ultrabert-hybrid`, gets 40/51 (0.784, macro F1 0.733), and the plain `ultrabert-view` 39/51 (0.765, macro F1 0.719) at the same 1.78 s/doc with no API. Jev on naive raw-text chunks (`jev-chunks`, the suggested baseline) gets 47/51 (0.922) using 10.7x the input tokens. The trained leave-one-out head (`ultrabert-loo`) is the worst system at 12/51 (0.235); see the analysis below. These are single-run numbers on a small corpus.
+
+<!-- doctype-benchmark:begin -->
+Corpus: 51 real PDFs from `benchmarks/corpus/` with gold labels from the manifest, 18 leaf types in 6 groups (`builtin:doc_types`; every label has a definition, see `benchmarks/corpus/README.md`). Classes have 2-4 documents each, so per-class numbers are anecdotal and one document moves leaf accuracy by 2.0 points. The 95% intervals are percentile bootstraps over documents (1000 resamples, seed 0). Every system labels every document (threshold 0).
+
+Environment: Python 3.12.13, arm64, 8 CPUs, device `mps` (MPS probe matmul took 1.85 s), torch 2.14.1, sentence-transformers 6.1.0, scikit-learn 1.9.1, typesafe-sdk 0.7.5, pymupdf 1.28.2, Jev `jev-1.13.0`. The load average at the start of each system is listed below; the machine was shared with another benchmark, so seconds are noisy upper bounds.
+
+Timing: *parse* is one `load_pdf` call with the default engine (pymupdf), cached and shared by every system except `jev-chunks`, whose parse is pymupdf `page.get_text()` over all pages. *Classify* for the `classify_documents` systems (`*-view`, `ultrabert-hybrid`) is the wall time of one call over all documents divided by the number of documents (DocumentView rendering included). For `ultrabert-loo` it is view rendering plus embedding divided by the number of documents; the logistic-regression fit per fold is listed separately. For `jev-chunks` it is the wall time of each document's concurrent chunk requests. *Load* is a warm-up excluded from the averages: model load plus one classification of a tiny synthetic document (the label vectors are encoded there). Jev cost is input tokens x $0.042/M (output tokens are free), with tokens as reported by the API (`usage.input_tokens`).
+
+### Aggregate
+
+| System | What | Leaf acc | 95% CI | Level-1 acc | Macro P | Macro R | Macro F1 | Parse s/doc | Classify s/doc | Total s/doc | Load s | Jev input tokens | Jev cost |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `ultrabert-view` | UltraBERT-Embed-150M, DocumentView, Flat (zero-shot) | 0.765 | 0.65-0.86 | 0.902 | 0.708 | 0.764 | 0.719 | 1.60 | 0.177 | 1.78 | 2.6 | - | - |
+| `ultrabert-hybrid` | UltraBERT-Embed-150M, 0.6 view + 0.4 sections (zero-shot) | 0.784 | 0.67-0.88 | 0.922 | 0.711 | 0.778 | 0.733 | 1.60 | 2.655 | 4.26 | 2.3 | - | - |
+| `bge-view` | bge-small-en-v1.5, DocumentView, Flat (zero-shot) | 0.608 | 0.47-0.75 | 0.784 | 0.576 | 0.611 | 0.538 | 1.60 | 0.134 | 1.74 | 14.3 | - | - |
+| `nli-view` | deberta-v3-base-zeroshot-v2.0 NLI, DocumentView, Flat (zero-shot) | 0.569 | 0.43-0.69 | 0.765 | 0.510 | 0.532 | 0.485 | 1.60 | 14.713 | 16.32 | 2.8 | - | - |
+| `jev-view` | Jev jev-1.13.0, DocumentView as state, one Choice over 18 leaves | 0.961 | 0.90-1.00 | 0.961 | 0.968 | 0.944 | 0.944 | 1.60 | 0.137 | 1.74 | 0.7 | 104,384 | $0.0044 |
+| `jev-chunks` | Jev jev-1.13.0, raw page text, <=8 chunks of ~1,500 tokens, mean of per-chunk Choices (no docrooter) | 0.922 | 0.84-0.98 | 0.961 | 0.947 | 0.912 | 0.911 | 0.49 | 0.320 | 0.81 | 0.0 | 1,121,481 | $0.0471 |
+| `ultrabert-loo` | UltraBERT-Embed-150M view embeddings + logistic regression, trained (leave-one-out) | 0.235 | 0.14-0.35 | 0.608 | 0.063 | 0.167 | 0.090 | 1.60 | 0.179 | 1.78 | 1.5 | - | - |
+
+Run metadata per system:
+
+- `ultrabert-view`: 2026-10-16 at `3bd85f2`, device `mps`, load average 3.9, 5.9, 13.1 at start.
+- `ultrabert-hybrid`: 2026-10-16 at `3bd85f2`, device `mps`, load average 3.3, 4.9, 8.3 at start.
+- `bge-view`: 2026-10-16 at `3bd85f2`, device `mps`, load average 3.7, 6.1, 13.4 at start.
+- `nli-view`: 2026-10-16 at `3bd85f2`, device `mps`, load average 4.3, 5.8, 12.9 at start.
+- `jev-view`: 2026-10-16 at `3bd85f2`, device `n/a`, load average 3.8, 6.5, 14.0 at start.
+- `jev-chunks`: 2026-10-16 at `3bd85f2`, device `n/a`, load average 4.4, 6.5, 13.9 at start; 331 chunks sent (6.5 per document).
+- `ultrabert-loo`: 2026-10-16 at `3bd85f2`, device `mps`, load average 4.2, 5.9, 13.1 at start; mean logistic-regression fit 0.01 s per fold.
+
+### Per class
+
+Best docrooter system by macro F1 (zero-shot: `ultrabert-hybrid`; any: `ultrabert-hybrid`) and `jev-view`. P / R / F1 per gold class.
+
+| Class | n | `ultrabert-hybrid` P / R / F1 | `jev-view` P / R / F1 |
+| --- | --- | --- | --- |
+| financial.annual_report | 3 | 0.67 / 0.67 / 0.67 | 1.00 / 1.00 / 1.00 |
+| financial.quarterly_report | 2 | 1.00 / 1.00 / 1.00 | 0.67 / 1.00 / 0.80 |
+| financial.shareholder_letter | 3 | 0.50 / 0.33 / 0.40 | 1.00 / 1.00 / 1.00 |
+| financial.earnings_release | 2 | 0.67 / 1.00 / 0.80 | 1.00 / 1.00 / 1.00 |
+| financial.prospectus | 2 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
+| financial.proxy_statement | 2 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
+| legal.contract | 2 | 0.00 / 0.00 / 0.00 | 1.00 / 0.50 / 0.67 |
+| legal.terms_policy | 3 | 0.75 / 1.00 / 0.86 | 1.00 / 1.00 / 1.00 |
+| legal.court_opinion | 4 | 1.00 / 0.75 / 0.86 | 1.00 / 1.00 / 1.00 |
+| legal.legislation | 3 | 0.75 / 1.00 / 0.86 | 1.00 / 1.00 / 1.00 |
+| research.research_paper | 4 | 0.67 / 1.00 / 0.80 | 1.00 / 1.00 / 1.00 |
+| research.technical_standard | 4 | 0.80 / 1.00 / 0.89 | 1.00 / 1.00 / 1.00 |
+| research.white_paper | 3 | 0.00 / 0.00 / 0.00 | 1.00 / 1.00 / 1.00 |
+| technical.user_manual | 3 | 0.75 / 1.00 / 0.86 | 0.75 / 1.00 / 0.86 |
+| technical.datasheet | 4 | 1.00 / 0.75 / 0.86 | 1.00 / 1.00 / 1.00 |
+| government.government_report | 3 | 0.75 / 1.00 / 0.86 | 1.00 / 1.00 / 1.00 |
+| corporate.sustainability_report | 2 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
+| corporate.investor_presentation | 2 | 0.50 / 0.50 / 0.50 | 1.00 / 0.50 / 0.67 |
+
+### Confusion matrices
+
+Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0; the diagonal is in bold.
+
+`ultrabert-hybrid`:
+
+| Gold \ Pred | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 annual_report | **2** |  | 1 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 2 quarterly_report |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 3 shareholder_letter | 1 |  | **1** |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 1 |
+| 4 earnings_release |  |  |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 5 prospectus |  |  |  |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 6 proxy_statement |  |  |  |  |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |
+| 7 contract |  |  |  |  |  |  |  | 1 |  |  |  | 1 |  |  |  |  |  |  |
+| 8 terms_policy |  |  |  |  |  |  |  | **3** |  |  |  |  |  |  |  |  |  |  |
+| 9 court_opinion |  |  |  |  |  |  |  |  | **3** | 1 |  |  |  |  |  |  |  |  |
+| 10 legislation |  |  |  |  |  |  |  |  |  | **3** |  |  |  |  |  |  |  |  |
+| 11 research_paper |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |  |  |  |  |
+| 12 technical_standard |  |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |  |  |  |
+| 13 white_paper |  |  |  |  |  |  |  |  |  |  | 2 |  |  |  |  | 1 |  |  |
+| 14 user_manual |  |  |  |  |  |  |  |  |  |  |  |  |  | **3** |  |  |  |  |
+| 15 datasheet |  |  |  |  |  |  |  |  |  |  |  |  |  | 1 | **3** |  |  |  |
+| 16 government_report |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **3** |  |  |
+| 17 sustainability_report |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **2** |  |
+| 18 investor_presentation |  |  |  | 1 |  |  |  |  |  |  |  |  |  |  |  |  |  | **1** |
+
+`jev-view`:
+
+| Gold \ Pred | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 annual_report | **3** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 2 quarterly_report |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 3 shareholder_letter |  |  | **3** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 4 earnings_release |  |  |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 5 prospectus |  |  |  |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 6 proxy_statement |  |  |  |  |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |
+| 7 contract |  |  |  |  |  |  | **1** |  |  |  |  |  |  | 1 |  |  |  |  |
+| 8 terms_policy |  |  |  |  |  |  |  | **3** |  |  |  |  |  |  |  |  |  |  |
+| 9 court_opinion |  |  |  |  |  |  |  |  | **4** |  |  |  |  |  |  |  |  |  |
+| 10 legislation |  |  |  |  |  |  |  |  |  | **3** |  |  |  |  |  |  |  |  |
+| 11 research_paper |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |  |  |  |  |
+| 12 technical_standard |  |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |  |  |  |
+| 13 white_paper |  |  |  |  |  |  |  |  |  |  |  |  | **3** |  |  |  |  |  |
+| 14 user_manual |  |  |  |  |  |  |  |  |  |  |  |  |  | **3** |  |  |  |  |
+| 15 datasheet |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |
+| 16 government_report |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **3** |  |  |
+| 17 sustainability_report |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **2** |  |
+| 18 investor_presentation |  | 1 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **1** |
+
+### Per document
+
+✓ correct leaf, ✗ wrong. Predictions show the leaf id without its group.
+
+| Doc | Title | Pages | Gold | `ultrabert-view` | `ultrabert-hybrid` | `bge-view` | `nli-view` | `jev-view` | `jev-chunks` | `ultrabert-loo` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| doc_001 | Berkshire Hathaway Inc. 2023 Annual Report | 152 | annual_report | annual_report ✓ | annual_report ✓ | shareholder_letter ✗ | investor_presentation ✗ | annual_report ✓ | annual_report ✓ | shareholder_letter ✗ |
+| doc_002 | Tesla, Inc. Annual Report on Form 10-K for fi... | 130 | annual_report | annual_report ✓ | annual_report ✓ | proxy_statement ✗ | annual_report ✓ | annual_report ✓ | annual_report ✓ | datasheet ✗ |
+| doc_003 | Amazon.com, Inc. 2023 Annual Report | 92 | annual_report | shareholder_letter ✗ | shareholder_letter ✗ | shareholder_letter ✗ | shareholder_letter ✗ | annual_report ✓ | annual_report ✓ | shareholder_letter ✗ |
+| doc_004 | Berkshire Hathaway Inc. Form 10-Q for the qua... | 56 | quarterly_report | quarterly_report ✓ | quarterly_report ✓ | proxy_statement ✗ | quarterly_report ✓ | quarterly_report ✓ | quarterly_report ✓ | annual_report ✗ |
+| doc_005 | Berkshire Hathaway Inc. Form 10-Q for the qua... | 59 | quarterly_report | quarterly_report ✓ | quarterly_report ✓ | proxy_statement ✗ | prospectus ✗ | quarterly_report ✓ | quarterly_report ✓ | annual_report ✗ |
+| doc_006 | Berkshire Hathaway Chairman's Letter to Share... | 16 | shareholder_letter | investor_presentation ✗ | investor_presentation ✗ | shareholder_letter ✓ | shareholder_letter ✓ | shareholder_letter ✓ | shareholder_letter ✓ | annual_report ✗ |
+| doc_007 | Berkshire Hathaway Chairman's Letter to Share... | 22 | shareholder_letter | annual_report ✗ | annual_report ✗ | earnings_release ✗ | annual_report ✗ | shareholder_letter ✓ | shareholder_letter ✓ | court_opinion ✗ |
+| doc_008 | Amazon 2020 Shareholder Letter with the 1997 ... | 10 | shareholder_letter | shareholder_letter ✓ | shareholder_letter ✓ | shareholder_letter ✓ | prospectus ✗ | shareholder_letter ✓ | shareholder_letter ✓ | annual_report ✗ |
+| doc_009 | Amazon.com Announces Second Quarter Results (... | 12 | earnings_release | earnings_release ✓ | earnings_release ✓ | earnings_release ✓ | quarterly_report ✗ | earnings_release ✓ | quarterly_report ✗ | shareholder_letter ✗ |
+| doc_010 | Amazon.com Announces Third Quarter Results (O... | 12 | earnings_release | earnings_release ✓ | earnings_release ✓ | earnings_release ✓ | quarterly_report ✗ | earnings_release ✓ | earnings_release ✓ | shareholder_letter ✗ |
+| doc_011 | Erste Abwicklungsanstalt Debt Issuance Progra... | 113 | prospectus | prospectus ✓ | prospectus ✓ | prospectus ✓ | prospectus ✓ | prospectus ✓ | prospectus ✓ | court_opinion ✗ |
+| doc_012 | EnBW Debt Issuance Programme Prospectus 2024 | 222 | prospectus | prospectus ✓ | prospectus ✓ | prospectus ✓ | prospectus ✓ | prospectus ✓ | prospectus ✓ | datasheet ✗ |
+| doc_013 | Postal Realty Trust 2025 Notice of Annual Mee... | 63 | proxy_statement | proxy_statement ✓ | proxy_statement ✓ | proxy_statement ✓ | investor_presentation ✗ | proxy_statement ✓ | proxy_statement ✓ | annual_report ✗ |
+| doc_014 | WisdomTree, Inc. 2024 Notice of Annual Meetin... | 161 | proxy_statement | proxy_statement ✓ | proxy_statement ✓ | proxy_statement ✓ | investor_presentation ✗ | proxy_statement ✓ | proxy_statement ✓ | court_opinion ✗ |
+| doc_015 | Sample Non-Disclosure Agreement for condition... | 4 | contract | government_report ✗ | terms_policy ✗ | proxy_statement ✗ | government_report ✗ | user_manual ✗ | contract ✓ | court_opinion ✗ |
+| doc_016 | NIST Cooperative Research and Development Agr... | 10 | contract | technical_standard ✗ | technical_standard ✗ | technical_standard ✗ | contract ✓ | contract ✓ | contract ✓ | datasheet ✗ |
+| doc_017 | Apple Privacy Policy (updated July 30, 2025) | 1 | terms_policy | terms_policy ✓ | terms_policy ✓ | terms_policy ✓ | terms_policy ✓ | terms_policy ✓ | terms_policy ✓ | technical_standard ✗ |
+| doc_018 | Terms of Use (GoWhere support service) | 19 | terms_policy | terms_policy ✓ | terms_policy ✓ | terms_policy ✓ | contract ✗ | terms_policy ✓ | terms_policy ✓ | technical_standard ✗ |
+| doc_019 | Terms of Service for the Fieldwork Performanc... | 8 | terms_policy | terms_policy ✓ | terms_policy ✓ | proxy_statement ✗ | contract ✗ | terms_policy ✓ | terms_policy ✓ | technical_standard ✗ |
+| doc_020 | Dobbs v. Jackson Women's Health Organization,... | 213 | court_opinion | legislation ✗ | legislation ✗ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ |
+| doc_021 | Trump v. Anderson, No. 23-719 (per curiam sli... | 20 | court_opinion | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ |
+| doc_022 | O'Connor-Ratcliff v. Garnier, No. 22-324 (per... | 6 | court_opinion | court_opinion ✓ | court_opinion ✓ | earnings_release ✗ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ |
+| doc_023 | Department of Education v. Louisiana, No. 24A... | 13 | court_opinion | legislation ✗ | court_opinion ✓ | proxy_statement ✗ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ |
+| doc_024 | CHIPS and Science Act, Public Law 117-167 | 394 | legislation | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | court_opinion ✗ |
+| doc_025 | Fiscal Responsibility Act of 2023, Public Law... | 41 | legislation | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | court_opinion ✗ |
+| doc_026 | S. 623, Sunshine Protection Act of 2021 (as p... | 6 | legislation | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | court_opinion ✗ |
+| doc_027 | Attention Is All You Need | 15 | research_paper | research_paper ✓ | research_paper ✓ | investor_presentation ✗ | research_paper ✓ | research_paper ✓ | research_paper ✓ | research_paper ✓ |
+| doc_028 | Deep Residual Learning for Image Recognition | 12 | research_paper | research_paper ✓ | research_paper ✓ | investor_presentation ✗ | research_paper ✓ | research_paper ✓ | research_paper ✓ | technical_standard ✗ |
+| doc_029 | Language Models are Few-Shot Learners | 75 | research_paper | research_paper ✓ | research_paper ✓ | earnings_release ✗ | research_paper ✓ | research_paper ✓ | research_paper ✓ | research_paper ✓ |
+| doc_030 | On the Opportunities and Risks of Foundation ... | 214 | research_paper | research_paper ✓ | research_paper ✓ | sustainability_report ✗ | research_paper ✓ | research_paper ✓ | research_paper ✓ | technical_standard ✗ |
+| doc_031 | RFC 9110: HTTP Semantics | 194 | technical_standard | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ |
+| doc_032 | RFC 9000: QUIC: A UDP-Based Multiplexed and S... | 151 | technical_standard | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ |
+| doc_033 | RFC 9239: Updates to ECMAScript Media Types | 13 | technical_standard | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ |
+| doc_034 | RFC 9457: Problem Details for HTTP APIs | 16 | technical_standard | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ |
+| doc_035 | Google Cloud's AI Adoption Framework | 37 | white_paper | research_paper ✗ | research_paper ✗ | technical_standard ✗ | investor_presentation ✗ | white_paper ✓ | white_paper ✓ | research_paper ✗ |
+| doc_036 | Future of Jobs Report 2023 (Insight Report) | 296 | white_paper | government_report ✗ | government_report ✗ | white_paper ✓ | government_report ✗ | white_paper ✓ | white_paper ✓ | research_paper ✗ |
+| doc_037 | Bitcoin: A Peer-to-Peer Electronic Cash System | 9 | white_paper | research_paper ✗ | research_paper ✗ | earnings_release ✗ | technical_standard ✗ | white_paper ✓ | research_paper ✗ | technical_standard ✗ |
+| doc_038 | Bash Reference Manual, Edition 5.3 | 214 | user_manual | user_manual ✓ | user_manual ✓ | user_manual ✓ | user_manual ✓ | user_manual ✓ | user_manual ✓ | technical_standard ✗ |
+| doc_039 | GNU Coreutils manual | 326 | user_manual | user_manual ✓ | user_manual ✓ | datasheet ✗ | technical_standard ✗ | user_manual ✓ | user_manual ✓ | technical_standard ✗ |
+| doc_040 | Getting Started with Raspberry Pi Pico-series | 36 | user_manual | user_manual ✓ | user_manual ✓ | datasheet ✗ | datasheet ✗ | user_manual ✓ | user_manual ✓ | datasheet ✗ |
+| doc_041 | NE555 / SA555 / SE555 Precision Timers datasheet | 39 | datasheet | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | technical_standard ✗ |
+| doc_042 | RP2040 Datasheet | 642 | datasheet | user_manual ✗ | user_manual ✗ | datasheet ✓ | technical_standard ✗ | datasheet ✓ | datasheet ✓ | technical_standard ✗ |
+| doc_043 | 1N4148 Small Signal Fast Switching Diode data... | 4 | datasheet | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ |
+| doc_044 | 1N4001-1N4007 1.0A Rectifier datasheet | 5 | datasheet | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | terms_policy ✗ | datasheet ✓ |
+| doc_045 | Monetary Policy Report, July 5, 2024 | 79 | government_report | government_report ✓ | government_report ✓ | government_report ✓ | annual_report ✗ | government_report ✓ | government_report ✓ | court_opinion ✗ |
+| doc_046 | Financial Stability Report, April 2024 | 69 | government_report | government_report ✓ | government_report ✓ | government_report ✓ | quarterly_report ✗ | government_report ✓ | government_report ✓ | research_paper ✗ |
+| doc_047 | The 9/11 Commission Report | 585 | government_report | government_report ✓ | government_report ✓ | government_report ✓ | research_paper ✗ | government_report ✓ | government_report ✓ | court_opinion ✗ |
+| doc_048 | Google Environmental Report 2024 | 86 | sustainability_report | sustainability_report ✓ | sustainability_report ✓ | sustainability_report ✓ | sustainability_report ✓ | sustainability_report ✓ | sustainability_report ✓ | research_paper ✗ |
+| doc_049 | NVIDIA Sustainability Report, Fiscal Year 2024 | 41 | sustainability_report | sustainability_report ✓ | sustainability_report ✓ | sustainability_report ✓ | sustainability_report ✓ | sustainability_report ✓ | sustainability_report ✓ | research_paper ✗ |
+| doc_050 | Tesla Q2 2024 Update (investor slide deck) | 29 | investor_presentation | earnings_release ✗ | earnings_release ✗ | earnings_release ✗ | quarterly_report ✗ | quarterly_report ✗ | quarterly_report ✗ | datasheet ✗ |
+| doc_051 | NVIDIA Investor Presentation Q2 FY25 (Septemb... | 27 | investor_presentation | investor_presentation ✓ | investor_presentation ✓ | investor_presentation ✓ | investor_presentation ✓ | investor_presentation ✓ | investor_presentation ✓ | research_paper ✗ |
+<!-- doctype-benchmark:end -->
+
+### Analysis
+
+**Is the gap real?** On 51 documents one document is 2 accuracy points. The 95% bootstrap intervals of `jev-view` (0.90-1.00) and `ultrabert-hybrid` (0.67-0.88) do not overlap, so Jev's lead over the local backends is not noise. The difference between `jev-view` and `jev-chunks` is 2 documents (intervals 0.90-1.00 vs 0.84-0.98), which this corpus cannot separate. The same holds for `ultrabert-hybrid` vs `ultrabert-view` (1 document), and for `bge-view` vs `nli-view` (2 documents).
+
+**Where `jev-view` fails (2 of 51).**
+
+- **doc_015, a sample NDA, predicted `user_manual` (0.53, with `contract` at 0.33).** The PDF opens with a page of "Instructions for non-disclosure agreements". The view's lead is that instruction text, and the title is the first numbered clause, because the parser turns the agreement's numbered paragraphs into headings. Jev answered for what the view shows.
+- **doc_050, the Tesla Q2 2024 Update deck, predicted `quarterly_report` (0.53, with `earnings_release` at 0.39).** Every system misses this document. It is a text-heavy shareholder "update" laid out as slides. It parses to a single section, and its view has letter-spaced keyphrases (`s u m`, `g h t`), so the slide layout that defines `investor_presentation` is not visible in the text.
+
+**Where `jev-chunks` fails (4 of 51).**
+
+- **doc_044, a two-page diode datasheet, was lost on a tie.** The second chunk is the vendor's legal "Important Notice". The per-chunk mean gave `terms_policy` and `datasheet` 0.50 each, and the tie went to the option listed first. Equal-weight averaging of raw chunks lets boilerplate vote; a document view does not have that failure mode.
+- **doc_009 (earnings release, predicted `quarterly_report`) and doc_050.** Both are financial-type confusions.
+- **doc_037 (the Bitcoin paper, `white_paper` gold, predicted `research_paper` at 0.63).** This is a borderline label that `jev-view` got right.
+
+**Where the local zero-shot backends fail.** `ultrabert-*` is good at the group: level-1 accuracy is 0.90-0.92, and `ultrabert-hybrid` has recall 1.00 on 11 of 18 classes. Most errors fall inside a group, between siblings whose definitions differ by who published the document or why, rather than by vocabulary:
+
+- **White papers.** `ultrabert-*` got 0 of 3. They are predicted as `research_paper` or `government_report`, because "not peer-reviewed" and "issued by an agency" are not similarity features.
+- **Contracts.** `ultrabert-*` got 0 of 2. The NIST CRADA reads like a `technical_standard`, and the NDA like `terms_policy` or `government_report`.
+- **Shareholder letters vs annual reports.** doc_003, Amazon's annual report, starts with the 1997 shareholder letter, and DocumentView takes its title from the first non-letter-spaced level-1 heading ("1997 LETTER TO SHAREHOLDERS"). The Berkshire letters go to `investor_presentation` or `annual_report`.
+- **Other errors.**
+  - Dobbs is predicted as `legislation`, at 0.37 against 0.29 for `court_opinion`.
+  - The RP2040 datasheet is predicted as `user_manual`, at 0.277 against 0.268 for `datasheet`.
+  - `hybrid` fixes exactly one document (doc_023, a court opinion) for 15x the classify time (2.66 vs 0.18 s/doc). It embeds every leaf section.
+
+`bge-view` (0.608) suffers from bge-small's 512-token window. The 512-token view plus the query prompt overflows it, so the end of the view is truncated. It also sends all four research papers elsewhere (`investor_presentation`, `earnings_release`, `sustainability_report`). `nli-view` (0.569) is both the least accurate zero-shot system and by far the slowest: 14.7 s/doc, because it runs 18 premise-hypothesis pairs of up to 512 tokens per document through DeBERTa on MPS.
+
+**The trained leave-one-out system is a negative result, and the reason is known.** `LogisticRegression(max_iter=1000)` uses the default `C=1`. On unit-norm 768-d embeddings with 50 training documents, that regularises almost everything away. The predicted probabilities are close to uniform (top class about 0.07-0.10), so the head falls back on class priors: 42 of 51 predictions are one of the four classes with four documents. Classes with 2 documents have a single training example when one of them is held out. A post-hoc diagnostic was run on the same embeddings and the same LOO splits. It is not a reported system, because the settings were chosen after seeing the result. It gave 0.59 at C=10, 0.61 at C=100, 0.65 at C=1000, and 0.65 for a nearest class centroid. Even tuned, 1-3 examples per class do not beat zero-shot with written definitions (0.765). Training only pays off with more labelled documents per class.
+
+**Cost and speed.**
+
+- **Parsing dominates the local pipeline.** The default `load_pdf` takes 1.60 s/doc on average (0.02-9.1 s, roughly proportional to pages). Classification takes 0.14-0.18 s/doc for `jev-view`, `ultrabert-view` and `bge-view`.
+- **`jev-chunks` is the fastest end to end (0.81 s/doc)** because it skips structure: `page.get_text()` is 0.49 s/doc. It pays for that in tokens: 1,121,481 input tokens ($0.047, about $0.92 per 1,000 documents) against 104,384 for `jev-view` (about 2,050 per document, of which roughly 1,500 are the fixed instruction and 18 definitions, since the smallest request was 1,742 tokens; $0.0044, about $0.09 per 1,000 documents).
+- **Both Jev costs are small in absolute terms.** The view's real advantages are 10.7x fewer tokens per document, a bounded request size whatever the page count, and robustness to boilerplate chunks. Its accuracy edge over chunks is not significant on this corpus.
+- **Jev timings are network-bound.** They come from one run with 8 concurrent requests. `jev-view` classify time is the batch wall time over 51 documents, 7 s in total.
+
+**Honest comparison.** For document-type gating with written definitions, Jev is clearly better than any local zero-shot model tested here, by 18-39 accuracy points. docrooter's contribution in that pairing is the compact, budgeted DocumentView: Jev reads it as well as or better than eight raw chunks at a tenth of the tokens. When no API is allowed, `ultrabert-view` is the local choice at 0.765 leaf accuracy and 0.90 group accuracy, with `confidence` available for routing low-confidence documents to review. `ultrabert-hybrid` is +1 document for 15x the classify time, and `bge-view` and `nli-view` are not competitive.
+
+**Follow-ups this run exposed (not fixed here).**
+
+- DocumentView keyphrases on letter-spaced text (doc_050).
+- Title choice when a document starts with an embedded letter or an instruction page (doc_003, doc_015).
+- A tie-break rule for exact ties in aggregated distributions.
+
+**Provenance.**
+
+- The run was on 2026-10-16. The commits listed above are the `src/` revision; the benchmark scripts were added in the commit that published these results.
+- Parsed documents are cached in `benchmarks/.cache/docs/`. Four of them (doc_026-028, doc_041) were parsed during a smoke run a few minutes earlier, at a similar load.
+- Another benchmark job was running on the machine but was light during this run (load average 3-5, against 20-30 earlier in the day).
+- Raw rows, including the top-3 probabilities and per-document tokens, are in `benchmarks/results/2026-10-16/pdf.json`.

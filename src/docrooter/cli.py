@@ -818,3 +818,88 @@ def normalize(
         else:
             table.add_row(Text(norm.title), Text(norm.label or norm.canonical), f"{norm.score:.2f}")
     console.print(table)
+
+
+# --- serve --------------------------------------------------------------------------------
+
+
+def _is_loopback(host: str) -> bool:
+    import ipaddress
+
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_loopback
+    except ValueError:
+        return False
+
+
+def _browser_url(host: str, port: int) -> str:
+    """The URL to open for a server bound to ``host``; an any-address bind opens loopback."""
+    shown = host.strip("[]")
+    if shown in ("", "0.0.0.0", "::"):
+        shown = "127.0.0.1"
+    if ":" in shown:
+        shown = f"[{shown}]"
+    return f"http://{shown}:{port}/"
+
+
+def _open_when_started(server: Any, url: str, timeout: float = 30.0) -> None:
+    """Open ``url`` in the browser once the uvicorn ``server`` reports it has started."""
+    import webbrowser
+
+    deadline = time.monotonic() + timeout
+    while not server.started:
+        if time.monotonic() > deadline or server.should_exit:
+            return
+        time.sleep(0.1)
+    webbrowser.open(url)
+
+
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option(help="Address to bind; keep it local.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(min=1, max=65535, help="Port to listen on.")] = 8765,
+    backend: Annotated[
+        str,
+        typer.Option("--backend", "-b", help="Backend selected by default, e.g. keyword."),
+    ] = "keyword",
+    open_browser: Annotated[
+        bool, typer.Option("--open", help="Open the playground in the browser once it is up.")
+    ] = False,
+    env_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--env-file",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Read missing environment variables (e.g. TYPESAFE_API_KEY) from this file.",
+        ),
+    ] = None,
+) -> None:
+    """Start the local playground: upload a document and watch it being processed."""
+    import threading
+
+    with _errors_exit_1():
+        uvicorn = require("uvicorn", "ui")
+        from docrooter.ui.server import create_app, load_env_file
+
+        if env_file is not None:
+            load_env_file(env_file)
+    err = Console(stderr=True, highlight=False)
+    if not _is_loopback(host):
+        err.print(
+            Text(
+                f"warning: binding to {host} exposes the playground (uploads and model runs, "
+                "no authentication) to other machines; use 127.0.0.1 to keep it local",
+                style="yellow",
+            ),
+            soft_wrap=True,
+        )
+    url = _browser_url(host, port)
+    server = uvicorn.Server(uvicorn.Config(create_app(backend), host=host, port=port))
+    if open_browser:
+        threading.Thread(target=_open_when_started, args=(server, url), daemon=True).start()
+    err.print(Text(f"docrooter playground: {url}"))
+    server.run()

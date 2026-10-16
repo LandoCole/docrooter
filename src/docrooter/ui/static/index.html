@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>docrooter playground</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='2' width='9' height='2.4' rx='1' fill='%230f8577'/%3E%3Crect x='4' y='6.8' width='8' height='2.4' rx='1' fill='%233552d0'/%3E%3Crect x='7' y='11.6' width='8' height='2.4' rx='1' fill='%233552d0'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+  <script type="module" src="/static/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the run</a>
+  <div class="shell">
+    <aside class="rail" aria-label="New run and history">
+      <header class="brand">
+        <svg class="brand-mark" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <rect x="1" y="2" width="9" height="2.4" rx="1" class="mark-doc"/>
+          <rect x="4" y="6.8" width="8" height="2.4" rx="1" class="mark-model"/>
+          <rect x="7" y="11.6" width="8" height="2.4" rx="1" class="mark-model"/>
+        </svg>
+        <p class="brand-name">docrooter <span>playground</span></p>
+      </header>
+
+      <section class="new-run" aria-labelledby="new-run-heading">
+        <h2 id="new-run-heading">New run</h2>
+        <form id="run-form" novalidate>
+          <div class="field">
+            <label for="backend">Model</label>
+            <select id="backend" name="backend" aria-describedby="backend-note"></select>
+            <p id="backend-note" class="note"></p>
+          </div>
+          <div class="field-pair">
+            <div class="field">
+              <label for="engine">PDF engine</label>
+              <select id="engine" name="engine"></select>
+            </div>
+            <div class="field">
+              <label for="mode">Type from</label>
+              <select id="mode" name="mode">
+                <option value="view">Whole document</option>
+                <option value="sections">Its sections</option>
+                <option value="hybrid">Both</option>
+              </select>
+            </div>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="normalize" name="normalize" checked>
+            <span>Label sections with canonical names</span>
+          </label>
+
+          <div id="drop" class="drop" role="button" tabindex="0"
+               aria-describedby="drop-hint" aria-label="Choose a document to process">
+            <svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M7 3h7l5 5v13H7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+              <path d="M14 3v5h5M10 14l3-3 3 3M13 11v7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="drop-title">Drop a document here</span>
+            <span id="drop-hint" class="drop-hint">PDF, Markdown or text, up to 50 MB. Processing starts right away.</span>
+          </div>
+          <input type="file" id="file" accept=".pdf,.md,.txt,application/pdf,text/markdown,text/plain" tabindex="-1" hidden>
+          <button type="button" id="rerun" class="secondary" disabled>Run the last file again</button>
+          <p id="form-error" class="form-error" role="alert"></p>
+        </form>
+      </section>
+
+      <nav class="history" aria-labelledby="history-heading">
+        <h2 id="history-heading">Recent runs</h2>
+        <ol id="history" class="history-list"></ol>
+        <p id="history-empty" class="note">Runs from this session appear here.</p>
+      </nav>
+    </aside>
+
+    <main id="main" class="main" tabindex="-1">
+      <header class="run-head">
+        <div class="run-title-block">
+          <h1 id="run-title">No document yet</h1>
+          <p id="run-status" class="run-status" role="status" aria-live="polite">Choose a document to watch each stage as it runs.</p>
+        </div>
+        <p class="clock" aria-label="Wall time"><span id="clock">0.00</span><span class="clock-unit">s</span></p>
+      </header>
+
+      <section class="timeline" aria-labelledby="timeline-heading">
+        <h2 id="timeline-heading" class="visually-hidden">Stages</h2>
+        <div class="timeline-grid">
+          <div class="axis" id="axis" aria-hidden="true"></div>
+          <ol id="stages" class="stages"></ol>
+          <div class="cursor" id="cursor" aria-hidden="true"></div>
+        </div>
+        <p id="timeline-empty" class="timeline-empty">Stages appear here as the server reports them: reading pages, finding headings, loading the model, classifying.</p>
+      </section>
+
+      <section class="results" aria-labelledby="results-heading" id="results" hidden>
+        <h2 id="results-heading" class="visually-hidden">Results</h2>
+        <dl id="facts" class="facts"></dl>
+        <div class="tabs" role="tablist" aria-label="Results">
+          <button type="button" role="tab" id="tab-toc" aria-controls="panel-toc" aria-selected="true">Contents</button>
+          <button type="button" role="tab" id="tab-type" aria-controls="panel-type" aria-selected="false" tabindex="-1">Document type</button>
+          <button type="button" role="tab" id="tab-sections" aria-controls="panel-sections" aria-selected="false" tabindex="-1">Section labels</button>
+          <button type="button" role="tab" id="tab-json" aria-controls="panel-json" aria-selected="false" tabindex="-1">Raw JSON</button>
+        </div>
+        <div role="tabpanel" id="panel-toc" aria-labelledby="tab-toc" tabindex="0" class="panel"></div>
+        <div role="tabpanel" id="panel-type" aria-labelledby="tab-type" tabindex="0" class="panel" hidden></div>
+        <div role="tabpanel" id="panel-sections" aria-labelledby="tab-sections" tabindex="0" class="panel" hidden></div>
+        <div role="tabpanel" id="panel-json" aria-labelledby="tab-json" tabindex="0" class="panel" hidden></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

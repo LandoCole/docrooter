@@ -55,7 +55,8 @@ pdf-mit = ["pdfplumber"]
 llm = ["httpx"]
 jev = ["typesafe-sdk>=0.7.5"]
 bench = ["datasets", "pandas"]
-all = ["docrooter[models,pdf,pdf-mit,llm,jev]"]
+ui = ["fastapi", "uvicorn", "python-multipart"]
+all = ["docrooter[models,pdf,pdf-mit,llm,jev,ui]"]
 
 [project.urls]
 # Placeholder: replace with the real repository before the first release.

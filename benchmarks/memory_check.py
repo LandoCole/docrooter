@@ -6,10 +6,12 @@ Cases, each in a fresh process so its peak is its own:
   with UltraBERT-Embed-150M against ``builtin:doc_types``.
 - ``train``: ``train()`` on B1 with k=16 shots per leaf and ``finetune_body=True``.
 
-The target for both is the memory budget (``DOCROOTER_MEMORY_BUDGET_GB``, 8 GiB by default):
-peak RSS and, on MPS, peak Metal driver memory each at most the budget. Peak RSS is
-``resource.getrusage(RUSAGE_SELF).ru_maxrss``; a sampler thread records the peaks of
-``torch.mps.current_allocated_memory()`` and ``driver_allocated_memory()``. The device is
+The target for both is the memory budget (``DOCROOTER_MEMORY_BUDGET_GB``, 8 GiB by default)
+for the process total. On macOS that is the peak physical footprint
+(``task_info(TASK_VM_INFO).ledger_phys_footprint_peak``, which counts Metal buffers as well
+as host memory on unified memory); elsewhere it is peak RSS plus peak Metal driver memory.
+Also recorded: peak RSS (``ru_maxrss``, host pages only) and, from a sampler thread, the
+peaks of ``torch.mps.current_allocated_memory()`` and ``driver_allocated_memory()``. The device is
 the default order (CUDA, MPS, CPU) unless ``--device`` is given. Results are merged into
 ``benchmarks/results/<date>/memory.json`` by ``(case, device)``.
 
@@ -21,6 +23,8 @@ the default order (CUDA, MPS, CPU) unless ``--device`` is given. Results are mer
 from __future__ import annotations
 
 import argparse
+import ctypes
+import ctypes.util
 import datetime
 import json
 import os
@@ -48,6 +52,55 @@ def peak_rss_bytes() -> int:
     """This process's peak resident set size (``ru_maxrss`` is bytes on macOS, KiB on Linux)."""
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return int(peak if sys.platform == "darwin" else peak * 1024)
+
+
+class _TaskVmInfo(ctypes.Structure):
+    """``task_vm_info_data_t`` (mach/task_info.h): named up to the footprint peak (rev 2)."""
+
+    _fields_ = [
+        ("virtual_size", ctypes.c_uint64),
+        ("region_count", ctypes.c_int32),
+        ("page_size", ctypes.c_int32),
+        *(
+            (name, ctypes.c_uint64)
+            for name in (
+                "resident_size", "resident_size_peak", "device", "device_peak", "internal",
+                "internal_peak", "external", "external_peak", "reusable", "reusable_peak",
+                "purgeable_volatile_pmap", "purgeable_volatile_resident",
+                "purgeable_volatile_virtual", "compressed", "compressed_peak",
+                "compressed_lifetime", "phys_footprint", "min_address", "max_address",
+                "ledger_phys_footprint_peak",
+            )
+        ),
+        # Later revisions' fields: the kernel fills a revision only if all of it fits.
+        ("_rest", ctypes.c_uint64 * 64),
+    ]  # fmt: skip
+
+
+_TASK_VM_INFO = 22
+
+
+def footprint_bytes() -> tuple[int, int] | None:
+    """``(current, peak)`` physical footprint of this process on macOS, else ``None``.
+
+    The footprint is what Activity Monitor shows as Memory: host pages, compressed pages and,
+    on Apple silicon, Metal buffers.
+    """
+    if sys.platform != "darwin":
+        return None
+    try:
+        libc = ctypes.CDLL(ctypes.util.find_library("c"))
+        libc.mach_task_self.restype = ctypes.c_uint32
+        info = _TaskVmInfo()
+        count = ctypes.c_uint32(ctypes.sizeof(info) // 4)
+        status = libc.task_info(
+            libc.mach_task_self(), _TASK_VM_INFO, ctypes.byref(info), ctypes.byref(count)
+        )
+    except (OSError, AttributeError):
+        return None
+    if status != 0 or count.value * 4 < _TaskVmInfo._rest.offset:
+        return None  # an old kernel without the rev-2 footprint peak
+    return int(info.phys_footprint), int(info.ledger_phys_footprint_peak)
 
 
 class MpsSampler:
@@ -162,21 +215,28 @@ def run_case(case: str, device: str | None) -> dict[str, Any]:
     with MpsSampler() as mps:
         details = RUNNERS[case](device, marks)
     peak = peak_rss_bytes()
+    footprint = footprint_bytes()
+    if footprint is not None:
+        total, method = footprint[1], "peak phys_footprint (task_info)"
+    else:
+        total, method = peak + mps.peak_driver, "peak RSS + peak MPS driver"
     target = runtime.settings().memory_budget_gb
-    within = peak / GB <= target and mps.peak_driver / GB <= target
     row: dict[str, Any] = {
         "case": case,
         "device": device,
+        "peak_total_gb": _gb(total),
+        "total_method": method,
         "peak_rss_gb": _gb(peak),
         **marks,
         "target_gb": target,
-        "within_target": within,
+        "within_target": total / GB <= target,
         "seconds": round(time.perf_counter() - started, 1),
         **details,
     }
     if device.startswith("mps"):
         row["peak_mps_driver_gb"] = _gb(mps.peak_driver)
         row["peak_mps_allocated_gb"] = _gb(mps.peak_allocated)
+        row["mps_fraction"] = round(runtime.settings().mps_fraction(_recommended_bytes()), 4)
     names = [*_guard.ENV_CAPS, *_guard.MPS_CAP_VARS]
     row["env"] = {name: os.environ.get(name) for name in names}
     row["platform"] = {
@@ -186,6 +246,16 @@ def run_case(case: str, device: str | None) -> dict[str, Any]:
         "cpu_count": os.cpu_count(),
     }
     return row
+
+
+def _recommended_bytes() -> float:
+    torch = sys.modules.get("torch")
+    try:
+        return float(torch.mps.recommended_max_memory())  # type: ignore[union-attr]
+    except Exception:  # noqa: BLE001 - only for the record
+        from docrooter import runtime
+
+        return runtime.estimated_recommended_bytes()
 
 
 def save(row: dict[str, Any], out_dir: Path) -> Path:
@@ -224,10 +294,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     row = run_case(args.case, args.device)
     path = save(row, out_dir)
     verdict = "within" if row["within_target"] else "OVER"
-    mps = f", MPS driver peak {row['peak_mps_driver_gb']} GB" if "peak_mps_driver_gb" in row else ""
+    mps = f", MPS driver {row['peak_mps_driver_gb']} GB" if "peak_mps_driver_gb" in row else ""
     print(
-        f"{args.case} on {row['device']}: peak RSS {row['peak_rss_gb']} GB{mps} ({verdict} the "
-        f"{row['target_gb']} GB budget), {row['seconds']}s -> {path}"
+        f"{args.case} on {row['device']}: peak total {row['peak_total_gb']} GB (RSS "
+        f"{row['peak_rss_gb']} GB{mps}; {verdict} the {row['target_gb']} GB budget), "
+        f"{row['seconds']}s -> {path}"
     )
     return 0
 

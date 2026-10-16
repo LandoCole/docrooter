@@ -26,6 +26,9 @@ _LOW_TO_HIGH = 0.8
 # Before torch loads, Metal's recommended working set is estimated as this share of the RAM
 # (11.84 of 16 GiB on an M1); torch's exact figure replaces the estimate once it is loaded.
 _RECOMMENDED_SHARE = 0.74
+# Unified memory: Metal buffers and the host side (Python, tokenizers, a CPU copy of the
+# weights) share the budget, so Metal gets the budget minus this headroom (at least half).
+MPS_HOST_HEADROOM_GB = 1.5
 
 
 @dataclass(frozen=True)
@@ -37,11 +40,19 @@ class RuntimeSettings:
     memory_budget_gb: float = DEFAULT_BUDGET_GB
     mps_memory_fraction: float | None = None  # an explicit fraction; else from the budget
 
+    @property
+    def metal_budget_gb(self) -> float:
+        """The share of the budget Metal may hold: the budget minus 1.5 GiB of host headroom,
+        but at least half the budget."""
+        budget = self.memory_budget_gb
+        return max(budget - MPS_HOST_HEADROOM_GB, budget / 2)
+
     def mps_fraction(self, recommended_bytes: float) -> float:
-        """The MPS per-process fraction: the explicit one, else budget / recommended (<= 1)."""
+        """The MPS per-process fraction: the explicit one, else the Metal share of the budget
+        over Metal's recommended maximum (at most 1)."""
         if self.mps_memory_fraction is not None:
             return self.mps_memory_fraction
-        return min(1.0, self.memory_budget_gb * GB / recommended_bytes)
+        return min(1.0, self.metal_budget_gb * GB / recommended_bytes)
 
 
 _configured: dict[str, Any] = {}
@@ -63,11 +74,13 @@ def configure(
       CUDA, MPS, CPU.
     - ``threads``: ``torch.set_num_threads`` (else ``$DOCROOTER_THREADS``).
     - ``memory_budget_gb``: the memory a process should stay within, in GiB (else
-      ``$DOCROOTER_MEMORY_BUDGET_GB``, default 8). On MPS it becomes a hard cap on Metal
-      memory: ``torch.mps.set_per_process_memory_fraction(min(1, budget /
-      torch.mps.recommended_max_memory()))``. On CPU nothing caps the resident set; the
-      budget only scales the default batch sizes (16 at 8 GiB or more, halved per halving
-      below, at least 4).
+      ``$DOCROOTER_MEMORY_BUDGET_GB``, default 8). It is meant for the whole process. On MPS,
+      Metal and the host side share unified memory, so Metal gets a hard cap of the budget
+      minus 1.5 GiB of host headroom (at least half the budget):
+      ``torch.mps.set_per_process_memory_fraction(min(1, metal / recommended_max_memory()))``.
+      The cap covers Metal memory only, not the process total. On CPU nothing caps the
+      resident set; the budget only scales the default batch sizes (16 at 8 GiB or more,
+      halved per halving below, at least 4).
     - ``mps_memory_fraction``: an explicit MPS fraction in ``(0, 1]`` instead of the one
       derived from the budget (else ``$DOCROOTER_MPS_MEMORY_FRACTION``).
 

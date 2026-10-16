@@ -74,22 +74,37 @@ def warn_cpu_fallback(name: str, what: str) -> None:
     )
 
 
-def run_with_cpu_fallback(backend: Any, what: str, call: Callable[[], T]) -> T:
-    """``call()``; if it runs out of MPS memory, drop the backend's model, move the backend to
-    the CPU and call once more (``call`` must (re)load the model through the backend).
+def move_backend_to_cpu(backend: Any, what: str) -> None:
+    """Continue ``backend`` on the CPU with the same weights.
 
-    The backend keeps its model in ``_model`` and its device in ``_device`` (requested) and
-    ``_device_in_use`` (set before the model is moved there).
+    A loaded model is moved (``model.to("cpu")``), never reloaded: a reload would fetch the
+    original weights and silently replace a body fine-tuned in memory. With no model loaded
+    yet, the next load builds it on the CPU. The backend keeps its model in ``_model`` and its
+    device in ``_device`` (requested) and ``_device_in_use``.
+    """
+    model = getattr(backend, "_model", None)
+    if model is not None:
+        model.to("cpu")
+    backend._device = backend._device_in_use = "cpu"
+    release_memory()
+    warn_cpu_fallback(backend.name, what)
+
+
+def run_with_cpu_fallback(backend: Any, what: str, call: Callable[[], T]) -> T:
+    """``call()``; if it runs out of MPS memory, move the backend to the CPU
+    (:func:`move_backend_to_cpu`) and call once more.
+
+    ``call`` must reach the model through the backend, and inputs must follow
+    ``_device_in_use`` (set before a model is moved to its device, so an OOM during that move
+    is caught too).
     """
     try:
         return call()
     except Exception as exc:
         if not is_mps_oom(exc, getattr(backend, "_device_in_use", "cpu")):
             raise
-    backend._model = None  # outside the handler: the failed call's tensors are gone too
-    release_memory()
-    warn_cpu_fallback(backend.name, what)
-    backend._device = backend._device_in_use = "cpu"
+    # Outside the handler: the failed call's frames, and the tensors they hold, are gone.
+    move_backend_to_cpu(backend, what)
     return call()
 
 

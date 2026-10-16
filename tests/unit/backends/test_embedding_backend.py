@@ -23,10 +23,16 @@ class FakeSentenceTransformer:
         self.batch_sizes: list[int] = []
         self.seq_lengths: list[int | None] = []
         self.max_seq_length = None
+        self.device = kwargs.get("device")
+        self.weights = {"layer": "base"}  # stands in for the parameters
         self.tokenizer = types.SimpleNamespace(
             encode=lambda text, add_special_tokens=True: text.split()
         )
         FakeSentenceTransformer.instances.append(self)
+
+    def to(self, device):
+        self.device = device
+        return self
 
     def encode(self, texts, prompt="", **kwargs):
         assert kwargs["normalize_embeddings"] is True
@@ -202,20 +208,27 @@ def test_mps_oom_while_loading_falls_back_to_cpu(fake_st, monkeypatch, caplog):
     assert "falling back to the CPU" in caplog.text
 
 
-def test_mps_oom_while_encoding_falls_back_to_cpu_once(fake_st, monkeypatch):
+def test_mps_oom_while_encoding_moves_the_same_model_to_cpu(fake_st, monkeypatch, caplog):
     real_encode = fake_st.encode
 
     def encode(self, texts, prompt="", **kwargs):
-        if self.kwargs["device"] == "mps":
+        if self.device == "mps":
             raise RuntimeError(OOM)
         return real_encode(self, texts, prompt, **kwargs)
 
     monkeypatch.setattr(fake_st, "encode", encode)
     backend = EmbeddingBackend("some/model", device="mps")
-    out = backend.encode(["aa", "bb"], prompt="")
+    model = backend._load()
+    model.weights["layer"] = "fine-tuned"  # e.g. trained in memory, never saved
+    with caplog.at_level("WARNING"):
+        out = backend.encode(["aa", "bb"], prompt="")
     assert out.shape == (2, 3)
-    assert [m.kwargs["device"] for m in fake_st.instances] == ["mps", "cpu"]
-    assert backend._device == "cpu"
+    assert fake_st.instances == [model]  # no reload from the hub
+    assert backend._model is model and model.weights == {"layer": "fine-tuned"}
+    assert model.device == "cpu" and backend._device == backend._device_in_use == "cpu"
+    assert "falling back to the CPU" in caplog.text
+    backend.encode(["cc"], prompt="")  # later calls stay on the CPU model
+    assert fake_st.instances == [model]
 
 
 def test_other_errors_while_encoding_are_raised(fake_st, monkeypatch):

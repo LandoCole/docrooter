@@ -18,7 +18,7 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Iterable, MutableMapping
+from collections.abc import Iterable
 
 from docrooter import runtime
 
@@ -40,20 +40,26 @@ _MODEL_PROCESS = re.compile(
 _INTERPRETER = re.compile(r"^(python[\d.]*|docrooter)$", re.IGNORECASE)
 
 
-def apply_env_caps(environ: MutableMapping[str, str] | None = None) -> dict[str, str]:
-    """Set every :data:`ENV_CAPS` variable that is not already set, then (if neither is set)
-    the MPS watermark variables derived from the memory budget; returns what it set."""
-    env = os.environ if environ is None else environ
+def apply_env_caps() -> dict[str, str]:
+    """Set every :data:`ENV_CAPS` variable that is not already set, then the MPS watermark
+    variables from the effective runtime settings (the budget, or an explicit
+    ``DOCROOTER_MPS_MEMORY_FRACTION``, and any earlier ``configure()``) unless the user set
+    them. Returns what it set.
+
+    The watermarks are written through :func:`docrooter.runtime.apply_before_torch`, so the
+    runtime knows they are its own: a later ``configure(memory_budget_gb=...)`` still applies
+    its exact MPS fraction.
+    """
     applied = {}
     for name, value in ENV_CAPS.items():
-        if name not in env:
-            env[name] = value
+        if name not in os.environ:
+            os.environ[name] = value
             applied[name] = value
-    if not any(name in env for name in MPS_CAP_VARS):
-        budget = float(env[runtime.BUDGET_ENV])
-        caps = runtime.watermark_env(runtime.RuntimeSettings(memory_budget_gb=budget))
-        env.update(caps)
-        applied.update(caps)
+    before = {name: os.environ.get(name) for name in MPS_CAP_VARS}
+    runtime.apply_before_torch(runtime.settings())
+    applied.update(
+        {name: os.environ[name] for name in MPS_CAP_VARS if os.environ.get(name) != before[name]}
+    )
     return applied
 
 

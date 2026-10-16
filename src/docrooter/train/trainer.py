@@ -259,8 +259,11 @@ def train(
 
     With ``finetune_body`` the body is first fine-tuned contrastively on
     :func:`build_triplets`. Then each node from :func:`trainable_nodes` gets a
-    ``LogisticRegression`` on the body's embeddings of its examples. ``epochs``, ``lr`` and
-    ``batch_size`` default to the base model's recipe. Texts are embedded with the recipe's
+    ``LogisticRegression`` on the body's embeddings of its examples. ``epochs`` and ``lr``
+    default to the base model's recipe. ``batch_size`` (fine-tuning and encoding) defaults to
+    the recipe's, which the built-in recipes leave unset: then it is 32 on CUDA and otherwise
+    follows the memory budget of :func:`docrooter.configure` (16 at the default 8 GiB, halved
+    per halving below it, at least 4). Texts are embedded with the recipe's
     query prompt around ``instruction`` (default: the recipe's), at training and at inference.
 
     Texts are truncated to ``max_seq_len`` tokens (capped at the recipe's own limit) for

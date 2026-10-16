@@ -14,6 +14,7 @@ from docrooter.backends.loading import (
     after_model_load,
     attn_implementation,
     is_mps_oom,
+    move_backend_to_cpu,
     prepare_model_load,
     release_memory,
     trust_decision,
@@ -120,13 +121,6 @@ class EmbeddingBackend:
         model.max_seq_length = self.recipe.max_seq_len
         return model
 
-    def _fall_back_to_cpu(self, what: str) -> None:
-        """Drop the MPS model and continue on the CPU (the next ``_load`` builds it there)."""
-        self._model = None
-        release_memory()
-        warn_cpu_fallback(self.name, what)
-        self._device = "cpu"
-
     def close(self) -> None:
         """Drop the model and the caches and release their memory; the next call reloads."""
         self._model = None
@@ -171,8 +165,8 @@ class EmbeddingBackend:
             except Exception as exc:
                 if attempt or not is_mps_oom(exc, self._device_in_use):
                     raise
-            del model  # the MPS model must go before its memory can be released
-            self._fall_back_to_cpu("encoding")
+            del model
+            move_backend_to_cpu(self, "encoding")  # the same weights, possibly fine-tuned
         raise AssertionError("unreachable")  # pragma: no cover
 
     def _remember(self, key: tuple[str, str], vec: np.ndarray) -> None:

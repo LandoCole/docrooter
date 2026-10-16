@@ -21,3 +21,14 @@ def test_mps_sampler_without_torch_records_nothing():
     with memory_check.MpsSampler(interval=0.01) as mps:
         pass
     assert mps.peak_driver == 0 and mps.peak_allocated == 0
+
+
+def test_footprint_counts_at_least_the_resident_pages():
+    import sys
+
+    footprint = memory_check.footprint_bytes()
+    if sys.platform != "darwin":
+        assert footprint is None
+        return
+    current, peak = footprint
+    assert 10 * 1024**2 < current <= peak

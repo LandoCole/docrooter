@@ -440,122 +440,192 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 
 ## Section normalisation
 
-**Headline.** On 145 scored sections of 6 real PDFs (labels are agent-assigned silver labels; see below), `normalize_sections` with Jev gets 102/145 (accuracy 0.703, macro F1 0.755) for $0.0064 in total. The default local backend, UltraBERT, gets 50/145 (0.345, macro F1 0.456), and bge-small gets 33/145 (0.228). Both embedding backends collapse onto a few labels: UltraBERT predicts `introduction` for 39 sections and `controls_and_procedures` for 25, and bge predicts `experiments` for 54. The auto doc-type path picked the right doc type for 5 of 6 documents. It labelled the NIST CRADA contract `research.technical_standard`, so that document fell back to the generic taxonomy and scored 0.
+**Headline.** These are scores on 145 scored sections from 6 real PDFs. The labels are agent-assigned silver labels (see below), and the same set was used to choose the defaults. Two package changes in P10b improve the local backends:
 
-**Label sensitivity.** 21 of the 145 scored labels carry a "could be X" note. On the other 124, the scores are Jev 92 (0.742), UltraBERT 49 (0.395) and bge 29 (0.234). The largest disputed block is the 10 sections of Tesla's attached clawback policy (Exhibit 97). They are labelled `exhibits` because they are a filed exhibit, but every system calls them `corporate_governance`, `executive_compensation` or `other`. Jev's other main confusion is `results` → `experiments` (7 sections, mostly GPT-3's per-task result sections). These are single-run numbers on 6 documents.
+- heading synonyms, added as `examples` on every node of the 5 built-in section taxonomies;
+- a headings-only default view, `path + title` (previously `title + lead` at 96 tokens).
+
+| System | P10 | P10b | Change |
+| --- | --- | --- | --- |
+| UltraBERT (default backend) | 50/145 (0.345) | 87/145 (0.600) | +25.5 points |
+| bge-small | 33/145 (0.228) | 67/145 (0.462) | +23.4 points |
+| Jev | 102/145 (0.703) | 106/145 (0.731) | +2.8 points |
+| Auto doc-type path | 0.303 | 0.566 | +26.2 points |
+
+Jev's change is within its run-to-run variation: two runs of one configuration gave 0.697 and 0.703. Jev now costs $0.0086 instead of $0.0064, because the synonyms are sent with every candidate.
+
+**How the default was chosen.** Read this before trusting the numbers above.
+
+- **The silver set served as the dev set.** The selection therefore flatters the chosen default.
+- **The synonyms were fixed before any results.**
+  - There are 3 to 8 per node, written from general domain knowledge: 10-K item titles, IMRaD headings, contract boilerplate and manual chapters.
+  - They were committed in `da38a07` before any silver-set title was viewed and before any model run, and they were not edited afterwards.
+  - The only silver content seen beforehand was the two examples quoted in the P10 report: "2 Background" and the Exhibit 97 clawback policy.
+- **Eight configurations were run.** Each of 4 views was run with and without synonyms on both local backends; Jev was run on 2 of them. All results are in the table below.
+- **`path+title+syn` came out best of the 8 for both local backends.** Its margin over the alternatives is therefore optimistic.
+  - Against synonyms with the old view, it gains 10.3 points with UltraBERT and 14.5 with bge.
+  - Synonyms alone, with the old view, give +15.2 and +9.0 points.
+  - Without synonyms, `path + title` hurts UltraBERT (0.262), so for that backend the two changes help only together.
+- **Per document, the gain comes mostly from the research papers.** UltraBERT on doc_027 goes from 0.364 to 0.864. On the Berkshire report, UltraBERT loses 3 sections against synonyms with the old view.
+
+**Collapse.** The P10 collapse onto a few labels is smaller but still present.
+
+- **Top predictions.** UltraBERT's most frequent prediction changes from `introduction` (39) to `experiments` (22). bge's stays `experiments`, but drops from 54 to 29.
+- **Remaining errors.**
+  - Research-paper appendices labelled `experiments`: 9 for UltraBERT, 7 for bge.
+  - bge labels `method` as `experiments` (10 sections) and `results` as `background` (9).
+  - Tesla's Exhibit 97 clawback policy, gold `exhibits`: 2 of 14 sections right for every system.
+
+**Label sensitivity.** 124 of the scored rows have no "could be X" note. On those rows the scores are UltraBERT 80 (0.645), bge 61 (0.492) and Jev 94 (0.758). All numbers here are single runs on 6 documents.
+
+**Speed.** *s/section* rose: UltraBERT went from 0.037 to 0.096 and bge from 0.013 to 0.025.
+
+- **Cause.** On first use, each backend now encodes about 40 to 100 example strings per taxonomy, and the timing includes this one-off cost. UltraBERT's first annual report took 6.0 s instead of 1.5 s, and its first contract 5.1 s instead of 0.9 s. Research-paper documents ran at the P10 speed, because the warm-up had already encoded that taxonomy.
+- **Conditions.** The machine was shared, with a load average of about 7 to 9.
+
+**View rendering.** `render_budgeted` now cuts each line to 4 × `max_tokens` words before the token counter sees it, so a whole section is never tokenised. P10 had logged 8521- and 5243-token sequences.
+
+- **Same output.** Views were identical before and after for all 204 sections of the 6 documents, with both local tokenizers and 4 views.
+- **Remaining warning.** Garbled PDF text can still exceed bge's 512-token limit; the longest seen was 1084 tokens for 384 words. When that happens, transformers logs one harmless warning.
 
 <!-- normalize-benchmark:begin -->
 Silver set: `benchmarks/corpus/section_gold.jsonl`, 163 level-1/2 sections of 6 documents (18 marked as parser junk, i.e. not a real section, and excluded from accuracy). **These are agent-assigned silver labels, not human gold:** an agent (Claude Opus 5.5) read each heading and the first ~300 characters of its body and chose the best node of the doc type's section taxonomy from the node definitions, before any model was run (labelled 2026-10-16T14:41:44-04:00, documents loaded at `0dd70bc`). Ambiguous cases carry a `note` in the file. Expect a few points of label noise.
 
-Run 2026-10-16 at `6d3ee70`, device `mps` (MPS probe matmul took 1.11 s). Each system calls `normalize_sections(doc, doc_type=<gold type>, backend=...)` (Flat, title + lead, 96 tokens) once per document. *Macro F1* averages over the gold classes (per document over that document's classes; overall over all classes, qualified by taxonomy). *s/section* is the summed wall time of the per-document calls (view rendering and label encoding included) divided by the sections labelled, junk included; model load is excluded (*Load s*). Jev cost is input tokens x $0.042/M as reported by the API.
+Run 2026-10-16 at `8cc9f10`, device `mps` (MPS probe matmul took 1.15 s). Each system calls `normalize_sections(doc, doc_type=<gold type>, backend=...)` once per document with the package defaults: Flat, view path + title at 96 tokens, with the taxonomies' heading synonyms. *Macro F1* averages over the gold classes (per document over that document's classes; overall over all classes, qualified by taxonomy). *s/section* is the summed wall time of the per-document calls (view rendering and label encoding included) divided by the sections labelled, junk included; model load is excluded (*Load s*). Jev cost is input tokens x $0.042/M as reported by the API.
+
+### Before / after
+
+*Baseline (P10)* is the original run (2026-10-16 at `6d3ee70`: view title + lead at 96 tokens, without the taxonomies' heading synonyms); *after* is this run.
+
+| System | Baseline (P10) accuracy | After accuracy | Change | Baseline macro F1 | After macro F1 |
+| --- | --- | --- | --- | --- | --- |
+| `ultrabert` | 0.345 (50/145) | 0.600 (87/145) | +25.5 pts | 0.456 | 0.583 |
+| `bge-small` | 0.228 (33/145) | 0.462 (67/145) | +23.4 pts | 0.308 | 0.567 |
+| `jev` | 0.703 (102/145) | 0.731 (106/145) | +2.8 pts | 0.755 | 0.758 |
+| `auto_doc_type` | 0.303 (44/145) | 0.566 (82/145) | +26.2 pts | 0.344 | 0.508 |
+
+### Configurations tried (the silver set used as a dev set)
+
+Every configuration that was run, all on the same 145 scored sections, so the chosen default (`path+title+syn`) is selected on the evaluation data and its margin over the others is optimistic. *Top prediction* is the most frequent predicted label over the scored sections and its count (a collapse onto one label shows up here).
+
+| Config | View | Synonyms | `ultrabert` accuracy | `bge-small` accuracy | `jev` accuracy | `ultrabert` top prediction | `bge-small` top prediction | `jev` top prediction |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `title+lead@96` | title + lead @ 96 | no | 0.345 (50/145) | 0.228 (33/145) | - | `introduction` (39) | `experiments` (54) | - |
+| `title` | title @ 96 | no | 0.262 (38/145) | 0.310 (45/145) | - | `introduction` (62) | `experiments` (33) | - |
+| `path+title` | path + title @ 96 | no | 0.262 (38/145) | 0.352 (51/145) | - | `introduction` (54) | `experiments` (32) | - |
+| `title+lead@48` | title + lead @ 48 | no | 0.324 (47/145) | 0.262 (38/145) | - | `introduction` (42) | `experiments` (48) | - |
+| `title+lead@96+syn` | title + lead @ 96 | yes | 0.497 (72/145) | 0.317 (46/145) | 0.703 (102/145) | `experiments` (35) | `experiments` (63) | `other` (20) |
+| `title+syn` | title @ 96 | yes | 0.462 (67/145) | 0.441 (64/145) | - | `experiments` (31) | `experiments` (33) | - |
+| `path+title+syn` (default) | path + title @ 96 | yes | 0.600 (87/145) | 0.462 (67/145) | 0.731 (106/145) | `experiments` (22) | `experiments` (29) | `other` (26) |
+| `title+lead@48+syn` | title + lead @ 48 | yes | 0.517 (75/145) | 0.352 (51/145) | - | `experiments` (32) | `experiments` (60) | - |
 
 ### Aggregate
 
 | System | Backend | Accuracy | Correct | Macro F1 | s/section | Load s | Jev tokens | Jev cost |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `ultrabert` | `embedding:dmis-lab/UltraBERT-Embed-150M` | 0.345 | 50/145 | 0.456 | 0.0372 | 15.5 | - | - |
-| `bge-small` | `embedding:BAAI/bge-small-en-v1.5` | 0.228 | 33/145 | 0.308 | 0.0131 | 2.5 | - | - |
-| `jev` | `jev:jev-1.13.0` | 0.703 | 102/145 | 0.755 | 0.0311 | 0.7 | 152,807 | $0.0064 |
+| `ultrabert` | `embedding:dmis-lab/UltraBERT-Embed-150M` | 0.600 | 87/145 | 0.583 | 0.0957 | 19.8 | - | - |
+| `bge-small` | `embedding:BAAI/bge-small-en-v1.5` | 0.462 | 67/145 | 0.567 | 0.0253 | 6.0 | - | - |
+| `jev` | `jev:jev-1.13.0` | 0.731 | 106/145 | 0.758 | 0.0268 | 0.6 | 205,724 | $0.0086 |
 
 ### Per document (accuracy / macro F1)
 
 | Document | Type | Sections | Junk | Unmatched | `ultrabert` | `bge-small` | `jev` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| doc_027 Attention Is All You Need | `research.research_paper` | 23 | 1 | 0 | 0.364 / 0.462 | 0.227 / 0.044 | 0.773 / 0.712 |
-| doc_028 Deep Residual Learning for Image Recognition | `research.research_paper` | 16 | 2 | 0 | 0.286 / 0.335 | 0.286 / 0.286 | 0.857 / 0.912 |
-| doc_029 Language Models are Few-Shot Learners | `research.research_paper` | 38 | 2 | 0 | 0.278 / 0.434 | 0.111 / 0.138 | 0.583 / 0.724 |
-| doc_001 Berkshire Hathaway Inc. 2023 Annual Report | `financial.annual_report` | 29 | 5 | 0 | 0.417 / 0.356 | 0.250 / 0.282 | 0.750 / 0.762 |
-| doc_002 Tesla, Inc. Annual Report on Form 10-K for fiscal year 2023 | `financial.annual_report` | 45 | 7 | 0 | 0.316 / 0.456 | 0.211 / 0.328 | 0.684 / 0.816 |
-| doc_016 NIST Cooperative Research and Development Agreement (CRADA) template, 2018 | `legal.contract` | 12 | 1 | 0 | 0.545 / 0.529 | 0.545 / 0.529 | 0.727 / 0.752 |
+| doc_027 Attention Is All You Need | `research.research_paper` | 23 | 1 | 0 | 0.864 / 0.722 | 0.500 / 0.549 | 0.909 / 0.765 |
+| doc_028 Deep Residual Learning for Image Recognition | `research.research_paper` | 16 | 2 | 0 | 0.643 / 0.670 | 0.429 / 0.545 | 0.714 / 0.683 |
+| doc_029 Language Models are Few-Shot Learners | `research.research_paper` | 38 | 2 | 0 | 0.667 / 0.751 | 0.361 / 0.619 | 0.722 / 0.749 |
+| doc_001 Berkshire Hathaway Inc. 2023 Annual Report | `financial.annual_report` | 29 | 5 | 0 | 0.375 / 0.328 | 0.458 / 0.367 | 0.583 / 0.474 |
+| doc_002 Tesla, Inc. Annual Report on Form 10-K for fiscal year 2023 | `financial.annual_report` | 45 | 7 | 0 | 0.553 / 0.706 | 0.500 / 0.658 | 0.658 / 0.739 |
+| doc_016 NIST Cooperative Research and Development Agreement (CRADA) template, 2018 | `legal.contract` | 12 | 1 | 0 | 0.455 / 0.352 | 0.636 / 0.553 | 1.000 / 1.000 |
 
 ### Auto doc type (`doc_type=None`)
 
-One run of `normalize_sections(doc)` with the default backend (`embedding:dmis-lab/UltraBERT-Embed-150M`), so `classify_document` picks the doc type and hence the section taxonomy. The doc type matched the gold type on **5/6** documents; section accuracy 0.303 (44/145), macro F1 0.344 (a wrong doc type usually means a different taxonomy, so its sections all count as wrong).
+One run of `normalize_sections(doc)` with the default backend (`embedding:dmis-lab/UltraBERT-Embed-150M`), so `classify_document` picks the doc type and hence the section taxonomy. The doc type matched the gold type on **5/6** documents; section accuracy 0.566 (82/145), macro F1 0.508 (a wrong doc type usually means a different taxonomy, so its sections all count as wrong).
 
 | Document | Gold type | Auto type | Confidence | Taxonomy | Accuracy |
 | --- | --- | --- | --- | --- | --- |
-| doc_027 | `research.research_paper` | ✓ `research.research_paper` | 0.627 | `section_types/research_paper` | 0.364 |
-| doc_028 | `research.research_paper` | ✓ `research.research_paper` | 0.662 | `section_types/research_paper` | 0.286 |
-| doc_029 | `research.research_paper` | ✓ `research.research_paper` | 0.372 | `section_types/research_paper` | 0.278 |
-| doc_001 | `financial.annual_report` | ✓ `financial.annual_report` | 0.196 | `section_types/annual_report` | 0.417 |
-| doc_002 | `financial.annual_report` | ✓ `financial.annual_report` | 0.121 | `section_types/annual_report` | 0.316 |
+| doc_027 | `research.research_paper` | ✓ `research.research_paper` | 0.627 | `section_types/research_paper` | 0.864 |
+| doc_028 | `research.research_paper` | ✓ `research.research_paper` | 0.662 | `section_types/research_paper` | 0.643 |
+| doc_029 | `research.research_paper` | ✓ `research.research_paper` | 0.372 | `section_types/research_paper` | 0.667 |
+| doc_001 | `financial.annual_report` | ✓ `financial.annual_report` | 0.196 | `section_types/annual_report` | 0.375 |
+| doc_002 | `financial.annual_report` | ✓ `financial.annual_report` | 0.121 | `section_types/annual_report` | 0.553 |
 | doc_016 | `legal.contract` | ✗ `research.technical_standard` | 0.500 | `section_types/generic` | 0.000 |
 
 ### Per entry: doc_027 Attention Is All You Need
 
 | Page | Level | Section | Gold | `ultrabert` | `bge-small` | `jev` |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1 | Attention Is All You Need | *(junk)* | `introduction` | `related_work` | `introduction` |
-| 1 | 1 | Abstract | `abstract` | ✓ `abstract` | ✗ `experiments` | ✓ `abstract` |
-| 2 | 1 | 1 Introduction | `introduction` | ✓ `introduction` | ✗ `experiments` | ✓ `introduction` |
-| 2 | 1 | 2 Background | `related_work` | ✗ `background` | ✗ `experiments` | ✗ `background` |
-| 2 | 1 | 3 Model Architecture | `method` | ✗ `introduction` | ✗ `experiments` | ✓ `method` |
-| 3 | 2 | 3.1 Encoder and Decoder Stacks | `method` | ✗ `introduction` | ✗ `experiments` | ✓ `method` |
-| 3 | 2 | 3.2 Attention | `method` | ✗ `introduction` | ✗ `discussion` | ✗ `background` |
-| 5 | 2 | 3.3 Position-wise Feed-Forward Networks | `method` | ✗ `introduction` | ✗ `experiments` | ✓ `method` |
-| 5 | 2 | 3.4 Embeddings and Softmax | `method` | ✗ `introduction` | ✗ `experiments` | ✓ `method` |
-| 6 | 2 | 3.5 Positional Encoding | `method` | ✗ `introduction` | ✗ `experiments` | ✓ `method` |
-| 6 | 1 | 4 Why Self-Attention | `method` | ✗ `introduction` | ✗ `experiments` | ✓ `method` |
-| 7 | 1 | 5 Training | `experiments` | ✗ `introduction` | ✓ `experiments` | ✓ `experiments` |
+| 1 | 1 | Attention Is All You Need | *(junk)* | `introduction` | `background` | `introduction` |
+| 1 | 1 | Abstract | `abstract` | ✓ `abstract` | ✓ `abstract` | ✓ `abstract` |
+| 2 | 1 | 1 Introduction | `introduction` | ✓ `introduction` | ✓ `introduction` | ✓ `introduction` |
+| 2 | 1 | 2 Background | `related_work` | ✗ `background` | ✗ `background` | ✗ `background` |
+| 2 | 1 | 3 Model Architecture | `method` | ✓ `method` | ✓ `method` | ✓ `method` |
+| 3 | 2 | 3.1 Encoder and Decoder Stacks | `method` | ✓ `method` | ✗ `experiments` | ✓ `method` |
+| 3 | 2 | 3.2 Attention | `method` | ✓ `method` | ✗ `experiments` | ✓ `method` |
+| 5 | 2 | 3.3 Position-wise Feed-Forward Networks | `method` | ✓ `method` | ✗ `experiments` | ✓ `method` |
+| 5 | 2 | 3.4 Embeddings and Softmax | `method` | ✓ `method` | ✗ `experiments` | ✓ `method` |
+| 6 | 2 | 3.5 Positional Encoding | `method` | ✓ `method` | ✗ `experiments` | ✓ `method` |
+| 6 | 1 | 4 Why Self-Attention | `method` | ✗ `introduction` | ✗ `introduction` | ✓ `method` |
+| 7 | 1 | 5 Training | `experiments` | ✓ `experiments` | ✓ `experiments` | ✓ `experiments` |
 | 7 | 2 | 5.1 Training Data and Batching | `experiments` | ✓ `experiments` | ✓ `experiments` | ✓ `experiments` |
 | 7 | 2 | 5.2 Hardware and Schedule | `experiments` | ✓ `experiments` | ✓ `experiments` | ✓ `experiments` |
 | 7 | 2 | 5.3 Optimizer | `experiments` | ✓ `experiments` | ✓ `experiments` | ✓ `experiments` |
-| 7 | 2 | 5.4 Regularization | `experiments` | ✗ `introduction` | ✓ `experiments` | ✗ `method` |
-| 8 | 1 | 6 Results | `results` | ✓ `results` | ✗ `references` | ✓ `results` |
-| 8 | 2 | 6.1 Machine Translation | `results` | ✗ `introduction` | ✗ `experiments` | ✓ `results` |
-| 8 | 2 | 6.2 Model Variations | `results` | ✗ `experiments` | ✗ `experiments` | ✓ `results` |
-| 9 | 2 | 6.3 English Constituency Parsing | `results` | ✗ `experiments` | ✗ `experiments` | ✗ `experiments` |
-| 10 | 1 | 7 Conclusion | `conclusion` | ✓ `conclusion` | ✗ `experiments` | ✓ `conclusion` |
-| 10 | 1 | References | `references` | ✓ `references` | ✗ `experiments` | ✓ `references` |
-| 13 | 1 | Attention Visualizations | `appendix` | ✗ `introduction` | ✗ `experiments` | ✗ `results` |
+| 7 | 2 | 5.4 Regularization | `experiments` | ✓ `experiments` | ✓ `experiments` | ✓ `experiments` |
+| 8 | 1 | 6 Results | `results` | ✓ `results` | ✓ `results` | ✓ `results` |
+| 8 | 2 | 6.1 Machine Translation | `results` | ✓ `results` | ✗ `background` | ✓ `results` |
+| 8 | 2 | 6.2 Model Variations | `results` | ✓ `results` | ✗ `background` | ✓ `results` |
+| 9 | 2 | 6.3 English Constituency Parsing | `results` | ✓ `results` | ✗ `background` | ✓ `results` |
+| 10 | 1 | 7 Conclusion | `conclusion` | ✓ `conclusion` | ✓ `conclusion` | ✓ `conclusion` |
+| 10 | 1 | References | `references` | ✓ `references` | ✓ `references` | ✓ `references` |
+| 13 | 1 | Attention Visualizations | `appendix` | ✗ `experiments` | ✗ `experiments` | ✗ `results` |
 
 ### Per entry: doc_002 Tesla, Inc. Annual Report on Form 10-K for fiscal year 2023
 
 | Page | Level | Section | Gold | `ultrabert` | `bge-small` | `jev` |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1 | UNITED STATES SECURITIES AND EXCHANGE COMMISSION | *(junk)* | `controls_and_procedures` | `management_discussion` | `other` |
-| 1 | 1 | Washington, D.C. 20549 | *(junk)* | `properties` | `legal_proceedings` | `other` |
-| 1 | 1 | FORM 10-K | `other` | ✗ `controls_and_procedures` | ✗ `notes_to_financial_statements` | ✓ `other` |
-| 1 | 1 | Tesla, Inc. | `other` | ✗ `properties` | ✗ `market_for_equity` | ✓ `other` |
-| 3 | 2 | PART I. | *(junk)* | `risk_factors` | `risk_factors` | `business_overview` |
-| 3 | 2 | PART II. | *(junk)* | `market_for_equity` | `market_for_equity` | `market_for_equity` |
-| 3 | 2 | PART III. | *(junk)* | `executive_compensation` | `executive_compensation` | `corporate_governance` |
-| 3 | 2 | PART IV. | *(junk)* | `management_discussion` | `notes_to_financial_statements` | `other` |
+| 1 | 1 | UNITED STATES SECURITIES AND EXCHANGE COMMISSION | *(junk)* | `notes_to_financial_statements` | `management_discussion` | `other` |
+| 1 | 1 | Washington, D.C. 20549 | *(junk)* | `properties` | `exhibits` | `other` |
+| 1 | 1 | FORM 10-K | `other` | ✗ `business_overview` | ✓ `other` | ✓ `other` |
+| 1 | 1 | Tesla, Inc. | `other` | ✗ `business_overview` | ✗ `business_overview` | ✓ `other` |
+| 3 | 2 | PART I. | *(junk)* | `business_overview` | `business_overview` | `other` |
+| 3 | 2 | PART II. | *(junk)* | `management_discussion` | `management_discussion` | `other` |
+| 3 | 2 | PART III. | *(junk)* | `business_overview` | `management_discussion` | `other` |
+| 3 | 2 | PART IV. | *(junk)* | `other` | `management_discussion` | `other` |
 | 15 | 2 | ITEM 1A. RISK FACTORS | `risk_factors` | ✓ `risk_factors` | ✓ `risk_factors` | ✓ `risk_factors` |
-| 29 | 2 | ITEM 1B. UNRESOLVED STAFF COMMENTS | `other` | ✗ `risk_factors` | ✗ `risk_factors` | ✓ `other` |
+| 29 | 2 | ITEM 1B. UNRESOLVED STAFF COMMENTS | `other` | ✓ `other` | ✓ `other` | ✓ `other` |
 | 31 | 2 | ITEM 2. PROPERTIES | `properties` | ✓ `properties` | ✓ `properties` | ✓ `properties` |
 | 31 | 2 | ITEM 3. LEGAL PROCEEDINGS | `legal_proceedings` | ✓ `legal_proceedings` | ✓ `legal_proceedings` | ✓ `legal_proceedings` |
-| 31 | 2 | ITEM 4. MINE SAFETY DISCLOSURES | `other` | ✗ `controls_and_procedures` | ✗ `controls_and_procedures` | ✓ `other` |
+| 31 | 2 | ITEM 4. MINE SAFETY DISCLOSURES | `other` | ✓ `other` | ✓ `other` | ✓ `other` |
 | 32 | 2 | ITEM 5. MARKET FOR REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MAT | `market_for_equity` | ✓ `market_for_equity` | ✓ `market_for_equity` | ✓ `market_for_equity` |
 | 34 | 2 | ITEM 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AN | `management_discussion` | ✓ `management_discussion` | ✓ `management_discussion` | ✓ `management_discussion` |
-| 48 | 2 | Report of Independent Registered Public Accounting Firm | `financial_statements` | ✗ `controls_and_procedures` | ✗ `controls_and_procedures` | ✓ `financial_statements` |
-| 50 | 2 | Consolidated Balance Sheets | `financial_statements` | ✓ `financial_statements` | ✗ `notes_to_financial_statements` | ✓ `financial_statements` |
-| 52 | 2 | Consolidated Statements of Comprehensive Income (in millions) | `financial_statements` | ✗ `controls_and_procedures` | ✗ `notes_to_financial_statements` | ✓ `financial_statements` |
-| 53 | 2 | Consolidated Statements of Redeemable Noncontrolling Interests and Equ | `financial_statements` | ✗ `market_for_equity` | ✗ `market_for_equity` | ✓ `financial_statements` |
-| 56 | 2 | Notes to Consolidated Financial Statements | `notes_to_financial_statements` | ✓ `notes_to_financial_statements` | ✗ `market_for_equity` | ✓ `notes_to_financial_statements` |
+| 48 | 2 | Report of Independent Registered Public Accounting Firm | `financial_statements` | ✓ `financial_statements` | ✓ `financial_statements` | ✓ `financial_statements` |
+| 50 | 2 | Consolidated Balance Sheets | `financial_statements` | ✓ `financial_statements` | ✓ `financial_statements` | ✓ `financial_statements` |
+| 52 | 2 | Consolidated Statements of Comprehensive Income (in millions) | `financial_statements` | ✓ `financial_statements` | ✓ `financial_statements` | ✓ `financial_statements` |
+| 53 | 2 | Consolidated Statements of Redeemable Noncontrolling Interests and Equ | `financial_statements` | ✓ `financial_statements` | ✗ `market_for_equity` | ✓ `financial_statements` |
+| 56 | 2 | Notes to Consolidated Financial Statements | `notes_to_financial_statements` | ✓ `notes_to_financial_statements` | ✓ `notes_to_financial_statements` | ✓ `notes_to_financial_statements` |
 | 77 | 2 | 2024 Notes | `notes_to_financial_statements` | ✓ `notes_to_financial_statements` | ✓ `notes_to_financial_statements` | ✓ `notes_to_financial_statements` |
-| 84 | 2 | 2018 CEO Performance Award | `notes_to_financial_statements` | ✗ `executive_compensation` | ✗ `executive_compensation` | ✗ `executive_compensation` |
-| 95 | 2 | ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AN | `other` | ✗ `controls_and_procedures` | ✗ `controls_and_procedures` | ✓ `other` |
+| 84 | 2 | 2018 CEO Performance Award | `notes_to_financial_statements` | ✗ `shareholder_letter` | ✗ `shareholder_letter` | ✗ `executive_compensation` |
+| 95 | 2 | ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AN | `other` | ✗ `controls_and_procedures` | ✗ `management_discussion` | ✓ `other` |
 | 95 | 2 | ITEM 9A. CONTROLS AND PROCEDURES | `controls_and_procedures` | ✓ `controls_and_procedures` | ✓ `controls_and_procedures` | ✓ `controls_and_procedures` |
-| 96 | 2 | ITEM 9B. OTHER INFORMATION | `other` | ✗ `controls_and_procedures` | ✗ `controls_and_procedures` | ✓ `other` |
-| 96 | 2 | ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPE | `other` | ✗ `controls_and_procedures` | ✗ `controls_and_procedures` | ✓ `other` |
-| 97 | 2 | ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE | `corporate_governance` | ✓ `corporate_governance` | ✗ `controls_and_procedures` | ✓ `corporate_governance` |
-| 97 | 2 | ITEM 11. EXECUTIVE COMPENSATION | `executive_compensation` | ✗ `controls_and_procedures` | ✓ `executive_compensation` | ✓ `executive_compensation` |
-| 97 | 2 | ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMEN | `corporate_governance` | ✗ `controls_and_procedures` | ✗ `market_for_equity` | ✓ `corporate_governance` |
-| 97 | 2 | ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS AND DIRECTOR I | `corporate_governance` | ✗ `controls_and_procedures` | ✗ `controls_and_procedures` | ✓ `corporate_governance` |
-| 97 | 2 | ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES | `other` | ✗ `controls_and_procedures` | ✗ `controls_and_procedures` | ✓ `other` |
-| 98 | 2 | ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES | `exhibits` | ✓ `exhibits` | ✗ `notes_to_financial_statements` | ✓ `exhibits` |
-| 113 | 2 | ITEM 16. SUMMARY | `exhibits` | ✓ `exhibits` | ✗ `market_for_equity` | ✓ `exhibits` |
-| 124 | 2 | SECTION 1350 CERTIFICATIONS | `exhibits` | ✗ `controls_and_procedures` | ✗ `management_discussion` | ✗ `other` |
-| 125 | 1 | CLAWBACK POLICY | `exhibits` | ✗ `executive_compensation` | ✗ `executive_compensation` | ✗ `corporate_governance` |
-| 125 | 1 | 1. Definitions | `exhibits` | ✗ `executive_compensation` | ✗ `executive_compensation` | ✗ `executive_compensation` |
-| 127 | 1 | 2. Recoupment of Erroneously Awarded Compensation | `exhibits` | ✗ `controls_and_procedures` | ✗ `executive_compensation` | ✗ `corporate_governance` |
-| 127 | 1 | 3. Means of Repayment | `exhibits` | ✗ `legal_proceedings` | ✗ `shareholder_letter` | ✗ `executive_compensation` |
-| 128 | 1 | 4. No Indemnification | `exhibits` | ✗ `controls_and_procedures` | ✗ `executive_compensation` | ✗ `corporate_governance` |
-| 128 | 1 | 5. Miscellaneous | `exhibits` | ✗ `corporate_governance` | ✗ `corporate_governance` | ✗ `other` |
-| 129 | 1 | 6. Amendment and Termination | `exhibits` | ✗ `controls_and_procedures` | ✗ `notes_to_financial_statements` | ✗ `corporate_governance` |
-| 129 | 1 | 7. Successors | `exhibits` | ✗ `controls_and_procedures` | ✗ `executive_compensation` | ✗ `executive_compensation` |
+| 96 | 2 | ITEM 9B. OTHER INFORMATION | `other` | ✓ `other` | ✗ `business_overview` | ✓ `other` |
+| 96 | 2 | ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPE | `other` | ✓ `other` | ✓ `other` | ✓ `other` |
+| 97 | 2 | ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE | `corporate_governance` | ✓ `corporate_governance` | ✓ `corporate_governance` | ✓ `corporate_governance` |
+| 97 | 2 | ITEM 11. EXECUTIVE COMPENSATION | `executive_compensation` | ✓ `executive_compensation` | ✓ `executive_compensation` | ✓ `executive_compensation` |
+| 97 | 2 | ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMEN | `corporate_governance` | ✓ `corporate_governance` | ✗ `market_for_equity` | ✗ `market_for_equity` |
+| 97 | 2 | ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS AND DIRECTOR I | `corporate_governance` | ✗ `notes_to_financial_statements` | ✗ `market_for_equity` | ✓ `corporate_governance` |
+| 97 | 2 | ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES | `other` | ✗ `financial_statements` | ✗ `notes_to_financial_statements` | ✓ `other` |
+| 98 | 2 | ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES | `exhibits` | ✓ `exhibits` | ✓ `exhibits` | ✓ `exhibits` |
+| 113 | 2 | ITEM 16. SUMMARY | `exhibits` | ✓ `exhibits` | ✓ `exhibits` | ✓ `exhibits` |
+| 124 | 2 | SECTION 1350 CERTIFICATIONS | `exhibits` | ✗ `notes_to_financial_statements` | ✗ `corporate_governance` | ✗ `controls_and_procedures` |
+| 125 | 1 | CLAWBACK POLICY | `exhibits` | ✗ `sustainability` | ✗ `market_for_equity` | ✗ `corporate_governance` |
+| 125 | 1 | 1. Definitions | `exhibits` | ✗ `other` | ✗ `business_overview` | ✗ `other` |
+| 127 | 1 | 2. Recoupment of Erroneously Awarded Compensation | `exhibits` | ✗ `executive_compensation` | ✗ `executive_compensation` | ✗ `executive_compensation` |
+| 127 | 1 | 3. Means of Repayment | `exhibits` | ✗ `notes_to_financial_statements` | ✗ `notes_to_financial_statements` | ✗ `other` |
+| 128 | 1 | 4. No Indemnification | `exhibits` | ✗ `other` | ✗ `other` | ✗ `other` |
+| 128 | 1 | 5. Miscellaneous | `exhibits` | ✗ `other` | ✗ `other` | ✗ `other` |
+| 129 | 1 | 6. Amendment and Termination | `exhibits` | ✗ `management_discussion` | ✗ `other` | ✗ `other` |
+| 129 | 1 | 7. Successors | `exhibits` | ✗ `corporate_governance` | ✗ `other` | ✗ `management_discussion` |
 | 129 | 1 | 8. Agreement to Arbitrate; Governing Law; Venue | `exhibits` | ✗ `legal_proceedings` | ✗ `legal_proceedings` | ✗ `other` |
-| 130 | 1 | CLAWBACK POLICY ACKNOWLEDGMENT, CONSENT AND AGREEMENT | `exhibits` | ✗ `controls_and_procedures` | ✗ `notes_to_financial_statements` | ✗ `corporate_governance` |
-| 130 | 1 | Signed: Print Name: Date: | *(junk)* | `properties` | `notes_to_financial_statements` | `exhibits` |
+| 130 | 1 | CLAWBACK POLICY ACKNOWLEDGMENT, CONSENT AND AGREEMENT | `exhibits` | ✗ `notes_to_financial_statements` | ✗ `other` | ✗ `corporate_governance` |
+| 130 | 1 | Signed: Print Name: Date: | *(junk)* | `exhibits` | `exhibits` | `exhibits` |
 <!-- normalize-benchmark:end -->

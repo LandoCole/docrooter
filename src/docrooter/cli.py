@@ -11,7 +11,9 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from docrooter.errors import TaxonomyError
+from docrooter.classify.classifier import DEFAULT_BACKEND
+from docrooter.classify.strategies import Beam, Flat, Greedy
+from docrooter.errors import DocrooterError, TaxonomyError
 from docrooter.taxonomy import Taxonomy, TaxonomyIssue, validate_nodes
 
 app = typer.Typer(no_args_is_help=True, help="Document TOC extraction and section classification.")
@@ -40,6 +42,84 @@ def toc(
         return
     for entry in entries:
         typer.echo("  " * entry.depth + entry.title)
+
+
+def _parse_strategy(value: str) -> Greedy | Beam | Flat:
+    """``greedy``, ``beam:N`` or ``flat`` to a strategy; anything else is a usage error."""
+    name, _, arg = value.strip().lower().partition(":")
+    if name == "greedy" and not arg:
+        return Greedy()
+    if name == "flat" and not arg:
+        return Flat()
+    if name == "beam" and arg.isdigit() and int(arg) >= 1:
+        return Beam(int(arg))
+    raise typer.BadParameter(
+        f"invalid strategy {value!r}; use 'greedy', 'beam:N' (N >= 1) or 'flat'",
+        param_hint="--strategy",
+    )
+
+
+@app.command()
+def classify(
+    file: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Document to read.")
+    ],
+    taxonomy: Annotated[
+        Path,
+        typer.Option(
+            "--taxonomy",
+            "-t",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Taxonomy file (JSON or CSV).",
+        ),
+    ],
+    backend: Annotated[
+        str, typer.Option("--backend", "-b", help="Backend spec, e.g. keyword or embedding:MODEL.")
+    ] = DEFAULT_BACKEND,
+    strategy: Annotated[str, typer.Option(help="Traversal: greedy, beam:N or flat.")] = "beam:3",
+    instruction: Annotated[
+        str | None, typer.Option(help="Instruction passed to backends that accept one.")
+    ] = None,
+    threshold: Annotated[float, typer.Option(help="Minimum probability to follow a label.")] = 0.35,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", "-o", dir_okay=False, help="Write JSON here and print a table."),
+    ] = None,
+) -> None:
+    """Classify a document's sections against a taxonomy; JSON to stdout unless --out is given."""
+    from docrooter.classify.classifier import Classifier
+    from docrooter.document.load import load
+
+    chosen = _parse_strategy(strategy)
+    console = Console(highlight=False)
+    try:
+        doc = load(file)
+        classifier = Classifier(
+            Taxonomy.load(taxonomy),
+            backend,
+            strategy=chosen,
+            instruction=instruction,
+            threshold=threshold,
+        )
+        result = classifier.classify(doc)
+    except (DocrooterError, ImportError) as exc:
+        Console(stderr=True, highlight=False).print(Text(f"error: {exc}", style="red"))
+        raise typer.Exit(1) from exc
+
+    if out is None:
+        typer.echo(result.to_json())
+        return
+    out.write_text(result.to_json(), encoding="utf-8")
+    table = Table("Section", "Path", "Score")
+    for section in result.sections.values():
+        best = section.best
+        # Text, not str: titles and labels may contain "[...]" that rich would read as markup.
+        path = " > ".join(best.labels) if best and best.labels else "-"
+        table.add_row(Text(section.title), Text(path), f"{best.score:.2f}" if best else "-")
+    console.print(table)
+    console.print(Text(f"wrote {out}"))
 
 
 @taxonomy_app.callback()

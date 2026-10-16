@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
+
+from docrooter._extras import require
 
 
 class Step(BaseModel):
@@ -66,3 +70,43 @@ class DocumentResult(BaseModel):
 
     source: str
     sections: dict[str, SectionResult]
+
+    def summary(self, depth: int = 1) -> dict[str, float]:
+        """Share of the document (by tokens) in each label at 1-based ``depth``.
+
+        Every section whose best path reaches ``depth`` adds its ``n_tokens`` to the label found
+        there; shares are normalised to sum to 1. Empty when no section contributes any weight.
+        """
+        if depth < 1:
+            raise ValueError(f"depth must be at least 1, got {depth}")
+        weights: dict[str, float] = {}
+        for result in self.sections.values():
+            if result.best is not None and len(result.best.labels) >= depth:
+                label = result.best.labels[depth - 1]
+                weights[label] = weights.get(label, 0.0) + result.n_tokens
+        total = sum(weights.values())
+        if total <= 0:
+            return {}
+        return {label: weight / total for label, weight in weights.items()}
+
+    def to_json(self, indent: int | None = 2) -> str:
+        """The result as JSON; ``DocumentResult.model_validate_json`` reads it back."""
+        return self.model_dump_json(indent=indent)
+
+    def to_dataframe(self) -> Any:
+        """One row per section: section_id, title, path (labels joined by ``" > "``), score and
+        stopped_reason of the best path. Needs pandas (``pip install 'docrooter[bench]'``)."""
+        pd = require("pandas", "bench")
+        rows = [
+            {
+                "section_id": r.section_id,
+                "title": r.title,
+                "path": " > ".join(r.best.labels) if r.best else "",
+                "score": r.best.score if r.best else None,
+                "stopped_reason": r.best.stopped_reason if r.best else None,
+            }
+            for r in self.sections.values()
+        ]
+        return pd.DataFrame(
+            rows, columns=["section_id", "title", "path", "score", "stopped_reason"]
+        )

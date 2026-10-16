@@ -15,8 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from docrooter.backends.base import Backend, Candidate, candidate_text, to_probs
 from docrooter.classify._beams import PartialPath, TreeResult, collect, prune
-from docrooter.classify.results import Step
-from docrooter.classify.strategies import Beam, Greedy
+from docrooter.classify.results import PathResult, Step
+from docrooter.classify.strategies import Beam, Flat, Greedy
 from docrooter.errors import BackendError
 from docrooter.taxonomy import Taxonomy, TaxonomyNode
 
@@ -82,6 +82,78 @@ def run_tree(
     return collect(beams, list(texts), taxonomy, width)
 
 
+def run_flat(
+    texts: dict[str, str],
+    taxonomy: Taxonomy,
+    backend: Backend | None,
+    strategy: Flat,
+    settings: EngineSettings,
+) -> dict[str, TreeResult]:
+    """Score every leaf (or every node, with ``strategy.allow_internal``) of each text at once.
+
+    Candidates carry their full path (``"A > Other"``), so the same label in different branches
+    stays distinct. The argmax node, if its probability reaches the threshold (the root's own
+    ``threshold`` when it has one), is ``best``: its path from the top level down with a single
+    ``Step`` at the root, and ``selected == [best]``. Otherwise ``best`` is an empty path
+    stopped as ``"low_confidence"``, ``selected == []``, and ``alternatives`` start from the
+    argmax. ``alternatives`` are the next ``TOP_K_PROBS`` candidates by probability. A ``None``
+    backend (nothing can score the root) gives every text an empty ``"no_backend"`` path.
+    """
+    if backend is None:
+        stopped = PathResult(node_ids=[], stopped_reason="no_backend")
+        return {key: (stopped, [], []) for key in texts}
+    nodes = list(taxonomy.nodes.values()) if strategy.allow_internal else taxonomy.leaves()
+    candidates = [
+        Candidate(n.id, candidate_text(n, taxonomy=taxonomy, full_path=True), tuple(n.examples))
+        for n in nodes
+    ]
+    keys = list(texts)
+    probs = _score_candidates(
+        backend, [texts[k] for k in keys], candidates, settings, multi_label=False, where="the root"
+    )
+    root_threshold = taxonomy.node(Taxonomy.ROOT_ID).threshold
+    threshold = root_threshold if root_threshold is not None else settings.threshold
+
+    results: dict[str, TreeResult] = {}
+    for key, row in zip(keys, probs, strict=True):
+        # sorted() is stable, so equal probabilities keep the taxonomy's node order.
+        ranked = sorted(((n.id, float(p)) for n, p in zip(nodes, row, strict=True)), key=_by_prob)
+        if not ranked:
+            results[key] = (PathResult(node_ids=[], stopped_reason="low_confidence"), [], [])
+            continue
+        shown = dict(ranked[:TOP_K_PROBS])
+        paths = [_flat_path(node_id, p, shown, backend.name, taxonomy) for node_id, p in ranked]
+        if ranked[0][1] >= threshold:
+            results[key] = (paths[0], paths[1 : 1 + TOP_K_PROBS], [paths[0]])
+        else:
+            stopped = PathResult(node_ids=[], stopped_reason="low_confidence")
+            results[key] = (stopped, paths[:TOP_K_PROBS], [])
+    return results
+
+
+def _by_prob(item: tuple[str, float]) -> float:
+    return -item[1]
+
+
+def _flat_path(
+    node_id: str, p: float, shown: dict[str, float], backend_name: str, taxonomy: Taxonomy
+) -> PathResult:
+    """The path to ``node_id`` as one ``Step`` at the root; ``shown`` always includes the pick."""
+    probs = shown if node_id in shown else {**shown, node_id: p}
+    nodes = taxonomy.path(node_id)
+    return PathResult(
+        node_ids=[n.id for n in nodes],
+        labels=[n.label for n in nodes],
+        score=p,
+        steps=[
+            Step(
+                node_id=Taxonomy.ROOT_ID, chosen=[node_id], probs=dict(probs), backend=backend_name
+            )
+        ],
+        stopped_reason=None,
+    )
+
+
 def decide(
     texts: Sequence[str],
     node_id: str,
@@ -101,7 +173,7 @@ def decide(
         raise ValueError(f"node {node_id!r} is a leaf; there is no decision to make")
     if len(children) == 1:
         return child_ids, np.ones((len(texts), 1)), AUTO_BACKEND
-    backend = _pick_backend(router, node_id, len(children))
+    backend = pick_backend(router, node_id, len(children))
     if backend is None:
         raise BackendError(
             f"no backend can decide at node {node_id!r} ({len(children)} children): none of "
@@ -136,7 +208,7 @@ def _advance(
             out.append([beam.extend(step, 1.0, fan_out=False)])
         else:
             if node.id not in backends:
-                backends[node.id] = _pick_backend(router, node.id, len(children))
+                backends[node.id] = pick_backend(router, node.id, len(children))
             backend = backends[node.id]
             if backend is None:
                 out.append([beam.stop("no_backend")])
@@ -197,7 +269,7 @@ def _expand(
     ]
 
 
-def _pick_backend(router: Router, node_id: str, n_candidates: int) -> Backend | None:
+def pick_backend(router: Router, node_id: str, n_candidates: int) -> Backend | None:
     """The first routed backend that supports the node and accepts ``n_candidates``."""
     for backend in router(node_id):
         if backend.supports(node_id) and (
@@ -216,18 +288,34 @@ def _score(
 ) -> np.ndarray:
     """Probabilities of shape ``(len(texts), len(children))``, scored in mini-batches."""
     candidates = [Candidate(c.id, candidate_text(c), tuple(c.examples)) for c in children]
+    where = f"node {node.id!r}"
+    return _score_candidates(
+        backend, texts, candidates, settings, multi_label=node.multi_label, where=where
+    )
+
+
+def _score_candidates(
+    backend: Backend,
+    texts: list[str],
+    candidates: list[Candidate],
+    settings: EngineSettings,
+    *,
+    multi_label: bool,
+    where: str,
+) -> np.ndarray:
+    """Probabilities of shape ``(len(texts), len(candidates))``, one ``score`` call per batch."""
     temperature = settings.temperatures.get(backend.name, backend.temperature)
     parts = []
     for start in range(0, len(texts), settings.batch_size):
         batch = texts[start : start + settings.batch_size]
         scores = backend.score(
-            batch, candidates, instruction=settings.instruction, multi_label=node.multi_label
+            batch, candidates, instruction=settings.instruction, multi_label=multi_label
         )
         expected = (len(batch), len(candidates))
         if np.shape(scores.values) != expected:
             raise BackendError(
                 f"backend {backend.name!r} returned scores of shape {np.shape(scores.values)} "
-                f"at node {node.id!r}; expected {expected}"
+                f"at {where}; expected {expected}"
             )
-        parts.append(to_probs(scores, temperature=temperature, multi_label=node.multi_label))
+        parts.append(to_probs(scores, temperature=temperature, multi_label=multi_label))
     return np.concatenate(parts) if parts else np.zeros((0, len(candidates)))

@@ -39,9 +39,10 @@ def load(
     file, a missing file (``FileNotFoundError``) if it has a known extension (``.md``,
     ``.markdown``, ``.txt``, ``.pdf``), and Markdown text in every other case.
     ``.pdf`` files go to :func:`docrooter.pdf.load.load_pdf`, which also takes ``pdf_options``
-    (``engine``, ``use_bookmarks``, ``use_printed_toc``); other files are read as UTF-8
-    Markdown. Headings are extracted, validated (scores below ``min_heading_score`` are merged
-    into the preceding text), and, if ``repair`` is true, have their levels repaired.
+    (``engine``, ``use_bookmarks``, ``use_printed_toc``, ``max_pages``); other files are read
+    as UTF-8 Markdown. Headings are extracted, validated (scores below ``min_heading_score``
+    are merged into the preceding text), and, if ``repair`` is true, have their levels
+    repaired.
     ``min_heading_score`` defaults to 0.5 for Markdown and 0.55 for PDF.
     """
     path: Path | None

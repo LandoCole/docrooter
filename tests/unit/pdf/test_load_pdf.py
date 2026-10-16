@@ -337,8 +337,9 @@ def test_pymupdf4llm_defaults_to_the_v01_score(monkeypatch, toc_pdf):
 
     seen = {}
 
-    def fake(path, *, min_heading_score, repair):
+    def fake(path, *, min_heading_score, repair, max_pages):
         seen["score"] = min_heading_score
+        seen["max_pages"] = max_pages
         raise DocrooterError("stop")
 
     monkeypatch.setattr(legacy, "_load_pdf_pymupdf4llm", fake)
@@ -346,8 +347,8 @@ def test_pymupdf4llm_defaults_to_the_v01_score(monkeypatch, toc_pdf):
         load_pdf(toc_pdf, engine="pymupdf4llm")
     assert seen["score"] == 0.5
     with pytest.raises(DocrooterError):
-        load_pdf(toc_pdf, engine="pymupdf4llm", min_heading_score=0.7)
-    assert seen["score"] == 0.7
+        load_pdf(toc_pdf, engine="pymupdf4llm", min_heading_score=0.7, max_pages=2)
+    assert seen["score"] == 0.7 and seen["max_pages"] == 2
 
 
 def test_dot_leader_table_keeps_its_body_text_and_contents_page_still_leaves(tmp_path):
@@ -367,3 +368,44 @@ def test_dot_leader_table_keeps_its_body_text_and_contents_page_still_leaves(tmp
     assert all(label in text for label in labels) and "$65,105" in text
     assert "Outlook" not in text  # the real contents page is still removed from the body
     assert doc.meta["printed_toc_entries"] == 3
+
+
+@pytest.mark.parametrize("engine", ["pymupdf", "pdfplumber", "both"])
+def test_max_pages_skips_later_pages_and_warns(toc_pdf, engine):
+    if engine != "pymupdf":
+        pytest.importorskip("pdfplumber")
+    doc = load_pdf(toc_pdf, engine=engine, max_pages=2)
+    titles = [e.title for e in doc.toc()]
+    assert titles == ["Introduction", "Background", "Methods", "Data Sources"]
+    assert "Results" not in " ".join(s.text for s in doc.walk())
+    assert doc.meta["n_pages"] == 3 and doc.meta["warnings"] == ["truncated_pages"]
+    whole = load_pdf(toc_pdf, engine=engine, max_pages=3)
+    assert whole.meta["warnings"] == [] and whole.toc()[-1].title == "Results"
+
+
+def test_max_pages_drops_bookmarks_past_the_cap(toc_pdf, tmp_path):
+    doc = pymupdf.open(str(toc_pdf))
+    doc.set_toc([[1, "Introduction", 1], [1, "Methods", 2], [1, "Results", 3]])
+    path = _write(doc, tmp_path / "bookmarked.pdf")
+    assert load_pdf(path, engine="pymupdf", max_pages=2).meta["bookmarks"] == 2
+
+
+def test_max_pages_must_be_positive(toc_pdf):
+    with pytest.raises(ValueError, match="max_pages"):
+        load_pdf(toc_pdf, max_pages=0)
+
+
+def test_pdfplumber_closes_every_page(toc_pdf, monkeypatch):
+    pytest.importorskip("pdfplumber")
+    from pdfplumber.page import Page
+
+    closed = []
+    real_close = Page.close
+
+    def spy(self):
+        closed.append(self.page_number)
+        real_close(self)
+
+    monkeypatch.setattr(Page, "close", spy)
+    load_pdf(toc_pdf, engine="pdfplumber", max_pages=2)
+    assert closed[:2] == [1, 2]  # each page as soon as it is read

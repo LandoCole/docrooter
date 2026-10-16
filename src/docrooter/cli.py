@@ -6,7 +6,7 @@ import json
 import os
 import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
@@ -24,6 +24,7 @@ from docrooter.errors import DocrooterError, TaxonomyError
 from docrooter.taxonomy import Taxonomy, TaxonomyIssue, validate_nodes
 
 if TYPE_CHECKING:
+    from docrooter.classify.classifier import Classifier
     from docrooter.classify.results import DocTypeResult
 
 app = typer.Typer(no_args_is_help=True, help="Document TOC extraction and section classification.")
@@ -462,17 +463,23 @@ def _expand_paths(paths: list[Path]) -> list[Path]:
     return list(out)
 
 
-def _parse_one(path: str, engine: str) -> tuple[dict | None, float, str | None]:
+def _parse_one(
+    path: str, engine: str, max_pages: int | None = None
+) -> tuple[dict | None, float, str | None]:
     """Load one file: ``(Document.model_dump(), seconds, None)`` or ``(None, seconds, error)``.
 
     Module level and picklable results, so a process pool can run it. Never raises: a bad file
     must not stop the batch. The error message does not repeat the path (rows show it).
+    ``max_pages`` caps the pages read from a PDF.
     """
     from docrooter.document.load import load
 
     started = time.perf_counter()
     try:
-        doc = load(Path(path), engine=engine) if path.lower().endswith(".pdf") else load(Path(path))
+        if path.lower().endswith(".pdf"):
+            doc = load(Path(path), engine=engine, max_pages=max_pages)
+        else:
+            doc = load(Path(path))
         return doc.model_dump(), time.perf_counter() - started, None
     except Exception as exc:
         message = _without_path(str(exc) or type(exc).__name__, path)
@@ -489,48 +496,69 @@ def _without_path(message: str, path: str) -> str:
 _Parsed = tuple[dict | None, float, str | None]
 
 
-def _parse_all(paths: list[Path], engine: str, workers: int) -> list[_Parsed]:
-    """Parse every file, in ``workers`` processes when there are several files. If a worker
-    dies (``BrokenProcessPool``), the files without a result are parsed again in this
-    process, one by one."""
+def _parse_chunks(
+    paths: list[Path],
+    engine: str,
+    workers: int,
+    chunk_size: int,
+    max_pages: int | None = None,
+) -> Iterator[list[_Parsed]]:
+    """Parse the files ``chunk_size`` at a time, yielding each chunk's results in order, so
+    only one chunk of parsed documents is held at once.
+
+    With several ``workers`` and files, one process pool serves every chunk. If a worker dies
+    (``BrokenProcessPool``), the files without a result, and every later chunk, are parsed in
+    this process, one by one.
+    """
     names = [str(p) for p in paths]
-    if workers <= 1 or len(paths) <= 1:
-        return _parse_remaining(names, engine)
+    chunks = [names[i : i + chunk_size] for i in range(0, len(names), chunk_size)]
+    if workers <= 1 or len(names) <= 1:
+        for chunk in chunks:
+            yield _parse_remaining(chunk, engine, max_pages=max_pages)
+        return
     import concurrent.futures
     from concurrent.futures import BrokenExecutor
 
-    parsed: list[_Parsed | None] = [None] * len(names)
-    try:
-        with concurrent.futures.ProcessPoolExecutor(max_workers=min(workers, len(paths))) as pool:
-            futures = [pool.submit(_parse_one, name, engine) for name in names]
-            for i, future in enumerate(futures):
-                parsed[i] = future.result()
-    except BrokenExecutor:
-        pass
-    todo = [i for i, result in enumerate(parsed) if result is None]
-    if todo:
-        Console(stderr=True, highlight=False).print(
-            Text(
-                f"warning: a parser process died; parsing the remaining {len(todo)} file(s) "
-                "in this process",
-                style="yellow",
-            ),
-            soft_wrap=True,
-        )
-        for i, result in zip(todo, _parse_remaining([names[i] for i in todo], engine), strict=True):
-            parsed[i] = result
-    return [result for result in parsed if result is not None]
+    broken = False
+    with concurrent.futures.ProcessPoolExecutor(max_workers=min(workers, len(names))) as pool:
+        for n, chunk in enumerate(chunks):
+            parsed: list[_Parsed | None] = [None] * len(chunk)
+            if not broken:
+                try:
+                    futures = [pool.submit(_parse_one, name, engine, max_pages) for name in chunk]
+                    for i, future in enumerate(futures):
+                        parsed[i] = future.result()
+                except BrokenExecutor:
+                    broken = True
+                    left = sum(r is None for r in parsed) + sum(map(len, chunks[n + 1 :]))
+                    Console(stderr=True, highlight=False).print(
+                        Text(
+                            f"warning: a parser process died; parsing the remaining {left} "
+                            "file(s) in this process",
+                            style="yellow",
+                        ),
+                        soft_wrap=True,
+                    )
+            todo = [i for i, result in enumerate(parsed) if result is None]
+            redone = _parse_remaining([chunk[i] for i in todo], engine, max_pages=max_pages)
+            for i, result in zip(todo, redone, strict=True):
+                parsed[i] = result
+            yield [result for result in parsed if result is not None]
 
 
 def _parse_remaining(
-    names: list[str], engine: str, parse: Callable[[str, str], _Parsed] = _parse_one
+    names: list[str],
+    engine: str,
+    parse: Callable[..., _Parsed] = _parse_one,
+    *,
+    max_pages: int | None = None,
 ) -> list[_Parsed]:
     """Parse ``names`` in this process; a file whose parser raises anyway becomes an error."""
     out: list[_Parsed] = []
     for name in names:
         started = time.perf_counter()
         try:
-            out.append(parse(name, engine))
+            out.append(parse(name, engine, max_pages))
         except Exception as exc:  # noqa: BLE001 - one bad file must not stop the batch
             message = _without_path(str(exc) or type(exc).__name__, name)
             out.append((None, time.perf_counter() - started, message))
@@ -585,6 +613,24 @@ class _DocRow:
         return Text(" > ".join(best.labels)), confidence, parse, classify
 
 
+def _classify_chunk(
+    classifier: Classifier, files: list[Path], parsed: list[_Parsed], mode: str, threshold: float
+) -> list[_DocRow]:
+    """One row per file of a chunk, classifying the files that parsed."""
+    from docrooter.document import Document
+
+    indexes = [i for i, (data, _, _) in enumerate(parsed) if data is not None]
+    results: dict[int, DocTypeResult] = {}
+    if indexes:
+        docs = [Document.model_validate(parsed[i][0]) for i in indexes]
+        classified = classifier.classify_documents(docs, mode=mode, threshold=threshold)
+        results = dict(zip(indexes, classified, strict=True))
+    return [
+        _DocRow(str(path), parse_s, error, results.get(i))
+        for i, (path, (_, parse_s, error)) in enumerate(zip(files, parsed, strict=True))
+    ]
+
+
 @app.command()
 def doctype(
     paths: Annotated[
@@ -626,11 +672,24 @@ def doctype(
     threshold: Annotated[
         float, typer.Option(help="Minimum confidence to assign a type (0 always labels).")
     ] = 0.0,
+    chunk_size: Annotated[
+        int,
+        typer.Option(
+            "--chunk-size", min=1, help="Files parsed and classified together (bounds memory)."
+        ),
+    ] = 32,
+    max_pages: Annotated[
+        int | None,
+        typer.Option("--max-pages", min=1, help="Read at most this many pages of each PDF."),
+    ] = None,
 ) -> None:
-    """Classify each document's type; a table by default, JSONL with --jsonl."""
+    """Classify each document's type; a table by default, JSONL with --jsonl.
+
+    Files are handled --chunk-size at a time (parsed, classified, written, then dropped), so
+    memory does not grow with the number of files.
+    """
     from docrooter.classify.classifier import Classifier
     from docrooter.classify.documents import MODES
-    from docrooter.document import Document
     from docrooter.pdf.load import ENGINES
 
     if mode not in MODES:
@@ -654,42 +713,47 @@ def doctype(
         if not files:
             raise ValueError("no .pdf, .md or .txt files found")
 
-        parsed = _parse_all(files, engine, workers)
-        indexes = [i for i, (data, _, _) in enumerate(parsed) if data is not None]
-        docs = [Document.model_validate(parsed[i][0]) for i in indexes]
-        results = {}
-        if docs:
-            classifier = Classifier(tax, backend)
-            classified = classifier.classify_documents(docs, mode=mode, threshold=threshold)
-            results = dict(zip(indexes, classified, strict=True))
-
-        rows = [
-            _DocRow(str(path), parse_s, error, results.get(i))
-            for i, (path, (_, parse_s, error)) in enumerate(zip(files, parsed, strict=True))
-        ]
-        if keep_ids:
-            wanted = set(keep_ids)
-            for row in rows:
-                if row.error is not None:
-                    Console(stderr=True, highlight=False).print(
-                        Text(f"warning: {row.source}: {row.error}", style="yellow"), soft_wrap=True
-                    )
-            shown = [r for r in rows if wanted & set(r.node_ids)]
-        else:
-            shown = rows
-        if jsonl is not None:
-            lines = (json.dumps(r.record(), ensure_ascii=False) for r in shown)
-            jsonl.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
+        wanted = set(keep_ids)
+        warn = Console(stderr=True, highlight=False)
+        # (path, parsed without error, table cells): all a row needs once its chunk is gone
+        shown: list[tuple[str, bool, tuple[Text, str, str, str]]] = []
+        out = jsonl.open("w", encoding="utf-8") if jsonl is not None else None
+        try:
+            with (
+                Classifier(tax, backend) as classifier,
+                closing(_parse_chunks(files, engine, workers, chunk_size, max_pages)) as chunks,
+            ):
+                for start, parsed in zip(range(0, len(files), chunk_size), chunks, strict=True):
+                    batch = files[start : start + chunk_size]
+                    rows = _classify_chunk(classifier, batch, parsed, mode, threshold)
+                    del parsed  # the documents: only the rows' results outlive the chunk
+                    for row in rows:
+                        if keep_ids:
+                            if row.error is not None:
+                                warn.print(
+                                    Text(f"warning: {row.source}: {row.error}", style="yellow"),
+                                    soft_wrap=True,
+                                )
+                            if not wanted & set(row.node_ids):
+                                continue
+                        if out is not None:
+                            out.write(json.dumps(row.record(), ensure_ascii=False) + "\n")
+                        shown.append((row.source, row.error is None, row.cells()))
+                    if out is not None:
+                        out.flush()
+        finally:
+            if out is not None:
+                out.close()
 
     if paths_only:
-        for row in shown:
-            if row.error is None:
-                typer.echo(row.source)
+        for source, ok, _ in shown:
+            if ok:
+                typer.echo(source)
         return
     table = Table("File", "Type", "Confidence", "Parse s", "Classify s")
-    for row in shown:
+    for source, _, cells in shown:
         # Text, not str: paths and labels may contain "[...]" that rich would read as markup.
-        table.add_row(Text(row.source), *row.cells())
+        table.add_row(Text(source), *cells)
     Console(highlight=False).print(table)
 
 

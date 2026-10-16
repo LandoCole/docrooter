@@ -118,10 +118,12 @@ def _finalise(rows: list[dict[str, Any]]) -> list[Line]:
     return lines
 
 
-def _pymupdf_rows(doc: Any, pymupdf: Any) -> Iterator[dict[str, Any]]:
+def _pymupdf_rows(doc: Any, pymupdf: Any, max_pages: int | None = None) -> Iterator[dict[str, Any]]:
     # Drop glyphs outside the media box (pymupdf >= 1.2x also clips to the page rect by default).
     flags = pymupdf.TEXT_PRESERVE_WHITESPACE | pymupdf.TEXT_MEDIABOX_CLIP
     for page_index, page in enumerate(doc):
+        if max_pages is not None and page_index >= max_pages:
+            break
         width, height = float(page.rect.width), float(page.rect.height)
         block_no = -1
         for block in page.get_text("dict", flags=flags, sort=True)["blocks"]:
@@ -212,62 +214,80 @@ def _split_columns(words: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
     return groups
 
 
-def _pdfplumber_rows(pdf: Any) -> Iterator[dict[str, Any]]:
-    for page_index, page in enumerate(pdf.pages):
-        width, height = float(page.width), float(page.height)
-        words = page.extract_words(extra_attrs=["size", "fontname"])
-        words.sort(key=lambda w: (w["top"], w["x0"]))
-        grouped: list[list[dict[str, Any]]] = []
-        for word in words:
-            if grouped and word["top"] - grouped[-1][0]["top"] <= _LINE_TOLERANCE:
-                grouped[-1].append(word)
-            else:
-                grouped.append([word])
-        page_rows: list[dict[str, Any]] = []
-        for line_words in grouped:
-            line_words.sort(key=lambda w: w["x0"])
-            for segment in _split_columns(line_words):
-                text = " ".join(w["text"] for w in segment)
-                if not _has_alnum(text):
-                    continue
-                spans = [
-                    (w["text"], float(w["size"]), w["fontname"], _has_bold_name(w["fontname"]))
-                    for w in segment
-                ]
-                size, font, bold = _summarise(spans)
-                page_rows.append({
-                    "page": page_index + 1, "text": text, "size": size, "bold": bold,
-                    "font": font, "x0": float(min(w["x0"] for w in segment)),
-                    "y0": float(min(w["top"] for w in segment)),
-                    "x1": float(max(w["x1"] for w in segment)),
-                    "y1": float(max(w["bottom"] for w in segment)),
-                    "page_height": height, "page_width": width, "block": 0,
-                })  # fmt: skip
-        block_no = 0
-        for i, row in enumerate(page_rows):
-            if i:
-                prev = page_rows[i - 1]
-                gap = row["y0"] - prev["y1"]
-                if gap > _BLOCK_GAP_FACTOR * max(row["y1"] - row["y0"], 1.0):
-                    block_no += 1
-            row["block"] = block_no
+def _pdfplumber_rows(pdf: Any, max_pages: int | None = None) -> Iterator[dict[str, Any]]:
+    for page_index, page in enumerate(pdf.pages[:max_pages]):
+        try:
+            page_rows = _pdfplumber_page_rows(page, page_index)
+        finally:
+            # Free the page's parsed objects and layout caches; pdfplumber keeps every page
+            # it has opened, so a long PDF would otherwise hold all of them at once.
+            close = getattr(page, "close", None) or getattr(page, "flush_cache", None)
+            if close is not None:
+                close()
         yield from page_rows
 
 
-def extract_lines(path: str | Path, *, engine: Engine) -> tuple[list[Line], int]:
+def _pdfplumber_page_rows(page: Any, page_index: int) -> list[dict[str, Any]]:
+    """The rows of one pdfplumber page, with block numbers."""
+    width, height = float(page.width), float(page.height)
+    words = page.extract_words(extra_attrs=["size", "fontname"])
+    words.sort(key=lambda w: (w["top"], w["x0"]))
+    grouped: list[list[dict[str, Any]]] = []
+    for word in words:
+        if grouped and word["top"] - grouped[-1][0]["top"] <= _LINE_TOLERANCE:
+            grouped[-1].append(word)
+        else:
+            grouped.append([word])
+    page_rows: list[dict[str, Any]] = []
+    for line_words in grouped:
+        line_words.sort(key=lambda w: w["x0"])
+        for segment in _split_columns(line_words):
+            text = " ".join(w["text"] for w in segment)
+            if not _has_alnum(text):
+                continue
+            spans = [
+                (w["text"], float(w["size"]), w["fontname"], _has_bold_name(w["fontname"]))
+                for w in segment
+            ]
+            size, font, bold = _summarise(spans)
+            page_rows.append({
+                "page": page_index + 1, "text": text, "size": size, "bold": bold,
+                "font": font, "x0": float(min(w["x0"] for w in segment)),
+                "y0": float(min(w["top"] for w in segment)),
+                "x1": float(max(w["x1"] for w in segment)),
+                "y1": float(max(w["bottom"] for w in segment)),
+                "page_height": height, "page_width": width, "block": 0,
+            })  # fmt: skip
+    block_no = 0
+    for i, row in enumerate(page_rows):
+        if i:
+            prev = page_rows[i - 1]
+            gap = row["y0"] - prev["y1"]
+            if gap > _BLOCK_GAP_FACTOR * max(row["y1"] - row["y0"], 1.0):
+                block_no += 1
+        row["block"] = block_no
+    return page_rows
+
+
+def extract_lines(
+    path: str | Path, *, engine: Engine, max_pages: int | None = None
+) -> tuple[list[Line], int]:
     """Extract text lines (reading order) and the page count from ``path``.
+
+    With ``max_pages`` only the first ``max_pages`` pages are read; the page count is still
+    the whole document's.
 
     Raises ``DocrooterError`` for encrypted, corrupt or non-PDF files and ``MissingExtraError``
     when the engine's package is not installed.
     """
     if engine == "pymupdf":
-        return _extract_pymupdf(path)
+        return _extract_pymupdf(path, max_pages)
     if engine == "pdfplumber":
-        return _extract_pdfplumber(path)
+        return _extract_pdfplumber(path, max_pages)
     raise DocrooterError(f"unknown PDF engine {engine!r}; use 'pymupdf' or 'pdfplumber'")
 
 
-def _extract_pymupdf(path: str | Path) -> tuple[list[Line], int]:
+def _extract_pymupdf(path: str | Path, max_pages: int | None = None) -> tuple[list[Line], int]:
     pymupdf = _import_pymupdf()
     try:
         doc = pymupdf.open(str(path), filetype="pdf")
@@ -278,7 +298,7 @@ def _extract_pymupdf(path: str | Path) -> tuple[list[Line], int]:
             raise DocrooterError(f"cannot open PDF {path}: file is encrypted")
         n_pages = doc.page_count
         try:
-            rows = list(_pymupdf_rows(doc, pymupdf))
+            rows = list(_pymupdf_rows(doc, pymupdf, max_pages))
         except Exception as exc:
             raise DocrooterError(f"cannot open PDF {path}: {exc}") from exc
     finally:
@@ -286,7 +306,7 @@ def _extract_pymupdf(path: str | Path) -> tuple[list[Line], int]:
     return _finalise(rows), n_pages
 
 
-def _extract_pdfplumber(path: str | Path) -> tuple[list[Line], int]:
+def _extract_pdfplumber(path: str | Path, max_pages: int | None = None) -> tuple[list[Line], int]:
     pdfplumber = _import_pdfplumber()
     try:
         pdf = pdfplumber.open(str(path))
@@ -295,7 +315,7 @@ def _extract_pdfplumber(path: str | Path) -> tuple[list[Line], int]:
     try:
         n_pages = len(pdf.pages)
         try:
-            rows = list(_pdfplumber_rows(pdf))
+            rows = list(_pdfplumber_rows(pdf, max_pages))
         except Exception as exc:
             raise DocrooterError(f"cannot open PDF {path}: {exc}") from exc
     except DocrooterError:

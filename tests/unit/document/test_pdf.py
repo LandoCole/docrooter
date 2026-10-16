@@ -139,3 +139,11 @@ def test_pdf_without_bookmarks_uses_font_levels(pymupdf, tmp_path):
     assert {e.level for e in doc.toc()} == {1}  # the bookmark test's level 2 came from bookmarks
     assert all("level_from_bookmark" not in s.flags for s in doc.walk())
     assert doc.section(doc.toc()[0].id).page_start == 1
+
+
+def test_pymupdf4llm_max_pages(bookmarked_pdf):
+    doc = load(bookmarked_pdf, engine="pymupdf4llm", max_pages=2)
+    titles = [e.title for e in doc.toc()]
+    assert "Methods" in titles and "Appendix Notes" not in titles
+    assert doc.meta["n_pages"] == 3 and doc.meta["warnings"] == ["truncated_pages"]
+    assert load(bookmarked_pdf, engine="pymupdf4llm").meta["warnings"] == []

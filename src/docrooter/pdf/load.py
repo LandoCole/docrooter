@@ -47,7 +47,8 @@ class _Analysis:
     """Everything one engine found: its lines, signals and scored headings."""
 
     lines: list[Line]
-    n_pages: int
+    n_pages: int  # the whole document
+    n_read: int  # the pages read: n_pages, or fewer with max_pages
     signals: DocSignals
     headings: list[HeadingCandidate]
     timings: dict[str, float] = field(default_factory=dict)
@@ -61,6 +62,7 @@ def load_pdf(
     use_bookmarks: bool = True,
     use_printed_toc: bool = True,
     repair: bool = True,
+    max_pages: int | None = None,
 ) -> Document:
     """Load a PDF into a :class:`Document` using native text extraction (no OCR).
 
@@ -73,17 +75,27 @@ def load_pdf(
     ``Document.meta`` holds ``engine``, ``n_pages``, ``timings`` (seconds for ``extract``,
     ``signals``, ``headings``, ``assemble``), ``bookmarks``, ``printed_toc_entries``,
     ``body_size`` and ``warnings`` (``"no_text_layer"`` when no text could be extracted).
+
+    ``max_pages`` caps the pages read, which bounds time and memory on very long files: the
+    rest are skipped and ``meta["warnings"]`` gets ``"truncated_pages"``. ``n_pages`` stays
+    the whole document's count; running headers and printed contents pages are then detected
+    within the pages read only, and bookmarks pointing past them are ignored.
+
     A PDF without text becomes one empty section ``s0``. Encrypted or unreadable files raise
     :class:`~docrooter.errors.DocrooterError`.
     """
     if engine not in ENGINES:
         raise DocrooterError(f"unknown PDF engine {engine!r}; use one of {', '.join(ENGINES)}")
+    if max_pages is not None and max_pages < 1:
+        raise ValueError(f"max_pages must be >= 1, got {max_pages}")
     path = Path(path)
     if engine == "pymupdf4llm":
         score = 0.5 if min_heading_score is None else min_heading_score
         from docrooter.document.pdf import _load_pdf_pymupdf4llm
 
-        return _load_pdf_pymupdf4llm(path, min_heading_score=score, repair=repair)
+        return _load_pdf_pymupdf4llm(
+            path, min_heading_score=score, repair=repair, max_pages=max_pages
+        )
     if engine == "auto":
         engine = _auto_engine()
 
@@ -91,6 +103,7 @@ def load_pdf(
         "min_score": _DEFAULT_SCORE if min_heading_score is None else min_heading_score,
         "use_bookmarks": use_bookmarks,
         "use_printed_toc": use_printed_toc,
+        "max_pages": max_pages,
     }
     if engine == "both":
         primary = _analyse(path, "pymupdf", None, **options)
@@ -108,7 +121,7 @@ def load_pdf(
         headings, timings = primary.headings, dict(primary.timings)
 
     start = time.perf_counter()
-    raw = _assemble(primary.lines, primary.signals, headings, primary.n_pages)
+    raw = _assemble(primary.lines, primary.signals, headings, primary.n_read)
     title = next(
         (h.title for h in raw if h.level == 1 and not _LETTER_SPACED.search(h.title)), None
     ) or _metadata_title(path)
@@ -124,6 +137,8 @@ def load_pdf(
         "body_size": primary.signals.body_size,
         "warnings": [] if primary.lines else ["no_text_layer"],
     }
+    if primary.n_read < primary.n_pages:
+        doc.meta["warnings"].append("truncated_pages")
     return doc
 
 
@@ -150,15 +165,19 @@ def _analyse(
     min_score: float,
     use_bookmarks: bool,
     use_printed_toc: bool,
+    max_pages: int | None = None,
 ) -> _Analysis:
     """Extract lines, compute signals and find headings with one engine. ``bookmarks`` skips
     re-reading the outline when a previous engine already did."""
     start = time.perf_counter()
-    lines, n_pages = extract_lines(path, engine=engine)  # type: ignore[arg-type]
+    lines, n_pages = extract_lines(path, engine=engine, max_pages=max_pages)  # type: ignore[arg-type]
+    n_read = n_pages if max_pages is None else min(n_pages, max_pages)
     extracted = time.perf_counter()
     if bookmarks is None:
         bookmarks = read_bookmarks(path)
-    signals = compute_signals(lines, n_pages, bookmarks=bookmarks)
+    if n_read < n_pages:
+        bookmarks = [b for b in bookmarks if b[2] <= n_read]
+    signals = compute_signals(lines, n_read, bookmarks=bookmarks)
     signalled = time.perf_counter()
     headings = find_headings(
         lines,
@@ -174,7 +193,7 @@ def _analyse(
         "headings": done - signalled,
         "assemble": 0.0,
     }
-    return _Analysis(lines, n_pages, signals, headings, timings)
+    return _Analysis(lines, n_pages, n_read, signals, headings, timings)
 
 
 def _merge_engines(

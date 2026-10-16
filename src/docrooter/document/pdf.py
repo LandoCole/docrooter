@@ -87,7 +87,11 @@ def _join_chunks(chunks: Sequence[dict[str, Any]]) -> tuple[str, list[int], list
 
 
 def _load_pdf_pymupdf4llm(
-    path: str | os.PathLike[str], *, min_heading_score: float = 0.5, repair: bool = True
+    path: str | os.PathLike[str],
+    *,
+    min_heading_score: float = 0.5,
+    repair: bool = True,
+    max_pages: int | None = None,
 ) -> Document:
     """Load a PDF through PyMuPDF4LLM Markdown (the v0.1 path). Requires the ``pdf`` extra.
 
@@ -100,7 +104,16 @@ def _load_pdf_pymupdf4llm(
     pymupdf = require("pymupdf", "pdf")
     path = Path(path)
 
-    chunks = pymupdf4llm.to_markdown(str(path), page_chunks=True)
+    with pymupdf.open(str(path)) as pdf:
+        n_pages = pdf.page_count
+        toc = pdf.get_toc()
+    truncated = max_pages is not None and max_pages < n_pages
+    if truncated:
+        pages = list(range(max_pages))  # type: ignore[arg-type]
+        chunks = pymupdf4llm.to_markdown(str(path), page_chunks=True, pages=pages)
+        toc = [entry for entry in toc if entry[2] <= max_pages]
+    else:
+        chunks = pymupdf4llm.to_markdown(str(path), page_chunks=True)
     markdown, starts, pages = _join_chunks(chunks)
 
     raw = []
@@ -115,12 +128,14 @@ def _load_pdf_pymupdf4llm(
     if repair:
         raw = repair_levels(raw)
 
-    with pymupdf.open(str(path)) as pdf:
-        toc = pdf.get_toc()
     if toc:
         raw = apply_bookmarks(raw, toc)
 
     title = next((h.title for h in raw if h.level == 1), path.stem)
     doc = build_document(raw, source=str(path), title=title)
-    doc.meta = {"engine": "pymupdf4llm", "n_pages": len(chunks), "warnings": []}
+    doc.meta = {
+        "engine": "pymupdf4llm",
+        "n_pages": n_pages,
+        "warnings": ["truncated_pages"] if truncated else [],
+    }
     return doc

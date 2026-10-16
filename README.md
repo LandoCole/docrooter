@@ -183,6 +183,7 @@ docrooter classify report.md -t taxonomy.json -b jev -o result.json   # table + 
 docrooter doctype docs/ -b keyword                       # document type per file (builtin:doc_types)
 docrooter doctype docs/ --keep financial --paths-only    # only financial docs, one path per line
 docrooter doctype docs/ --jsonl types.jsonl --workers 4  # parse PDFs in 4 processes
+docrooter doctype big/ --chunk-size 16 --max-pages 200   # bound memory on large corpora
 docrooter normalize report.md                            # canonical label for each section title
 docrooter normalize report.md --doc-type research.research_paper --json
 

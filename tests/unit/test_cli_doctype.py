@@ -1,6 +1,7 @@
 """``docrooter doctype`` and ``docrooter normalize`` on Markdown inputs with the keyword backend."""
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -396,7 +397,7 @@ def test_broken_process_pool_falls_back_to_parsing_in_process(
 def test_file_that_crashes_again_in_process_is_an_error_row(corpus, taxonomy, tmp_path):
     from docrooter import cli
 
-    def crash(path, engine):
+    def crash(path, engine, max_pages=None):
         if path.endswith("tax.md"):
             raise MemoryError("parser crashed")
         return real(path, engine)
@@ -427,3 +428,123 @@ def test_error_rows_name_the_path_once(tmp_path, taxonomy):
     assert result.exit_code == 0, result.output
     text = " ".join(result.output.split())
     assert "warning:" in text and text.count("broken.pdf") == 1
+
+
+# --- chunking and --max-pages ---------------------------------------------------------------
+
+
+def _strip_timings(text: str) -> str:
+    """The table without its timing columns, which differ from run to run."""
+    return re.sub(r"\d+\.\d{2,3}", "#", text)
+
+
+@pytest.mark.parametrize("workers", ["1", "2"])
+def test_chunked_output_matches_one_chunk(corpus, taxonomy, tmp_path, workers):
+    outputs = {}
+    for size in ("1", "2", "32"):
+        out = tmp_path / f"{size}-{workers}.jsonl"
+        result = runner.invoke(
+            app,
+            ["doctype", str(corpus), "-t", taxonomy, "-b", "keyword", "--workers", workers]
+            + ["--chunk-size", size, "--jsonl", str(out), "--keep", "financial"],
+            env=WIDE,
+        )
+        assert result.exit_code == 0, result.output
+        records = [json.loads(line) for line in out.read_text().splitlines()]
+        for record in records:
+            record["timings"] = None
+        outputs[size] = (_strip_timings(result.output), records)
+    assert outputs["1"] == outputs["2"] == outputs["32"]
+    assert [Path(r["source"]).name for r in outputs["1"][1]] == ["audit.txt", "tax.md"]
+
+
+def test_each_chunk_is_classified_and_written_before_the_next(corpus, taxonomy, tmp_path,
+                                                             monkeypatch):  # fmt: skip
+    from docrooter.classify.classifier import Classifier
+
+    out = tmp_path / "out.jsonl"
+    batches = []
+    real = Classifier.classify_documents
+
+    def spy(self, docs, **kwargs):
+        if batches:  # the second chunk: the first one's records must already be on disk
+            assert len(out.read_text(encoding="utf-8").splitlines()) == len(batches[0])
+            raise ValueError("stop after the first chunk")
+        batches.append([d.source for d in docs])
+        return real(self, docs, **kwargs)
+
+    monkeypatch.setattr(Classifier, "classify_documents", spy)
+    result = _doctype(str(corpus), "-t", taxonomy, "--chunk-size", "2", "--jsonl", str(out))
+    assert result.exit_code == 1 and "stop after the first chunk" in result.output
+    assert len(batches) == 1 and len(batches[0]) == 2
+    assert len(out.read_text(encoding="utf-8").splitlines()) == 2
+
+
+def test_classifier_is_closed_after_the_run(corpus, taxonomy, monkeypatch):
+    from docrooter.classify.classifier import Classifier
+
+    closed = []
+    monkeypatch.setattr(Classifier, "close", lambda self: closed.append(True))
+    assert _doctype(str(corpus), "-t", taxonomy, "--chunk-size", "1").exit_code == 0
+    assert closed == [True]
+
+
+def test_broken_pool_with_chunks_warns_once(corpus, taxonomy, tmp_path, monkeypatch):
+    import concurrent.futures
+
+    monkeypatch.setattr(concurrent.futures, "ProcessPoolExecutor", _BrokenPool)
+    out = tmp_path / "out.jsonl"
+    result = runner.invoke(
+        app,
+        ["doctype", str(corpus), "-t", taxonomy, "-b", "keyword", "--workers", "2"]
+        + ["--chunk-size", "2", "--jsonl", str(out)],
+        env=WIDE,
+    )
+    assert result.exit_code == 0, result.output
+    text = " ".join(result.output.split())
+    assert text.count("a parser process died") == 1
+    assert "parsing the remaining 3 file(s) in this process" in text
+    assert sorted(_records(out)) == ["audit.txt", "contract.md", "tax.md"]
+
+
+def test_max_pages_reads_only_the_first_pages(taxonomy, tmp_path):
+    pymupdf = pytest.importorskip("pymupdf")
+    path = tmp_path / "mixed.pdf"
+    pdf = pymupdf.open()
+    for title, body in [
+        ("Agreement", "The parties agree to obligations; termination clause applies."),
+        ("Income tax", "Income tax and deferred tax on revenue earnings."),
+        ("Deferred tax", "Deferred tax and income tax on earnings revenue."),
+    ]:
+        page = pdf.new_page(width=612, height=792)
+        page.insert_text((72, 90), title, fontsize=22, fontname="hebo")
+        for k in range(4):
+            page.insert_text((72, 140 + 15 * k), f"{body} {k}.", fontsize=11, fontname="helv")
+    pdf.save(str(path))
+    pdf.close()
+
+    def doc_type(*extra):
+        out = tmp_path / "out.jsonl"
+        result = _doctype(str(path), "-t", taxonomy, "--engine", "pymupdf", "--jsonl", str(out),
+                          *extra)  # fmt: skip
+        assert result.exit_code == 0, result.output
+        return _records(out)["mixed.pdf"]["type"]
+
+    assert doc_type() == "financial.tax"
+    assert doc_type("--max-pages", "1") == "legal.contract"
+    assert runner.invoke(app, ["doctype", str(path), "--max-pages", "0"]).exit_code == 2
+
+
+def test_parse_one_reports_truncation(tmp_path):
+    from docrooter import cli
+
+    pymupdf = pytest.importorskip("pymupdf")
+    path = tmp_path / "two.pdf"
+    pdf = pymupdf.open()
+    for text in ("First page body.", "Second page body."):
+        pdf.new_page().insert_text((72, 90), text, fontsize=11)
+    pdf.save(str(path))
+    pdf.close()
+    data, _, error = cli._parse_one(str(path), "pymupdf", 1)
+    assert error is None and data["meta"]["warnings"] == ["truncated_pages"]
+    assert data["meta"]["n_pages"] == 2

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 import typer
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+from docrooter._extras import require
 from docrooter.classify.classifier import DEFAULT_BACKEND
 from docrooter.classify.strategies import Beam, Flat, Greedy
 from docrooter.errors import DocrooterError, TaxonomyError
@@ -19,6 +20,8 @@ from docrooter.taxonomy import Taxonomy, TaxonomyIssue, validate_nodes
 app = typer.Typer(no_args_is_help=True, help="Document TOC extraction and section classification.")
 taxonomy_app = typer.Typer(no_args_is_help=True, help="Work with taxonomy files.")
 app.add_typer(taxonomy_app, name="taxonomy")
+models_app = typer.Typer(no_args_is_help=True, help="Download and inspect model weights.")
+app.add_typer(models_app, name="models")
 
 
 @app.callback()
@@ -170,3 +173,67 @@ def taxonomy_validate(
     console.print(f"valid: {len(taxonomy)} nodes, depth {taxonomy.depth()}")
     if issues:
         _print_issues(console, issues)
+
+
+@models_app.callback()
+def models_main() -> None:
+    """Download and inspect model weights."""
+
+
+def _models_error(exc: ImportError) -> NoReturn:
+    # soft_wrap keeps the copy-pasteable "pip install 'docrooter[models]'" on one line
+    Console(stderr=True, highlight=False).print(Text(f"error: {exc}", style="red"), soft_wrap=True)
+    raise typer.Exit(1) from exc
+
+
+@models_app.command("pull")
+def models_pull(
+    model_id: Annotated[
+        str, typer.Argument(help="Hugging Face repo id, e.g. BAAI/bge-small-en-v1.5.")
+    ],
+    revision: Annotated[
+        str | None, typer.Option(help="Commit, tag or branch; defaults to the recipe's pin.")
+    ] = None,
+) -> None:
+    """Download a model into the Hugging Face cache and print where it landed."""
+    from docrooter.backends.recipes import get_recipe
+
+    try:
+        hub = require("huggingface_hub", "models")
+        rev = revision or get_recipe(model_id).revision
+        path = hub.snapshot_download(repo_id=model_id, revision=rev)
+    except ImportError as exc:
+        _models_error(exc)
+    typer.echo(str(path))
+
+
+def _human_size(n: int) -> str:
+    size = float(n)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1000 or unit == "GB":
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1000
+    raise AssertionError("unreachable")
+
+
+@models_app.command("list")
+def models_list() -> None:
+    """List models in the Hugging Face cache."""
+    console = Console(highlight=False)
+    try:
+        hub = require("huggingface_hub", "models")
+        repos = [
+            r for r in hub.scan_cache_dir().repos if getattr(r, "repo_type", "model") == "model"
+        ]
+    except ImportError as exc:
+        _models_error(exc)
+    if not repos:
+        console.print("no cached models")
+        return
+    table = Table("Model", "Revisions", "Size")
+    for repo in sorted(repos, key=lambda r: r.repo_id):
+        revisions = ", ".join(sorted(r.commit_hash[:8] for r in repo.revisions)) or "-"
+        table.add_row(
+            Text(repo.repo_id, no_wrap=True), Text(revisions), Text(_human_size(repo.size_on_disk))
+        )
+    console.print(table)

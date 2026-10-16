@@ -20,6 +20,11 @@ _BUILTIN: dict[str, str] = {
     "jev": "docrooter.backends.jev:JevBackend",
 }
 _KINDS: dict[str, str | Callable[..., Backend]] = dict(_BUILTIN)
+# Built-in kinds without a default model, and the error a bare spec of theirs raises.
+_MODEL_REQUIRED: dict[str, str] = {
+    "openai": "openai needs a model: openai:<model>",
+    "trained": "trained needs a path: trained:<bundle dir>",
+}
 
 
 def register_backend_kind(kind: str, factory: Callable[..., Backend]) -> None:
@@ -60,9 +65,10 @@ def resolve_backend(spec: str | Backend, **kwargs: Any) -> Backend:
     if kind not in _KINDS:
         known = ", ".join(sorted(_KINDS))
         raise BackendError(f"unknown backend kind {kind!r}; known kinds: {known}")
+    if not model and kind in _MODEL_REQUIRED and _KINDS[kind] == _BUILTIN[kind]:
+        raise BackendError(_MODEL_REQUIRED[kind])
     factory = _load_factory(kind)
-    if not model:
-        return factory(**kwargs)
     if revision is not None:
         kwargs["revision"] = revision
-    return factory(model, **kwargs)
+    # No model in the spec: the factory's own default model applies.
+    return factory(model, **kwargs) if model else factory(**kwargs)

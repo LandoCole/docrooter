@@ -109,28 +109,30 @@ class JevBackend:
             total = row.sum()
             return row / total if total > 0 else np.full(n, 1.0 / n)
 
-        async with self._client(sdk) as client:
+        async def one(client: Any, text: str) -> np.ndarray:
+            async with semaphore:
+                response = await client.system_one(
+                    state={"section": text}, questions=questions(), model=self.model_id
+                )
+            try:
+                return read(response)
+            except (AttributeError, KeyError, TypeError, ValueError) as exc:
+                raise BackendError(
+                    f"{self.name}: unexpected response shape: {type(exc).__name__}: "
+                    f"{redact(exc, self._api_key)}"
+                ) from None
 
-            async def one(text: str) -> np.ndarray:
-                async with semaphore:
-                    try:
-                        response = await client.system_one(
-                            state={"section": text}, questions=questions(), model=self.model_id
-                        )
-                    except Exception as exc:
-                        raise BackendError(
-                            f"{self.name}: request failed: {type(exc).__name__}: "
-                            f"{redact(exc, self._api_key)}"
-                        ) from None
-                try:
-                    return read(response)
-                except (AttributeError, KeyError, TypeError, ValueError) as exc:
-                    raise BackendError(
-                        f"{self.name}: unexpected response shape: {type(exc).__name__}: "
-                        f"{redact(exc, self._api_key)}"
-                    ) from None
-
-            rows = await asyncio.gather(*(one(t) for t in texts))
+        # Client construction, entry and exit are inside the try too: SDK errors raised there
+        # may quote the key, so they are redacted and wrapped like request errors.
+        try:
+            async with self._client(sdk) as client:
+                rows = await asyncio.gather(*(one(client, t) for t in texts))
+        except BackendError:
+            raise
+        except Exception as exc:
+            raise BackendError(
+                f"{self.name}: request failed: {type(exc).__name__}: {redact(exc, self._api_key)}"
+            ) from None
         return np.vstack(rows)
 
     def score(

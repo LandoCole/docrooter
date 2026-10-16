@@ -57,3 +57,32 @@ def test_unavailable_builtin_module_is_backend_error(monkeypatch):
     )
     with pytest.raises(BackendError, match="ghost"):
         resolve_backend("ghost")
+
+
+def test_bare_specs_use_each_kind_default_model(monkeypatch):
+    monkeypatch.setenv("TYPESAFE_API_KEY", "k")
+    # construction loads nothing, so no model extra is needed
+    assert resolve_backend("embedding").name == "embedding:dmis-lab/UltraBERT-Embed-150M"
+    assert resolve_backend("nli").name == "nli:MoritzLaurer/deberta-v3-base-zeroshot-v2.0"
+    assert resolve_backend("mlm-choice").name == "mlm-choice:dmis-lab/UltraBERT-380M"
+    assert resolve_backend("jev").name == "jev:jev-1.13.0"
+
+
+def test_embedding_backend_has_a_default_model():
+    from docrooter.backends.embedding import DEFAULT_EMBEDDING_MODEL, EmbeddingBackend
+
+    assert DEFAULT_EMBEDDING_MODEL == "dmis-lab/UltraBERT-Embed-150M"
+    assert EmbeddingBackend().model_id == DEFAULT_EMBEDDING_MODEL
+
+
+@pytest.mark.parametrize(
+    ("spec", "message"),
+    [
+        ("openai", "openai needs a model: openai:<model>"),
+        ("trained", "trained needs a path: trained:<bundle dir>"),
+    ],
+)
+def test_bare_specs_that_need_a_model_are_backend_errors(spec, message):
+    with pytest.raises(BackendError) as info:
+        resolve_backend(spec)
+    assert str(info.value) == message

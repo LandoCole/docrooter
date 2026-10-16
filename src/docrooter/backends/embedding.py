@@ -12,6 +12,8 @@ from docrooter.backends.base import Candidate, Scores
 from docrooter.backends.loading import attn_implementation, select_device, trust_decision
 from docrooter.backends.recipes import Recipe, get_recipe
 
+DEFAULT_EMBEDDING_MODEL = "dmis-lab/UltraBERT-Embed-150M"
+
 
 def _normalise(x: np.ndarray) -> np.ndarray:
     norm = np.linalg.norm(x, axis=-1, keepdims=True)
@@ -29,7 +31,7 @@ class EmbeddingBackend:
 
     def __init__(
         self,
-        model: str,
+        model: str = DEFAULT_EMBEDDING_MODEL,
         *,
         revision: str | None = None,
         device: str | None = None,

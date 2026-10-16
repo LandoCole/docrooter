@@ -235,3 +235,26 @@ def test_jev_malformed_response_is_backend_error(install, monkeypatch, multi_lab
     monkeypatch.setattr(fake.AsyncTypeSafeClient, "system_one", no_attrs)
     with pytest.raises(BackendError, match="unexpected response shape"):
         JevBackend().score(["t"], CANDIDATES, multi_label=multi_label)
+
+
+@pytest.mark.parametrize("stage", ["construct", "enter"])
+def test_jev_client_setup_error_is_redacted_backend_error(install, monkeypatch, stage):
+    fake = install(choice_probs={"c0": 1.0})
+    monkeypatch.setenv("TYPESAFE_API_KEY", "sk-SECRET-VALUE-123")
+
+    def bad_init(self, **kwargs):
+        raise ValueError(f"invalid api_key {kwargs['api_key']!r}")
+
+    async def bad_enter(self):
+        raise RuntimeError("handshake failed for sk-SECRET-VALUE-123")
+
+    if stage == "construct":
+        monkeypatch.setattr(fake.AsyncTypeSafeClient, "__init__", bad_init)
+    else:
+        monkeypatch.setattr(fake.AsyncTypeSafeClient, "__aenter__", bad_enter)
+    with pytest.raises(BackendError) as info:
+        JevBackend().score(["t"], CANDIDATES)
+    message = str(info.value)
+    assert "sk-SECRET" not in message
+    assert ("ValueError" if stage == "construct" else "RuntimeError") in message
+    assert info.value.__cause__ is None and info.value.__suppress_context__

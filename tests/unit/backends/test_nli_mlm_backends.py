@@ -425,3 +425,10 @@ def test_mlm_empty_and_tokenizer(fake_mlm):
 
 def test_registry_resolves_mlm_choice(fake_mlm):
     assert isinstance(resolve_backend("mlm-choice"), MLMChoiceBackend)
+
+
+def test_nli_temperature_is_one_for_any_recipe(fake_transformers):
+    """Entailment probabilities are used as they are; the generic recipe's 0.05 is for
+    embedding similarities and would sharpen them to p**20."""
+    assert NLIBackend("facebook/bart-large-mnli").temperature == 1.0
+    assert resolve_backend("nli:facebook/bart-large-mnli").temperature == 1.0

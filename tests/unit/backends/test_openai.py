@@ -206,3 +206,33 @@ def test_redact_helper():
     assert redact(f"Bearer {SECRET}\n", f" {SECRET}\n") == "Bearer ***\n"
     assert redact("plain", None) == "plain" and redact("plain", "") == "plain"
     assert redact(ValueError("x"), "y") == "x"
+
+
+def _leaks_key_prefix(message: str, secret: str = SECRET, shortest: int = 8) -> bool:
+    return any(secret[:n] in message for n in range(shortest, len(secret) + 1))
+
+
+def test_openai_http_error_key_across_excerpt_boundary_does_not_leak():
+    """The excerpt is cut after redaction, so a key straddling the cut leaks no prefix."""
+    body = "x" * 290 + SECRET  # chars 290-299 are the first 10 of the key
+
+    def handler(request):
+        return httpx.Response(401, text=body)
+
+    b = OpenAIBackend("m", base_url="http://llm.test/v1", api_key=SECRET)
+    b._transport = httpx.MockTransport(handler)
+    with pytest.raises(BackendError, match="401") as info:
+        b.score(["t"], CANDIDATES)
+    assert not _leaks_key_prefix(str(info.value))
+
+
+def test_openai_non_json_response_drops_the_decode_error():
+    def handler(request):
+        return httpx.Response(200, text=f"<html>not json {SECRET}</html>")
+
+    b = OpenAIBackend("m", base_url="http://llm.test/v1", api_key=SECRET)
+    b._transport = httpx.MockTransport(handler)
+    with pytest.raises(BackendError, match="not JSON") as info:
+        b.score(["t"], CANDIDATES)
+    assert info.value.__cause__ is None and info.value.__suppress_context__
+    assert not _leaks_key_prefix(str(info.value))

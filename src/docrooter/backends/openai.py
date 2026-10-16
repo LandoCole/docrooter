@@ -144,12 +144,13 @@ class OpenAIBackend:
                 f"{self.name}: request failed: {type(exc).__name__}: {redact(exc, self._api_key)}"
             ) from None
         if response.status_code >= 400:
-            excerpt = redact(response.text[:300].strip(), self._api_key)
+            # Redact before cutting, so a key that straddles the cut leaks no prefix.
+            excerpt = redact(response.text, self._api_key)[:300].strip()
             raise BackendError(f"{self.name}: HTTP {response.status_code}: {excerpt}")
         try:
             return response.json()
-        except ValueError as exc:
-            raise BackendError(f"{self.name}: response was not JSON") from exc
+        except ValueError:  # JSONDecodeError; its .doc is the whole body, so do not chain it
+            raise BackendError(f"{self.name}: response was not JSON") from None
 
     async def _score_all(self, bodies: list[dict[str, Any]], n: int) -> np.ndarray:
         httpx = require("httpx", "llm")

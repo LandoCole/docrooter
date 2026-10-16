@@ -65,7 +65,9 @@ class NLIBackend:
         self.model_id = model
         self.name = f"nli:{model}"
         self.recipe: Recipe = get_recipe(model, revision=revision, batch_size=batch_size)
-        self.temperature = self.recipe.temperature
+        # Entailment probabilities are used as they are; a recipe's temperature is meant for
+        # embedding similarities (the generic 0.05 would sharpen probabilities to p**20).
+        self.temperature = 1.0
         self.hypothesis_template = hypothesis_template
         self._device = device
         self._tokenizer: Any = None

@@ -1,0 +1,164 @@
+{"_meta": {"kind": "silver", "labeller": "agent-assigned (Claude Opus 5.5), not human-verified", "labelled_at": "2026-10-16T14:41:44-04:00", "src_commit": "0dd70bc", "engine": "auto (pymupdf)", "levels": [1, 2], "method": "level-1/2 sections of load_pdf(engine='auto'); each heading and ~300 chars of its body read against the node definitions of the doc type's mapped section taxonomy; written before any model run", "junk": "canonical null = parser junk or not a section; excluded from accuracy, counted separately", "documents": ["doc_027", "doc_028", "doc_029", "doc_001", "doc_002", "doc_016"]}}
+{"doc_id": "doc_027", "section_title": "Attention Is All You Need", "page": 1, "level": 1, "canonical": null, "note": "not a section: title and author block"}
+{"doc_id": "doc_027", "section_title": "Abstract", "page": 1, "level": 1, "canonical": "abstract"}
+{"doc_id": "doc_027", "section_title": "1 Introduction", "page": 2, "level": 1, "canonical": "introduction"}
+{"doc_id": "doc_027", "section_title": "2 Background", "page": 2, "level": 1, "canonical": "related_work", "note": "titled Background but surveys prior models (Extended Neural GPU, ByteNet, ConvS2S); could be background"}
+{"doc_id": "doc_027", "section_title": "3 Model Architecture", "page": 2, "level": 1, "canonical": "method"}
+{"doc_id": "doc_027", "section_title": "3.1 Encoder and Decoder Stacks", "page": 3, "level": 2, "canonical": "method"}
+{"doc_id": "doc_027", "section_title": "3.2 Attention", "page": 3, "level": 2, "canonical": "method"}
+{"doc_id": "doc_027", "section_title": "3.3 Position-wise Feed-Forward Networks", "page": 5, "level": 2, "canonical": "method"}
+{"doc_id": "doc_027", "section_title": "3.4 Embeddings and Softmax", "page": 5, "level": 2, "canonical": "method"}
+{"doc_id": "doc_027", "section_title": "3.5 Positional Encoding", "page": 6, "level": 2, "canonical": "method"}
+{"doc_id": "doc_027", "section_title": "4 Why Self-Attention", "page": 6, "level": 1, "canonical": "method", "note": "analytic comparison motivating the design choice; could be discussion"}
+{"doc_id": "doc_027", "section_title": "5 Training", "page": 7, "level": 1, "canonical": "experiments", "note": "training setup = implementation details; could be method"}
+{"doc_id": "doc_027", "section_title": "5.1 Training Data and Batching", "page": 7, "level": 2, "canonical": "experiments"}
+{"doc_id": "doc_027", "section_title": "5.2 Hardware and Schedule", "page": 7, "level": 2, "canonical": "experiments"}
+{"doc_id": "doc_027", "section_title": "5.3 Optimizer", "page": 7, "level": 2, "canonical": "experiments"}
+{"doc_id": "doc_027", "section_title": "5.4 Regularization", "page": 7, "level": 2, "canonical": "experiments"}
+{"doc_id": "doc_027", "section_title": "6 Results", "page": 8, "level": 1, "canonical": "results"}
+{"doc_id": "doc_027", "section_title": "6.1 Machine Translation", "page": 8, "level": 2, "canonical": "results"}
+{"doc_id": "doc_027", "section_title": "6.2 Model Variations", "page": 8, "level": 2, "canonical": "results", "note": "ablation results"}
+{"doc_id": "doc_027", "section_title": "6.3 English Constituency Parsing", "page": 9, "level": 2, "canonical": "results", "note": "describes the parsing setup, then reports scores; could be experiments"}
+{"doc_id": "doc_027", "section_title": "7 Conclusion", "page": 10, "level": 1, "canonical": "conclusion"}
+{"doc_id": "doc_027", "section_title": "References", "page": 10, "level": 1, "canonical": "references"}
+{"doc_id": "doc_027", "section_title": "Attention Visualizations", "page": 13, "level": 1, "canonical": "appendix", "note": "attention visualisations after the references"}
+{"doc_id": "doc_028", "section_title": "Deep Residual Learning for Image Recognition", "page": 1, "level": 1, "canonical": null, "note": "not a section: title and author block"}
+{"doc_id": "doc_028", "section_title": "Abstract", "page": 1, "level": 1, "canonical": "abstract", "note": "body polluted by Figure 1 text"}
+{"doc_id": "doc_028", "section_title": "1. Introduction", "page": 1, "level": 1, "canonical": "introduction"}
+{"doc_id": "doc_028", "section_title": "2. Related Work", "page": 2, "level": 1, "canonical": "related_work"}
+{"doc_id": "doc_028", "section_title": "3. Deep Residual Learning", "page": 3, "level": 1, "canonical": "method"}
+{"doc_id": "doc_028", "section_title": "3.1. Residual Learning", "page": 3, "level": 2, "canonical": "method"}
+{"doc_id": "doc_028", "section_title": "3.3. Network Architectures", "page": 3, "level": 2, "canonical": "method"}
+{"doc_id": "doc_028", "section_title": "3.2. Identity Mapping by Shortcuts", "page": 3, "level": 2, "canonical": "method"}
+{"doc_id": "doc_028", "section_title": "4. Experiments", "page": 4, "level": 1, "canonical": "experiments"}
+{"doc_id": "doc_028", "section_title": "101-layer and 152-layer ResNets: We construct 101-", "page": 7, "level": 2, "canonical": null, "note": "not a section: run-in paragraph lead-in inside 4.1 detected as a heading"}
+{"doc_id": "doc_028", "section_title": "4.2. CIFAR-10 and Analysis", "page": 7, "level": 2, "canonical": "experiments", "note": "opens with training setup, then reports CIFAR-10 numbers; could be results"}
+{"doc_id": "doc_028", "section_title": "4.3. Object Detection on PASCAL and MS COCO", "page": 8, "level": 2, "canonical": "results", "note": "detection results; extracted body starts with layer-response analysis (column order)"}
+{"doc_id": "doc_028", "section_title": "References", "page": 9, "level": 1, "canonical": "references"}
+{"doc_id": "doc_028", "section_title": "A. Object Detection Baselines", "page": 10, "level": 1, "canonical": "appendix"}
+{"doc_id": "doc_028", "section_title": "B. Object Detection Improvements", "page": 10, "level": 1, "canonical": "appendix"}
+{"doc_id": "doc_028", "section_title": "C. ImageNet Localization", "page": 12, "level": 1, "canonical": "appendix"}
+{"doc_id": "doc_029", "section_title": "Language Models are Few-Shot Learners", "page": 1, "level": 1, "canonical": null, "note": "not a section: title and author block"}
+{"doc_id": "doc_029", "section_title": "Abstract", "page": 1, "level": 1, "canonical": "abstract"}
+{"doc_id": "doc_029", "section_title": "Contents", "page": 2, "level": 1, "canonical": null, "note": "not a section: table of contents page, no research-paper node"}
+{"doc_id": "doc_029", "section_title": "1 Introduction", "page": 3, "level": 1, "canonical": "introduction"}
+{"doc_id": "doc_029", "section_title": "2 Approach", "page": 6, "level": 1, "canonical": "method"}
+{"doc_id": "doc_029", "section_title": "2.1 Model and Architectures", "page": 8, "level": 2, "canonical": "method"}
+{"doc_id": "doc_029", "section_title": "2.2 Training Dataset", "page": 8, "level": 2, "canonical": "method", "note": "training data of the proposed model; could be experiments"}
+{"doc_id": "doc_029", "section_title": "2.3 Training Process", "page": 9, "level": 2, "canonical": "method", "note": "training process of the proposed model; could be experiments"}
+{"doc_id": "doc_029", "section_title": "2.4 Evaluation", "page": 10, "level": 2, "canonical": "experiments", "note": "evaluation protocol"}
+{"doc_id": "doc_029", "section_title": "3 Results", "page": 10, "level": 1, "canonical": "results"}
+{"doc_id": "doc_029", "section_title": "3.1 Language Modeling, Cloze, and Completion Tasks", "page": 11, "level": 2, "canonical": "results"}
+{"doc_id": "doc_029", "section_title": "3.2 Closed Book Question Answering", "page": 13, "level": 2, "canonical": "results"}
+{"doc_id": "doc_029", "section_title": "3.3 Translation", "page": 14, "level": 2, "canonical": "results"}
+{"doc_id": "doc_029", "section_title": "3.4 Winograd-Style Tasks", "page": 16, "level": 2, "canonical": "results"}
+{"doc_id": "doc_029", "section_title": "3.5 Common Sense Reasoning", "page": 17, "level": 2, "canonical": "results"}
+{"doc_id": "doc_029", "section_title": "3.6 Reading Comprehension", "page": 18, "level": 2, "canonical": "results"}
+{"doc_id": "doc_029", "section_title": "3.7 SuperGLUE", "page": 18, "level": 2, "canonical": "results"}
+{"doc_id": "doc_029", "section_title": "3.8 NLI", "page": 20, "level": 2, "canonical": "results"}
+{"doc_id": "doc_029", "section_title": "3.9 Synthetic and Qualitative Tasks", "page": 21, "level": 2, "canonical": "results"}
+{"doc_id": "doc_029", "section_title": "4 Measuring and Preventing Memorization Of Benchmarks", "page": 29, "level": 1, "canonical": "limitations", "note": "test-contamination study = threat to validity; could be results or discussion"}
+{"doc_id": "doc_029", "section_title": "5 Limitations", "page": 33, "level": 1, "canonical": "limitations"}
+{"doc_id": "doc_029", "section_title": "6 Broader Impacts", "page": 34, "level": 1, "canonical": "discussion", "note": "broader impacts = implications"}
+{"doc_id": "doc_029", "section_title": "6.1 Misuse of Language Models", "page": 35, "level": 2, "canonical": "discussion", "note": "broader impacts"}
+{"doc_id": "doc_029", "section_title": "6.2 Fairness, Bias, and Representation", "page": 36, "level": 2, "canonical": "discussion", "note": "broader impacts; includes bias measurements"}
+{"doc_id": "doc_029", "section_title": "6.3 Energy Usage", "page": 39, "level": 2, "canonical": "discussion", "note": "broader impacts"}
+{"doc_id": "doc_029", "section_title": "7 Related Work", "page": 39, "level": 1, "canonical": "related_work"}
+{"doc_id": "doc_029", "section_title": "8 Conclusion", "page": 40, "level": 1, "canonical": "conclusion"}
+{"doc_id": "doc_029", "section_title": "Acknowledgements", "page": 41, "level": 1, "canonical": "acknowledgements"}
+{"doc_id": "doc_029", "section_title": "Contributions", "page": 42, "level": 1, "canonical": "acknowledgements", "note": "author contributions (in the node definition)"}
+{"doc_id": "doc_029", "section_title": "A Details of Common Crawl Filtering", "page": 43, "level": 1, "canonical": "appendix"}
+{"doc_id": "doc_029", "section_title": "B Details of Model Training", "page": 43, "level": 1, "canonical": "appendix"}
+{"doc_id": "doc_029", "section_title": "C Details of Test Set Contamination Studies", "page": 43, "level": 1, "canonical": "appendix"}
+{"doc_id": "doc_029", "section_title": "D Total Compute Used to Train Language Models", "page": 46, "level": 1, "canonical": "appendix"}
+{"doc_id": "doc_029", "section_title": "E Human Quality Assessment of Synthetic News Articles", "page": 46, "level": 1, "canonical": "appendix"}
+{"doc_id": "doc_029", "section_title": "F Additional Samples from GPT-3", "page": 48, "level": 1, "canonical": "appendix"}
+{"doc_id": "doc_029", "section_title": "G Details of Task Phrasing and Specifications", "page": 50, "level": 1, "canonical": "appendix"}
+{"doc_id": "doc_029", "section_title": "H Results on All Tasks for All Model Sizes", "page": 63, "level": 1, "canonical": "appendix", "note": "full results tables after the main body"}
+{"doc_id": "doc_029", "section_title": "References", "page": 68, "level": 1, "canonical": "references"}
+{"doc_id": "doc_001", "section_title": "BERKSHIRE HATHAWAY INC.", "page": 1, "level": 1, "canonical": "other", "note": "cover page"}
+{"doc_id": "doc_001", "section_title": "TABLE OF CONTENTS", "page": 3, "level": 1, "canonical": "other", "note": "table of contents (own body empty)"}
+{"doc_id": "doc_001", "section_title": "Charlie Munger – The Architect of Berkshire Hathaway", "page": 4, "level": 2, "canonical": "shareholder_letter", "note": "Buffett's tribute to Munger opening the chairman's letter"}
+{"doc_id": "doc_001", "section_title": "Operating Results, Fact and Fiction", "page": 6, "level": 1, "canonical": "shareholder_letter"}
+{"doc_id": "doc_001", "section_title": "What We Do", "page": 7, "level": 1, "canonical": "shareholder_letter"}
+{"doc_id": "doc_001", "section_title": "Our Not-So-Secret Weapon", "page": 9, "level": 1, "canonical": "shareholder_letter"}
+{"doc_id": "doc_001", "section_title": "Non-controlled Businesses That Leave Us Comfortable", "page": 10, "level": 1, "canonical": "shareholder_letter"}
+{"doc_id": "doc_001", "section_title": "Berkshire’s Performance vs. the S&P 500", "page": 19, "level": 2, "canonical": "market_for_equity", "note": "per-share market value vs S&P 500 table (stock performance); could be other"}
+{"doc_id": "doc_001", "section_title": "FORM 10-K", "page": 23, "level": 2, "canonical": "other", "note": "Form 10-K cover page"}
+{"doc_id": "doc_001", "section_title": "Item 5. Market for Registrant’s Common Equity, Related Security Holder Matters and Issuer Purchases of Equity Securities", "page": 24, "level": 2, "canonical": null, "note": "not a section: line of the printed 10-K table of contents"}
+{"doc_id": "doc_001", "section_title": "Item 10. Directors, Executive Officers and Corporate Governance", "page": 24, "level": 2, "canonical": null, "note": "not a section: line of the printed 10-K table of contents"}
+{"doc_id": "doc_001", "section_title": "Item 15. Exhibits and Financial Statement Schedules", "page": 24, "level": 2, "canonical": null, "note": "not a section: line of the printed 10-K table of contents"}
+{"doc_id": "doc_001", "section_title": "Pilot Travel Centers (PTC)", "page": 35, "level": 2, "canonical": "business_overview", "note": "subsidiary description inside Item 1"}
+{"doc_id": "doc_001", "section_title": "Item 1A. Risk Factors", "page": 49, "level": 2, "canonical": "risk_factors"}
+{"doc_id": "doc_001", "section_title": "Item 1B. Unresolved Staff Comments", "page": 52, "level": 2, "canonical": "other", "note": "Item 1B, 'None.'"}
+{"doc_id": "doc_001", "section_title": "Item 1C. Cybersecurity", "page": 52, "level": 2, "canonical": "risk_factors", "note": "Item 1C cybersecurity risk management; could be corporate_governance or other"}
+{"doc_id": "doc_001", "section_title": "Item 4. Mine Safety Disclosures", "page": 56, "level": 2, "canonical": "other", "note": "Item 4 mine safety; body runs into executive officers list"}
+{"doc_id": "doc_001", "section_title": "Item 5. Market for Registrant’s Common Equity, Related Security Holder Matters and Issuer Purchases of Equity", "page": 56, "level": 2, "canonical": "market_for_equity"}
+{"doc_id": "doc_001", "section_title": "Insurance—Investment Income", "page": 66, "level": 2, "canonical": "management_discussion", "note": "MD&A segment discussion"}
+{"doc_id": "doc_001", "section_title": "Insurance—Investment Income", "page": 67, "level": 2, "canonical": null, "note": "not a section: heading repeated at the top of a continuation page"}
+{"doc_id": "doc_001", "section_title": "Railroad", "page": 67, "level": 2, "canonical": "management_discussion", "note": "MD&A segment discussion"}
+{"doc_id": "doc_001", "section_title": "Railroad", "page": 68, "level": 2, "canonical": null, "note": "not a section: heading repeated at the top of a continuation page"}
+{"doc_id": "doc_001", "section_title": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk", "page": 90, "level": 2, "canonical": "management_discussion", "note": "Item 7A is part of the node definition"}
+{"doc_id": "doc_001", "section_title": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure", "page": 142, "level": 2, "canonical": "other", "note": "Item 9 accountant changes, 'None'"}
+{"doc_id": "doc_001", "section_title": "Item 9A. Controls and Procedures", "page": 142, "level": 2, "canonical": "controls_and_procedures"}
+{"doc_id": "doc_001", "section_title": "Item 9B. Other Information", "page": 142, "level": 2, "canonical": "other", "note": "Item 9B trading-arrangement disclosure; could be corporate_governance"}
+{"doc_id": "doc_001", "section_title": "Item 9C. Disclosure Regarding Foreign Jurisdictions that Prevent Inspection", "page": 142, "level": 2, "canonical": "other", "note": "Item 9C, 'Not applicable'"}
+{"doc_id": "doc_001", "section_title": "Part III", "page": 142, "level": 2, "canonical": "corporate_governance", "note": "Part III (Items 10-14) incorporated from the proxy; could be executive_compensation"}
+{"doc_id": "doc_001", "section_title": "Part IV", "page": 142, "level": 2, "canonical": "exhibits", "note": "Part IV = Item 15 exhibits and schedules"}
+{"doc_id": "doc_002", "section_title": "UNITED STATES SECURITIES AND EXCHANGE COMMISSION", "page": 1, "level": 1, "canonical": null, "note": "not a section: cover-page line split off as a heading, empty body"}
+{"doc_id": "doc_002", "section_title": "Washington, D.C. 20549", "page": 1, "level": 1, "canonical": null, "note": "not a section: cover-page address line, empty body"}
+{"doc_id": "doc_002", "section_title": "FORM 10-K", "page": 1, "level": 1, "canonical": "other", "note": "Form 10-K cover page"}
+{"doc_id": "doc_002", "section_title": "Tesla, Inc.", "page": 1, "level": 1, "canonical": "other", "note": "cover page registrant details"}
+{"doc_id": "doc_002", "section_title": "PART I.", "page": 3, "level": 2, "canonical": null, "note": "not a section: line of the printed 10-K table of contents"}
+{"doc_id": "doc_002", "section_title": "PART II.", "page": 3, "level": 2, "canonical": null, "note": "not a section: line of the printed 10-K table of contents"}
+{"doc_id": "doc_002", "section_title": "PART III.", "page": 3, "level": 2, "canonical": null, "note": "not a section: line of the printed 10-K table of contents"}
+{"doc_id": "doc_002", "section_title": "PART IV.", "page": 3, "level": 2, "canonical": null, "note": "not a section: line of the printed 10-K table of contents (body runs into the forward-looking-statements legend)"}
+{"doc_id": "doc_002", "section_title": "ITEM 1A. RISK FACTORS", "page": 15, "level": 2, "canonical": "risk_factors"}
+{"doc_id": "doc_002", "section_title": "ITEM 1B. UNRESOLVED STAFF COMMENTS", "page": 29, "level": 2, "canonical": "other", "note": "Item 1B 'None.'; body runs on into Item 1C cybersecurity (heading missed)"}
+{"doc_id": "doc_002", "section_title": "ITEM 2. PROPERTIES", "page": 31, "level": 2, "canonical": "properties"}
+{"doc_id": "doc_002", "section_title": "ITEM 3. LEGAL PROCEEDINGS", "page": 31, "level": 2, "canonical": "legal_proceedings"}
+{"doc_id": "doc_002", "section_title": "ITEM 4. MINE SAFETY DISCLOSURES", "page": 31, "level": 2, "canonical": "other", "note": "Item 4 'Not applicable.'"}
+{"doc_id": "doc_002", "section_title": "ITEM 5. MARKET FOR REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF EQUITY", "page": 32, "level": 2, "canonical": "market_for_equity"}
+{"doc_id": "doc_002", "section_title": "ITEM 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS", "page": 34, "level": 2, "canonical": "management_discussion"}
+{"doc_id": "doc_002", "section_title": "Report of Independent Registered Public Accounting Firm", "page": 48, "level": 2, "canonical": "financial_statements", "note": "auditor's report is in the node definition"}
+{"doc_id": "doc_002", "section_title": "Consolidated Balance Sheets", "page": 50, "level": 2, "canonical": "financial_statements"}
+{"doc_id": "doc_002", "section_title": "Consolidated Statements of Comprehensive Income (in millions)", "page": 52, "level": 2, "canonical": "financial_statements"}
+{"doc_id": "doc_002", "section_title": "Consolidated Statements of Redeemable Noncontrolling Interests and Equity (in millions)", "page": 53, "level": 2, "canonical": "financial_statements"}
+{"doc_id": "doc_002", "section_title": "Notes to Consolidated Financial Statements", "page": 56, "level": 2, "canonical": "notes_to_financial_statements"}
+{"doc_id": "doc_002", "section_title": "2024 Notes", "page": 77, "level": 2, "canonical": "notes_to_financial_statements", "note": "convertible-notes sub-heading inside the debt note"}
+{"doc_id": "doc_002", "section_title": "2018 CEO Performance Award", "page": 84, "level": 2, "canonical": "notes_to_financial_statements", "note": "sub-heading inside the stock-based compensation note; could be executive_compensation"}
+{"doc_id": "doc_002", "section_title": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE", "page": 95, "level": 2, "canonical": "other", "note": "Item 9 'None.'"}
+{"doc_id": "doc_002", "section_title": "ITEM 9A. CONTROLS AND PROCEDURES", "page": 95, "level": 2, "canonical": "controls_and_procedures"}
+{"doc_id": "doc_002", "section_title": "ITEM 9B. OTHER INFORMATION", "page": 96, "level": 2, "canonical": "other", "note": "Item 9B trading-arrangement disclosure; could be corporate_governance"}
+{"doc_id": "doc_002", "section_title": "ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPECTIONS", "page": 96, "level": 2, "canonical": "other", "note": "Item 9C 'Not applicable.'"}
+{"doc_id": "doc_002", "section_title": "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE", "page": 97, "level": 2, "canonical": "corporate_governance"}
+{"doc_id": "doc_002", "section_title": "ITEM 11. EXECUTIVE COMPENSATION", "page": 97, "level": 2, "canonical": "executive_compensation"}
+{"doc_id": "doc_002", "section_title": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATTERS", "page": 97, "level": 2, "canonical": "corporate_governance", "note": "Item 12 beneficial ownership of management; could be market_for_equity or other"}
+{"doc_id": "doc_002", "section_title": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS AND DIRECTOR INDEPENDENCE", "page": 97, "level": 2, "canonical": "corporate_governance", "note": "Item 13 includes director independence"}
+{"doc_id": "doc_002", "section_title": "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES", "page": 97, "level": 2, "canonical": "other", "note": "Item 14 principal accountant fees; could be corporate_governance"}
+{"doc_id": "doc_002", "section_title": "ITEM 15. EXHIBITS AND FINANCIAL STATEMENT SCHEDULES", "page": 98, "level": 2, "canonical": "exhibits"}
+{"doc_id": "doc_002", "section_title": "ITEM 16. SUMMARY", "page": 113, "level": 2, "canonical": "exhibits", "note": "Item 16 'None.' then the signatures"}
+{"doc_id": "doc_002", "section_title": "SECTION 1350 CERTIFICATIONS", "page": 124, "level": 2, "canonical": "exhibits", "note": "Exhibit 32 certification"}
+{"doc_id": "doc_002", "section_title": "CLAWBACK POLICY", "page": 125, "level": 1, "canonical": "exhibits", "note": "Exhibit 97 clawback policy; content is executive pay recovery, could be executive_compensation"}
+{"doc_id": "doc_002", "section_title": "1. Definitions", "page": 125, "level": 1, "canonical": "exhibits", "note": "clause of the Exhibit 97 clawback policy"}
+{"doc_id": "doc_002", "section_title": "2. Recoupment of Erroneously Awarded Compensation", "page": 127, "level": 1, "canonical": "exhibits", "note": "clause of the Exhibit 97 clawback policy; could be executive_compensation"}
+{"doc_id": "doc_002", "section_title": "3. Means of Repayment", "page": 127, "level": 1, "canonical": "exhibits", "note": "clause of the Exhibit 97 clawback policy"}
+{"doc_id": "doc_002", "section_title": "4. No Indemnification", "page": 128, "level": 1, "canonical": "exhibits", "note": "clause of the Exhibit 97 clawback policy"}
+{"doc_id": "doc_002", "section_title": "5. Miscellaneous", "page": 128, "level": 1, "canonical": "exhibits", "note": "clause of the Exhibit 97 clawback policy"}
+{"doc_id": "doc_002", "section_title": "6. Amendment and Termination", "page": 129, "level": 1, "canonical": "exhibits", "note": "clause of the Exhibit 97 clawback policy"}
+{"doc_id": "doc_002", "section_title": "7. Successors", "page": 129, "level": 1, "canonical": "exhibits", "note": "clause of the Exhibit 97 clawback policy"}
+{"doc_id": "doc_002", "section_title": "8. Agreement to Arbitrate; Governing Law; Venue", "page": 129, "level": 1, "canonical": "exhibits", "note": "clause of the Exhibit 97 clawback policy"}
+{"doc_id": "doc_002", "section_title": "CLAWBACK POLICY ACKNOWLEDGMENT, CONSENT AND AGREEMENT", "page": 130, "level": 1, "canonical": "exhibits", "note": "acknowledgment form attached to the Exhibit 97 policy"}
+{"doc_id": "doc_002", "section_title": "Signed: Print Name: Date:", "page": 130, "level": 1, "canonical": null, "note": "not a section: signature-form field line"}
+{"doc_id": "doc_016", "section_title": "NATIONAL INSTITUTE OF STANDARDS AND TECHNOLOGY COOPERATIVE RESEARCH AND DEVELOPMENT AGREEMENT", "page": 1, "level": 1, "canonical": null, "note": "not a section: agreement title (own body empty)"}
+{"doc_id": "doc_016", "section_title": "Article 1.  INTRODUCTION", "page": 1, "level": 2, "canonical": "parties_recitals", "note": "names the parties, effective date and authority"}
+{"doc_id": "doc_016", "section_title": "Article 3.  COOPERATIVE RESEARCH", "page": 2, "level": 2, "canonical": "scope_services"}
+{"doc_id": "doc_016", "section_title": "Article 4.  EQUIPMENT OR MATERIAL", "page": 2, "level": 2, "canonical": "scope_services", "note": "equipment and material each party provides; could be general_provisions"}
+{"doc_id": "doc_016", "section_title": "Article 5.  TREATMENT OF PROPRIETARY INFORMATION", "page": 2, "level": 2, "canonical": "confidentiality", "note": "proprietary information"}
+{"doc_id": "doc_016", "section_title": "Article 6.  INTELLECTUAL PROPERTY", "page": 2, "level": 2, "canonical": "intellectual_property"}
+{"doc_id": "doc_016", "section_title": "6.6.1.1 NIST’s Sole Inventions and Joint Inventions. Pursuant to the Federal Technology", "page": 3, "level": 2, "canonical": "intellectual_property", "note": "deep sub-clause 6.6.1.1 promoted to level 2, title cut mid-sentence"}
+{"doc_id": "doc_016", "section_title": "Article 8.  TERMINATION", "page": 4, "level": 2, "canonical": "termination"}
+{"doc_id": "doc_016", "section_title": "Article 11.  MISCELLANEOUS", "page": 6, "level": 2, "canonical": "general_provisions", "note": "miscellaneous"}
+{"doc_id": "doc_016", "section_title": "Signatories for National Institute of Standards and Technology:", "page": 7, "level": 1, "canonical": "signatures_exhibits"}
+{"doc_id": "doc_016", "section_title": "Appendix A", "page": 8, "level": 1, "canonical": "signatures_exhibits", "note": "Appendix A collaborator information form; could be scope_services"}
+{"doc_id": "doc_016", "section_title": "7. Collaborator’s Project Team, Services, Facilities, Intellectual Property, Equipment, and/or Funds", "page": 9, "level": 2, "canonical": "signatures_exhibits", "note": "item 7 of the Appendix A form (contributions, invoicing); could be payment"}

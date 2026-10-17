@@ -123,7 +123,8 @@ held-out evaluation and the repository essentials.
   are ended, with a 2 s graceful-shutdown bound.
 - Playground `.md` and `.txt` uploads are capped at 1 MB, and a run keeps and returns at most
   5,000 TOC and section entries (`truncated` and `toc_total` in the result, shown on the page).
-  A heading-dense text file used to cost about 250 to 900 times its size in memory.
+  A heading-dense text file costs about 270 MB of memory per MB, or about 1.6 GB per MB with
+  section labels on.
 - The playground's pipeline `error` event no longer contains the server's temp-file path.
 - A `Content-Length` or `Last-Event-ID` longer than 18 digits is rejected (400) or ignored
   instead of causing a 500.

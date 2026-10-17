@@ -517,3 +517,20 @@ def test_mlm_mps_oom_while_loading_reports_one_load_on_cpu(fake_mlm, monkeypatch
     assert len(fake_mlm.model_kwargs) == 1 and fake_mlm.model.moved_to == "cpu"
     assert b._device_in_use == "cpu" and b._device == "cpu"
     assert "while loading" in caplog.text and "while scoring" not in caplog.text
+
+
+def test_mps_oom_while_loading_moves_the_model_before_releasing_memory(
+    fake_transformers, monkeypatch
+):
+    from docrooter.backends import loading
+
+    _oom_on_mps_move(FakeNLIModel, monkeypatch)
+    released_after = []
+    monkeypatch.setattr(
+        loading,
+        "release_memory",
+        lambda: released_after.append(fake_transformers.models[-1].moved_to),
+    )
+    NLIBackend(device="mps").score(["tax filing"], [TAX, LIT])
+    # The weights that reached MPS are only freed once the model has left it.
+    assert released_after == ["cpu"]

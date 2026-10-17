@@ -96,10 +96,11 @@ def place_on_device(backend: Any, model: Any, device: str) -> str:
             raise
     else:
         return device
-    # Outside the handler, so the failed move's tensors can be freed.
-    release_memory()
+    # Outside the handler, so the failed move's tensors can be freed. Move first, then
+    # release: the weights that already reached MPS are only freed once they have left it.
     warn_cpu_fallback(backend.name, "loading")
     model.to("cpu")
+    release_memory()
     backend._device = backend._device_in_use = "cpu"
     return "cpu"
 

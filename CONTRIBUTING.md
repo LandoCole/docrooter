@@ -32,7 +32,9 @@ benchmarks.
 ```bash
 uv run ruff check .             # lint
 uv run ruff format --check .    # formatting (drop --check to apply it)
+uv run mypy                     # types for src/docrooter
 uv run pytest                   # unit tests
+uv run pytest --cov=docrooter   # with coverage (install the pdf extras to measure docrooter.pdf)
 uv run pytest -m models         # model tests
 ```
 
@@ -43,6 +45,8 @@ uv run pytest -m models         # model tests
 - **Model tests** (`-m models`, `tests/integration/`) download models from Hugging Face (about
   600 MB for the default one) and need `--extra models`. They are deselected by default. The live
   Jev test skips unless `TYPESAFE_API_KEY` is set.
+- CI fails the build under 80% line coverage on `docrooter.document`, `taxonomy`, `classify`,
+  `views` and `pdf`, measured with the extras installed. A new line in those packages needs a test.
 - Run the tests for what you changed while you work, and the whole suite before you push.
 - A bug fix comes with a test that fails without it. A new behaviour comes with a test for it.
   Test behaviour, not mocks.
@@ -109,7 +113,7 @@ weights or downloaded corpora.
 Branch from `main`, keep a pull request to one change, and describe what it does and how you checked
 it. The checklist is also in the [pull request template](.github/pull_request_template.md):
 
-- [ ] `uv run ruff check .` and `uv run ruff format --check .` pass.
+- [ ] `uv run ruff check .`, `uv run ruff format --check .` and `uv run mypy` pass.
 - [ ] `uv run pytest` passes, and `uv run pytest -m models` if you touched a model, backend or
       training code.
 - [ ] New behaviour has tests; a bug fix has a regression test.

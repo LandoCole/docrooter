@@ -34,10 +34,12 @@ jobs:
       - run: uv sync --locked
       - run: uv run --no-sync ruff check .
       - run: uv run --no-sync ruff format --check .
+      - run: uv run --no-sync mypy
       - run: uv run --no-sync pytest
 
   # The core install above has no optional extras, so the PDF, playground and LLM tests skip.
-  # This job installs those extras (but not torch, which the unit tests must never need) so they run.
+  # This job installs those extras (but not torch, which the unit tests must never need) so they run,
+  # and measures coverage: the PDF package cannot reach its target without PyMuPDF.
   extras-smoke:
     name: Extras smoke (pdf, pdf-mit, ui, llm)
     runs-on: ubuntu-latest
@@ -53,4 +55,18 @@ jobs:
       - name: Set up Python
         run: uv python install "$UV_PYTHON"
       - run: uv sync --locked --extra pdf --extra pdf-mit --extra ui --extra llm
-      - run: uv run --no-sync pytest
+      - name: Test with coverage
+        run: uv run --no-sync pytest --cov=docrooter --cov-report=term --cov-report=xml
+      # Line coverage must stay at or above 80% in each of the core packages (the overall figure
+      # is reported, not gated). The report also lands in the job summary.
+      - name: Coverage gate
+        run: |
+          for target in document taxonomy classify pdf views.py; do
+            case "$target" in
+              *.py) include="src/docrooter/$target" ;;
+              *) include="src/docrooter/$target/*" ;;
+            esac
+            echo "### docrooter/$target" >> "$GITHUB_STEP_SUMMARY"
+            uv run --no-sync coverage report --include="$include" --format=markdown >> "$GITHUB_STEP_SUMMARY"
+            uv run --no-sync coverage report --include="$include" --fail-under=80
+          done

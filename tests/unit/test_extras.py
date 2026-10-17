@@ -15,7 +15,7 @@ def test_require_missing_names_extra():
 def test_version():
     import docrooter
 
-    assert docrooter.__version__ == "0.1.0.dev0"
+    assert docrooter.__version__ == "0.2.0"
 
 
 def test_missing_extra_error_is_both_a_docrooter_and_an_import_error():
@@ -27,3 +27,14 @@ def test_missing_extra_error_is_both_a_docrooter_and_an_import_error():
         require("definitely_not_a_module_xyz", "models")
     with pytest.raises(ImportError):
         require("definitely_not_a_module_xyz", "models")
+
+
+def test_cli_version_prints_the_package_version():
+    from typer.testing import CliRunner
+
+    import docrooter
+    from docrooter.cli import app
+
+    result = CliRunner().invoke(app, ["--version"])
+    assert result.exit_code == 0, result.output
+    assert result.output.strip() == f"docrooter {docrooter.__version__}"

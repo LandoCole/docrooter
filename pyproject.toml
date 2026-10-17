@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docrooter"
-version = "0.1.0.dev0"
+dynamic = ["version"]
 description = "Document TOC extraction and taxonomy-based section classification."
 readme = "README.md"
 license = "Apache-2.0"
@@ -69,7 +69,11 @@ Issues = "https://github.com/docrooter/docrooter/issues"
 docrooter = "docrooter.cli:app"
 
 [dependency-groups]
-dev = ["pyinstrument>=5.1", "pytest", "ruff"]
+dev = ["mypy", "pyinstrument>=5.1", "pytest", "pytest-cov", "ruff"]
+
+[tool.hatch.version]
+# The single source of the version; `docrooter.__version__` is the string in this file.
+path = "src/docrooter/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/docrooter"]
@@ -90,6 +94,16 @@ testpaths = ["tests"]
 pythonpath = ["src", "."]
 markers = ["models: downloads and runs ML models"]
 addopts = "-m 'not models'"
+filterwarnings = [
+    # PyMuPDF's SWIG bindings; nothing docrooter can fix.
+    "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+    # Starlette's TestClient prefers httpx2; the `ui` extra pins neither, so tests use httpx.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
 
 [tool.ruff]
 line-length = 100
@@ -97,3 +111,50 @@ src = ["src", "tests", "."]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+files = ["src/docrooter"]
+python_version = "3.10"
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+# The optional extras are not installed in the core CI job, and several ship without type
+# information; their imports are lazy (see docrooter._extras), so treat them as Any rather than
+# fail on a missing module. Everything in src/docrooter itself is checked.
+[[tool.mypy.overrides]]
+module = [
+    "torch",
+    "torch.*",
+    "transformers",
+    "transformers.*",
+    "sentence_transformers",
+    "sentence_transformers.*",
+    "sklearn",
+    "sklearn.*",
+    "joblib",
+    "datasets",
+    "datasets.*",
+    "pandas",
+    "pandas.*",
+    "pymupdf",
+    "fitz",
+    "pymupdf4llm",
+    "pdfplumber",
+    "pdfplumber.*",
+    "httpx",
+    "typesafe",
+    "typesafe.*",
+    "typesafe_sdk",
+    "typesafe_sdk.*",
+    "fastapi",
+    "fastapi.*",
+    "starlette",
+    "starlette.*",
+    "uvicorn",
+    "uvicorn.*",
+    "multipart",
+    "multipart.*",
+]
+ignore_missing_imports = true

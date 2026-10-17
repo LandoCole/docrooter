@@ -10,7 +10,7 @@
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the details.
 
-- [ ] `uv run ruff check .` and `uv run ruff format --check .` pass
+- [ ] `uv run ruff check .`, `uv run ruff format --check .` and `uv run mypy` pass
 - [ ] `uv run pytest` passes (and `uv run pytest -m models` if I touched a model, backend or training code)
 - [ ] New behaviour has tests; a bug fix has a regression test
 - [ ] Unit tests still do not import torch, and the core install is still torch-free

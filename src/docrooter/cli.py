@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,8 +53,26 @@ def _errors_exit_1() -> Iterator[None]:
         raise typer.Exit(1) from exc
 
 
+def _print_version(value: bool) -> None:
+    if value:
+        import docrooter
+
+        typer.echo(f"docrooter {docrooter.__version__}")
+        raise typer.Exit()
+
+
 @app.callback()
-def main() -> None:
+def main(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            callback=_print_version,
+            is_eager=True,
+            help="Show the docrooter version and exit.",
+        ),
+    ] = False,
+) -> None:
     """Document TOC extraction and section classification."""
 
 
@@ -502,7 +520,7 @@ def _parse_chunks(
     workers: int,
     chunk_size: int,
     max_pages: int | None = None,
-) -> Iterator[list[_Parsed]]:
+) -> Generator[list[_Parsed], None, None]:
     """Parse the files ``chunk_size`` at a time, yielding each chunk's results in order, so
     only one chunk of parsed documents is held at once.
 

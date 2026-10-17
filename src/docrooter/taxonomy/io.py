@@ -74,7 +74,9 @@ def nodes_from_dict(data: Any) -> ParsedNodes:
 
     nodes: list[TaxonomyNode] = []
     locations: list[str | None] = []
-    stack = [(item, f"{base}/{i}", None, ()) for i, item in reversed(list(enumerate(items)))]
+    stack: list[tuple[Any, str, str | None, tuple[str, ...]]] = [
+        (item, f"{base}/{i}", None, ()) for i, item in reversed(list(enumerate(items)))
+    ]
     while stack:
         raw, pointer, nesting_parent, label_path = stack.pop()
         if not isinstance(raw, dict):

@@ -8,7 +8,7 @@ import re
 import warnings
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -117,8 +117,8 @@ class Classifier:
         stays usable: specs are loaded again on next use."""
         resolved, self._resolved = list(self._resolved.values()), {}
         zero_shot, self._zero_shot = self._zero_shot, _UNSET
-        if isinstance(self.backend, str) and zero_shot not in (None, _UNSET):
-            resolved.append(zero_shot)  # a trained spec's body: ours too
+        if isinstance(self.backend, str) and zero_shot is not None and zero_shot is not _UNSET:
+            resolved.append(cast("Backend", zero_shot))  # a trained spec's body: ours too
         seen: set[int] = set()
         for backend in resolved:
             if id(backend) not in seen:
@@ -479,7 +479,7 @@ class _LazyBackends(Sequence[Backend]):
             yield self._items[i]
             i += 1
 
-    def __getitem__(self, index):  # type: ignore[override]
+    def __getitem__(self, index):
         if isinstance(index, int) and index >= 0:
             while len(self._items) <= index and self._advance():
                 pass

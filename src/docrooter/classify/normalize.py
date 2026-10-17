@@ -178,13 +178,13 @@ def _normalize(
             with_lead = view.model_copy(update={"fields": (*view.fields, "lead")})
             views |= with_lead.render_all(doc, blank, count)
         results = classifier.classify_texts([views[s.id].text for s in todo])
-        for section, result in zip(todo, results, strict=True):
-            best = result.best
-            assigned = best is not None and bool(best.node_ids)
+        for section, section_result in zip(todo, results, strict=True):
+            best = section_result.best
+            assigned = best if best is not None and best.node_ids else None
             norms[section.id] = SectionNorm(
-                canonical=best.node_ids[-1] if assigned else None,
-                label=best.labels[-1] if assigned else None,
-                score=best.score if assigned else 0.0,
+                canonical=assigned.node_ids[-1] if assigned else None,
+                label=assigned.labels[-1] if assigned else None,
+                score=assigned.score if assigned else 0.0,
                 title=section.title,
             )
     out = {

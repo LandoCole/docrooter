@@ -166,8 +166,9 @@ def classify_documents(
             dist = _sections_distribution(section_results)
             if mode == "hybrid":
                 dist = mix_distributions(view_dist, dist)
-        reasons = [r[0].stopped_reason for r in ([view_result] if view_result else [])]
-        reasons += [r[0].stopped_reason for r, _ in section_results]
+        decided = [view_result] if view_result else []
+        decided += [r for r, _ in section_results]
+        reasons = [r[0].stopped_reason for r in decided if r[0] is not None]
         if f"v{i}" in root_probs:
             # The traversal's own stop stands; the root decision only supplies a confidence.
             reason = next((r for r in reasons if r is not None), "low_confidence")

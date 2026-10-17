@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from docrooter._extras import require
-from docrooter.backends.base import Candidate, Scores, _row_softmax
+from docrooter.backends.base import Candidate, ScoreKind, Scores, _row_softmax
 from docrooter.backends.loading import (
     after_model_load,
     prepare_model_load,
@@ -156,7 +156,7 @@ class NLIBackend:
         instruction: str | None = None,
         multi_label: bool = False,
     ) -> Scores:
-        kind = "independent" if multi_label else "softmax"
+        kind: ScoreKind = "independent" if multi_label else "softmax"
         n_texts, n_cands = len(texts), len(candidates)
         if not n_texts or not n_cands:
             return Scores(np.zeros((n_texts, n_cands)), kind)

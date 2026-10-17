@@ -310,7 +310,7 @@ def build_result(
     def label(node_id: str) -> str:
         return doc_types.node(node_id).label if node_id in doc_types else node_id
 
-    toc = []
+    toc: list[dict[str, Any]] = []
     for entry in doc.toc():
         section = doc.sections[entry.id]
         toc.append(
@@ -546,7 +546,7 @@ def allowed_host_names(host: str) -> frozenset[str]:
         machine = socket.gethostname().lower()
         names.update({machine, f"{machine}.local"})
         with suppress(OSError):
-            names.update(info[4][0].lower() for info in socket.getaddrinfo(machine, None))
+            names.update(str(info[4][0]).lower() for info in socket.getaddrinfo(machine, None))
     elif not _is_loopback_name(bound):
         names.add(bound)
     return frozenset(names)
@@ -670,7 +670,7 @@ def _decode(
 
 
 def _static(name: str) -> Response:
-    data = resources.files("docrooter.ui").joinpath("static", name).read_bytes()
+    data = resources.files("docrooter.ui").joinpath("static").joinpath(name).read_bytes()
     return Response(data, media_type=_STATIC[name], headers=_SECURITY_HEADERS)
 
 

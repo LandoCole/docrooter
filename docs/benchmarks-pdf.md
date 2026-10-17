@@ -723,3 +723,69 @@ One run of `normalize_sections(doc)` with the default backend (`embedding:dmis-l
 | 130 | 1 | CLAWBACK POLICY ACKNOWLEDGMENT, CONSENT AND AGREEMENT | `exhibits` | ✗ `notes_to_financial_statements` | ✗ `notes_to_financial_statements` | ✗ `corporate_governance` |
 | 130 | 1 | Signed: Print Name: Date: | *(junk)* | `exhibits` | `exhibits` | `exhibits` |
 <!-- normalize-benchmark:end -->
+
+## Dev vs held-out
+
+One frozen run at commit `72f6135` on the 40-PDF held-out corpus (`benchmarks/heldout/`), which
+shares no documents or publishers with the dev corpus and was never used for tuning. Full
+method, per-document tables and analysis are in [benchmarks-heldout.md](benchmarks-heldout.md).
+Dev numbers come from `benchmarks/results/2026-10-16/{toc,pdf,normalize}.json`, read when the
+held-out run finished. The dev leave-one-out systems and the normalisation rows had been re-run
+just before. The dev leave-one-out systems become "trained on all 51 dev documents, tested on
+held-out". One held-out document is 2.5 points.
+
+<!-- heldout-compare:begin -->
+| Task | System | Metric | Dev | Held-out | Change | n dev / held-out |
+| --- | --- | --- | --- | --- | --- | --- |
+| TOC | `pymupdf` | F1 micro (d<=2) | 0.703 | 0.576 | -12.7 pts | 24 / 23 |
+| TOC | `pymupdf` | F1 macro (d<=2) | 0.591 | 0.480 | -11.2 pts | 24 / 23 |
+| TOC | `pymupdf` | F1 micro (all) | 0.685 | 0.754 | +6.9 pts | 24 / 23 |
+| TOC | `pdfplumber` | F1 micro (d<=2) | 0.711 | 0.458 | -25.3 pts | 24 / 23 |
+| TOC | `pdfplumber` | F1 macro (d<=2) | 0.599 | 0.439 | -16.0 pts | 24 / 23 |
+| TOC | `pdfplumber` | F1 micro (all) | 0.702 | 0.360 | -34.2 pts | 24 / 23 |
+| TOC | `both` | F1 micro (d<=2) | 0.716 | 0.593 | -12.2 pts | 24 / 23 |
+| TOC | `both` | F1 macro (d<=2) | 0.604 | 0.490 | -11.4 pts | 24 / 23 |
+| TOC | `both` | F1 micro (all) | 0.717 | 0.448 | -26.8 pts | 24 / 23 |
+| Doc type | `jev-view` | leaf accuracy | 0.961 | 0.925 | -3.6 pts | 51 / 40 |
+| Doc type | `jev-view` | macro F1 | 0.944 | 0.930 | -1.4 pts | 51 / 40 |
+| Doc type | `jev-chunks` | leaf accuracy | 0.922 | 0.975 | +5.3 pts | 51 / 40 |
+| Doc type | `jev-chunks` | macro F1 | 0.911 | 0.989 | +7.8 pts | 51 / 40 |
+| Doc type | `ultrabert-view` | leaf accuracy | 0.765 | 0.825 | +6.0 pts | 51 / 40 |
+| Doc type | `ultrabert-view` | macro F1 | 0.709 | 0.778 | +6.8 pts | 51 / 40 |
+| Doc type | `ultrabert-hybrid` | leaf accuracy | 0.824 | 0.775 | -4.9 pts | 51 / 40 |
+| Doc type | `ultrabert-hybrid` | macro F1 | 0.765 | 0.731 | -3.4 pts | 51 / 40 |
+| Doc type | `bge-view` | leaf accuracy | 0.608 | 0.700 | +9.2 pts | 51 / 40 |
+| Doc type | `bge-view` | macro F1 | 0.541 | 0.654 | +11.3 pts | 51 / 40 |
+| Doc type | `ultrabert-loo -> ultrabert-dev-logistic` | leaf accuracy | 0.706 | 0.675 | -3.1 pts | 51 / 40 |
+| Doc type | `ultrabert-loo -> ultrabert-dev-logistic` | macro F1 | 0.647 | 0.665 | +1.8 pts | 51 / 40 |
+| Doc type | `ultrabert-bge-loo -> ultrabert-bge-dev-ensemble` | leaf accuracy | 0.824 | 0.800 | -2.4 pts | 51 / 40 |
+| Doc type | `ultrabert-bge-loo -> ultrabert-bge-dev-ensemble` | macro F1 | 0.784 | 0.753 | -3.1 pts | 51 / 40 |
+| Normalisation | `ultrabert` | accuracy | 0.514 | 0.579 | +6.5 pts | 142 / 133 |
+| Normalisation | `ultrabert` | macro F1 | 0.572 | 0.564 | -0.8 pts | 142 / 133 |
+| Normalisation | `bge-small` | accuracy | 0.408 | 0.496 | +8.8 pts | 142 / 133 |
+| Normalisation | `bge-small` | macro F1 | 0.554 | 0.555 | +0.1 pts | 142 / 133 |
+| Normalisation | `jev` | accuracy | 0.725 | 0.692 | -3.4 pts | 142 / 133 |
+| Normalisation | `jev` | macro F1 | 0.762 | 0.707 | -5.5 pts | 142 / 133 |
+| Normalisation | `auto_doc_type` | accuracy | 0.479 | 0.406 | -7.3 pts | 142 / 133 |
+| Normalisation | `auto_doc_type` | macro F1 | 0.494 | 0.394 | -10.0 pts | 142 / 133 |
+<!-- heldout-compare:end -->
+
+**Discussion.**
+
+- **Document type generalises.**
+  - Jev stays at 0.925-0.975. `ho_018` is image-only and counts as a miss for everyone.
+  - The zero-shot local views do *better* than on dev.
+  - The honest transfer test is the one that disappoints: the logistic head trained on dev
+    (0.675) and the dev-weighted UltraBERT+bge ensemble (0.800) both score **below zero-shot
+    `ultrabert-view` (0.825)** on new publishers. With 2-4 training documents per class, the
+    trained head learns publisher cues.
+- **Section normalisation holds.** UltraBERT and bge-small improve on held-out data even though
+  the defaults were chosen on the dev silver set. Jev drops 3 points, and the auto doc-type path
+  drops 7: one contract is typed as terms and policy at confidence 0.21.
+- **TOC extraction is the real drop.** Default-engine d<=2 F1 falls by about 12 points:
+  - About half of the drop comes from bookmark sets that are not tables of contents
+    (design-tool page labels, "Slide N:" prefixes, a scan).
+  - The rest is genuine: bold body-size headings in an earnings release, a bilingual statute,
+    and a split cover title shifting heading levels.
+  - `pdfplumber` silently returns 3 headings for the 816-page ECMA-262 specification, which is
+    what drives its all-depth collapse and pulls `both` down with it.

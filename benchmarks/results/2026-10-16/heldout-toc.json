@@ -1,0 +1,2093 @@
+{
+  "engines": {
+    "pymupdf": {
+      "engine": "pymupdf",
+      "n_docs": 23,
+      "doc_ids": [
+        "ho_001",
+        "ho_002",
+        "ho_003",
+        "ho_007",
+        "ho_008",
+        "ho_009",
+        "ho_011",
+        "ho_016",
+        "ho_018",
+        "ho_021",
+        "ho_025",
+        "ho_027",
+        "ho_028",
+        "ho_029",
+        "ho_030",
+        "ho_031",
+        "ho_032",
+        "ho_033",
+        "ho_034",
+        "ho_035",
+        "ho_036",
+        "ho_038",
+        "ho_039"
+      ],
+      "all": {
+        "n_docs": 23,
+        "n_pred": 4238,
+        "n_gold": 4363,
+        "n_match": 3242,
+        "p": 0.7649834827748938,
+        "r": 0.7430666972266788,
+        "f1": 0.7538658295547028,
+        "level_acc": 0.9225786551511412,
+        "macro_f1": 0.5151264917671212,
+        "seconds_per_doc": 1.414
+      },
+      "depth2": {
+        "n_docs": 23,
+        "n_pred": 1120,
+        "n_gold": 1308,
+        "n_match": 699,
+        "p": 0.6241071428571429,
+        "r": 0.5344036697247706,
+        "f1": 0.5757825370675452,
+        "level_acc": 0.9113018597997139,
+        "macro_f1": 0.4796048726725451,
+        "seconds_per_doc": 1.414
+      },
+      "docs": [
+        {
+          "id": "ho_001",
+          "title": "Rio Tinto Annual Report 2023",
+          "pages": 360,
+          "seconds": 6.96,
+          "all": {
+            "p": 0.4250871080139373,
+            "r": 0.4552238805970149,
+            "f1": 0.4396396396396397,
+            "level_acc": 0.26229508196721313,
+            "n_pred": 287,
+            "n_gold": 268,
+            "n_match": 122,
+            "n_level_ok": 32
+          },
+          "depth2": {
+            "p": 0.6575342465753424,
+            "r": 0.5,
+            "f1": 0.5680473372781065,
+            "level_acc": 0.5833333333333334,
+            "n_pred": 73,
+            "n_gold": 96,
+            "n_match": 48,
+            "n_level_ok": 28
+          }
+        },
+        {
+          "id": "ho_002",
+          "title": "The Collinson Group Limited Annual report and financial statements for the year ended 30 April 2024",
+          "pages": 103,
+          "seconds": 1.238,
+          "all": {
+            "p": 0.3114754098360656,
+            "r": 0.21839080459770116,
+            "f1": 0.2567567567567568,
+            "level_acc": 0.3684210526315789,
+            "n_pred": 122,
+            "n_gold": 174,
+            "n_match": 38,
+            "n_level_ok": 14
+          },
+          "depth2": {
+            "p": 0.22916666666666666,
+            "r": 0.13924050632911392,
+            "f1": 0.1732283464566929,
+            "level_acc": 0.6363636363636364,
+            "n_pred": 96,
+            "n_gold": 158,
+            "n_match": 22,
+            "n_level_ok": 14
+          }
+        },
+        {
+          "id": "ho_003",
+          "title": "Roche Half-Year Report 2024",
+          "pages": 91,
+          "seconds": 1.08,
+          "all": {
+            "p": 0.9736842105263158,
+            "r": 1.0,
+            "f1": 0.9866666666666666,
+            "level_acc": 0.02702702702702703,
+            "n_pred": 38,
+            "n_gold": 37,
+            "n_match": 37,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.23684210526315788,
+            "r": 1.0,
+            "f1": 0.38297872340425526,
+            "level_acc": 0.1111111111111111,
+            "n_pred": 38,
+            "n_gold": 9,
+            "n_match": 9,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "ho_007",
+          "title": "Pinterest Announces Second Quarter 2024 Results",
+          "pages": 11,
+          "seconds": 0.121,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 1,
+            "n_gold": 16,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 1,
+            "n_gold": 16,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_008",
+          "title": "International Paper Reports Second Quarter 2024 Results",
+          "pages": 11,
+          "seconds": 0.187,
+          "all": {
+            "p": 1.0,
+            "r": 0.16666666666666666,
+            "f1": 0.2857142857142857,
+            "level_acc": 1.0,
+            "n_pred": 1,
+            "n_gold": 6,
+            "n_match": 1,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 1.0,
+            "r": 0.16666666666666666,
+            "f1": 0.2857142857142857,
+            "level_acc": 1.0,
+            "n_pred": 1,
+            "n_gold": 6,
+            "n_match": 1,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "ho_009",
+          "title": "Vanguard Ultra-Short Bond ETF Prospectus (April 28, 2026)",
+          "pages": 40,
+          "seconds": 0.487,
+          "all": {
+            "p": 0.875,
+            "r": 1.0,
+            "f1": 0.9333333333333333,
+            "level_acc": 1.0,
+            "n_pred": 16,
+            "n_gold": 14,
+            "n_match": 14,
+            "n_level_ok": 14
+          },
+          "depth2": {
+            "p": 0.875,
+            "r": 1.0,
+            "f1": 0.9333333333333333,
+            "level_acc": 1.0,
+            "n_pred": 16,
+            "n_gold": 14,
+            "n_match": 14,
+            "n_level_ok": 14
+          }
+        },
+        {
+          "id": "ho_011",
+          "title": "CDW Corporation Notice of 2024 Annual Meeting of Stockholders and Proxy Statement",
+          "pages": 81,
+          "seconds": 1.351,
+          "all": {
+            "p": 0.4110429447852761,
+            "r": 0.9305555555555556,
+            "f1": 0.5702127659574467,
+            "level_acc": 0.6567164179104478,
+            "n_pred": 163,
+            "n_gold": 72,
+            "n_match": 67,
+            "n_level_ok": 44
+          },
+          "depth2": {
+            "p": 0.41304347826086957,
+            "r": 0.7916666666666666,
+            "f1": 0.5428571428571429,
+            "level_acc": 0.21052631578947367,
+            "n_pred": 46,
+            "n_gold": 24,
+            "n_match": 19,
+            "n_level_ok": 4
+          }
+        },
+        {
+          "id": "ho_016",
+          "title": "CatalyST Privacy and cookie policy (May 2018)",
+          "pages": 3,
+          "seconds": 0.026,
+          "all": {
+            "p": 1.0,
+            "r": 0.19148936170212766,
+            "f1": 0.32142857142857145,
+            "level_acc": 1.0,
+            "n_pred": 9,
+            "n_gold": 47,
+            "n_match": 9,
+            "n_level_ok": 9
+          },
+          "depth2": {
+            "p": 1.0,
+            "r": 0.19148936170212766,
+            "f1": 0.32142857142857145,
+            "level_acc": 1.0,
+            "n_pred": 9,
+            "n_gold": 47,
+            "n_match": 9,
+            "n_level_ok": 9
+          }
+        },
+        {
+          "id": "ho_018",
+          "title": "M'Alister (or Donoghue) v Stevenson [1932] AC 562 (House of Lords)",
+          "pages": 62,
+          "seconds": 0.009,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 62,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 62,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_021",
+          "title": "Personal Information Protection and Electronic Documents Act (S.C. 2000, c. 5), consolidation to Sept 30, 2026",
+          "pages": 71,
+          "seconds": 1.272,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 47,
+            "n_gold": 64,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 39,
+            "n_gold": 26,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_025",
+          "title": "ECMA-262, 15th edition, June 2024: ECMAScript 2024 Language Specification",
+          "pages": 816,
+          "seconds": 9.79,
+          "all": {
+            "p": 0.9840193704600484,
+            "r": 0.9411764705882353,
+            "f1": 0.962121212121212,
+            "level_acc": 0.984744094488189,
+            "n_pred": 2065,
+            "n_gold": 2159,
+            "n_match": 2032,
+            "n_level_ok": 2001
+          },
+          "depth2": {
+            "p": 0.8975609756097561,
+            "r": 0.8932038834951457,
+            "f1": 0.8953771289537714,
+            "level_acc": 0.9728260869565217,
+            "n_pred": 205,
+            "n_gold": 206,
+            "n_match": 184,
+            "n_level_ok": 179
+          }
+        },
+        {
+          "id": "ho_027",
+          "title": "ETSI EN 303 645 V2.1.1 (2020-06): Cyber Security for Consumer Internet of Things: Baseline Requirements",
+          "pages": 34,
+          "seconds": 0.443,
+          "all": {
+            "p": 0.9142857142857143,
+            "r": 0.9696969696969697,
+            "f1": 0.9411764705882354,
+            "level_acc": 0.9375,
+            "n_pred": 35,
+            "n_gold": 33,
+            "n_match": 32,
+            "n_level_ok": 30
+          },
+          "depth2": {
+            "p": 0.9142857142857143,
+            "r": 0.9696969696969697,
+            "f1": 0.9411764705882354,
+            "level_acc": 0.9375,
+            "n_pred": 35,
+            "n_gold": 33,
+            "n_match": 32,
+            "n_level_ok": 30
+          }
+        },
+        {
+          "id": "ho_028",
+          "title": "Uniswap v3 Core (March 2021)",
+          "pages": 9,
+          "seconds": 0.195,
+          "all": {
+            "p": 0.8888888888888888,
+            "r": 0.8888888888888888,
+            "f1": 0.8888888888888888,
+            "level_acc": 1.0,
+            "n_pred": 18,
+            "n_gold": 18,
+            "n_match": 16,
+            "n_level_ok": 16
+          },
+          "depth2": {
+            "p": 0.8888888888888888,
+            "r": 0.8888888888888888,
+            "f1": 0.8888888888888888,
+            "level_acc": 1.0,
+            "n_pred": 18,
+            "n_gold": 18,
+            "n_match": 16,
+            "n_level_ok": 16
+          }
+        },
+        {
+          "id": "ho_029",
+          "title": "Ethereum Basics for Governments and Institutions",
+          "pages": 71,
+          "seconds": 0.769,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 108,
+            "n_gold": 72,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 31,
+            "n_gold": 72,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_030",
+          "title": "An Introduction to R (Version 4.6.1)",
+          "pages": 103,
+          "seconds": 1.286,
+          "all": {
+            "p": 0.9276315789473685,
+            "r": 0.6811594202898551,
+            "f1": 0.7855153203342619,
+            "level_acc": 1.0,
+            "n_pred": 152,
+            "n_gold": 207,
+            "n_match": 141,
+            "n_level_ok": 141
+          },
+          "depth2": {
+            "p": 0.9537037037037037,
+            "r": 0.6094674556213018,
+            "f1": 0.743682310469314,
+            "level_acc": 1.0,
+            "n_pred": 108,
+            "n_gold": 169,
+            "n_match": 103,
+            "n_level_ok": 103
+          }
+        },
+        {
+          "id": "ho_031",
+          "title": "Debian Reference",
+          "pages": 285,
+          "seconds": 3.143,
+          "all": {
+            "p": 0.904296875,
+            "r": 0.9726890756302521,
+            "f1": 0.9372469635627529,
+            "level_acc": 0.9956803455723542,
+            "n_pred": 512,
+            "n_gold": 476,
+            "n_match": 463,
+            "n_level_ok": 461
+          },
+          "depth2": {
+            "p": 0.746268656716418,
+            "r": 0.9523809523809523,
+            "f1": 0.8368200836820083,
+            "level_acc": 1.0,
+            "n_pred": 134,
+            "n_gold": 105,
+            "n_match": 100,
+            "n_level_ok": 100
+          }
+        },
+        {
+          "id": "ho_032",
+          "title": "ESP32 Series Datasheet Version 5.3",
+          "pages": 78,
+          "seconds": 0.634,
+          "all": {
+            "p": 0.7222222222222222,
+            "r": 0.9680851063829787,
+            "f1": 0.8272727272727272,
+            "level_acc": 0.978021978021978,
+            "n_pred": 126,
+            "n_gold": 94,
+            "n_match": 91,
+            "n_level_ok": 89
+          },
+          "depth2": {
+            "p": 0.6376811594202898,
+            "r": 0.9361702127659575,
+            "f1": 0.7586206896551724,
+            "level_acc": 1.0,
+            "n_pred": 69,
+            "n_gold": 47,
+            "n_match": 44,
+            "n_level_ok": 44
+          }
+        },
+        {
+          "id": "ho_033",
+          "title": "LR8 High-Input Voltage, Adjustable, 3-Terminal, Linear Regulator (DS20005399B)",
+          "pages": 18,
+          "seconds": 0.15,
+          "all": {
+            "p": 0.3125,
+            "r": 0.5769230769230769,
+            "f1": 0.4054054054054054,
+            "level_acc": 0.8,
+            "n_pred": 48,
+            "n_gold": 26,
+            "n_match": 15,
+            "n_level_ok": 12
+          },
+          "depth2": {
+            "p": 0.4411764705882353,
+            "r": 0.5769230769230769,
+            "f1": 0.5,
+            "level_acc": 0.8,
+            "n_pred": 34,
+            "n_gold": 26,
+            "n_match": 15,
+            "n_level_ok": 12
+          }
+        },
+        {
+          "id": "ho_034",
+          "title": "BME280 Data sheet (revision 1.24, February 2024)",
+          "pages": 60,
+          "seconds": 0.591,
+          "all": {
+            "p": 0.8558558558558559,
+            "r": 0.9223300970873787,
+            "f1": 0.8878504672897196,
+            "level_acc": 1.0,
+            "n_pred": 111,
+            "n_gold": 103,
+            "n_match": 95,
+            "n_level_ok": 95
+          },
+          "depth2": {
+            "p": 0.7746478873239436,
+            "r": 0.9322033898305084,
+            "f1": 0.846153846153846,
+            "level_acc": 1.0,
+            "n_pred": 71,
+            "n_gold": 59,
+            "n_match": 55,
+            "n_level_ok": 55
+          }
+        },
+        {
+          "id": "ho_035",
+          "title": "Monetary Policy Report - July 2024",
+          "pages": 29,
+          "seconds": 0.344,
+          "all": {
+            "p": 0.6428571428571429,
+            "r": 0.6923076923076923,
+            "f1": 0.6666666666666666,
+            "level_acc": 0.9444444444444444,
+            "n_pred": 28,
+            "n_gold": 26,
+            "n_match": 18,
+            "n_level_ok": 17
+          },
+          "depth2": {
+            "p": 0.6538461538461539,
+            "r": 0.6538461538461539,
+            "f1": 0.6538461538461539,
+            "level_acc": 1.0,
+            "n_pred": 26,
+            "n_gold": 26,
+            "n_match": 17,
+            "n_level_ok": 17
+          }
+        },
+        {
+          "id": "ho_036",
+          "title": "Police productivity (HC 1380, Session 2024-2026)",
+          "pages": 51,
+          "seconds": 0.49,
+          "all": {
+            "p": 0.35714285714285715,
+            "r": 1.0,
+            "f1": 0.5263157894736842,
+            "level_acc": 1.0,
+            "n_pred": 28,
+            "n_gold": 10,
+            "n_match": 10,
+            "n_level_ok": 10
+          },
+          "depth2": {
+            "p": 0.5882352941176471,
+            "r": 1.0,
+            "f1": 0.7407407407407407,
+            "level_acc": 1.0,
+            "n_pred": 17,
+            "n_gold": 10,
+            "n_match": 10,
+            "n_level_ok": 10
+          }
+        },
+        {
+          "id": "ho_038",
+          "title": "Microsoft 2024 Environmental Sustainability Report (reporting on fiscal year 2023)",
+          "pages": 88,
+          "seconds": 1.435,
+          "all": {
+            "p": 0.7142857142857143,
+            "r": 0.12987012987012986,
+            "f1": 0.21978021978021978,
+            "level_acc": 0.1,
+            "n_pred": 56,
+            "n_gold": 308,
+            "n_match": 40,
+            "n_level_ok": 4
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 13,
+            "n_gold": 8,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_039",
+          "title": "Moody's Corporation 1Q 2024 Investor Presentation (May 16, 2024)",
+          "pages": 70,
+          "seconds": 0.521,
+          "all": {
+            "p": 0.003745318352059925,
+            "r": 0.014084507042253521,
+            "f1": 0.005917159763313609,
+            "level_acc": 0.0,
+            "n_pred": 267,
+            "n_gold": 71,
+            "n_match": 1,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.025,
+            "r": 0.014084507042253521,
+            "f1": 0.018018018018018018,
+            "level_acc": 0.0,
+            "n_pred": 40,
+            "n_gold": 71,
+            "n_match": 1,
+            "n_level_ok": 0
+          }
+        }
+      ],
+      "note": null,
+      "date": "2026-10-16",
+      "commit": "72f6135",
+      "loadavg_start": [
+        3.93798828125,
+        3.92919921875,
+        3.3125
+      ],
+      "loadavg_end": [
+        4.5888671875,
+        4.08056640625,
+        3.390625
+      ]
+    },
+    "pdfplumber": {
+      "engine": "pdfplumber",
+      "n_docs": 23,
+      "doc_ids": [
+        "ho_001",
+        "ho_002",
+        "ho_003",
+        "ho_007",
+        "ho_008",
+        "ho_009",
+        "ho_011",
+        "ho_016",
+        "ho_018",
+        "ho_021",
+        "ho_025",
+        "ho_027",
+        "ho_028",
+        "ho_029",
+        "ho_030",
+        "ho_031",
+        "ho_032",
+        "ho_033",
+        "ho_034",
+        "ho_035",
+        "ho_036",
+        "ho_038",
+        "ho_039"
+      ],
+      "all": {
+        "n_docs": 23,
+        "n_pred": 2141,
+        "n_gold": 4363,
+        "n_match": 1172,
+        "p": 0.5474077533862681,
+        "r": 0.26862250744900296,
+        "f1": 0.36039360393603936,
+        "level_acc": 0.8421501706484642,
+        "macro_f1": 0.4675972938637475,
+        "seconds_per_doc": 5.215
+      },
+      "depth2": {
+        "n_docs": 23,
+        "n_pred": 908,
+        "n_gold": 1308,
+        "n_match": 507,
+        "p": 0.5583700440528634,
+        "r": 0.3876146788990826,
+        "f1": 0.4575812274368231,
+        "level_acc": 0.9053254437869822,
+        "macro_f1": 0.439312697291627,
+        "seconds_per_doc": 5.215
+      },
+      "docs": [
+        {
+          "id": "ho_001",
+          "title": "Rio Tinto Annual Report 2023",
+          "pages": 360,
+          "seconds": 28.652,
+          "all": {
+            "p": 0.44015444015444016,
+            "r": 0.4253731343283582,
+            "f1": 0.43263757115749524,
+            "level_acc": 0.2807017543859649,
+            "n_pred": 259,
+            "n_gold": 268,
+            "n_match": 114,
+            "n_level_ok": 32
+          },
+          "depth2": {
+            "p": 0.6417910447761194,
+            "r": 0.4479166666666667,
+            "f1": 0.5276073619631902,
+            "level_acc": 0.6511627906976745,
+            "n_pred": 67,
+            "n_gold": 96,
+            "n_match": 43,
+            "n_level_ok": 28
+          }
+        },
+        {
+          "id": "ho_002",
+          "title": "The Collinson Group Limited Annual report and financial statements for the year ended 30 April 2024",
+          "pages": 103,
+          "seconds": 5.729,
+          "all": {
+            "p": 0.29,
+            "r": 0.16666666666666666,
+            "f1": 0.21167883211678828,
+            "level_acc": 0.4827586206896552,
+            "n_pred": 100,
+            "n_gold": 174,
+            "n_match": 29,
+            "n_level_ok": 14
+          },
+          "depth2": {
+            "p": 0.23255813953488372,
+            "r": 0.12658227848101267,
+            "f1": 0.1639344262295082,
+            "level_acc": 0.7,
+            "n_pred": 86,
+            "n_gold": 158,
+            "n_match": 20,
+            "n_level_ok": 14
+          }
+        },
+        {
+          "id": "ho_003",
+          "title": "Roche Half-Year Report 2024",
+          "pages": 91,
+          "seconds": 5.12,
+          "all": {
+            "p": 0.9736842105263158,
+            "r": 1.0,
+            "f1": 0.9866666666666666,
+            "level_acc": 0.02702702702702703,
+            "n_pred": 38,
+            "n_gold": 37,
+            "n_match": 37,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.23684210526315788,
+            "r": 1.0,
+            "f1": 0.38297872340425526,
+            "level_acc": 0.1111111111111111,
+            "n_pred": 38,
+            "n_gold": 9,
+            "n_match": 9,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "ho_007",
+          "title": "Pinterest Announces Second Quarter 2024 Results",
+          "pages": 11,
+          "seconds": 0.469,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 1,
+            "n_gold": 16,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 1,
+            "n_gold": 16,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_008",
+          "title": "International Paper Reports Second Quarter 2024 Results",
+          "pages": 11,
+          "seconds": 0.669,
+          "all": {
+            "p": 1.0,
+            "r": 0.16666666666666666,
+            "f1": 0.2857142857142857,
+            "level_acc": 1.0,
+            "n_pred": 1,
+            "n_gold": 6,
+            "n_match": 1,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 1.0,
+            "r": 0.16666666666666666,
+            "f1": 0.2857142857142857,
+            "level_acc": 1.0,
+            "n_pred": 1,
+            "n_gold": 6,
+            "n_match": 1,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "ho_009",
+          "title": "Vanguard Ultra-Short Bond ETF Prospectus (April 28, 2026)",
+          "pages": 40,
+          "seconds": 1.13,
+          "all": {
+            "p": 0.875,
+            "r": 1.0,
+            "f1": 0.9333333333333333,
+            "level_acc": 1.0,
+            "n_pred": 16,
+            "n_gold": 14,
+            "n_match": 14,
+            "n_level_ok": 14
+          },
+          "depth2": {
+            "p": 0.875,
+            "r": 1.0,
+            "f1": 0.9333333333333333,
+            "level_acc": 1.0,
+            "n_pred": 16,
+            "n_gold": 14,
+            "n_match": 14,
+            "n_level_ok": 14
+          }
+        },
+        {
+          "id": "ho_011",
+          "title": "CDW Corporation Notice of 2024 Annual Meeting of Stockholders and Proxy Statement",
+          "pages": 81,
+          "seconds": 4.957,
+          "all": {
+            "p": 0.41509433962264153,
+            "r": 0.9166666666666666,
+            "f1": 0.5714285714285715,
+            "level_acc": 0.6515151515151515,
+            "n_pred": 159,
+            "n_gold": 72,
+            "n_match": 66,
+            "n_level_ok": 43
+          },
+          "depth2": {
+            "p": 0.4090909090909091,
+            "r": 0.75,
+            "f1": 0.5294117647058824,
+            "level_acc": 0.16666666666666666,
+            "n_pred": 44,
+            "n_gold": 24,
+            "n_match": 18,
+            "n_level_ok": 3
+          }
+        },
+        {
+          "id": "ho_016",
+          "title": "CatalyST Privacy and cookie policy (May 2018)",
+          "pages": 3,
+          "seconds": 0.098,
+          "all": {
+            "p": 0.8888888888888888,
+            "r": 0.1702127659574468,
+            "f1": 0.2857142857142857,
+            "level_acc": 1.0,
+            "n_pred": 9,
+            "n_gold": 47,
+            "n_match": 8,
+            "n_level_ok": 8
+          },
+          "depth2": {
+            "p": 0.8888888888888888,
+            "r": 0.1702127659574468,
+            "f1": 0.2857142857142857,
+            "level_acc": 1.0,
+            "n_pred": 9,
+            "n_gold": 47,
+            "n_match": 8,
+            "n_level_ok": 8
+          }
+        },
+        {
+          "id": "ho_018",
+          "title": "M'Alister (or Donoghue) v Stevenson [1932] AC 562 (House of Lords)",
+          "pages": 62,
+          "seconds": 0.023,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 62,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 62,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_021",
+          "title": "Personal Information Protection and Electronic Documents Act (S.C. 2000, c. 5), consolidation to Sept 30, 2026",
+          "pages": 71,
+          "seconds": 4.555,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 46,
+            "n_gold": 64,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 41,
+            "n_gold": 26,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_025",
+          "title": "ECMA-262, 15th edition, June 2024: ECMAScript 2024 Language Specification",
+          "pages": 816,
+          "seconds": 18.246,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 3,
+            "n_gold": 2159,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 2,
+            "n_gold": 206,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_027",
+          "title": "ETSI EN 303 645 V2.1.1 (2020-06): Cyber Security for Consumer Internet of Things: Baseline Requirements",
+          "pages": 34,
+          "seconds": 1.926,
+          "all": {
+            "p": 0.8918918918918919,
+            "r": 1.0,
+            "f1": 0.9428571428571428,
+            "level_acc": 0.9393939393939394,
+            "n_pred": 37,
+            "n_gold": 33,
+            "n_match": 33,
+            "n_level_ok": 31
+          },
+          "depth2": {
+            "p": 0.8918918918918919,
+            "r": 1.0,
+            "f1": 0.9428571428571428,
+            "level_acc": 0.9393939393939394,
+            "n_pred": 37,
+            "n_gold": 33,
+            "n_match": 33,
+            "n_level_ok": 31
+          }
+        },
+        {
+          "id": "ho_028",
+          "title": "Uniswap v3 Core (March 2021)",
+          "pages": 9,
+          "seconds": 0.672,
+          "all": {
+            "p": 0.875,
+            "r": 0.7777777777777778,
+            "f1": 0.823529411764706,
+            "level_acc": 1.0,
+            "n_pred": 16,
+            "n_gold": 18,
+            "n_match": 14,
+            "n_level_ok": 14
+          },
+          "depth2": {
+            "p": 0.875,
+            "r": 0.7777777777777778,
+            "f1": 0.823529411764706,
+            "level_acc": 1.0,
+            "n_pred": 16,
+            "n_gold": 18,
+            "n_match": 14,
+            "n_level_ok": 14
+          }
+        },
+        {
+          "id": "ho_029",
+          "title": "Ethereum Basics for Governments and Institutions",
+          "pages": 71,
+          "seconds": 7.465,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 144,
+            "n_gold": 72,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 31,
+            "n_gold": 72,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_030",
+          "title": "An Introduction to R (Version 4.6.1)",
+          "pages": 103,
+          "seconds": 3.491,
+          "all": {
+            "p": 0.9215686274509803,
+            "r": 0.6811594202898551,
+            "f1": 0.7833333333333333,
+            "level_acc": 1.0,
+            "n_pred": 153,
+            "n_gold": 207,
+            "n_match": 141,
+            "n_level_ok": 141
+          },
+          "depth2": {
+            "p": 0.9537037037037037,
+            "r": 0.6094674556213018,
+            "f1": 0.743682310469314,
+            "level_acc": 1.0,
+            "n_pred": 108,
+            "n_gold": 169,
+            "n_match": 103,
+            "n_level_ok": 103
+          }
+        },
+        {
+          "id": "ho_031",
+          "title": "Debian Reference",
+          "pages": 285,
+          "seconds": 12.706,
+          "all": {
+            "p": 0.8735849056603774,
+            "r": 0.9726890756302521,
+            "f1": 0.9204771371769384,
+            "level_acc": 0.9935205183585313,
+            "n_pred": 530,
+            "n_gold": 476,
+            "n_match": 463,
+            "n_level_ok": 460
+          },
+          "depth2": {
+            "p": 0.7246376811594203,
+            "r": 0.9523809523809523,
+            "f1": 0.8230452674897119,
+            "level_acc": 1.0,
+            "n_pred": 138,
+            "n_gold": 105,
+            "n_match": 100,
+            "n_level_ok": 100
+          }
+        },
+        {
+          "id": "ho_032",
+          "title": "ESP32 Series Datasheet Version 5.3",
+          "pages": 78,
+          "seconds": 5.329,
+          "all": {
+            "p": 0.775,
+            "r": 0.9893617021276596,
+            "f1": 0.869158878504673,
+            "level_acc": 0.989247311827957,
+            "n_pred": 120,
+            "n_gold": 94,
+            "n_match": 93,
+            "n_level_ok": 92
+          },
+          "depth2": {
+            "p": 0.6865671641791045,
+            "r": 0.9787234042553191,
+            "f1": 0.807017543859649,
+            "level_acc": 1.0,
+            "n_pred": 67,
+            "n_gold": 47,
+            "n_match": 46,
+            "n_level_ok": 46
+          }
+        },
+        {
+          "id": "ho_033",
+          "title": "LR8 High-Input Voltage, Adjustable, 3-Terminal, Linear Regulator (DS20005399B)",
+          "pages": 18,
+          "seconds": 0.593,
+          "all": {
+            "p": 0.2978723404255319,
+            "r": 0.5384615384615384,
+            "f1": 0.3835616438356164,
+            "level_acc": 0.8571428571428571,
+            "n_pred": 47,
+            "n_gold": 26,
+            "n_match": 14,
+            "n_level_ok": 12
+          },
+          "depth2": {
+            "p": 0.42424242424242425,
+            "r": 0.5384615384615384,
+            "f1": 0.47457627118644075,
+            "level_acc": 0.8571428571428571,
+            "n_pred": 33,
+            "n_gold": 26,
+            "n_match": 14,
+            "n_level_ok": 12
+          }
+        },
+        {
+          "id": "ho_034",
+          "title": "BME280 Data sheet (revision 1.24, February 2024)",
+          "pages": 60,
+          "seconds": 3.165,
+          "all": {
+            "p": 0.9150943396226415,
+            "r": 0.941747572815534,
+            "f1": 0.9282296650717704,
+            "level_acc": 1.0,
+            "n_pred": 106,
+            "n_gold": 103,
+            "n_match": 97,
+            "n_level_ok": 97
+          },
+          "depth2": {
+            "p": 0.8615384615384616,
+            "r": 0.9491525423728814,
+            "f1": 0.903225806451613,
+            "level_acc": 1.0,
+            "n_pred": 65,
+            "n_gold": 59,
+            "n_match": 56,
+            "n_level_ok": 56
+          }
+        },
+        {
+          "id": "ho_035",
+          "title": "Monetary Policy Report - July 2024",
+          "pages": 29,
+          "seconds": 1.697,
+          "all": {
+            "p": 0.6666666666666666,
+            "r": 0.6923076923076923,
+            "f1": 0.6792452830188679,
+            "level_acc": 0.9444444444444444,
+            "n_pred": 27,
+            "n_gold": 26,
+            "n_match": 18,
+            "n_level_ok": 17
+          },
+          "depth2": {
+            "p": 0.68,
+            "r": 0.6538461538461539,
+            "f1": 0.6666666666666666,
+            "level_acc": 1.0,
+            "n_pred": 25,
+            "n_gold": 26,
+            "n_match": 17,
+            "n_level_ok": 17
+          }
+        },
+        {
+          "id": "ho_036",
+          "title": "Police productivity (HC 1380, Session 2024-2026)",
+          "pages": 51,
+          "seconds": 1.99,
+          "all": {
+            "p": 0.43478260869565216,
+            "r": 1.0,
+            "f1": 0.6060606060606061,
+            "level_acc": 1.0,
+            "n_pred": 23,
+            "n_gold": 10,
+            "n_match": 10,
+            "n_level_ok": 10
+          },
+          "depth2": {
+            "p": 0.625,
+            "r": 1.0,
+            "f1": 0.7692307692307693,
+            "level_acc": 1.0,
+            "n_pred": 16,
+            "n_gold": 10,
+            "n_match": 10,
+            "n_level_ok": 10
+          }
+        },
+        {
+          "id": "ho_038",
+          "title": "Microsoft 2024 Environmental Sustainability Report (reporting on fiscal year 2023)",
+          "pages": 88,
+          "seconds": 7.885,
+          "all": {
+            "p": 0.38461538461538464,
+            "r": 0.06493506493506493,
+            "f1": 0.1111111111111111,
+            "level_acc": 0.0,
+            "n_pred": 52,
+            "n_gold": 308,
+            "n_match": 20,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.025,
+            "r": 0.125,
+            "f1": 0.04166666666666667,
+            "level_acc": 1.0,
+            "n_pred": 40,
+            "n_gold": 8,
+            "n_match": 1,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "ho_039",
+          "title": "Moody's Corporation 1Q 2024 Investor Presentation (May 16, 2024)",
+          "pages": 70,
+          "seconds": 3.378,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 254,
+            "n_gold": 71,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 27,
+            "n_gold": 71,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        }
+      ],
+      "note": null,
+      "date": "2026-10-16",
+      "commit": "72f6135",
+      "loadavg_start": [
+        4.5888671875,
+        4.08056640625,
+        3.390625
+      ],
+      "loadavg_end": [
+        5.96875,
+        4.4482421875,
+        3.6025390625
+      ]
+    },
+    "both": {
+      "engine": "both",
+      "n_docs": 23,
+      "doc_ids": [
+        "ho_001",
+        "ho_002",
+        "ho_003",
+        "ho_007",
+        "ho_008",
+        "ho_009",
+        "ho_011",
+        "ho_016",
+        "ho_018",
+        "ho_021",
+        "ho_025",
+        "ho_027",
+        "ho_028",
+        "ho_029",
+        "ho_030",
+        "ho_031",
+        "ho_032",
+        "ho_033",
+        "ho_034",
+        "ho_035",
+        "ho_036",
+        "ho_038",
+        "ho_039"
+      ],
+      "all": {
+        "n_docs": 23,
+        "n_pred": 2086,
+        "n_gold": 4363,
+        "n_match": 1445,
+        "p": 0.6927133269415149,
+        "r": 0.331194132477653,
+        "f1": 0.44813149325476814,
+        "level_acc": 0.8581314878892734,
+        "macro_f1": 0.49341432782756245,
+        "seconds_per_doc": 6.598739130434782
+      },
+      "depth2": {
+        "n_docs": 23,
+        "n_pred": 992,
+        "n_gold": 1308,
+        "n_match": 682,
+        "p": 0.6875,
+        "r": 0.5214067278287462,
+        "f1": 0.5930434782608696,
+        "level_acc": 0.9252199413489736,
+        "macro_f1": 0.4898384206315713,
+        "seconds_per_doc": 6.598739130434782
+      },
+      "docs": [
+        {
+          "id": "ho_001",
+          "title": "Rio Tinto Annual Report 2023",
+          "pages": 360,
+          "seconds": 38.57,
+          "all": {
+            "p": 0.4811715481171548,
+            "r": 0.4291044776119403,
+            "f1": 0.4536489151873767,
+            "level_acc": 0.28695652173913044,
+            "n_pred": 239,
+            "n_gold": 268,
+            "n_match": 115,
+            "n_level_ok": 33
+          },
+          "depth2": {
+            "p": 0.6875,
+            "r": 0.4583333333333333,
+            "f1": 0.5499999999999999,
+            "level_acc": 0.6590909090909091,
+            "n_pred": 64,
+            "n_gold": 96,
+            "n_match": 44,
+            "n_level_ok": 29
+          }
+        },
+        {
+          "id": "ho_002",
+          "title": "The Collinson Group Limited Annual report and financial statements for the year ended 30 April 2024",
+          "pages": 103,
+          "seconds": 7.319,
+          "all": {
+            "p": 0.3111111111111111,
+            "r": 0.16091954022988506,
+            "f1": 0.21212121212121213,
+            "level_acc": 0.5,
+            "n_pred": 90,
+            "n_gold": 174,
+            "n_match": 28,
+            "n_level_ok": 14
+          },
+          "depth2": {
+            "p": 0.24358974358974358,
+            "r": 0.12025316455696203,
+            "f1": 0.16101694915254236,
+            "level_acc": 0.7368421052631579,
+            "n_pred": 78,
+            "n_gold": 158,
+            "n_match": 19,
+            "n_level_ok": 14
+          }
+        },
+        {
+          "id": "ho_003",
+          "title": "Roche Half-Year Report 2024",
+          "pages": 91,
+          "seconds": 6.21,
+          "all": {
+            "p": 0.9736842105263158,
+            "r": 1.0,
+            "f1": 0.9866666666666666,
+            "level_acc": 0.02702702702702703,
+            "n_pred": 38,
+            "n_gold": 37,
+            "n_match": 37,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.23684210526315788,
+            "r": 1.0,
+            "f1": 0.38297872340425526,
+            "level_acc": 0.1111111111111111,
+            "n_pred": 38,
+            "n_gold": 9,
+            "n_match": 9,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "ho_007",
+          "title": "Pinterest Announces Second Quarter 2024 Results",
+          "pages": 11,
+          "seconds": 0.591,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 1,
+            "n_gold": 16,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 1,
+            "n_gold": 16,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_008",
+          "title": "International Paper Reports Second Quarter 2024 Results",
+          "pages": 11,
+          "seconds": 0.864,
+          "all": {
+            "p": 1.0,
+            "r": 0.16666666666666666,
+            "f1": 0.2857142857142857,
+            "level_acc": 1.0,
+            "n_pred": 1,
+            "n_gold": 6,
+            "n_match": 1,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 1.0,
+            "r": 0.16666666666666666,
+            "f1": 0.2857142857142857,
+            "level_acc": 1.0,
+            "n_pred": 1,
+            "n_gold": 6,
+            "n_match": 1,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "ho_009",
+          "title": "Vanguard Ultra-Short Bond ETF Prospectus (April 28, 2026)",
+          "pages": 40,
+          "seconds": 1.569,
+          "all": {
+            "p": 0.875,
+            "r": 1.0,
+            "f1": 0.9333333333333333,
+            "level_acc": 1.0,
+            "n_pred": 16,
+            "n_gold": 14,
+            "n_match": 14,
+            "n_level_ok": 14
+          },
+          "depth2": {
+            "p": 0.875,
+            "r": 1.0,
+            "f1": 0.9333333333333333,
+            "level_acc": 1.0,
+            "n_pred": 16,
+            "n_gold": 14,
+            "n_match": 14,
+            "n_level_ok": 14
+          }
+        },
+        {
+          "id": "ho_011",
+          "title": "CDW Corporation Notice of 2024 Annual Meeting of Stockholders and Proxy Statement",
+          "pages": 81,
+          "seconds": 6.229,
+          "all": {
+            "p": 0.44666666666666666,
+            "r": 0.9305555555555556,
+            "f1": 0.6036036036036037,
+            "level_acc": 0.6567164179104478,
+            "n_pred": 150,
+            "n_gold": 72,
+            "n_match": 67,
+            "n_level_ok": 44
+          },
+          "depth2": {
+            "p": 0.475,
+            "r": 0.7916666666666666,
+            "f1": 0.5937499999999999,
+            "level_acc": 0.21052631578947367,
+            "n_pred": 40,
+            "n_gold": 24,
+            "n_match": 19,
+            "n_level_ok": 4
+          }
+        },
+        {
+          "id": "ho_016",
+          "title": "CatalyST Privacy and cookie policy (May 2018)",
+          "pages": 3,
+          "seconds": 0.121,
+          "all": {
+            "p": 1.0,
+            "r": 0.1702127659574468,
+            "f1": 0.2909090909090909,
+            "level_acc": 0.875,
+            "n_pred": 8,
+            "n_gold": 47,
+            "n_match": 8,
+            "n_level_ok": 7
+          },
+          "depth2": {
+            "p": 1.0,
+            "r": 0.1702127659574468,
+            "f1": 0.2909090909090909,
+            "level_acc": 0.875,
+            "n_pred": 8,
+            "n_gold": 47,
+            "n_match": 8,
+            "n_level_ok": 7
+          }
+        },
+        {
+          "id": "ho_018",
+          "title": "M'Alister (or Donoghue) v Stevenson [1932] AC 562 (House of Lords)",
+          "pages": 62,
+          "seconds": 0.028,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 62,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 62,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_021",
+          "title": "Personal Information Protection and Electronic Documents Act (S.C. 2000, c. 5), consolidation to Sept 30, 2026",
+          "pages": 71,
+          "seconds": 5.948,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 36,
+            "n_gold": 64,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 29,
+            "n_gold": 26,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_025",
+          "title": "ECMA-262, 15th edition, June 2024: ECMAScript 2024 Language Specification",
+          "pages": 816,
+          "seconds": 27.592,
+          "all": {
+            "p": 0.9889705882352942,
+            "r": 0.12459471977767485,
+            "f1": 0.22130810366104484,
+            "level_acc": 0.9405204460966543,
+            "n_pred": 272,
+            "n_gold": 2159,
+            "n_match": 269,
+            "n_level_ok": 253
+          },
+          "depth2": {
+            "p": 0.9781420765027322,
+            "r": 0.8689320388349514,
+            "f1": 0.9203084832904884,
+            "level_acc": 0.9832402234636871,
+            "n_pred": 183,
+            "n_gold": 206,
+            "n_match": 179,
+            "n_level_ok": 176
+          }
+        },
+        {
+          "id": "ho_027",
+          "title": "ETSI EN 303 645 V2.1.1 (2020-06): Cyber Security for Consumer Internet of Things: Baseline Requirements",
+          "pages": 34,
+          "seconds": 2.105,
+          "all": {
+            "p": 0.9142857142857143,
+            "r": 0.9696969696969697,
+            "f1": 0.9411764705882354,
+            "level_acc": 0.9375,
+            "n_pred": 35,
+            "n_gold": 33,
+            "n_match": 32,
+            "n_level_ok": 30
+          },
+          "depth2": {
+            "p": 0.9142857142857143,
+            "r": 0.9696969696969697,
+            "f1": 0.9411764705882354,
+            "level_acc": 0.9375,
+            "n_pred": 35,
+            "n_gold": 33,
+            "n_match": 32,
+            "n_level_ok": 30
+          }
+        },
+        {
+          "id": "ho_028",
+          "title": "Uniswap v3 Core (March 2021)",
+          "pages": 9,
+          "seconds": 0.87,
+          "all": {
+            "p": 0.9333333333333333,
+            "r": 0.7777777777777778,
+            "f1": 0.8484848484848485,
+            "level_acc": 1.0,
+            "n_pred": 15,
+            "n_gold": 18,
+            "n_match": 14,
+            "n_level_ok": 14
+          },
+          "depth2": {
+            "p": 0.9333333333333333,
+            "r": 0.7777777777777778,
+            "f1": 0.8484848484848485,
+            "level_acc": 1.0,
+            "n_pred": 15,
+            "n_gold": 18,
+            "n_match": 14,
+            "n_level_ok": 14
+          }
+        },
+        {
+          "id": "ho_029",
+          "title": "Ethereum Basics for Governments and Institutions",
+          "pages": 71,
+          "seconds": 6.279,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 31,
+            "n_gold": 72,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 17,
+            "n_gold": 72,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_030",
+          "title": "An Introduction to R (Version 4.6.1)",
+          "pages": 103,
+          "seconds": 4.772,
+          "all": {
+            "p": 0.9337748344370861,
+            "r": 0.6811594202898551,
+            "f1": 0.7877094972067039,
+            "level_acc": 1.0,
+            "n_pred": 151,
+            "n_gold": 207,
+            "n_match": 141,
+            "n_level_ok": 141
+          },
+          "depth2": {
+            "p": 0.9626168224299065,
+            "r": 0.6094674556213018,
+            "f1": 0.7463768115942029,
+            "level_acc": 1.0,
+            "n_pred": 107,
+            "n_gold": 169,
+            "n_match": 103,
+            "n_level_ok": 103
+          }
+        },
+        {
+          "id": "ho_031",
+          "title": "Debian Reference",
+          "pages": 285,
+          "seconds": 15.552,
+          "all": {
+            "p": 0.9132149901380671,
+            "r": 0.9726890756302521,
+            "f1": 0.9420142421159714,
+            "level_acc": 0.9956803455723542,
+            "n_pred": 507,
+            "n_gold": 476,
+            "n_match": 463,
+            "n_level_ok": 461
+          },
+          "depth2": {
+            "p": 0.7692307692307693,
+            "r": 0.9523809523809523,
+            "f1": 0.8510638297872339,
+            "level_acc": 1.0,
+            "n_pred": 130,
+            "n_gold": 105,
+            "n_match": 100,
+            "n_level_ok": 100
+          }
+        },
+        {
+          "id": "ho_032",
+          "title": "ESP32 Series Datasheet Version 5.3",
+          "pages": 78,
+          "seconds": 5.751,
+          "all": {
+            "p": 0.8198198198198198,
+            "r": 0.9680851063829787,
+            "f1": 0.8878048780487804,
+            "level_acc": 0.978021978021978,
+            "n_pred": 111,
+            "n_gold": 94,
+            "n_match": 91,
+            "n_level_ok": 89
+          },
+          "depth2": {
+            "p": 0.6984126984126984,
+            "r": 0.9361702127659575,
+            "f1": 0.8,
+            "level_acc": 1.0,
+            "n_pred": 63,
+            "n_gold": 47,
+            "n_match": 44,
+            "n_level_ok": 44
+          }
+        },
+        {
+          "id": "ho_033",
+          "title": "LR8 High-Input Voltage, Adjustable, 3-Terminal, Linear Regulator (DS20005399B)",
+          "pages": 18,
+          "seconds": 0.725,
+          "all": {
+            "p": 0.34146341463414637,
+            "r": 0.5384615384615384,
+            "f1": 0.41791044776119407,
+            "level_acc": 0.8571428571428571,
+            "n_pred": 41,
+            "n_gold": 26,
+            "n_match": 14,
+            "n_level_ok": 12
+          },
+          "depth2": {
+            "p": 0.5,
+            "r": 0.5384615384615384,
+            "f1": 0.5185185185185186,
+            "level_acc": 0.8571428571428571,
+            "n_pred": 28,
+            "n_gold": 26,
+            "n_match": 14,
+            "n_level_ok": 12
+          }
+        },
+        {
+          "id": "ho_034",
+          "title": "BME280 Data sheet (revision 1.24, February 2024)",
+          "pages": 60,
+          "seconds": 3.413,
+          "all": {
+            "p": 0.9142857142857143,
+            "r": 0.9320388349514563,
+            "f1": 0.9230769230769231,
+            "level_acc": 0.9895833333333334,
+            "n_pred": 105,
+            "n_gold": 103,
+            "n_match": 96,
+            "n_level_ok": 95
+          },
+          "depth2": {
+            "p": 0.8461538461538461,
+            "r": 0.9322033898305084,
+            "f1": 0.8870967741935484,
+            "level_acc": 1.0,
+            "n_pred": 65,
+            "n_gold": 59,
+            "n_match": 55,
+            "n_level_ok": 55
+          }
+        },
+        {
+          "id": "ho_035",
+          "title": "Monetary Policy Report - July 2024",
+          "pages": 29,
+          "seconds": 1.892,
+          "all": {
+            "p": 0.8571428571428571,
+            "r": 0.6923076923076923,
+            "f1": 0.7659574468085107,
+            "level_acc": 0.9444444444444444,
+            "n_pred": 21,
+            "n_gold": 26,
+            "n_match": 18,
+            "n_level_ok": 17
+          },
+          "depth2": {
+            "p": 0.8947368421052632,
+            "r": 0.6538461538461539,
+            "f1": 0.7555555555555555,
+            "level_acc": 1.0,
+            "n_pred": 19,
+            "n_gold": 26,
+            "n_match": 17,
+            "n_level_ok": 17
+          }
+        },
+        {
+          "id": "ho_036",
+          "title": "Police productivity (HC 1380, Session 2024-2026)",
+          "pages": 51,
+          "seconds": 2.382,
+          "all": {
+            "p": 0.5263157894736842,
+            "r": 1.0,
+            "f1": 0.6896551724137931,
+            "level_acc": 1.0,
+            "n_pred": 19,
+            "n_gold": 10,
+            "n_match": 10,
+            "n_level_ok": 10
+          },
+          "depth2": {
+            "p": 0.6666666666666666,
+            "r": 1.0,
+            "f1": 0.8,
+            "level_acc": 1.0,
+            "n_pred": 15,
+            "n_gold": 10,
+            "n_match": 10,
+            "n_level_ok": 10
+          }
+        },
+        {
+          "id": "ho_038",
+          "title": "Microsoft 2024 Environmental Sustainability Report (reporting on fiscal year 2023)",
+          "pages": 88,
+          "seconds": 9.005,
+          "all": {
+            "p": 0.7714285714285715,
+            "r": 0.08766233766233766,
+            "f1": 0.15743440233236153,
+            "level_acc": 0.14814814814814814,
+            "n_pred": 35,
+            "n_gold": 308,
+            "n_match": 27,
+            "n_level_ok": 4
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 9,
+            "n_gold": 8,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "ho_039",
+          "title": "Moody's Corporation 1Q 2024 Investor Presentation (May 16, 2024)",
+          "pages": 70,
+          "seconds": 3.984,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 164,
+            "n_gold": 71,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 31,
+            "n_gold": 71,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        }
+      ],
+      "note": null,
+      "date": "2026-10-16",
+      "commit": "72f6135",
+      "loadavg_start": [
+        5.96875,
+        4.4482421875,
+        3.6025390625
+      ],
+      "loadavg_end": [
+        3.61328125,
+        4.0615234375,
+        3.57666015625
+      ]
+    }
+  },
+  "env": {
+    "python": "3.12.13",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 8,
+    "loadavg": [
+      3.93798828125,
+      3.92919921875,
+      3.3125
+    ],
+    "versions": {
+      "pymupdf": "1.28.2",
+      "pdfplumber": "0.11.10",
+      "pymupdf4llm": "1.28.2",
+      "docrooter": "0.1.0.dev0"
+    }
+  },
+  "corpus": "benchmarks/heldout",
+  "min_bookmarks": 5,
+  "match": {
+    "ratio": 0.85,
+    "page_tol": 1
+  },
+  "freeze": {
+    "frozen_commit": "72f6135",
+    "label_commits": {
+      "benchmarks/heldout/manifest.jsonl": "ae6b037",
+      "benchmarks/heldout/section_gold.jsonl": "9d195cb"
+    },
+    "started_at": "2026-10-16T22:17:19-04:00",
+    "code_paths": [
+      "src",
+      "benchmarks",
+      ":(exclude)benchmarks/results",
+      ":(exclude)src/docrooter/ui",
+      ":(exclude)src/docrooter/cli.py"
+    ],
+    "steps": {
+      "toc": {
+        "argv": [
+          "-m",
+          "benchmarks.toc",
+          "--corpus",
+          "heldout",
+          "--out",
+          "benchmarks/results/2026-10-16",
+          "--engines",
+          "pymupdf,pdfplumber,both"
+        ],
+        "started_at": "2026-10-16T22:17:19-04:00",
+        "finished_at": "2026-10-16T22:22:25-04:00",
+        "returncode": 0,
+        "head_at_end": "72f6135",
+        "code_changed_since_freeze": []
+      },
+      "pdf": {
+        "argv": [
+          "-m",
+          "benchmarks.pdf_bench",
+          "--corpus",
+          "heldout",
+          "--out",
+          "benchmarks/results/2026-10-16",
+          "--systems",
+          "jev-view,jev-chunks,ultrabert-view,ultrabert-hybrid,bge-view,ultrabert-dev-logistic,ultrabert-bge-dev-ensemble"
+        ],
+        "started_at": "2026-10-16T22:22:26-04:00",
+        "finished_at": "2026-10-16T22:27:57-04:00",
+        "returncode": 0,
+        "head_at_end": "72f6135",
+        "code_changed_since_freeze": []
+      },
+      "normalize": {
+        "argv": [
+          "-m",
+          "benchmarks.normalize_bench",
+          "--corpus",
+          "heldout",
+          "--out",
+          "benchmarks/results/2026-10-16",
+          "--systems",
+          "ultrabert,bge-small,jev"
+        ],
+        "started_at": "2026-10-16T22:27:57-04:00",
+        "finished_at": "2026-10-16T22:28:54-04:00",
+        "returncode": 0,
+        "head_at_end": "72f6135",
+        "code_changed_since_freeze": []
+      }
+    }
+  }
+}

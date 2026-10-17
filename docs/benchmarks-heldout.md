@@ -155,7 +155,8 @@ micro F1 is 0.553.
    used for debugging. It should be reproduced on a dev or synthetic document: a silent collapse
    on a large, well-formed PDF is a robustness bug, not a tuning matter.
 
-   **Since fixed (v0.3 Q5, `f3baa43`), without touching this set.** On dev and synthetic PDFs,
+   **A candidate cause was reproduced and fixed on dev and synthetic PDFs (v0.3 Q5, `f3baa43`);
+   `ho_025`'s cause was not confirmed.** The fix did not touch this set. On those PDFs,
    a text matrix with a tiny skew gives every glyph a slightly different float size in
    pdfminer, and pdfplumber then split every glyph into its own word, so titles came out
    letter-spaced and stopped being heading candidates. A synthetic specification went from 0
@@ -234,7 +235,8 @@ insurance and remedies clauses; mining reserves pages in the annual report).
 
 **Recommended follow-ups (on dev or synthetic data, never on this set):**
 
-- reproduce the `pdfplumber` collapse (done in v0.3 Q5 on dev and synthetic PDFs, `f3baa43`);
+- reproduce the `pdfplumber` collapse (a candidate cause was reproduced and fixed in v0.3 Q5 on dev
+  and synthetic PDFs, `f3baa43`; `ho_025`'s own cause is not confirmed);
 - add a guard so that `both` does not lose a good `pymupdf` parse when the second engine
   returns almost nothing;
 - add an `empty_text` or `no_text_layer` hint to the CLI output;

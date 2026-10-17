@@ -37,6 +37,7 @@ import argparse
 import datetime
 import json
 import os
+import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -185,6 +186,44 @@ def profile_doc(path: Path, backend: Any, doc_types: Any) -> dict[str, Any]:
     }
 
 
+def upper_median(values: Sequence[float]) -> float:
+    """The element at index ``n // 2`` of the sorted values: the median for an odd count, the
+    upper of the two middle values for an even one (10 documents: the 6th smallest)."""
+    return sorted(values)[len(values) // 2]
+
+
+def imported_docrooter(root: Path) -> dict[str, str | None]:
+    """Which docrooter this run imported and where it came from, since ``PYTHONPATH=src`` and an
+    installed wheel can differ: the path of the imported package (relative to ``root`` when it
+    lives in this checkout, else with the home directory shown as ``~``) and the short commit of
+    the repository containing it, with ``+dirty`` when the package has uncommitted changes
+    (None when it is not in a git checkout)."""
+    import docrooter
+
+    package = Path(docrooter.__file__).resolve().parent
+    try:
+        shown = str(package.relative_to(root.resolve()))
+    except ValueError:
+        home = str(Path.home())
+        shown = (
+            str(package).replace(home, "~", 1) if str(package).startswith(home) else str(package)
+        )
+    revision = None
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=package, capture_output=True, text=True,
+            check=True,
+        ).stdout.strip()  # fmt: skip
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--", "."], cwd=package, capture_output=True,
+            text=True, check=True,
+        ).stdout.strip()  # fmt: skip
+        revision = f"{sha}+dirty" if dirty else sha
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    return {"docrooter_path": shown, "docrooter_revision": revision}
+
+
 def aggregate(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
     split = {b: round(sum(r["split"][b] for r in rows), 4) for b in BUCKETS}
     sampled = sum(split.values())
@@ -196,8 +235,9 @@ def aggregate(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "split": split,
         "split_share": {b: round(v / max(sampled, 1e-9), 4) for b, v in split.items()},
         "own_python_share": round(own_python(split) / max(sampled, 1e-9), 4),
+        # the upper median (see upper_median); the key is kept so recorded results still parse
         "own_python_share_median_doc": round(
-            sorted(r["own_python_share"] for r in rows)[len(rows) // 2], 4
+            upper_median([r["own_python_share"] for r in rows]), 4
         ),
     }
 
@@ -211,6 +251,17 @@ def render(result: dict[str, Any]) -> str:
         lines.append(
             f"| {row['id']} | {row['pages']} | {row['seconds']:.2f} | {cells} | "
             f"{100 * row['own_python_share']:.0f}% |"
+        )
+    agg = result["aggregate"]
+    lines.append("")
+    lines.append(
+        f"Own Python: {100 * agg['own_python_share']:.0f}% of all samples pooled, "
+        f"{100 * agg['own_python_share_median_doc']:.0f}% upper median over documents."
+    )
+    if "docrooter_path" in result:
+        lines.append(
+            f"docrooter imported from `{result['docrooter_path']}` "
+            f"at `{result.get('docrooter_revision') or 'no git checkout'}`."
         )
     return "\n".join(lines)
 
@@ -253,6 +304,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     result = {
         "date": datetime.date.today().isoformat(),
         "commit": git_revision(),
+        **imported_docrooter(Path(__file__).parent.parent),
         "env": collect_env(),
         "loadavg_start": loadavg_start,
         "loadavg_end": list(os.getloadavg()),

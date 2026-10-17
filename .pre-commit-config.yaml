@@ -9,6 +9,11 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
+      # Frozen artifacts stay byte-stable: recorded results, the corpus manifests and gold labels
+      # (the held-out ones are frozen by hash), the dev document-type labels, and the taxonomy
+      # JSONs whose text is quoted in provenance records.
       - id: end-of-file-fixer
+        exclude: &frozen ^(benchmarks/results/|benchmarks/[^/]+/(manifest|section_gold)\.jsonl$|benchmarks/corpus/doc_types\.json$|(src/docrooter|benchmarks)/taxonomies/.*\.json$)
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
+        exclude: *frozen

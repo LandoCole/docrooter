@@ -79,3 +79,41 @@ def test_stage_seconds_pairs_start_and_end_events():
     stages = pp.stage_seconds(recorded)
     assert stages["extract"] == 1.0 and stages["view"] == 0.75 and stages["normalize"] == 0.0
     assert list(stages) == list(pp.STAGES)
+
+
+def test_upper_median_takes_the_upper_of_two_middle_values():
+    assert pp.upper_median([0.9, 0.1, 0.5]) == 0.5
+    assert pp.upper_median([0.4, 0.1, 0.3, 0.2]) == 0.3  # not the mean 0.25, not the lower 0.2
+
+
+def test_aggregate_reports_the_upper_median_and_render_says_so():
+    rows = [
+        {
+            "id": f"d{i}",
+            "pages": 1,
+            "seconds": 1.0,
+            "stages": dict.fromkeys(pp.STAGES, 0.1),
+            "profiled_seconds": 1.0,
+            "split": {b: (1.0 if b == "other" else 0.0) for b in pp.BUCKETS},
+            "own_python_share": share,
+        }
+        for i, share in enumerate((0.1, 0.2, 0.3, 0.4))
+    ]
+    agg = pp.aggregate(rows)
+    assert agg["own_python_share_median_doc"] == 0.3
+    result = {"docs": rows, "aggregate": agg}
+    assert "30% upper median over documents" in pp.render(result)
+
+
+def test_imported_docrooter_records_path_and_revision():
+    from pathlib import Path
+
+    import docrooter
+
+    root = Path(__file__).resolve().parents[2]
+    info = pp.imported_docrooter(root)
+    if Path(docrooter.__file__).resolve().is_relative_to(root):
+        assert info["docrooter_path"] == "src/docrooter"
+    assert not str(info["docrooter_path"]).startswith(str(Path.home()))
+    rev = info["docrooter_revision"]
+    assert rev is None or rev.removesuffix("+dirty").isalnum()

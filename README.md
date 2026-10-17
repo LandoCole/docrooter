@@ -43,8 +43,9 @@ pip install 'docrooter[models]'    # + local models (embedding, NLI, MLM) and tr
 | `pdf-mit` | `pdfplumber` | Loading `.pdf` files with the MIT-licensed pdfplumber engine |
 | `llm` | `httpx` | The `openai` backend (any OpenAI-compatible server) |
 | `jev` | `typesafe-sdk` | The `jev` backend (TypeSafe Jev) |
+| `ui` | `fastapi`, `uvicorn`, `python-multipart` | `docrooter serve`, the local [playground](#playground) |
 | `bench` | `datasets`, `pandas` | The benchmarks, `DocumentResult.to_dataframe()` |
-| `all` | `models` + `pdf` + `pdf-mit` + `llm` + `jev` | Everything above except `bench` |
+| `all` | `models` + `pdf` + `pdf-mit` + `llm` + `jev` + `ui` | Everything above except `bench` |
 
 Python 3.10 or newer. Asking for something an extra provides without installing it fails with
 the exact command to run, e.g. `pip install 'docrooter[models]'`.
@@ -192,6 +193,7 @@ while read -r f; do docrooter normalize "$f" -b keyword --json; done < financial
 ```bash
 docrooter toc report.md                                  # indented table of contents
 docrooter toc report.pdf --json                          # as JSON (needs docrooter[pdf])
+docrooter --version                                      # the installed version
 
 docrooter taxonomy validate taxonomy.csv                 # check a taxonomy file
 docrooter taxonomy validate paths.csv --sep ">"          # path-style CSV with another separator
@@ -219,6 +221,28 @@ docrooter models list                                    # what is in the Huggin
 
 `-b` takes a backend spec (see [Backends](#backends)); `--strategy` takes `greedy`, `beam:N` or
 `flat`. Errors are printed as `error: ...` with exit status 1.
+
+## Playground
+
+```bash
+pip install 'docrooter[ui]'
+docrooter serve                    # http://127.0.0.1:8765
+docrooter serve -b keyword --open  # pick the preselected backend, open the browser
+```
+
+`docrooter serve` starts a local web page. Drop in a PDF, Markdown or text file, choose a backend,
+and watch the pipeline run stage by stage (reading pages, finding headings, loading the model,
+classifying) with the time each stage takes. The result shows the table of contents as a tree
+with each heading's score, the document type with the probabilities of the five likeliest
+types, and, optionally, a canonical label for every section. Recent runs stay in the
+sidebar while the server runs.
+
+It is a local tool: it binds `127.0.0.1` by default, rejects requests whose `Host` is not that
+address, loads no external assets, caps uploads at 50 MB and deletes each upload as soon as it has
+been processed. `--env-file .env` reads missing variables such as `TYPESAFE_API_KEY` for the
+`jev` backend. The model-based backends obey the same memory budget as the library: set
+`DOCROOTER_MEMORY_BUDGET_GB` (8 by default; see [Memory](#memory)) before starting it. See
+[SECURITY.md](SECURITY.md) for the guard rails before you expose it any further.
 
 ## Taxonomies
 
@@ -504,6 +528,9 @@ uv sync                         # core + dev tools; add --extra models for the m
 uv run pytest                   # unit tests: fast, no model downloads, never import torch
 uv run pytest -m models         # model tests: download models and need --extra models
 uv run ruff check .             # lint
+uv run ruff format --check .    # formatting
+uv run mypy                     # types (src/docrooter)
+uv run pytest --cov=docrooter   # coverage; needs the pdf extras for docrooter.pdf to reach 80%
 uv build                        # sdist and wheel in dist/
 ```
 

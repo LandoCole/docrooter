@@ -6,7 +6,10 @@ All notable changes to docrooter are recorded here. The format follows
 release may still change the API; the changes are listed under *Changed*.
 
 The repository URL in the comparison links at the bottom is a placeholder
-(`docrooter/docrooter`).
+(`docrooter/docrooter`). No git tags exist yet: `v0.1.0` and `v0.2.0` will be created at release
+time, and until then the comparison links do not resolve. The package version is `0.2.0`, read
+from `docrooter.__version__` (the one place it is set), and the `[Unreleased]` work below ships
+in the release after it.
 
 ## [Unreleased]
 
@@ -50,9 +53,15 @@ held-out evaluation and the repository essentials.
 - **Repository essentials.** `CHANGELOG.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
   `SECURITY.md`, issue and pull request templates, a pre-commit configuration, the logo, wordmark
   and favicon under `docs/assets/`, and a README header with badges.
-- **CI.** The test matrix covers Python 3.10 to 3.13, `ruff format --check` runs, and an
-  `extras-smoke` job installs the `pdf`, `ui` and `llm` extras (no torch) so their tests run.
-  The publish workflow runs the tests before it uploads.
+- **CI.** The test matrix covers Python 3.10 to 3.13, `ruff format --check` and `mypy` run, and an
+  `extras-smoke` job installs the `pdf`, `pdf-mit`, `ui` and `llm` extras (no torch) so their
+  tests run. That job also measures coverage and fails the build under 80% line coverage on any of
+  `docrooter.document`, `taxonomy`, `classify`, `views` or `pdf` (96% to 100% at the time of
+  writing). The publish workflow runs the tests before it uploads.
+- **Typing.** The package ships `py.typed` and `mypy src/docrooter` is clean (the optional extras
+  are configured as untyped imports in `pyproject.toml`).
+- **`docrooter --version`** prints the installed version.
+- The playground uses the new mark (`favicon.svg`) as its tab icon.
 
 ### Changed
 
@@ -61,6 +70,14 @@ held-out evaluation and the repository essentials.
   restores the old behaviour). Fine-tuning on MPS used to reach 19.5 GB and fail.
 - The embedding cache is an LRU of 50,000 texts (`cache_size=`); it used to grow without bound.
 - The pdfplumber engine frees each page after reading it.
+- The package version is read from `docrooter.__version__` (a hatch dynamic version), so
+  `pyproject.toml` and the module can no longer disagree.
+
+### Fixed
+
+- The playground read its static files with `Traversable.joinpath("static", name)`; the
+  multi-segment form needs Python 3.11 for packages that are not plain directories (such as a
+  zipped install). It joins one segment at a time now.
 
 ## [0.2.0] - 2026-10-16
 

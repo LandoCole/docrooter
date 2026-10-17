@@ -1,7 +1,10 @@
 ## Decisions
 
+<!-- Links in this file are relative to its own directory; `python -m benchmarks.report`
+rewrites them when it appends this file to docs/benchmarks.md. -->
+
 The v0.1 spec wrote these rules down before any run
-([section classification design, "Decision rules"](superpowers/specs/2026-10-15-docrooter-section-classification-design.md)).
+([section classification design, "Decision rules"](../../../docs/superpowers/specs/2026-10-15-docrooter-section-classification-design.md)).
 Each rule is quoted verbatim, then applied to the results files above. Results that contradict
 expectations are recorded as they are. Mean hF1 is over B1, B2 and the fixed B3 subset (the
 *Summary* tables), unless stated otherwise.
@@ -11,17 +14,18 @@ expectations are recorded as they are. Mean hF1 is over B1, B2 and the fixed B3 
 > **Default zero-shot backend:** highest mean hierarchical F1 across B1–B3, among backends with
 > at least 20 sections per second on M1 MPS. Ties go to the smaller model.
 
-Results: [zero-shot.json](../benchmarks/results/2026-10-16/zero-shot.json).
+Results: [zero-shot.json](zero-shot.json).
 
 - **The throughput criterion was not measured.** Every zero-shot run in `zero-shot.json` ran on
   the CPU, not on M1 MPS, so the rule cannot be applied as written. On the CPU no backend reaches
   20 sections/s: the slowest dataset of each gives UltraBERT-Embed 3.4, bge-small 15.0,
   `ultrabert-mlm` 0.2 and `deberta-nli` 0.1 sections/s. The only zero-shot MPS measurement is
-  `deberta-nli` on B2 in [strategies.json](../benchmarks/results/2026-10-16/strategies.json):
+  `deberta-nli` on B2 in [strategies.json](strategies.json):
   0.2 (Beam(3)) and 0.4 (Greedy) sections/s.
 - **Accuracy.** Mean hF1: UltraBERT-Embed 0.425, `deberta-nli` 0.314, bge-small 0.292;
-  `ultrabert-mlm` has no B3 run, so no mean. On the full B3 (n=1000) UltraBERT-Embed scores
-  0.381 against bge-small's 0.337.
+  `ultrabert-mlm` has no B3 run, so no mean. `deberta-nli`'s mean mixes sample sizes: n=200 on
+  B1 and B2, where the other two backends have n=1000, and n=300 on the B3 subset. On the full
+  B3 (n=1000) UltraBERT-Embed scores 0.381 against bge-small's 0.337.
 - **Ruling: UltraBERT-Embed (`embedding:dmis-lab/UltraBERT-Embed-150M`) stays the default.** It
   has the highest mean hF1 by 11 points. Its intended use, the document-type gate, classifies one
   view per document, so per-section throughput is not what limits it. bge-small
@@ -33,7 +37,7 @@ Results: [zero-shot.json](../benchmarks/results/2026-10-16/zero-shot.json).
 > **`mlm-choice` status:** ships non-experimental only if, on both B1 and B2, it is within 3
 > hierarchical-F1 points of the best zero-shot backend.
 
-Results: [zero-shot.json](../benchmarks/results/2026-10-16/zero-shot.json).
+Results: [zero-shot.json](zero-shot.json).
 
 | Dataset | Best zero-shot backend | `ultrabert-mlm` | Gap |
 | --- | --- | --- | --- |
@@ -42,14 +46,17 @@ Results: [zero-shot.json](../benchmarks/results/2026-10-16/zero-shot.json).
 
 **Ruling: `mlm-choice` stays experimental.** It is within 3 points on B2 but 31.7 points behind
 on B1, and the rule asks for both. (The B1 samples differ in size, 200 against 1000; a gap of
-this size does not depend on that.)
+this size does not depend on that.) The B2 margin is fragile too: in
+[strategies.json](strategies.json) `deberta-nli` with Beam(3) scores 0.292 on B2 with n=1000 (on
+MPS), and against that figure `ultrabert-mlm` (0.259, n=200) is 3.3 points behind, outside the
+margin.
 
 ### Default training base model
 
 > **Default training base model:** highest hierarchical F1 at 16 examples per class, averaged
 > over B1–B3.
 
-Results: [few-shot.json](../benchmarks/results/2026-10-16/few-shot.json).
+Results: [few-shot.json](few-shot.json).
 
 | Base model (trained heads, k=16) | B1 | B2 | B3 (n=1000) | Mean | Mean with the B3 subset |
 | --- | --- | --- | --- | --- | --- |
@@ -69,7 +76,7 @@ Results: [few-shot.json](../benchmarks/results/2026-10-16/few-shot.json).
 > **Default strategy:** Beam(3), unless Greedy is within 1 point of Beam(3) path accuracy on B2
 > and at least 1.5× faster. In that case Greedy becomes the default.
 
-Results: [strategies.json](../benchmarks/results/2026-10-16/strategies.json) (B2, n=1000, MPS).
+Results: [strategies.json](strategies.json) (B2, n=1000, MPS).
 Path accuracy is the *Exact* column.
 
 | System | Beam(3) exact | Greedy exact | Greedy behind by | Greedy speed-up |

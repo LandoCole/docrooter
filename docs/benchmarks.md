@@ -146,6 +146,9 @@ devices: mps; torch 2.14.1; transformers 5.20.0; sentence-transformers 6.1.0; do
 
 ## Decisions
 
+<!-- Links in this file are relative to its own directory; `python -m benchmarks.report`
+rewrites them when it appends this file to docs/benchmarks.md. -->
+
 The v0.1 spec wrote these rules down before any run
 ([section classification design, "Decision rules"](superpowers/specs/2026-10-15-docrooter-section-classification-design.md)).
 Each rule is quoted verbatim, then applied to the results files above. Results that contradict
@@ -166,8 +169,9 @@ Results: [zero-shot.json](../benchmarks/results/2026-10-16/zero-shot.json).
   `deberta-nli` on B2 in [strategies.json](../benchmarks/results/2026-10-16/strategies.json):
   0.2 (Beam(3)) and 0.4 (Greedy) sections/s.
 - **Accuracy.** Mean hF1: UltraBERT-Embed 0.425, `deberta-nli` 0.314, bge-small 0.292;
-  `ultrabert-mlm` has no B3 run, so no mean. On the full B3 (n=1000) UltraBERT-Embed scores
-  0.381 against bge-small's 0.337.
+  `ultrabert-mlm` has no B3 run, so no mean. `deberta-nli`'s mean mixes sample sizes: n=200 on
+  B1 and B2, where the other two backends have n=1000, and n=300 on the B3 subset. On the full
+  B3 (n=1000) UltraBERT-Embed scores 0.381 against bge-small's 0.337.
 - **Ruling: UltraBERT-Embed (`embedding:dmis-lab/UltraBERT-Embed-150M`) stays the default.** It
   has the highest mean hF1 by 11 points. Its intended use, the document-type gate, classifies one
   view per document, so per-section throughput is not what limits it. bge-small
@@ -188,7 +192,10 @@ Results: [zero-shot.json](../benchmarks/results/2026-10-16/zero-shot.json).
 
 **Ruling: `mlm-choice` stays experimental.** It is within 3 points on B2 but 31.7 points behind
 on B1, and the rule asks for both. (The B1 samples differ in size, 200 against 1000; a gap of
-this size does not depend on that.)
+this size does not depend on that.) The B2 margin is fragile too: in
+[strategies.json](../benchmarks/results/2026-10-16/strategies.json) `deberta-nli` with Beam(3) scores 0.292 on B2 with n=1000 (on
+MPS), and against that figure `ultrabert-mlm` (0.259, n=200) is 3.3 points behind, outside the
+margin.
 
 ### Default training base model
 

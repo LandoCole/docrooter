@@ -9,6 +9,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -29,6 +30,9 @@ TITLES = {
     "b3-subset": "B3 subset: LEDGAR, the fixed like-for-like sample",
 }
 DECISIONS_FILE = "decisions.md"
+# An inline Markdown link target up to any "#anchor" (the anchor is kept as it is).
+_LINK_TARGET = re.compile(r"(\]\()([^)#\s]+)")
+_URL_SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
 
 
 def classification_results(results_dir: Path) -> dict[str, list[dict[str, Any]]]:
@@ -68,6 +72,20 @@ def _table(header: Sequence[str], rows: Sequence[Sequence[str]]) -> list[str]:
 
 def _link(path: Path, link_base: Path) -> str:
     return Path(os.path.relpath(path, link_base)).as_posix()
+
+
+def rebase_links(text: str, source_dir: Path, link_base: Path) -> str:
+    """``text`` with its relative inline links, written relative to ``source_dir``, made
+    relative to ``link_base`` instead. URLs, absolute paths and bare anchors are kept, so a
+    ``decisions.md`` links correctly both where it lives and in the generated report."""
+
+    def rebase(m: re.Match[str]) -> str:
+        target = m.group(2)
+        if _URL_SCHEME.match(target) or target.startswith("/"):
+            return m.group(0)
+        return m.group(1) + _link(source_dir / target, link_base)
+
+    return _LINK_TARGET.sub(rebase, text)
 
 
 def _summary(rows: list[dict[str, Any]]) -> list[str]:
@@ -166,7 +184,8 @@ def _env_line(rows: list[dict[str, Any]]) -> str:
 
 def render_markdown(results_dir: str | Path, link_base: str | Path | None = None) -> str:
     """Markdown for every classification suite in ``results_dir`` (see
-    :func:`classification_results`), then its ``decisions.md`` if any.
+    :func:`classification_results`), then its ``decisions.md`` if any, whose links are written
+    relative to ``results_dir`` (see :func:`rebase_links`).
 
     ``link_base`` is the directory the result links are relative to (default: ``docs/``).
     """
@@ -198,7 +217,8 @@ def render_markdown(results_dir: str | Path, link_base: str | Path | None = None
             lines += ["", f"### {TITLES.get(dataset, dataset)}", ""] + _dataset_table(subset)
     decisions = results_dir / DECISIONS_FILE
     if decisions.exists():
-        lines += ["", decisions.read_text(encoding="utf-8").rstrip()]
+        text = decisions.read_text(encoding="utf-8").rstrip()
+        lines += ["", rebase_links(text, results_dir, base)]
     return "\n".join(lines) + "\n"
 
 

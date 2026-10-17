@@ -4,18 +4,53 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+# A new push to the same branch or pull request cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    env:
+      UV_PYTHON: ${{ matrix.python-version }} # beats the repository's .python-version for every uv command
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+          cache-suffix: ${{ matrix.python-version }}
       - name: Set up Python
-        run: uv python install ${{ matrix.python-version }}
-      - run: uv sync --python ${{ matrix.python-version }}
-      - run: uv run ruff check .
-      - run: uv run pytest
+        run: uv python install "$UV_PYTHON"
+      - run: uv sync --locked
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+      - run: uv run --no-sync pytest
+
+  # The core install above has no optional extras, so the PDF, playground and LLM tests skip.
+  # This job installs those extras (but not torch, which the unit tests must never need) so they run.
+  extras-smoke:
+    name: Extras smoke (pdf, pdf-mit, ui, llm)
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+          cache-suffix: extras
+      - name: Set up Python
+        run: uv python install "$UV_PYTHON"
+      - run: uv sync --locked --extra pdf --extra pdf-mit --extra ui --extra llm
+      - run: uv run --no-sync pytest

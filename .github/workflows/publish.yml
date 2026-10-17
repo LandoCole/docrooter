@@ -4,7 +4,27 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 jobs:
+  test:
+    name: Test before publishing
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Set up Python
+        run: uv python install "$UV_PYTHON"
+      - run: uv sync --locked --extra pdf --extra pdf-mit --extra ui --extra llm
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync pytest
+
   build:
     name: Build distributions
     runs-on: ubuntu-latest
@@ -21,7 +41,7 @@ jobs:
 
   publish:
     name: Upload to PyPI
-    needs: build
+    needs: [test, build]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

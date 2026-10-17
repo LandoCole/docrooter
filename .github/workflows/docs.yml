@@ -1,0 +1,61 @@
+name: Docs
+
+# Builds the documentation site with `mkdocs build --strict`, so a broken link, a missing page or
+# a docstring the API reference cannot render fails the check. Nothing is deployed yet.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.12"
+      NO_MKDOCS_2_WARNING: "1" # silences Material's MkDocs 2.0 banner; mkdocs stays below 2.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+          cache-suffix: docs
+      - name: Set up Python
+        run: uv python install "$UV_PYTHON"
+      # Core + the dev group (mkdocs-material, mkdocstrings). The CLI reference runs
+      # `docrooter <command> --help`, which needs no extras.
+      - run: uv sync --locked
+      - name: Build
+        run: PYTHONPATH=src uv run --no-sync mkdocs build --strict
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: site/
+          retention-days: 7
+
+  # Deploying to GitHub Pages is switched off until the repository and site URLs in mkdocs.yml
+  # are real. To enable it: set Settings > Pages > Source to "GitHub Actions", replace the
+  # upload-artifact step above with actions/upload-pages-artifact, and uncomment this job.
+  #
+  # deploy:
+  #   name: Deploy to GitHub Pages
+  #   needs: build
+  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     pages: write
+  #     id-token: write
+  #   environment:
+  #     name: github-pages
+  #     url: ${{ steps.deployment.outputs.page_url }}
+  #   steps:
+  #     - id: deployment
+  #       uses: actions/deploy-pages@v4

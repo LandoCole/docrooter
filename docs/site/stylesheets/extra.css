@@ -1,0 +1,48 @@
+/* docrooter brand colours (docs/assets/logo.svg): navy page, green roots. */
+:root > * {
+  --md-primary-fg-color: #1b2a49;
+  --md-primary-fg-color--light: #2c3e66;
+  --md-primary-fg-color--dark: #121d33;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: rgba(255, 255, 255, 0.7);
+  --md-accent-fg-color: #14956a;
+  --md-accent-fg-color--transparent: rgba(20, 149, 106, 0.1);
+}
+
+[data-md-color-scheme="default"] {
+  --md-typeset-a-color: #107a57;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-accent-fg-color: #4fd1a1;
+  --md-accent-fg-color--transparent: rgba(79, 209, 161, 0.1);
+  --md-typeset-a-color: #4fd1a1;
+}
+
+/* The home page hero: the logo next to the tagline. */
+.dr-hero {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.dr-hero img {
+  width: 88px;
+  height: 88px;
+  flex: none;
+}
+
+.dr-hero p {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.dr-hero p:first-child {
+  flex: none; /* the logo paragraph keeps its size next to a long tagline */
+}
+
+/* Wide benchmark tables scroll instead of squeezing their columns. */
+.md-typeset table:not([class]) {
+  font-size: 0.72rem;
+}

@@ -1,0 +1,86 @@
+# Installation
+
+docrooter needs Python 3.10 or newer. The core install is small (`pydantic`, `numpy`, `typer`,
+`rich`); models, PDF parsing, LLM backends and the playground are optional extras.
+
+```bash
+pip install docrooter                      # core: Markdown, taxonomies, keyword backend, CLI
+pip install 'docrooter[pdf,models]'        # + PDFs (PyMuPDF) and the local models
+pip install 'docrooter[all]'               # everything except the benchmark tools
+```
+
+With [uv](https://docs.astral.sh/uv/): `uv add 'docrooter[pdf,models]'`.
+
+## Extras
+
+| Extra | Adds | Licence of what it adds | Needed for |
+| --- | --- | --- | --- |
+| *(none)* | `pydantic`, `numpy`, `typer`, `rich` | MIT / BSD | Markdown and text loading, taxonomies, the `keyword` backend, the CLI |
+| `pdf` | `pymupdf4llm`, which installs PyMuPDF | **AGPL-3.0** (or a commercial licence from Artifex) | Loading PDFs with PyMuPDF, the default and fastest engine |
+| `pdf-mit` | `pdfplumber` | MIT (its dependencies pdfminer.six and pypdfium2: MIT, Apache-2.0 / BSD-3) | Loading PDFs with a permissively licensed engine |
+| `models` | `torch`, `transformers>=5`, `sentence-transformers>=6`, `scikit-learn`, `joblib`, `datasets` | BSD / Apache-2.0 (torch: a mix of permissive licences) | The `embedding`, `nli`, `mlm-choice` and `trained` backends, `docrooter train`, `docrooter models` |
+| `llm` | `httpx` | BSD | The `openai` backend (any OpenAI-compatible server) |
+| `jev` | `typesafe-sdk` | MIT client; the Jev API is a hosted service with its own terms | The `jev` backend (TypeSafe Jev, a hosted API) |
+| `ui` | `fastapi`, `uvicorn`, `python-multipart` | MIT / BSD / Apache-2.0 | `docrooter serve`, the local [playground](../guides/playground.md) |
+| `bench` | `datasets`, `pandas` | Apache-2.0 / BSD | The benchmark scripts, `DocumentResult.to_dataframe()` |
+| `all` | `models`, `pdf`, `pdf-mit`, `llm`, `jev`, `ui` | as above | Everything except `bench` |
+
+docrooter itself is Apache-2.0. The licence column summarises the main packages each extra
+pulls in, as declared in their package metadata; it is not legal advice. Model weights carry
+their own licences, listed on their Hugging Face pages. Check both before you distribute
+anything.
+
+If you call something that needs an extra you have not installed, the error names the command to
+run, for example `pip install 'docrooter[models]'`.
+
+## Choosing a PDF engine
+
+PyMuPDF (extra `pdf`) is licensed under the **AGPL-3.0**, unlike docrooter. It is imported only
+when a PDF is loaded, but read the AGPL terms before you distribute software or run a network
+service that includes it. For a permissive stack install `pdf-mit` instead:
+
+- `load(path)` uses PyMuPDF when it is installed and pdfplumber otherwise (`engine="auto"`).
+- `load(path, engine="pdfplumber")` forces pdfplumber.
+- pdfplumber is about 6 times slower and scores about the same on the development corpus, but
+  failed silently on one very large PDF in the held-out set; see the
+  [FAQ](../faq.md#agpl-or-mit-which-pdf-engine).
+
+Neither engine does OCR: a scanned PDF without a text layer gives an empty document.
+
+## Models and the first run
+
+The default backend is the embedding model `dmis-lab/UltraBERT-Embed-150M`. The first run
+downloads it (about 600 MB) into the Hugging Face cache. It ships its own modelling code, which
+transformers only runs with `trust_remote_code=True`; docrooter enables that only for models
+whose built-in recipe pins a commit, so the code that runs is the code at that commit. See
+[Backends](../concepts/backends.md#trust_remote_code) for the details and for other models.
+
+To prepare a machine that will run offline:
+
+```bash
+docrooter models pull dmis-lab/UltraBERT-Embed-150M     # the pinned revision
+HF_HUB_OFFLINE=1 docrooter doctype reports/             # later, without network access
+```
+
+Model backends pick the device in the order CUDA, MPS (Apple silicon), CPU, and stay within a
+memory budget of 8 GiB by default; see [Memory and performance](../guides/memory-performance.md).
+
+## Check the install
+
+```bash
+docrooter --version
+docrooter --help
+```
+
+## From source
+
+```bash
+git clone https://github.com/docrooter/docrooter && cd docrooter   # placeholder URL
+uv sync --extra pdf --extra models
+PYTHONPATH=src uv run docrooter --help
+```
+
+`uv sync` makes the environment match exactly what you ask for, so repeat the same `--extra`
+flags every time. On macOS, prefix commands with `PYTHONPATH=src` (the editable install's `.pth`
+file can get a hidden flag that Python then skips). The
+[contributing guide](../about/contributing.md) has the full development setup.

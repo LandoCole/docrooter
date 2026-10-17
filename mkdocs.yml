@@ -1,0 +1,147 @@
+# The docrooter documentation site. Build it with:
+#   PYTHONPATH=src uv run mkdocs build --strict    # into site/
+#   PYTHONPATH=src uv run mkdocs serve             # live preview on http://127.0.0.1:8000
+# Pages live in docs/site/. docs/hooks.py includes the repository documents (benchmarks,
+# changelog, contributing, ...) in place and generates the CLI reference with docs/gen_cli.py.
+
+site_name: docrooter
+site_description: >-
+  Table-of-contents extraction, document-type classification and section normalisation for
+  PDF and Markdown, against a taxonomy you supply.
+site_author: docrooter contributors
+# PLACEHOLDERS: the site and repository URLs below are not live yet. Replace both (and the
+# placeholder URLs in README.md and pyproject.toml) with the real ones before publishing.
+site_url: https://docrooter.github.io/docrooter/  # placeholder
+repo_url: https://github.com/docrooter/docrooter  # placeholder
+repo_name: docrooter/docrooter
+edit_uri: ""  # several pages are generated or included, so there is no single file to edit
+copyright: docrooter is licensed under Apache-2.0.
+
+docs_dir: docs/site
+site_dir: site
+
+theme:
+  name: material
+  logo: assets/logo-dark.svg  # light strokes, for the dark brand header in both schemes
+  favicon: assets/favicon.svg
+  font: false  # system fonts: no request to Google Fonts, and the site works offline
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - navigation.tracking
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+extra_css:
+  - stylesheets/extra.css
+
+hooks:
+  - docs/hooks.py
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            show_source: false
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: false
+            members_order: source
+            merge_init_into_class: true
+            show_if_no_docstring: false
+            filters: ["!^_"]
+            heading_level: 3
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+# Every problem is a warning, so `mkdocs build --strict` fails on it.
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+      - Command line and playground: getting-started/cli-and-playground.md
+  - Concepts:
+      - concepts/index.md
+      - TOC engine: concepts/toc-engine.md
+      - Taxonomies: concepts/taxonomies.md
+      - Views: concepts/views.md
+      - Backends: concepts/backends.md
+      - Strategies: concepts/strategies.md
+      - Results: concepts/results.md
+      - Events: concepts/events.md
+  - Guides:
+      - Document-type gating: guides/doctype-gating.md
+      - Section normalisation: guides/section-normalisation.md
+      - Custom taxonomies: guides/custom-taxonomies.md
+      - Training and evaluation: guides/training-evaluation.md
+      - Jev and OpenAI-compatible LLMs: guides/llm-backends.md
+      - Memory and performance: guides/memory-performance.md
+      - The playground: guides/playground.md
+  - Reference:
+      - CLI: reference/cli.md
+      - Python API: reference/api.md
+      - Taxonomy formats: reference/taxonomy-formats.md
+  - Benchmarks:
+      - benchmarks/index.md
+      - PDF benchmarks (dev corpus): benchmarks/pdf.md
+      - Held-out evaluation: benchmarks/heldout.md
+      - Public datasets: benchmarks/public-datasets.md
+      - Performance and memory: benchmarks/performance.md
+  - FAQ: faq.md
+  - About:
+      - Changelog: about/changelog.md
+      - Contributing: about/contributing.md
+      - Security: about/security.md
+      - Code of conduct: about/code-of-conduct.md

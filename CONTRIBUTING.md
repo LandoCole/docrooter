@@ -53,6 +53,24 @@ uv run pytest -m models         # model tests
 - Keep the README examples runnable: `tests/unit/test_examples.py` runs `examples/` and checks the
   README's snippets and relative links.
 
+## Documentation
+
+The site is built with MkDocs Material from `mkdocs.yml`; the hand-written pages are in
+`docs/site/`, and `docs/hooks.py` adds the benchmark reports, this guide, the changelog and the
+security policy as pages, and generates the CLI reference with `docs/gen_cli.py`.
+
+```bash
+PYTHONPATH=src uv run mkdocs serve             # live preview on http://127.0.0.1:8000
+PYTHONPATH=src uv run mkdocs build --strict    # what CI runs: any broken link fails
+```
+
+- Every Python line on a docs page must be a line of a script in `examples/`; put new samples
+  there first. `tests/unit/test_docs_snippets.py` checks this, runs the keyword-backend examples,
+  and checks that every `docrooter` option in a `bash` block exists.
+- Link to repository files with relative paths (`../../../examples/toc.py`); the build turns them
+  into repository links, so they work both on the site and on the repository host.
+- Numbers come from the committed results under `benchmarks/results/`, never from memory.
+
 ## Memory-budget etiquette
 
 docrooter works within a memory budget of 8 GiB (see [docs/performance.md](docs/performance.md)),
@@ -118,7 +136,8 @@ it. The checklist is also in the [pull request template](.github/pull_request_te
       training code.
 - [ ] New behaviour has tests; a bug fix has a regression test.
 - [ ] Unit tests still do not import torch, and the core install is still torch-free.
-- [ ] Public API, CLI flags and defaults are documented in the README or `docs/`, and examples still run.
+- [ ] Public API, CLI flags and defaults are documented in the README or `docs/`, examples still
+      run, and `PYTHONPATH=src uv run mkdocs build --strict` passes.
 - [ ] `CHANGELOG.md` has an entry under *Unreleased* for any user-visible change.
 - [ ] Benchmark changes follow the rules above: no tuning on the held-out set, labels committed
       before the run, results with provenance.

@@ -25,3 +25,6 @@ benchmarks/heldout/pdfs/
 .venv
 .claude/
 coverage.xml
+
+# The documentation site, built by `mkdocs build`
+/site/

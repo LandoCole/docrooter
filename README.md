@@ -532,6 +532,7 @@ uv run ruff format --check .    # formatting
 uv run mypy                     # types (src/docrooter)
 uv run pytest --cov=docrooter   # coverage; needs the pdf extras for docrooter.pdf to reach 80%
 uv build                        # sdist and wheel in dist/
+PYTHONPATH=src uv run mkdocs serve   # the documentation site (pages in docs/site/)
 ```
 
 Tests marked `models` are deselected by default. The live `jev` test skips unless

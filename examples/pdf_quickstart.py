@@ -79,6 +79,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         main(sys.argv[1])
     else:
-        sample = Path(tempfile.mkdtemp()) / "sample_report.pdf"
-        write_sample(sample)
-        main(str(sample))
+        with tempfile.TemporaryDirectory() as scratch:  # deleted afterwards
+            sample = Path(scratch) / "sample_report.pdf"
+            write_sample(sample)
+            main(str(sample))

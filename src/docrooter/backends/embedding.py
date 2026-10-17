@@ -80,7 +80,8 @@ class EmbeddingBackend:
 
     @property
     def batch_size(self) -> int:
-        """The encoding batch: the recipe's, else 16 (32 on CUDA) for the device in use."""
+        """The encoding batch: the recipe's, else the default for the device in use and the
+        memory budget (32 on CUDA; elsewhere 16 at 8 GiB or more, less below that)."""
         return self.recipe.batch_size_for(self._device_in_use)
 
     def _load(self) -> Any:

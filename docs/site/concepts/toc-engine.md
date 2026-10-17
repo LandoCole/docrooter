@@ -100,8 +100,9 @@ strict = load(path, min_heading_score=0.7)
 
 - `use_bookmarks=False` ignores the PDF's outline. As an illustration, a public 80-page 10-K
   annual report with 102 bookmarks gave 94 headings, 87 of them with the bookmark's level;
-  without the bookmarks, 32 from typography alone. Bookmarks are the strongest signal when a file has them. (The benchmarks run with
-  `use_bookmarks=False`, because the bookmarks are their answer key.)
+  without the bookmarks, 32 from typography alone. Bookmarks are the strongest signal when a
+  file has them. (The benchmarks run with `use_bookmarks=False`, because the bookmarks are their
+  answer key.)
 - `use_printed_toc=False` ignores the printed contents page.
 - `max_pages=N` reads only the first N pages, which bounds time and memory on very long files;
   `meta["warnings"]` then contains `"truncated_pages"`.
@@ -117,8 +118,8 @@ details.
 
 - **No OCR.** Scanned PDFs give an empty document (`meta["warnings"]` has `"no_text_layer"`).
 - **Headings set at body size that are neither bold nor numbered** are not candidates, and
-  headings set *below* body size (some small-caps styles) never are. Earnings releases whose section titles are bold body
-  text are a known weak spot.
+  headings set *below* body size (some small-caps styles) never are. Earnings releases whose
+  section titles are bold body text are a known weak spot.
 - **Slide decks and bilingual layouts.** Slide titles and parallel-column statutes produce poor
   tables of contents.
 - **Repeated headings in the page margins.** A real heading printed at the same height in the

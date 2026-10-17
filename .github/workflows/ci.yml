@@ -58,9 +58,11 @@ jobs:
       - name: Test with coverage
         run: uv run --no-sync pytest --cov=docrooter --cov-report=term --cov-report=xml
       # Line coverage must stay at or above 80% in each of the core packages (the overall figure
-      # is reported, not gated). The report also lands in the job summary.
+      # is reported, not gated). Every package is reported, in the log and the job summary,
+      # before the step fails on the ones under the bar.
       - name: Coverage gate
         run: |
+          failed=""
           for target in document taxonomy classify pdf views.py; do
             case "$target" in
               *.py) include="src/docrooter/$target" ;;
@@ -68,5 +70,11 @@ jobs:
             esac
             echo "### docrooter/$target" >> "$GITHUB_STEP_SUMMARY"
             uv run --no-sync coverage report --include="$include" --format=markdown >> "$GITHUB_STEP_SUMMARY"
-            uv run --no-sync coverage report --include="$include" --fail-under=80
+            if ! uv run --no-sync coverage report --include="$include" --fail-under=80; then
+              failed="$failed docrooter/$target"
+            fi
           done
+          if [ -n "$failed" ]; then
+            echo "::error::line coverage under 80% in:$failed"
+            exit 1
+          fi

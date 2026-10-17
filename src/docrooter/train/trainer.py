@@ -148,8 +148,10 @@ def _finetune(
     Mirrors ``SentenceTransformerTrainer`` defaults (AdamW, linear decay after
     ``WARMUP_RATIO`` warmup, gradient clipping at 1.0) without its ``accelerate`` dependency.
     Each batch holds three columns (anchor, positive, negative), every text prefixed with the
-    query ``prompt``. The batch is the body's (recipe ``batch_size``, else 16, 32 on CUDA),
-    and texts are truncated to the body's ``max_seq_len``. With ``gradient_checkpointing``
+    query ``prompt``. The batch is the body's: the recipe's ``batch_size``, else the device
+    default (32 on CUDA; elsewhere 16 at a memory budget of 8 GiB or more, halved for each
+    halving of the budget, never under 4; see ``runtime.default_batch_size``). Texts are
+    truncated to the body's ``max_seq_len``. With ``gradient_checkpointing``
     (when the model supports it) activations are recomputed in the backward pass instead of
     kept: a batch of 16 triplets at 512 tokens otherwise holds about 10 GB of activations.
     """

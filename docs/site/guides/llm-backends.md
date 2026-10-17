@@ -58,8 +58,9 @@ The script is [`examples/jev_backend.py`](../../../examples/jev_backend.py).
 
 **What was measured.** On document types Jev got 49 of 51 development documents and 37 of 40
 held-out documents right, against 39/51 and 33/40 for the default local model (UltraBERT
-zero-shot on the same view; the best local configuration tried on dev reached 43/51). On the development set the gap is significant (exact McNemar
-test, p = 0.002). On section normalisation it led by 11-21 points.
+zero-shot on the same view; the best local configuration tried on dev reached 43/51). On the
+development set the gap is significant (exact McNemar test, p = 0.002). On section
+normalisation it led by 11-21 points.
 
 **Why, from the error analysis.** A local embedding model scores how *similar* the view is to
 each type's description. That gets the group right (UltraBERT picks the right one of the 6

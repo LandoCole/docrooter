@@ -81,8 +81,9 @@ section taxonomy: section_types/annual_report
 
 - **`load(path)`** read the PDF's text and layout and found headings from font size, weight,
   isolation and numbering; in real files the printed contents page and the PDF's bookmarks
-  help too. The 14 pt "Liquidity" heading became a level-2 subsection. Every section has a `level`, a `page_start`, a `heading_score` and `flags` explaining
-  unusual decisions. `doc.meta` records the engine, the page count and the time per stage. See
+  help too. The 14 pt "Liquidity" heading became a level-2 subsection. Every section has a
+  `level`, a `page_start`, a `heading_score` and `flags` explaining unusual decisions.
+  `doc.meta` records the engine, the page count and the time per stage. See
   [The TOC engine](../concepts/toc-engine.md).
 - **`classify_document`** rendered the document into a short
   [view](../concepts/views.md) (title, statistics, contents, opening text, key phrases) and

@@ -87,6 +87,13 @@ held-out evaluation and the repository essentials.
   PDFs load at 1.05 s per 100 pages (see [docs/performance.md](docs/performance.md)).
 - The package version is read from `docrooter.__version__` (a hatch dynamic version), so
   `pyproject.toml` and the module can no longer disagree.
+- A trained bundle's manifest keeps the recipe's batch size; a half batch from an
+  out-of-memory retry is recorded only in `train_metrics`.
+- The `ui` extra requires `fastapi>=0.100`, `uvicorn>=0.22` and `python-multipart>=0.0.13`;
+  `httpx` joins the dev group; the publish workflow fails when the release tag is not
+  `v<__version__>`.
+- The `classify_document` / `classify_documents` event docs list `model_load` before `view`,
+  and the `configure()` docstring describes its process-wide MPS side effects and the opt-out.
 
 ### Fixed
 
@@ -104,6 +111,23 @@ held-out evaluation and the repository essentials.
   text matrix gives the glyphs sizes that differ by float noise; such titles came out
   letter-spaced and were never heading candidates. Found through the held-out run, fixed on dev
   and synthetic PDFs only; the held-out numbers predate the fix.
+- Closing the `as_zero_shot()` backend of an unsaved fine-tuned `TrainedModel` no longer lets
+  the next call silently rebuild the base model under the fine-tuned heads; it raises
+  `BackendError` until the model is saved.
+- The embedding cache stores its own copy of each row, so `cache_size` bounds memory as well
+  as entries (a cached row used to keep its whole encode batch alive).
+- An MPS out-of-memory error while an NLI or MLM-choice model moves to the GPU falls back to
+  the CPU inside the load: one `model_load` start and end, one model build, and a "while
+  loading" warning.
+- `docrooter serve` stops promptly on Ctrl+C while a page follows a run: the event streams
+  are ended, with a 2 s graceful-shutdown bound.
+- Playground `.md` and `.txt` uploads are capped at 1 MB, and a run keeps and returns at most
+  5,000 TOC and section entries (`truncated` and `toc_total` in the result, shown on the page).
+  A heading-dense text file used to cost about 250 to 900 times its size in memory.
+- The playground's pipeline `error` event no longer contains the server's temp-file path.
+- A `Content-Length` or `Last-Event-ID` longer than 18 digits is rejected (400) or ignored
+  instead of causing a 500.
+- The playground page stops waiting when a run is gone after a server restart.
 
 ## [0.2.0] - 2026-10-16
 

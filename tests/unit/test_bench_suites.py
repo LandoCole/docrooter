@@ -291,3 +291,17 @@ def test_few_shot_only_can_pick_one_variant(tmp_path, fake_training):
     )  # fmt: skip
     assert [r["system"] for r in rows] == ["kw/heads"]
     assert fake_training == [("b2", "kw", 2, "heads")]
+
+
+def test_rebase_links_moves_relative_targets_and_keeps_urls_anchors_and_absolute_paths(tmp_path):
+    source = tmp_path / "benchmarks" / "results" / "2026-10-16"
+    docs = tmp_path / "docs"
+    text = (
+        "[raw](zero-shot.json) [spec](../../../docs/spec.md#rules) [web](https://example.com/a) "
+        "[anchor](#decisions) [abs](/etc/x.md)"
+    )
+    out = bench_report.rebase_links(text, source, docs)
+    assert out == (
+        "[raw](../benchmarks/results/2026-10-16/zero-shot.json) [spec](spec.md#rules) "
+        "[web](https://example.com/a) [anchor](#decisions) [abs](/etc/x.md)"
+    )

@@ -77,6 +77,8 @@ held-out evaluation and the repository essentials.
   restores the old behaviour). Fine-tuning on MPS used to reach 19.5 GB and fail.
 - The embedding cache is an LRU of 50,000 texts (`cache_size=`); it used to grow without bound.
 - The pdfplumber engine frees each page after reading it.
+- Loading a PDF with the default engine is about a fifth faster: 1.05 s per 100 pages on the dev
+  corpus, against 1.34 s before (see [docs/performance.md](docs/performance.md)).
 - The package version is read from `docrooter.__version__` (a hatch dynamic version), so
   `pyproject.toml` and the module can no longer disagree.
 
@@ -85,6 +87,17 @@ held-out evaluation and the repository essentials.
 - The playground read its static files with `Traversable.joinpath("static", name)`; the
   multi-segment form needs Python 3.11 for packages that are not plain directories (such as a
   zipped install). It joins one segment at a time now.
+- `Classifier.classify_documents` skips a decision that has no best path when it collects stop
+  reasons and no-backend warnings, instead of raising `AttributeError`. No built-in engine
+  returns one; the guard came with the typing pass.
+- The playground answers 400 to a `Content-Length` that is not an ASCII number (it answered 411,
+  or 500 for a superscript digit, which `str.isdigit` accepts; a missing one is still 411), and
+  ignores such a `Last-Event-ID` instead of failing.
+  `--env-file` reads `KEY= # comment` as an empty value instead of `# comment`.
+- The pdfplumber engine no longer splits every glyph into its own word when a slightly skewed
+  text matrix gives the glyphs sizes that differ by float noise; such titles came out
+  letter-spaced and were never heading candidates. Found through the held-out run, fixed on dev
+  and synthetic PDFs only; the held-out numbers predate the fix.
 
 ## [0.2.0] - 2026-10-16
 

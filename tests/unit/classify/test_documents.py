@@ -432,3 +432,38 @@ def test_tree_strategy_empty_path_confidence_is_the_root_step_max(strategy):
     assert res.best.node_ids == [] and res.best.stopped_reason == "low_confidence"
     assert res.confidence == pytest.approx(0.5)
     assert res.leaf_probs == pytest.approx(top)
+
+
+def _without_best(monkeypatch, pick):
+    """Make the engine return no best path for the result keys ``pick(keys)`` returns; the
+    list that comes back fills with the keys that were emptied."""
+    from docrooter.classify import documents
+
+    real, emptied = documents._run, []
+
+    def run(*args, **kwargs):
+        results = real(*args, **kwargs)
+        for key in pick(list(results)):
+            results[key] = (None, [], [])
+            emptied.append(key)
+        return results
+
+    monkeypatch.setattr(documents, "_run", run)
+    return emptied
+
+
+def test_a_section_result_without_a_best_path_is_skipped(monkeypatch):
+    emptied = _without_best(monkeypatch, lambda keys: [k for k in keys if k.startswith("s")][:1])
+    res = docrooter.classify_document(
+        paper_doc(), doc_type_taxonomy(), backend=KeywordBackend(), mode="sections"
+    )
+    assert len(emptied) == 1 and res.best.node_ids[-1] == "research.paper"
+
+
+def test_no_best_path_anywhere_stops_as_low_confidence(monkeypatch):
+    emptied = _without_best(monkeypatch, lambda keys: keys)
+    res = docrooter.classify_document(
+        paper_doc(), doc_type_taxonomy(), backend=KeywordBackend(), mode="hybrid"
+    )
+    assert emptied and res.best.node_ids == [] and res.best.stopped_reason == "low_confidence"
+    assert res.confidence == 0.0

@@ -439,7 +439,9 @@ class Classifier:
         nodes: dict[str, None] = {}
         count = 0
         for best, _, chosen in results:
-            stopped = [p for p in (chosen or [best]) if p.stopped_reason == "no_backend"]
+            stopped = [
+                p for p in (chosen or [best]) if p is not None and p.stopped_reason == "no_backend"
+            ]
             if stopped:
                 count += 1
                 for path in stopped:

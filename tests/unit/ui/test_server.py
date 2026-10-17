@@ -589,9 +589,19 @@ def test_chunked_upload_without_content_length_is_411(client, temp_paths):
     assert temp_paths == [] and client.get("/api/runs").json() == []
 
 
-def test_non_numeric_content_length_is_411():
-    status = asyncio.run(drive_post([b"x"], content_length=b"12abc"))
-    assert status == 411
+@pytest.mark.parametrize(
+    "content_length",
+    [b"12abc", b"-1", b"\xb2", b"1\xb9"],  # "\xb2" is latin-1 for "2" superscript: isdigit()
+)
+def test_malformed_content_length_is_400(content_length):
+    status = asyncio.run(drive_post([b"x"], content_length=content_length))
+    assert status == 400
+
+
+def test_non_ascii_last_event_id_is_ignored(client):
+    run_id, events = run(client)
+    again, ids = stream(client, run_id, headers={"Last-Event-ID": b"\xb2"})
+    assert again == events and ids == list(range(len(events)))
 
 
 async def drive_post(chunks: list[bytes], content_length: bytes, content_type: bytes = b"") -> int:
@@ -722,7 +732,9 @@ def test_load_env_file_strips_inline_comments_and_is_silent(tmp_path, capsys, ca
         "URL=http://host/#fragment\n"
         'QUOTED="a # b" # trailing\n'
         "SINGLE='x' \n"
-        "TABBED=v\t# tab comment\n",
+        "TABBED=v\t# tab comment\n"
+        "EMPTY= # only a comment\n"
+        "HASHED=#x1\n",
         encoding="utf-8",
     )
     environ: dict[str, str] = {}
@@ -734,6 +746,8 @@ def test_load_env_file_strips_inline_comments_and_is_silent(tmp_path, capsys, ca
         "QUOTED": "a # b",
         "SINGLE": "x",
         "TABBED": "v",
+        "EMPTY": "",
+        "HASHED": "#x1",  # no whitespace before "#": part of the value
     }
     assert capsys.readouterr() == ("", "")
     assert caplog.records == []

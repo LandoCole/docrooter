@@ -735,9 +735,11 @@ def create_app(
             raise HTTPException(503, f"{MAX_PENDING} documents are already waiting; try later.")
         limit = MAX_UPLOAD_BYTES
         cap = limit + _FORM_OVERHEAD
-        length = request.headers.get("content-length", "")
-        if not length.isdigit():
+        length = request.headers.get("content-length")
+        if length is None:
             raise HTTPException(411, "Send the upload with a Content-Length.")
+        if not _is_decimal(length):
+            raise HTTPException(400, "Content-Length must be a whole number of bytes.")
         if int(length) > cap:
             raise _too_large(limit)
         received = time.perf_counter()
@@ -782,7 +784,7 @@ def create_app(
     async def run_events(run_id: str, request: Request) -> StreamingResponse:
         run = get_run(run_id)
         last = request.headers.get("last-event-id", "")
-        skip = int(last) + 1 if last.isdigit() else 0
+        skip = int(last) + 1 if _is_decimal(last) else 0
         return StreamingResponse(
             _stream(run, skip),
             media_type="text/event-stream",
@@ -790,6 +792,12 @@ def create_app(
         )
 
     return app
+
+
+def _is_decimal(value: str) -> bool:
+    """Whether ``value`` is a non-negative ASCII decimal. ``str.isdigit`` alone also accepts
+    superscript digits, which ``int()`` rejects."""
+    return value.isascii() and value.isdigit()
 
 
 _INLINE_COMMENT = re.compile(r"\s+#")
@@ -801,16 +809,19 @@ def load_env_file(
     """Set the ``KEY=value`` pairs of a ``.env`` file that the environment lacks. Silent:
     nothing is printed or logged. Blank lines, comments and lines without ``=`` are skipped;
     ``export`` is stripped; a quoted value is taken between its quotes, and an unquoted one
-    loses a trailing `` # comment``."""
+    loses a trailing `` # comment`` (so ``KEY= # comment`` is empty, while ``KEY=#x`` keeps
+    ``#x``: a comment needs whitespace before it)."""
     environ = os.environ if environ is None else environ
     for line in Path(path).read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
-        key, value = line.split("=", 1)
-        key, value = key.removeprefix("export ").strip(), value.strip()
+        key, raw = line.split("=", 1)
+        key, value = key.removeprefix("export ").strip(), raw.strip()
         if value[:1] in ("'", '"') and (end := value.find(value[0], 1)) > 0:
             value = value[1:end]
+        elif _INLINE_COMMENT.match(raw):  # `KEY= # comment`: an empty value
+            value = ""
         else:
             value = _INLINE_COMMENT.split(value, maxsplit=1)[0].strip()
         if key and " " not in key and key not in environ:

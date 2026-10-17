@@ -82,6 +82,8 @@ authentication.
 - Uploads are capped at 50 MB, and the cap is enforced while the body streams, not after it has
   been buffered. At most 8 documents wait behind the running one (more get 503), and a PDF is read
   to at most 2,000 pages.
+- Markdown and text uploads are capped at 1 MB, and a run keeps at most 5,000 TOC entries, so a
+  heading-dense text file cannot make one run use gigabytes of memory.
 - Uploaded files are written to the system temporary directory and deleted after processing;
   files left behind by a killed server are swept (after an hour) when the next one starts.
 - Error messages shown in the page are length-limited.

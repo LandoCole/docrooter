@@ -78,11 +78,12 @@ logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 """Largest accepted upload; read on every request, so tests can patch it."""
-MAX_TEXT_UPLOAD_BYTES = 5 * 1024 * 1024
+MAX_TEXT_UPLOAD_BYTES = 1 * 1024 * 1024
 """Largest accepted ``.md`` or ``.txt`` upload. PDFs are bounded by :data:`MAX_PAGES`; text has
 no pages, and its work and memory grow with its headings: a heading on every other line peaks
-at about 250x the file, and about 900x with section labels on. 5 MB is most of a million
-words, well beyond a real filing as text."""
+at about 250x the file, and about 900x with section labels on. 1 MB (about 0.9 GB at worst)
+is close to 200,000 words, beyond a real filing as text, and keeps a run well inside the
+default 8 GB memory budget."""
 MAX_TOC_ENTRIES = 5000
 """TOC (and section-label) entries a run keeps and returns; the rest are dropped and the
 result says ``truncated``. A long filing has a few hundred; 5,000 entries are about 0.6 MB of

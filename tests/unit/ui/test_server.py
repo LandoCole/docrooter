@@ -851,12 +851,12 @@ def test_serve_configures_a_graceful_shutdown_timeout(monkeypatch):
 
 
 def test_text_uploads_have_a_lower_size_cap(client, monkeypatch, temp_paths):
-    assert server.MAX_TEXT_UPLOAD_BYTES == 5 * 1024 * 1024
+    assert server.MAX_TEXT_UPLOAD_BYTES == 1 * 1024 * 1024
     big = b"# Big\n\n" + b"x" * server.MAX_TEXT_UPLOAD_BYTES
     response = post(client, "big.md", big)
     assert response.status_code == 413
     detail = response.json()["detail"]
-    assert "5 MB" in detail and ".md" in detail and ".txt" in detail
+    assert "1 MB" in detail and ".md" in detail and ".txt" in detail
     assert temp_paths and not any(os.path.exists(p) for p in temp_paths)
     assert client.get("/api/runs").json() == []
 

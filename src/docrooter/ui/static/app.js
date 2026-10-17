@@ -166,7 +166,7 @@ async function submit(file) {
   $("form-error").textContent = "";
   const isText = /\.(md|txt)$/i.test(file.name);
   const limit = isText
-    ? state.backends?.max_text_upload_bytes ?? 5 * 1024 * 1024
+    ? state.backends?.max_text_upload_bytes ?? 1 * 1024 * 1024
     : state.backends?.max_upload_bytes ?? 50 * 1024 * 1024;
   if (file.size > limit) {
     const kind = isText ? "for .md and .txt files " : "";

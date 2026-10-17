@@ -5,6 +5,7 @@
 - Every ``docrooter`` command and option in a docs ``bash`` block exists.
 - The API page covers ``docrooter.__all__``; the CLI reference generator finds every command.
 - The build hook rewrites repository links for the site.
+- The playground's favicon is an exact copy of the brand favicon in ``docs/assets``.
 """
 
 from __future__ import annotations
@@ -73,7 +74,7 @@ def test_the_site_has_pages():
 
 
 def test_fence_languages_are_known():
-    for page in [*PAGES, *INCLUDED]:
+    for page in [*PAGES, *INCLUDED, ROOT / "CONTRIBUTING.md", ROOT / "CHANGELOG.md"]:
         for lang, _ in _fences(page.read_text(encoding="utf-8")):
             assert lang in KNOWN_LANGUAGES, f"{page.name}: unexpected fence language {lang!r}"
 
@@ -300,3 +301,9 @@ def test_toc_example_on_a_pdf(capsys, monkeypatch, tmp_path):
     lines = _run("toc.py", capsys, monkeypatch, str(path))
     assert lines[1].startswith("Abstract [level 1, p. 1")
     assert any("headings without bookmarks" in line for line in lines)
+
+
+def test_playground_favicon_is_the_brand_favicon():
+    brand = ROOT / "docs" / "assets" / "favicon.svg"
+    playground = ROOT / "src" / "docrooter" / "ui" / "static" / "favicon.svg"
+    assert playground.read_bytes() == brand.read_bytes(), "copy docs/assets/favicon.svg over it"

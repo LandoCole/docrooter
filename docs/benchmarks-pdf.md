@@ -5,15 +5,15 @@
 <!-- toc-benchmark:begin -->
 Gold: bookmarks of the 24 corpus PDFs with at least 5 bookmarks (levels shifted so the minimum is 1; items without a target page dropped). Extraction runs with `use_bookmarks=False`. A prediction matches a bookmark at normalised-title ratio >= 0.85 and pages within +/-1, one-to-one and greedy by ratio. The depth <= 2 columns keep only gold and predicted headings of level <= 2, so precision is measured at that depth too. Micro pools the counts; macro is the mean of per-document F1. Level accuracy is measured on matched pairs. Bookmark sets often omit lower-level headings, so precision is pessimistic and recall / F1 at depth <= 2 are the headline numbers.
 
-Environment: Python 3.12.13, arm64, 8 CPUs, pymupdf 1.28.2, pdfplumber 0.11.10, pymupdf4llm 1.28.2. `os.getloadavg()` was 9.8, 15.3, 12.9 (1/5/15 min) when the latest run started. The machine was shared with other jobs, so seconds per document are noisy upper bounds; each engine ran one untimed warm-up document first. Seconds are wall-clock for one `load_pdf` call. Each engine's row keeps the run that produced it: `pymupdf` 2026-10-16 at `e72fca6` (load 9.8, 15.3, 12.9); `pdfplumber` 2026-10-16 at `e72fca6` (load 9.5, 14.5, 12.7); `both` 2026-10-16 at `e72fca6` (load 6.8, 11.1, 11.6); `pymupdf4llm` 2026-10-16 at `5610ada` (load 8.1, 10.8, 14.2).
+Environment: Python 3.12.13, arm64, 8 CPUs, pymupdf 1.28.2, pdfplumber 0.11.10, pymupdf4llm 1.28.2. `os.getloadavg()` was 3.2, 2.4, 2.4 (1/5/15 min) when the latest run started. The machine was shared with other jobs, so seconds per document are noisy upper bounds; each engine ran one untimed warm-up document first. Seconds are wall-clock for one `load_pdf` call. Each engine's row keeps the run that produced it: `pymupdf` 2026-10-16 at `70a9a0f` (load 3.2, 2.4, 2.4); `pdfplumber` 2026-10-16 at `70a9a0f` (load 3.1, 2.5, 2.4); `both` 2026-10-16 at `70a9a0f` (load 4.0, 3.1, 2.6); `pymupdf4llm` 2026-10-16 at `5610ada` (load 8.1, 10.8, 14.2).
 
 ### Aggregate by engine (depth <= 2 headline, all depths for reference)
 
 | Engine | Docs | P (d<=2) | R (d<=2) | F1 micro (d<=2) | F1 macro (d<=2) | Level acc (d<=2) | P (all) | R (all) | F1 micro (all) | F1 macro (all) | Level acc (all) | s/doc |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| pymupdf | 24 | 0.633 | 0.791 | 0.703 | 0.591 | 0.770 | 0.550 | 0.905 | 0.685 | 0.634 | 0.596 | 1.53 |
-| pdfplumber | 24 | 0.648 | 0.788 | 0.711 | 0.599 | 0.796 | 0.576 | 0.900 | 0.702 | 0.642 | 0.606 | 7.31 |
-| both | 24 | 0.657 | 0.785 | 0.716 | 0.604 | 0.770 | 0.595 | 0.900 | 0.717 | 0.656 | 0.597 | 8.58 |
+| pymupdf | 24 | 0.633 | 0.791 | 0.703 | 0.591 | 0.770 | 0.550 | 0.905 | 0.685 | 0.634 | 0.596 | 1.16 |
+| pdfplumber | 24 | 0.648 | 0.788 | 0.711 | 0.599 | 0.796 | 0.576 | 0.900 | 0.702 | 0.642 | 0.606 | 6.73 |
+| both | 24 | 0.657 | 0.785 | 0.716 | 0.604 | 0.770 | 0.595 | 0.900 | 0.717 | 0.656 | 0.597 | 8.15 |
 | pymupdf4llm* | 8 | 0.667 | 0.564 | 0.611 | 0.517 | 0.974 | 0.615 | 0.692 | 0.651 | 0.550 | 0.912 | 15.21 |
 
 \* `pymupdf4llm`: limited to the 8 smallest bookmarked documents (by page count); see the matched-subset table below.
@@ -22,46 +22,46 @@ Environment: Python 3.12.13, arm64, 8 CPUs, pymupdf 1.28.2, pdfplumber 0.11.10, 
 
 | Engine | P (d<=2) | R (d<=2) | F1 micro (d<=2) | F1 macro (d<=2) | Level acc (d<=2) | F1 micro (all) | s/doc |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| pymupdf | 0.757 | 0.569 | 0.650 | 0.472 | 0.678 | 0.754 | 0.28 |
-| pdfplumber | 0.743 | 0.559 | 0.638 | 0.467 | 0.673 | 0.723 | 1.23 |
-| both | 0.776 | 0.564 | 0.653 | 0.481 | 0.675 | 0.749 | 1.56 |
+| pymupdf | 0.757 | 0.569 | 0.650 | 0.472 | 0.678 | 0.754 | 0.16 |
+| pdfplumber | 0.743 | 0.559 | 0.638 | 0.467 | 0.673 | 0.723 | 1.12 |
+| both | 0.776 | 0.564 | 0.653 | 0.481 | 0.675 | 0.749 | 1.27 |
 | pymupdf4llm | 0.667 | 0.564 | 0.611 | 0.517 | 0.974 | 0.651 | 15.21 |
 
 ### Per document: `pymupdf` (the default engine)
 
 | Doc | Title | Pages | Gold d<=2 | Pred d<=2 | P | R | F1 | Level acc | F1 (all) | s |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| doc_001 | Berkshire Hathaway Inc. 2023 Annual Report | 152 | 9 | 29 | 0.03 | 0.11 | 0.05 | 0.00 | 0.24 | 3.03 |
-| doc_003 | Amazon.com, Inc. 2023 Annual Report | 92 | 30 | 29 | 0.69 | 0.67 | 0.68 | 0.00 | 0.68 | 1.60 |
-| doc_004 | Berkshire Hathaway Inc. Form 10-Q for the qua... | 56 | 22 | 14 | 0.71 | 0.45 | 0.56 | 0.00 | 0.53 | 0.94 |
-| doc_005 | Berkshire Hathaway Inc. Form 10-Q for the qua... | 59 | 22 | 14 | 0.71 | 0.45 | 0.56 | 0.00 | 0.53 | 1.03 |
-| doc_009 | Amazon.com Announces Second Quarter Results (... | 12 | 18 | 0 | 0.00 | 0.00 | 0.00 | n/a | 0.00 | 0.16 |
-| doc_010 | Amazon.com Announces Third Quarter Results (O... | 12 | 18 | 0 | 0.00 | 0.00 | 0.00 | n/a | 0.00 | 0.17 |
-| doc_027 | Attention Is All You Need | 15 | 19 | 23 | 0.83 | 1.00 | 0.90 | 1.00 | 0.92 | 0.25 |
-| doc_029 | Language Models are Few-Shot Learners | 75 | 32 | 38 | 0.84 | 1.00 | 0.91 | 1.00 | 0.72 | 1.21 |
-| doc_030 | On the Opportunities and Risks of Foundation ... | 214 | 39 | 40 | 0.95 | 0.97 | 0.96 | 1.00 | 0.90 | 4.11 |
-| doc_031 | RFC 9110: HTTP Semantics | 194 | 30 | 158 | 0.18 | 0.93 | 0.30 | 0.00 | 0.86 | 2.20 |
-| doc_032 | RFC 9000: QUIC: A UDP-Based Multiplexed and S... | 151 | 36 | 141 | 0.25 | 0.97 | 0.40 | 0.03 | 0.97 | 1.69 |
-| doc_033 | RFC 9239: Updates to ECMAScript Media Types | 13 | 17 | 25 | 0.64 | 0.94 | 0.76 | 0.06 | 0.96 | 0.14 |
-| doc_034 | RFC 9457: Problem Details for HTTP APIs | 16 | 19 | 25 | 0.72 | 0.95 | 0.82 | 0.06 | 0.97 | 0.15 |
-| doc_038 | Bash Reference Manual, Edition 5.3 | 214 | 70 | 76 | 0.82 | 0.89 | 0.85 | 1.00 | 0.92 | 2.67 |
-| doc_039 | GNU Coreutils manual | 326 | 179 | 188 | 0.95 | 0.99 | 0.97 | 1.00 | 0.98 | 3.92 |
-| doc_040 | Getting Started with Raspberry Pi Pico-series | 36 | 55 | 61 | 0.90 | 1.00 | 0.95 | 1.00 | 0.93 | 0.92 |
-| doc_041 | NE555 / SA555 / SE555 Precision Timers datasheet | 39 | 30 | 45 | 0.44 | 0.67 | 0.53 | 1.00 | 0.61 | 0.37 |
-| doc_042 | RP2040 Datasheet | 642 | 96 | 98 | 0.97 | 0.99 | 0.98 | 0.77 | 0.44 | 6.37 |
-| doc_045 | Monetary Policy Report, July 5, 2024 | 79 | 23 | 13 | 0.62 | 0.35 | 0.44 | 1.00 | 0.64 | 0.91 |
-| doc_046 | Financial Stability Report, April 2024 | 69 | 13 | 14 | 0.93 | 1.00 | 0.96 | 1.00 | 0.96 | 0.67 |
-| doc_048 | Google Environmental Report 2024 | 86 | 32 | 24 | 0.62 | 0.47 | 0.54 | 0.93 | 0.35 | 2.86 |
-| doc_049 | NVIDIA Sustainability Report, Fiscal Year 2024 | 41 | 30 | 46 | 0.61 | 0.93 | 0.74 | 1.00 | 0.51 | 0.83 |
-| doc_050 | Tesla Q2 2024 Update (investor slide deck) | 29 | 29 | 1 | 1.00 | 0.03 | 0.07 | 1.00 | 0.07 | 0.29 |
-| doc_051 | NVIDIA Investor Presentation Q2 FY25 (Septemb... | 27 | 27 | 17 | 0.35 | 0.22 | 0.27 | 0.17 | 0.54 | 0.17 |
+| doc_001 | Berkshire Hathaway Inc. 2023 Annual Report | 152 | 9 | 29 | 0.03 | 0.11 | 0.05 | 0.00 | 0.24 | 2.31 |
+| doc_003 | Amazon.com, Inc. 2023 Annual Report | 92 | 30 | 29 | 0.69 | 0.67 | 0.68 | 0.00 | 0.68 | 1.13 |
+| doc_004 | Berkshire Hathaway Inc. Form 10-Q for the qua... | 56 | 22 | 14 | 0.71 | 0.45 | 0.56 | 0.00 | 0.53 | 0.70 |
+| doc_005 | Berkshire Hathaway Inc. Form 10-Q for the qua... | 59 | 22 | 14 | 0.71 | 0.45 | 0.56 | 0.00 | 0.53 | 0.75 |
+| doc_009 | Amazon.com Announces Second Quarter Results (... | 12 | 18 | 0 | 0.00 | 0.00 | 0.00 | n/a | 0.00 | 0.13 |
+| doc_010 | Amazon.com Announces Third Quarter Results (O... | 12 | 18 | 0 | 0.00 | 0.00 | 0.00 | n/a | 0.00 | 0.13 |
+| doc_027 | Attention Is All You Need | 15 | 19 | 23 | 0.83 | 1.00 | 0.90 | 1.00 | 0.92 | 0.18 |
+| doc_029 | Language Models are Few-Shot Learners | 75 | 32 | 38 | 0.84 | 1.00 | 0.91 | 1.00 | 0.72 | 0.87 |
+| doc_030 | On the Opportunities and Risks of Foundation ... | 214 | 39 | 40 | 0.95 | 0.97 | 0.96 | 1.00 | 0.90 | 2.93 |
+| doc_031 | RFC 9110: HTTP Semantics | 194 | 30 | 158 | 0.18 | 0.93 | 0.30 | 0.00 | 0.86 | 1.70 |
+| doc_032 | RFC 9000: QUIC: A UDP-Based Multiplexed and S... | 151 | 36 | 141 | 0.25 | 0.97 | 0.40 | 0.03 | 0.97 | 1.29 |
+| doc_033 | RFC 9239: Updates to ECMAScript Media Types | 13 | 17 | 25 | 0.64 | 0.94 | 0.76 | 0.06 | 0.96 | 0.11 |
+| doc_034 | RFC 9457: Problem Details for HTTP APIs | 16 | 19 | 25 | 0.72 | 0.95 | 0.82 | 0.06 | 0.97 | 0.12 |
+| doc_038 | Bash Reference Manual, Edition 5.3 | 214 | 70 | 76 | 0.82 | 0.89 | 0.85 | 1.00 | 0.92 | 2.15 |
+| doc_039 | GNU Coreutils manual | 326 | 179 | 188 | 0.95 | 0.99 | 0.97 | 1.00 | 0.98 | 3.24 |
+| doc_040 | Getting Started with Raspberry Pi Pico-series | 36 | 55 | 61 | 0.90 | 1.00 | 0.95 | 1.00 | 0.93 | 0.28 |
+| doc_041 | NE555 / SA555 / SE555 Precision Timers datasheet | 39 | 30 | 45 | 0.44 | 0.67 | 0.53 | 1.00 | 0.61 | 0.31 |
+| doc_042 | RP2040 Datasheet | 642 | 96 | 98 | 0.97 | 0.99 | 0.98 | 0.77 | 0.44 | 5.16 |
+| doc_045 | Monetary Policy Report, July 5, 2024 | 79 | 23 | 13 | 0.62 | 0.35 | 0.44 | 1.00 | 0.64 | 0.77 |
+| doc_046 | Financial Stability Report, April 2024 | 69 | 13 | 14 | 0.93 | 1.00 | 0.96 | 1.00 | 0.96 | 0.51 |
+| doc_048 | Google Environmental Report 2024 | 86 | 32 | 24 | 0.62 | 0.47 | 0.54 | 0.93 | 0.35 | 2.32 |
+| doc_049 | NVIDIA Sustainability Report, Fiscal Year 2024 | 41 | 30 | 46 | 0.61 | 0.93 | 0.74 | 1.00 | 0.51 | 0.45 |
+| doc_050 | Tesla Q2 2024 Update (investor slide deck) | 29 | 29 | 1 | 1.00 | 0.03 | 0.07 | 1.00 | 0.07 | 0.19 |
+| doc_051 | NVIDIA Investor Presentation Q2 FY25 (Septemb... | 27 | 27 | 17 | 0.35 | 0.22 | 0.27 | 0.17 | 0.54 | 0.11 |
 <!-- toc-benchmark:end -->
 
 ### Reading the numbers
 
-After the P5b tuning and the v0.2 review fix for dot-leader tables (see the tuning log below), the default engine (`pymupdf`, what `engine="auto"` resolves to) scores 0.703 micro F1 at depth <= 2 (P 0.633, R 0.791), up from 0.478 (P 0.369, R 0.678) in P5. Macro F1 rose from 0.464 to 0.591. Level accuracy on matched pairs fell from 0.802 to 0.770 at depth <= 2, because many more headings now match (708 vs 607) and some of the new matches carry a gold level the extractor gets wrong. Over all depths it rose from 0.548 to 0.596. These figures were measured on the same 24 documents that were used to choose the rules, so they are optimistic; see the disclosure below. `pdfplumber` (0.711) and `both` (0.716) are slightly ahead on quality but take about 5x longer per document on this loaded machine. The `pymupdf4llm` row is the P5 run (2026-10-16, commit `5610ada`). It was not re-run, because that engine uses the v0.1 Markdown path and does not go through the tuned detector. On its 8-document subset the tuned `pymupdf` now leads on F1 (0.650 vs 0.611 micro) while `pymupdf4llm` keeps far better level accuracy (0.97 vs 0.68).
+After the P5b tuning and the v0.2 review fix for dot-leader tables (see the tuning log below), the default engine (`pymupdf`, what `engine="auto"` resolves to) scores 0.703 micro F1 at depth <= 2 (P 0.633, R 0.791), up from 0.478 (P 0.369, R 0.678) in P5. Macro F1 rose from 0.464 to 0.591. Level accuracy on matched pairs fell from 0.802 to 0.770 at depth <= 2, because many more headings now match (708 vs 607) and some of the new matches carry a gold level the extractor gets wrong. Over all depths it rose from 0.548 to 0.596. These figures were measured on the same 24 documents that were used to choose the rules, so they are optimistic; see the disclosure below. `pdfplumber` (0.711) and `both` (0.716) are slightly ahead on quality but take about 6x and 7x longer per document. The `pymupdf4llm` row is the P5 run (2026-10-16, commit `5610ada`). It was not re-run, because that engine uses the v0.1 Markdown path and does not go through the tuned detector. On its 8-document subset the tuned `pymupdf` now leads on F1 (0.650 vs 0.611 micro) while `pymupdf4llm` keeps far better level accuracy (0.97 vs 0.68).
 
-**Speed: the v0.2 criterion was not demonstrated.** The v0.2 spec asks for under 1.5 s per 100 pages with the default engine. The P5b run measured 1.76 s/100 pages (46.7 s over the 2,649 pages of the 24 documents, load average about 8). The re-run after the dot-leader fix (`e72fca6`) measured 1.38 s/100 pages (36.7 s), but it is one run on a shared machine whose load average was 9.8 at its start, so neither figure is a clean measurement. The speed will be re-measured on an idle machine in v0.3.
+**Speed: the v0.2 criterion is met.** The v0.2 spec asks for under 1.5 s per 100 pages with the default engine. Re-measured in v0.3 (Q5) at `70a9a0f`, on the 24 documents (2,649 pages) with a load average of 3.2 at the start: 27.8 s, **1.05 s/100 pages**. Two back-to-back A/B passes over the same documents measured 1.34 s/100 pages with the code before the Q5 optimisations (`f3baa43`) and 1.05-1.06 s/100 pages after them (load 2.4-3.4), so the optimisations account for about a fifth of the time. Earlier runs measured 1.76 s/100 pages (P5b, load about 8) and 1.38 s/100 pages (`e72fca6`, load 9.8). See [Speed and the Rust decision](performance.md#speed-and-the-rust-decision).
 
 ### Tuning log (P5b)
 
@@ -85,6 +85,7 @@ All rows are `pymupdf` with `use_bookmarks=False`. Each row is measured with the
 | Review fix 3: page expressions ("Page 5 of 80") masked first; page-numbered lines fully generalised | `ed6d42a` | 0.632 | 0.791 | 0.702 | 0.592 | 0.770 | 0.684 |
 | *Rejected:* section running lines must recur on max(3, 10% of pages) | (not committed) | 0.458 | 0.791 | 0.580 | 0.564 | 0.770 | 0.629 |
 | v0.2 review fix: bare dot-leader lines count only on a contents-headed page or with >= 3 page-numbered entries; only high-confidence contents pages leave the body | `e72fca6` | 0.633 | 0.791 | 0.703 | 0.591 | 0.770 | 0.685 |
+| v0.3 fix (pdfplumber engine): glyph-size float noise no longer splits words; found through the held-out run, developed on dev and synthetic PDFs only | `f3baa43` | 0.633 | 0.791 | 0.703 | 0.591 | 0.770 | 0.685 |
 
 Notes on the rules:
 
@@ -99,6 +100,8 @@ Notes on the rules:
 - **Review fix round 1** (`0e8c75e`). This commit adds correctness guards that do not change the benchmark score. First, a trailing number after a numbering word (chapter, part, section, item, appendix, article, schedule, exhibit, annex, table, figure) is no longer stripped as a page number. Before, "Chapter 1/2/3" or "Item 1/2/3" set at page tops would collapse into one running-line key and be excluded. Second, a recurring edge line that is bold and at least 1.15 x body size is excluded only when its copies sit at the same height on 3 pages, so repeated slide titles survive. Review fix round 2 (`3e69550`) closes two gaps. The >= 30%-of-pages rule, which replaces digits with `#`, now also keeps a number that follows a numbering word, so "Chapter 1-4" opening 3-4 pages of a 9-12 page document is no longer excluded. A line now counts as heading-like if it is bold *or* at least 1.15 x body size, instead of both, so the same-height test now also covers large non-bold titles and bold titles at body size. Review fix round 3 (`ed6d42a`) restores footers such as "Section N · Page P of 80". Page expressions are masked before the numbering-word exception, and a line that carries a page number has all of its numbers generalised. A proposed minimum of max(3, 10% of pages) was measured and rejected: RP2040's sections span 3-10 of its 642 pages, and with that minimum its depth <= 2 predictions rose from 98 to 523.
 
 - **v0.2 review fix: dot-leader tables** (`e72fca6`). A line ending in dot leaders without a page number ("Revenues . . . . .") counted as a contents entry, so financial tables with leader-dotted labels made whole pages "contents pages", and their text was deleted from the body: about 17.8% of doc_007's text (Berkshire tables) and 12.7% of doc_013's (ownership and pay tables; measured as the share of non-excluded line characters). Such bare-leader lines now count only on a page headed "Contents" / "Table of Contents" (within its first 5 lines) or one with at least 3 page-numbered entries. Only high-confidence contents pages (a contents heading, or at least 5 page-numbered entries) are removed from body text; other contents pages are only kept out of the headings. This is a correctness fix, not a tuning step, and was kept although macro F1 fell by 0.001: doc_045 gained one false-positive heading from a projections table (F1 0.46 to 0.44), while doc_001 lost three false positives (F1 0.049 to 0.053). Micro F1 rose from 0.702 to 0.703. All 298 lines of doc_007's and 348 of doc_013's former table "contents pages" are now in the body. Two RFC documents (doc_031, doc_032) have unheaded continuation pages of a numbered contents list; these are still never headings but now stay in the body text.
+
+- **v0.3 fix: pdfplumber word splitting** (`f3baa43`). On the held-out run, `pdfplumber` returned 3 headings for an 816-page specification while `pymupdf` found about 2,000. The held-out PDFs were not opened to debug it; the failure was looked for on the dev corpus and on synthetic PDFs. Cause: pdfminer derives each glyph's size from its transformed box, so a text matrix with a tiny skew (`b`/`c` around 1e-6) gives every glyph a slightly different float size, and with `b * c > 0` it also marks the glyph as not upright. pdfplumber ends a word at every size change, so every glyph became a word and lines came out letter-spaced ("T o P r i m i t i v e"). Long titles then exceed the 20-word limit and lose their numbering and title-case signals. A synthetic 4-page specification with such matrices gave 12 headings with `pymupdf` and 0 with `pdfplumber`. On dev, the same matrices letter-spaced doc_013's proxy-card page and doc_044's "Pb" logo. Now a size change under 0.001 pt along a line takes the previous glyph's size, and glyphs whose matrix is axis-aligned up to that noise count as upright. Real size changes, nearby diagram labels and rotated text are left alone. Body text changed in 9 dev documents (RFC headings now read "4.3.1. URI Origin" instead of "4.3.1 . URI Origin"). The TOC scores of all three engines are unchanged on dev, as the table row shows (all rows in this log are `pymupdf`, so this one is identical by construction; the `pdfplumber` and `both` rows above are also unchanged per document). Whether this was the held-out document's cause cannot be confirmed without debugging on it, which the held-out protocol rules out.
 
 The spec §2.3 score weights and the 0.55 default threshold were not changed.
 

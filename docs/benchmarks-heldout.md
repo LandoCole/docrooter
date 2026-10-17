@@ -154,6 +154,15 @@ micro F1 is 0.553.
    (d<=2 micro 0.51-0.53). The cause was not investigated, because the held-out set must not be
    used for debugging. It should be reproduced on a dev or synthetic document: a silent collapse
    on a large, well-formed PDF is a robustness bug, not a tuning matter.
+
+   **Since fixed (v0.3 Q5, `f3baa43`), without touching this set.** On dev and synthetic PDFs,
+   a text matrix with a tiny skew gives every glyph a slightly different float size in
+   pdfminer, and pdfplumber then split every glyph into its own word, so titles came out
+   letter-spaced and stopped being heading candidates. A synthetic specification went from 0
+   to 12 of 12 headings under `pdfplumber` with the fix. Whether this was `ho_025`'s cause
+   was not checked, because that would mean debugging on the held-out PDF; see the tuning log
+   in [benchmarks-pdf.md](benchmarks-pdf.md#tuning-log-p5b). **The frozen held-out numbers in
+   this document are unchanged by design:** they were measured at `72f6135` and are not re-run.
 2. **Earnings releases and bilingual statutes.**
    - Pinterest's earnings release (`ho_007`, 16 bookmarks) yields one heading. Its section
      headings ("Q2 2024 Financial Highlights") are bold at body size (10 pt Arial) and are not
@@ -225,7 +234,7 @@ insurance and remedies clauses; mining reserves pages in the annual report).
 
 **Recommended follow-ups (on dev or synthetic data, never on this set):**
 
-- reproduce the `pdfplumber` collapse;
+- reproduce the `pdfplumber` collapse (done in v0.3 Q5 on dev and synthetic PDFs, `f3baa43`);
 - add a guard so that `both` does not lose a good `pymupdf` parse when the second engine
   returns almost nothing;
 - add an `empty_text` or `no_text_layer` hint to the CLI output;

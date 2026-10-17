@@ -300,7 +300,7 @@ def render(out_dir: Path, dev_dir: Path) -> None:
     held = {s: _load(out_dir, STEPS[s][1]) for s in STEPS}
     dev = {s: _load(dev_dir, f"{s}.json") for s in STEPS}
     table = render_comparison(comparison_rows(dev, held))
-    blocks = [f"### Dev vs held-out\n\n{table}"]
+    blocks = [f"## Dev vs held-out\n\n{table}"]
     if held["toc"]:
         blocks.append("## TOC extraction (held-out)\n\n" + toc.render_tables(held["toc"]))
     if held["pdf"]:

@@ -132,16 +132,18 @@ def _is_body_style(line: Line, body: float) -> bool:
 
 
 def _is_candidate(line: Line, isolated: bool, body: float) -> bool:
-    text = line.text.strip()
-    if len(text.split()) > _MAX_WORDS:
-        return False
+    """Large (>= 1.15 x body), or isolated and bold or numbered; never below body size, longer
+    than 20 words or with fewer than two letters after a number prefix. The cheap tests run
+    first: most lines are body text and fail on size or isolation alone."""
     if body > 0 and line.size < body - _STYLE_TOLERANCE:
         return False  # footnotes, captions, table cells: set below body size (P5b)
-    if sum(c.isalpha() for c in _NUMBER_PREFIX.sub("", text, count=1)) < _MIN_LETTERS:
+    text = line.text.strip()
+    large = body > 0 and line.size >= _SIZE_FACTOR * body
+    if not large and not (isolated and (line.bold or _NUMBERING.match(text))):
         return False
-    if body > 0 and line.size >= _SIZE_FACTOR * body:
-        return True
-    return isolated and (line.bold or bool(_NUMBERING.match(text)))
+    if len(text.split()) > _MAX_WORDS:
+        return False
+    return sum(c.isalpha() for c in _NUMBER_PREFIX.sub("", text, count=1)) >= _MIN_LETTERS
 
 
 def _extends_run(

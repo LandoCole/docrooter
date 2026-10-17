@@ -436,3 +436,33 @@ def test_contents_heading_below_a_masthead_still_heads_the_page():
               for k, t in enumerate(["Letter", "Insurance", "Railroad", "Utilities"])]  # fmt: skip
     s = compute_signals(lines + body_page(4), 4)
     assert ("Railroad", "") in s.printed_toc and {3, 4, 5, 6} <= s.toc_body_lines
+
+
+def test_leader_tail_gate_never_rejects_a_leader_line():
+    """The cheap tail test in front of ``_TOC_LEADERS`` is a necessary condition only."""
+    import random
+
+    from docrooter.pdf.signals import _TOC_LEADER_TAIL, _TOC_LEADER_TAIL_CHARS, _TOC_LEADERS
+
+    rng = random.Random(0)
+    alphabet = "ab1 .·…_\t-"
+    found = 0
+    for _ in range(20000):
+        text = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 20))).strip()
+        if _TOC_LEADERS.match(text):
+            found += 1
+            assert _TOC_LEADER_TAIL.search(text[-_TOC_LEADER_TAIL_CHARS:]), text
+    assert found > 50
+    for text in ("Revenues . . . . .", "Overview·····", "Notes _ _ _ _ _", "Risks.........."):
+        assert _TOC_LEADERS.match(text) and _TOC_LEADER_TAIL.search(text[-10:])
+    assert not _TOC_LEADER_TAIL.search("An ordinary sentence ends here."[-10:])
+
+
+def test_is_fuzzy_match_agrees_with_the_ratio():
+    from docrooter.pdf.signals import _FUZZY_THRESHOLD, is_fuzzy_match
+
+    titles = ["1. Introduction", "Introduction", "Introductions", "2.1 Methods", "Method",
+              "Results and Discussion", "Result and discussion.", "", "12", "Overview"]  # fmt: skip
+    for a in titles:
+        for b in titles:
+            assert is_fuzzy_match(a, b) == (fuzzy_match(a, b) >= _FUZZY_THRESHOLD), (a, b)

@@ -3,6 +3,7 @@ and footers, page numbers, printed TOC pages and PDF bookmarks."""
 
 from __future__ import annotations
 
+import functools
 import math
 import re
 import statistics
@@ -68,6 +69,11 @@ _ROMAN = re.compile(r"^m{0,3}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$",
 _TOC_LINE = re.compile(r"^(.*?)[\s.·…_-]{2,}(\d{1,4})$")
 _TOC_TRAILING = re.compile(r"[\s.·…_-]+$")
 _TOC_LEADERS = re.compile(r"^(.*?[^\W\d_].*?)\s*(?:[.·…_]\s?){5,}$")  # not an ellipsis
+# _TOC_LEADERS backtracks quadratically on long lines; it can only match a line whose last
+# 10 characters end in five leaders (the line is stripped, so the last leader is the last
+# character), so that cheap test runs first.
+_TOC_LEADER_TAIL = re.compile(r"(?:[.·…_]\s?){5}$")
+_TOC_LEADER_TAIL_CHARS = 10
 _TOC_NUMBERED = re.compile(r"^(\d{1,3}(?:\.\d{1,3})*)\.?\s+\S")
 _TOC_HEADINGS = frozenset({"contents", "table of contents"})
 _EDGE_LEADING_NUMBER = re.compile(r"^\d{1,4}\s+")
@@ -109,8 +115,11 @@ class DocSignals(BaseModel):
     bookmarks: list[tuple[int, str, int]] = Field(default_factory=list)  # (level, title, page)
 
 
+@functools.lru_cache(maxsize=8192)
 def normalize_title(s: str) -> str:
-    """Casefold, strip leading numbering and trailing punctuation, collapse whitespace."""
+    """Casefold, strip leading numbering and trailing punctuation, collapse whitespace.
+
+    Memoised: bookmark and contents titles are compared with many heading candidates."""
     text = _SPACE.sub(" ", s.casefold()).strip()
     text = _LEADING_NUMBER.sub("", text, count=1)
     return _TRAILING_PUNCT.sub("", text).strip()
@@ -125,8 +134,17 @@ def fuzzy_match(a: str, b: str) -> float:
 
 
 def is_fuzzy_match(a: str, b: str) -> bool:
-    """True when :func:`fuzzy_match` reaches the 0.85 threshold."""
-    return fuzzy_match(a, b) >= _FUZZY_THRESHOLD
+    """True when :func:`fuzzy_match` reaches the 0.85 threshold. The cheap upper bounds of
+    the ratio (``real_quick_ratio``, ``quick_ratio``) reject most pairs before ``ratio()``."""
+    na, nb = normalize_title(a), normalize_title(b)
+    if not na or not nb:
+        return False
+    matcher = SequenceMatcher(None, na, nb)
+    return (
+        matcher.real_quick_ratio() >= _FUZZY_THRESHOLD
+        and matcher.quick_ratio() >= _FUZZY_THRESHOLD
+        and matcher.ratio() >= _FUZZY_THRESHOLD
+    )
 
 
 def _is_page_number(text: str) -> bool:
@@ -265,7 +283,9 @@ def _toc_entries(
             numbered[i] = (_TOC_TRAILING.sub("", match.group(1)).strip(), match.group(2))
         elif (label := _row_page_number(lines, i)) is not None and any(c.isalpha() for c in text):
             row_entries[i] = (_TOC_TRAILING.sub("", text).strip(), label)
-        elif bare := _TOC_LEADERS.match(text):
+        elif _TOC_LEADER_TAIL.search(text[-_TOC_LEADER_TAIL_CHARS:]) and (
+            bare := _TOC_LEADERS.match(text)
+        ):
             leaders[i] = (bare.group(1).strip(), "")
     labels = [int(label) for _, label in row_entries.values()]
     if (

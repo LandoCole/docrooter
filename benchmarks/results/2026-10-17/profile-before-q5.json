@@ -1,0 +1,376 @@
+{
+  "date": "2026-10-17",
+  "commit": "f3baa43",
+  "env": {
+    "python": "3.12.13",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 8,
+    "loadavg": [
+      2.4677734375,
+      3.314453125,
+      3.5966796875
+    ],
+    "versions": {
+      "pymupdf": "1.28.2",
+      "pdfplumber": "0.11.10",
+      "pymupdf4llm": "1.28.2",
+      "docrooter": "0.1.0.dev0"
+    }
+  },
+  "loadavg_start": [
+    2.66650390625,
+    3.50634765625,
+    3.68115234375
+  ],
+  "loadavg_end": [
+    2.4677734375,
+    3.314453125,
+    3.5966796875
+  ],
+  "backend": "embedding:dmis-lab/UltraBERT-Embed-150M",
+  "device": "mps",
+  "model_load_seconds": 11.53,
+  "interval": 0.001,
+  "docs": [
+    {
+      "id": "doc_017",
+      "pages": 1,
+      "doc_type": "legal.terms_policy",
+      "sections": 15,
+      "normalised": 15,
+      "seconds": 0.5534,
+      "stages": {
+        "extract": 0.1053,
+        "signals": 0.0436,
+        "headings": 0.0021,
+        "assemble": 0.0001,
+        "view": 0.0112,
+        "classify": 0.1456,
+        "normalize": 0.2439
+      },
+      "profiled_seconds": 0.6201,
+      "split": {
+        "pymupdf": 0.1396,
+        "line_assembly": 0.0047,
+        "signals": 0.0435,
+        "headings": 0.008,
+        "tree_assembly": 0.0,
+        "view": 0.023,
+        "tokenisation": 0.0098,
+        "inference": 0.3811,
+        "other": 0.0092
+      },
+      "own_python_share": 0.1429
+    },
+    {
+      "id": "doc_043",
+      "pages": 4,
+      "doc_type": "technical.datasheet",
+      "sections": 4,
+      "normalised": 3,
+      "seconds": 0.3927,
+      "stages": {
+        "extract": 0.147,
+        "signals": 0.0085,
+        "headings": 0.0009,
+        "assemble": 0.0001,
+        "view": 0.0042,
+        "classify": 0.1613,
+        "normalize": 0.0689
+      },
+      "profiled_seconds": 0.3282,
+      "split": {
+        "pymupdf": 0.064,
+        "line_assembly": 0.0068,
+        "signals": 0.0098,
+        "headings": 0.003,
+        "tree_assembly": 0.0,
+        "view": 0.007,
+        "tokenisation": 0.0054,
+        "inference": 0.2272,
+        "other": 0.004
+      },
+      "own_python_share": 0.0938
+    },
+    {
+      "id": "doc_037",
+      "pages": 9,
+      "doc_type": "research.research_paper",
+      "sections": 13,
+      "normalised": 13,
+      "seconds": 0.4428,
+      "stages": {
+        "extract": 0.0881,
+        "signals": 0.0244,
+        "headings": 0.0016,
+        "assemble": 0.0001,
+        "view": 0.0094,
+        "classify": 0.1319,
+        "normalize": 0.1853
+      },
+      "profiled_seconds": 0.51,
+      "split": {
+        "pymupdf": 0.118,
+        "line_assembly": 0.003,
+        "signals": 0.0241,
+        "headings": 0.006,
+        "tree_assembly": 0.0,
+        "view": 0.02,
+        "tokenisation": 0.0041,
+        "inference": 0.3245,
+        "other": 0.01
+      },
+      "own_python_share": 0.1239
+    },
+    {
+      "id": "doc_027",
+      "pages": 15,
+      "doc_type": "research.research_paper",
+      "sections": 27,
+      "normalised": 23,
+      "seconds": 0.7901,
+      "stages": {
+        "extract": 0.2068,
+        "signals": 0.0443,
+        "headings": 0.0052,
+        "assemble": 0.0002,
+        "view": 0.0179,
+        "classify": 0.1852,
+        "normalize": 0.3292
+      },
+      "profiled_seconds": 0.872,
+      "split": {
+        "pymupdf": 0.1946,
+        "line_assembly": 0.011,
+        "signals": 0.0451,
+        "headings": 0.019,
+        "tree_assembly": 0.0,
+        "view": 0.0381,
+        "tokenisation": 0.0185,
+        "inference": 0.5314,
+        "other": 0.014
+      },
+      "own_python_share": 0.1459
+    },
+    {
+      "id": "doc_041",
+      "pages": 39,
+      "doc_type": "technical.datasheet",
+      "sections": 83,
+      "normalised": 46,
+      "seconds": 1.4721,
+      "stages": {
+        "extract": 0.3072,
+        "signals": 0.0448,
+        "headings": 0.0291,
+        "assemble": 0.0006,
+        "view": 0.0044,
+        "classify": 0.1939,
+        "normalize": 0.8891
+      },
+      "profiled_seconds": 1.61,
+      "split": {
+        "pymupdf": 0.3249,
+        "line_assembly": 0.0326,
+        "signals": 0.0551,
+        "headings": 0.085,
+        "tree_assembly": 0.001,
+        "view": 0.002,
+        "tokenisation": 0.0238,
+        "inference": 1.0669,
+        "other": 0.0186
+      },
+      "own_python_share": 0.1207
+    },
+    {
+      "id": "doc_045",
+      "pages": 79,
+      "doc_type": "government.government_report",
+      "sections": 23,
+      "normalised": 22,
+      "seconds": 1.5381,
+      "stages": {
+        "extract": 0.7255,
+        "signals": 0.1551,
+        "headings": 0.0178,
+        "assemble": 0.0007,
+        "view": 0.0786,
+        "classify": 0.2166,
+        "normalize": 0.3408
+      },
+      "profiled_seconds": 1.747,
+      "split": {
+        "pymupdf": 0.7336,
+        "line_assembly": 0.0579,
+        "signals": 0.1674,
+        "headings": 0.053,
+        "tree_assembly": 0.001,
+        "view": 0.1723,
+        "tokenisation": 0.0132,
+        "inference": 0.5402,
+        "other": 0.0081
+      },
+      "own_python_share": 0.2631
+    },
+    {
+      "id": "doc_002",
+      "pages": 130,
+      "doc_type": "financial.annual_report",
+      "sections": 52,
+      "normalised": 45,
+      "seconds": 3.5196,
+      "stages": {
+        "extract": 1.4782,
+        "signals": 0.6767,
+        "headings": 0.0275,
+        "assemble": 0.0011,
+        "view": 0.004,
+        "classify": 0.2228,
+        "normalize": 1.1046
+      },
+      "profiled_seconds": 3.7463,
+      "split": {
+        "pymupdf": 1.5262,
+        "line_assembly": 0.0623,
+        "signals": 0.7043,
+        "headings": 0.091,
+        "tree_assembly": 0.002,
+        "view": 0.001,
+        "tokenisation": 0.0421,
+        "inference": 1.2954,
+        "other": 0.0208
+      },
+      "own_python_share": 0.2353
+    },
+    {
+      "id": "doc_031",
+      "pages": 194,
+      "doc_type": "research.technical_standard",
+      "sections": 411,
+      "normalised": 33,
+      "seconds": 2.9831,
+      "stages": {
+        "extract": 1.5849,
+        "signals": 0.4567,
+        "headings": 0.1008,
+        "assemble": 0.0031,
+        "view": 0.0047,
+        "classify": 0.22,
+        "normalize": 0.6063
+      },
+      "profiled_seconds": 3.553,
+      "split": {
+        "pymupdf": 1.6955,
+        "line_assembly": 0.0475,
+        "signals": 0.4956,
+        "headings": 0.4614,
+        "tree_assembly": 0.005,
+        "view": 0.003,
+        "tokenisation": 0.0263,
+        "inference": 0.8052,
+        "other": 0.0134
+      },
+      "own_python_share": 0.2887
+    },
+    {
+      "id": "doc_039",
+      "pages": 326,
+      "doc_type": "technical.user_manual",
+      "sections": 276,
+      "normalised": 188,
+      "seconds": 7.6431,
+      "stages": {
+        "extract": 3.0448,
+        "signals": 0.7427,
+        "headings": 0.1247,
+        "assemble": 0.0033,
+        "view": 0.0053,
+        "classify": 0.2119,
+        "normalize": 3.5028
+      },
+      "profiled_seconds": 8.5188,
+      "split": {
+        "pymupdf": 3.0726,
+        "line_assembly": 0.4466,
+        "signals": 0.721,
+        "headings": 0.4377,
+        "tree_assembly": 0.005,
+        "view": 0.006,
+        "tokenisation": 0.1156,
+        "inference": 3.6693,
+        "other": 0.0448
+      },
+      "own_python_share": 0.195
+    },
+    {
+      "id": "doc_042",
+      "pages": 642,
+      "doc_type": "technical.user_manual",
+      "sections": 1239,
+      "normalised": 97,
+      "seconds": 8.2066,
+      "stages": {
+        "extract": 4.8151,
+        "signals": 1.1848,
+        "headings": 0.3358,
+        "assemble": 0.0126,
+        "view": 0.0057,
+        "classify": 0.2254,
+        "normalize": 1.6054
+      },
+      "profiled_seconds": 9.6187,
+      "split": {
+        "pymupdf": 4.8417,
+        "line_assembly": 0.3804,
+        "signals": 1.3008,
+        "headings": 1.1505,
+        "tree_assembly": 0.018,
+        "view": 0.006,
+        "tokenisation": 0.0672,
+        "inference": 1.8173,
+        "other": 0.0366
+      },
+      "own_python_share": 0.3007
+    }
+  ],
+  "aggregate": {
+    "pages": 1439,
+    "seconds": 27.5416,
+    "stages": {
+      "extract": 12.5029,
+      "signals": 3.3816,
+      "headings": 0.6455,
+      "assemble": 0.0219,
+      "view": 0.1454,
+      "classify": 1.9146,
+      "normalize": 8.8763
+    },
+    "profiled_seconds": 31.1241,
+    "split": {
+      "pymupdf": 12.7107,
+      "line_assembly": 1.0528,
+      "signals": 3.5667,
+      "headings": 2.3146,
+      "tree_assembly": 0.032,
+      "view": 0.2784,
+      "tokenisation": 0.326,
+      "inference": 10.6585,
+      "other": 0.1795
+    },
+    "split_share": {
+      "pymupdf": 0.4085,
+      "line_assembly": 0.0338,
+      "signals": 0.1146,
+      "headings": 0.0744,
+      "tree_assembly": 0.001,
+      "view": 0.0089,
+      "tokenisation": 0.0105,
+      "inference": 0.3425,
+      "other": 0.0058
+    },
+    "own_python_share": 0.2386,
+    "own_python_share_median_doc": 0.195
+  },
+  "note": "before the Q5 optimisations: src/ at f3baa43 (a worktree), benchmarks/ at 0a1cd65"
+}

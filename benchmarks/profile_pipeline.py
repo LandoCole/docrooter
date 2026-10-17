@@ -149,16 +149,23 @@ def _pipeline(path: Path, backend: Any, doc_types: Any, sink: Any) -> dict[str, 
     }
 
 
+def _clear_text_cache(backend: Any) -> None:
+    """Forget the text embeddings (not the label vectors), so each run encodes its texts."""
+    cache = getattr(backend, "_cache", None)
+    if cache is not None:
+        cache.clear()
+
+
 def profile_doc(path: Path, backend: Any, doc_types: Any) -> dict[str, Any]:
     from pyinstrument import Profiler
 
     recorded: list[Any] = []
-    backend._cache.clear()
+    _clear_text_cache(backend)
     start = time.perf_counter()
     outcome = _pipeline(path, backend, doc_types, recorded.append)
     wall = time.perf_counter() - start
 
-    backend._cache.clear()
+    _clear_text_cache(backend)
     profiler = Profiler(interval=INTERVAL)
     profiler.start()
     _pipeline(path, backend, doc_types, lambda event: None)
@@ -212,6 +219,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Profile the default local pipeline")
     parser.add_argument("--docs", default=",".join(DOC_IDS), help="comma-separated dev ids")
     parser.add_argument("--out", type=Path, default=None, help="results dir (default: dated)")
+    parser.add_argument("--backend", default=BACKEND, help=f"backend spec (default {BACKEND})")
     _guard.add_guard_argument(parser)
     args = parser.parse_args(argv)
     _guard.single_model_process("profile_pipeline", allow_concurrent=args.allow_concurrent)
@@ -225,7 +233,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     paths = [corpora.DEV / row["file"] for row in wanted]
     doc_types = builtin_taxonomy("doc_types")
 
-    backend = registry.resolve_backend(BACKEND)
+    backend = registry.resolve_backend(args.backend)
     loaded = time.perf_counter()
     backend.tokenizer()  # loads the model, outside every timing
     model_load_seconds = time.perf_counter() - loaded
@@ -248,7 +256,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "env": collect_env(),
         "loadavg_start": loadavg_start,
         "loadavg_end": list(os.getloadavg()),
-        "backend": BACKEND,
+        "backend": args.backend,
         "device": getattr(backend, "_device_in_use", None),
         "model_load_seconds": round(model_load_seconds, 2),
         "interval": INTERVAL,

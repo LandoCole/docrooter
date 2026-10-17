@@ -27,9 +27,9 @@ crashed run keeps its finished rows.
 
 ### Memory guard
 
-Every model benchmark (`run`, `pdf_bench`, `normalize_bench`, `memory_check`) refuses to start
-while another one, or `docrooter serve`, is running, since two models at once can exhaust a
-16 GB machine; `--allow-concurrent` overrides this. Each entry point (and `toc`) also sets
+Every model benchmark (`run`, `pdf_bench`, `normalize_bench`, `memory_check`,
+`profile_pipeline`) refuses to start while another one, or `docrooter serve`, is running, since
+two models at once can exhaust a 16 GB machine; `--allow-concurrent` overrides this. Each entry point (and `toc`) also sets
 conservative defaults unless the variable is already set: `OMP_NUM_THREADS=4`,
 `DOCROOTER_THREADS=4`, `TOKENIZERS_PARALLELISM=false` and `DOCROOTER_MEMORY_BUDGET_GB=8`, and
 derives `PYTORCH_MPS_HIGH_WATERMARK_RATIO` / `PYTORCH_MPS_LOW_WATERMARK_RATIO` from the budget.
@@ -38,6 +38,11 @@ The device is the default order (CUDA, MPS, CPU).
 `python -m benchmarks.memory_check --case classify|train|all [--device D]` measures peak RSS
 and peak MPS memory for classifying the 642-page doc_042 and for training on B1 with k=16;
 results go to `results/<date>/memory.json` and `docs/performance.md`.
+
+`python -m benchmarks.profile_pipeline [--docs ID,...] [--backend SPEC]` profiles `load` +
+`classify_document` + `normalize_sections` on ten dev PDFs with pyinstrument (dev dependency) and
+splits the time into pymupdf, our own Python stages, tokenisation and inference; results go to
+`results/<date>/profile.json` and the Rust decision in `docs/performance.md`.
 
 ### Few-shot
 

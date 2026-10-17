@@ -56,8 +56,11 @@ The default model, `dmis-lab/UltraBERT-Embed-150M` (and `UltraBERT-380M`, used b
 
 So the code that runs is the code at that commit, not whatever the repository holds later.
 
-- A revision you give in the spec (`embedding:dmis-lab/UltraBERT-Embed-150M@<rev>`) replaces the
-  pin and is trusted in the same way, so give a full commit hash, not a branch name.
+- A revision in the spec (`embedding:dmis-lab/UltraBERT-Embed-150M@<rev>`) replaces the pin for
+  the download. It is trusted automatically only if it equals the pin. Any other revision of a
+  remote-code model raises `BackendError` until you pass `trust_remote_code=True`. A spec string
+  can't carry that, so construct `EmbeddingBackend(model, revision=..., trust_remote_code=True)`
+  yourself after reviewing the model's code.
 - Any other model that needs remote code fails with an error until you opt in yourself, after
   reading its code: `EmbeddingBackend("org/model", trust_remote_code=True)` from
   `docrooter.backends.embedding`.

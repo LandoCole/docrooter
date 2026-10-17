@@ -63,9 +63,10 @@ held-out evaluation and the repository essentials.
 - **Documentation site** (`mkdocs.yml`, pages in `docs/site/`): getting started, concepts, guides,
   a CLI reference generated from `--help` (`docs/gen_cli.py`), an API reference generated from the
   docstrings, the benchmark reports, and an FAQ. Every Python sample on it is a line of a script in
-  `examples/` (nine new ones; all but `openai_backend.py` run without models or keys), and
-  `tests/unit/test_docs_snippets.py` runs them and checks every CLI option the pages mention. A `docs` workflow builds it with
-  `mkdocs build --strict` on pushes to `main` and on pull requests; nothing is deployed yet.
+  `examples/` (nine new ones; all but `openai_backend.py` run with the keyword backend, and some
+  need the `pdf` extra), and `tests/unit/test_docs_snippets.py` runs them and checks every CLI
+  option the pages mention. A `docs` workflow builds it with `mkdocs build --strict` on pushes to
+  `main` and on pull requests; nothing is deployed yet.
 - **`docrooter --version`** prints the installed version.
 - The playground uses the new mark (`favicon.svg`) as its tab icon.
 

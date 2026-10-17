@@ -36,8 +36,30 @@ def _code(line: str) -> str:
     return line.split("  #")[0].strip()
 
 
-def _blocks(text: str, lang: str) -> list[str]:
-    return re.findall(rf"^```{lang}\n(.*?)^```", text, re.DOTALL | re.MULTILINE)
+# Fence languages that hold Python or shell commands; all of them are checked.
+LANGUAGES = {"python": ("python", "python3", "py"), "bash": ("bash", "sh", "shell", "console")}
+# Every fence language the docs may use. Anything else fails test_fence_languages_are_known, so a
+# sample cannot slip past the checks under a language they do not read (e.g. ``pycon``).
+KNOWN_LANGUAGES = {"", "text", "json", "csv"} | {n for names in LANGUAGES.values() for n in names}
+_FENCE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})[ \t]*(?P<lang>[\w+-]*)[^\n]*\n"
+    r"(?P<body>.*?)^(?P=indent)(?P=fence)[ \t]*$",
+    re.DOTALL | re.MULTILINE,
+)
+
+
+def _fences(text: str) -> list[tuple[str, str]]:
+    """(language, body) of every fenced block, indented ones included, the body dedented."""
+    found = []
+    for match in _FENCE.finditer(text):
+        indent = match["indent"]
+        body = "\n".join(line.removeprefix(indent) for line in match["body"].split("\n"))
+        found.append((match["lang"].lower(), body))
+    return found
+
+
+def _blocks(text: str, kind: str) -> list[str]:
+    return [body for lang, body in _fences(text) if lang in LANGUAGES[kind]]
 
 
 def _run(name: str, capsys, monkeypatch, *argv: str) -> list[str]:
@@ -48,6 +70,18 @@ def _run(name: str, capsys, monkeypatch, *argv: str) -> list[str]:
 
 def test_the_site_has_pages():
     assert len(PAGES) >= 20  # hand-written; the build adds the included and generated pages
+
+
+def test_fence_languages_are_known():
+    for page in [*PAGES, *INCLUDED]:
+        for lang, _ in _fences(page.read_text(encoding="utf-8")):
+            assert lang in KNOWN_LANGUAGES, f"{page.name}: unexpected fence language {lang!r}"
+
+
+def test_fences_are_found_indented_and_under_aliases():
+    text = "- item\n\n    ```py\n    x = 1\n    ```\n\n~~~bash\ndocrooter toc a.md\n~~~\n"
+    assert _blocks(text, "python") == ["x = 1\n"]
+    assert _blocks(text, "bash") == ["docrooter toc a.md\n"]
 
 
 def test_every_docs_python_line_is_in_an_example():
@@ -243,7 +277,16 @@ def _tiny_pdf(tmp_path: Path) -> Path:
     return path
 
 
-def test_pdf_quickstart_example(capsys, monkeypatch, tmp_path):
+def test_pdf_quickstart_example(capsys, monkeypatch):
+    """Without a path the example writes its sample PDF; the quickstart page shows the output."""
+    pytest.importorskip("pymupdf")
+    lines = _run("pdf_quickstart.py", capsys, monkeypatch)
+    assert lines[0] == "pymupdf: 3 pages, 7 headings"
+    assert lines[5] == "  Liquidity and Capital Resources  (p. 2)"
+    assert "\n".join(lines) in _page("getting-started/quickstart.md")
+
+
+def test_pdf_quickstart_example_on_a_given_pdf(capsys, monkeypatch, tmp_path):
     path = _tiny_pdf(tmp_path)
     lines = _run("pdf_quickstart.py", capsys, monkeypatch, str(path))
     assert lines[0] == "pymupdf: 2 pages, 2 headings"

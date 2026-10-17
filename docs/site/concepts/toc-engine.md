@@ -98,9 +98,9 @@ plain = load_pdf(path, engine="pdfplumber", use_bookmarks=False, max_pages=50)
 strict = load(path, min_heading_score=0.7)
 ```
 
-- `use_bookmarks=False` ignores the PDF's outline. With its 102 bookmarks, Apple's 2025 10-K
-  gave 94 headings, 87 of them with the bookmark's level; without them, 32 from typography
-  alone. Bookmarks are the strongest signal when a file has them. (The benchmarks run with
+- `use_bookmarks=False` ignores the PDF's outline. As an illustration, a public 80-page 10-K
+  annual report with 102 bookmarks gave 94 headings, 87 of them with the bookmark's level;
+  without the bookmarks, 32 from typography alone. Bookmarks are the strongest signal when a file has them. (The benchmarks run with
   `use_bookmarks=False`, because the bookmarks are their answer key.)
 - `use_printed_toc=False` ignores the printed contents page.
 - `max_pages=N` reads only the first N pages, which bounds time and memory on very long files;

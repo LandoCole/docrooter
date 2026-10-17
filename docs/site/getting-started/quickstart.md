@@ -16,11 +16,17 @@ without a text layer do not (there is no OCR).
 
 ## 2. Run the script
 
-Save [`examples/pdf_quickstart.py`](../../../examples/pdf_quickstart.py) and run it on your PDF:
+Save [`examples/pdf_quickstart.py`](../../../examples/pdf_quickstart.py) and run it. Without an
+argument it first writes a small 3-page sample annual report (with PyMuPDF, so this needs the
+`pdf` extra) and reads that, so you can compare your output with the one below; then try it on
+your own PDF.
 
 ```bash
-python examples/pdf_quickstart.py report.pdf
+python examples/pdf_quickstart.py              # the generated sample
+python examples/pdf_quickstart.py report.pdf   # your own file
 ```
+
+The part that matters (the full script also holds the code that writes the sample):
 
 ```python
 import sys
@@ -49,33 +55,33 @@ def main(path: str) -> None:
         print(f"  {section.title} -> {section.canonical}")
 ```
 
-On Apple's Form 10-K for fiscal 2025 (80 pages) it prints, shortened:
+On the sample it prints:
 
 ```text
-pymupdf: 80 pages, 94 headings
-...
-PART I  (p. 4)
-  Item 1. Business  (p. 4)
-    Company Background  (p. 4)
-    Products  (p. 4)
-...
-  Item 1A. Risk Factors  (p. 8)
-...
-type: Financial > Annual report (confidence 0.08)
+pymupdf: 3 pages, 7 headings
+Annual Report 2025  (p. 1)
+Item 1. Business  (p. 1)
+Item 1A. Risk Factors  (p. 1)
+Item 7. Management's Discussion and Analysis  (p. 2)
+  Liquidity and Capital Resources  (p. 2)
+Item 8. Financial Statements  (p. 3)
+Item 9A. Controls and Procedures  (p. 3)
+type: Financial > Annual report (confidence 0.10)
 section taxonomy: section_types/annual_report
+  Annual Report 2025 -> controls_and_procedures
   Item 1. Business -> business_overview
   Item 1A. Risk Factors -> risk_factors
-  Item 2. Properties -> properties
-  Item 3. Legal Proceedings -> legal_proceedings
+  Item 7. Management's Discussion and Analysis -> management_discussion
+  Liquidity and Capital Resources -> management_discussion
+  Item 8. Financial Statements -> financial_statements
   Item 9A. Controls and Procedures -> controls_and_procedures
-...
 ```
 
 ## 3. What happened
 
 - **`load(path)`** read the PDF's text and layout and found headings from font size, weight,
-  isolation, numbering, the printed contents page and the PDF's bookmarks (this filing has
-  102). Every section has a `level`, a `page_start`, a `heading_score` and `flags` explaining
+  isolation and numbering; in real files the printed contents page and the PDF's bookmarks
+  help too. The 14 pt "Liquidity" heading became a level-2 subsection. Every section has a `level`, a `page_start`, a `heading_score` and `flags` explaining
   unusual decisions. `doc.meta` records the engine, the page count and the time per stage. See
   [The TOC engine](../concepts/toc-engine.md).
 - **`classify_document`** rendered the document into a short
@@ -86,8 +92,8 @@ section taxonomy: section_types/annual_report
   (`section_types/annual_report`) and labelled each level-1 and level-2 heading.
 
 The keyword backend only counts shared words, which is why its confidence is so low and why
-some labels are wrong (the cover page lines get section labels too). It is good for trying the
-API and for tests, not for real documents.
+some labels are wrong (the cover title is labelled `controls_and_procedures`). It is good for
+trying the API and for tests, not for real documents.
 
 ## 4. Use a real model
 

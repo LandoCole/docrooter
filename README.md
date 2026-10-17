@@ -1,4 +1,24 @@
-# docrooter
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img src="docs/assets/logo.svg" alt="docrooter logo: a document page whose ruled lines branch into roots" width="112" height="112">
+  </picture>
+</p>
+
+<h1 align="center">docrooter</h1>
+
+<p align="center"><strong>Find the structure of a document, then say what each part is.</strong><br>
+Table-of-contents extraction, document-type classification and section normalisation for PDF and Markdown,
+against a taxonomy you supply.</p>
+
+<p align="center">
+  <a href="https://github.com/docrooter/docrooter/actions/workflows/ci.yml"><img src="https://github.com/docrooter/docrooter/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-3776AB?logo=python&amp;logoColor=white" alt="Python 3.10, 3.11, 3.12 and 3.13">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
+</p>
+
+<!-- The repository URL in the badges and the links below is a placeholder (docrooter/docrooter);
+     replace it with the real one before the first release. -->
 
 docrooter extracts a table of contents from Markdown and PDF documents and classifies every
 section against a taxonomy you supply: a tree of categories described in JSON or CSV. It runs
@@ -489,6 +509,11 @@ uv build                        # sdist and wheel in dist/
 
 Tests marked `models` are deselected by default. The live `jev` test skips unless
 `TYPESAFE_API_KEY` is set. For the benchmarks, add `--extra bench`.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the full setup (including `PYTHONPATH=src` on macOS), the
+memory-budget and benchmark rules and the pull request checklist. See also the
+[CHANGELOG](CHANGELOG.md), the [security policy](SECURITY.md) and the
+[code of conduct](CODE_OF_CONDUCT.md).
 
 ## Licence
 

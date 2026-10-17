@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 456 96" width="456" height="96" role="img" aria-labelledby="t">
+  <title id="t">docrooter</title>
+  <style>
+    .ink { stroke: #1B2A49; }
+    .leaf { stroke: #14956A; }
+    .node { fill: #14956A; }
+    @media (prefers-color-scheme: dark) {
+      .ink { stroke: #E8EEF8; }
+      .leaf { stroke: #4FD1A1; }
+      .node { fill: #4FD1A1; }
+    }
+  </style>
+  <!-- mark -->
+  <g fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path class="ink" d="M24 60V8H57L76 27V60M57 8V27H76M34 22H46M34 34H66"/>
+    <path class="leaf" d="M34 46H50V60M50 60L33 80M50 60V83M50 60L67 80"/>
+  </g>
+  <g class="node">
+    <circle cx="33" cy="81" r="5.5"/>
+    <circle cx="50" cy="84" r="5.5"/>
+    <circle cx="67" cy="81" r="5.5"/>
+  </g>
+  <!-- lettering, drawn as monoline strokes so it renders the same without any font -->
+  <g transform="translate(0 -4)" fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <g class="ink">
+      <!-- d -->
+      <circle cx="124" cy="53" r="15"/>
+      <path d="M139 20V68"/>
+      <!-- o -->
+      <circle cx="168" cy="53" r="15"/>
+      <!-- c -->
+      <path d="M223.5 43.4A15 15 0 1 0 223.5 62.6"/>
+    </g>
+    <g class="leaf">
+      <!-- r -->
+      <path d="M236 38V68M236 52C236 43 243 38 251 40"/>
+      <!-- o -->
+      <circle cx="280" cy="53" r="15"/>
+      <!-- o -->
+      <circle cx="324" cy="53" r="15"/>
+      <!-- t -->
+      <path d="M361 24V58Q361 68 371 68M353 40H371"/>
+      <!-- e -->
+      <path d="M385 53H415A15 15 0 1 0 411.5 62.6"/>
+      <!-- r -->
+      <path d="M429 38V68M429 52C429 43 436 38 444 40"/>
+    </g>
+  </g>
+</svg>

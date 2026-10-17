@@ -275,9 +275,11 @@ def _denoised_chars(chars: list[dict[str, Any]]) -> list[dict[str, Any]]:
             and abs(fixed["top"] - prev["top"]) <= _SAME_LINE_TOP
         ):
             fixed["size"] = prev["size"]
-        a, b, c, d = (float(v) for v in fixed["matrix"][:4])
-        if a * d > 0 and abs(b) + abs(c) <= _SKEW_TOLERANCE * max(abs(a), abs(d)):
-            fixed["upright"] = True
+        matrix = fixed.get("matrix")  # pdfplumber >= 0.10
+        if matrix is not None:
+            a, b, c, d = (float(v) for v in matrix[:4])
+            if a * d > 0 and abs(b) + abs(c) <= _SKEW_TOLERANCE * max(abs(a), abs(d)):
+                fixed["upright"] = True
         out.append(fixed)
         prev = fixed
     return out

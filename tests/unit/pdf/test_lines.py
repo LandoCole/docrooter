@@ -261,3 +261,5 @@ def test_denoised_chars_snaps_size_noise_along_a_line_only():
     assert [c["size"] for c in out] == [10.0000011] * 3 + [10.0004, 10.5, 10.5000001, 12.0]
     assert [c["upright"] for c in out] == [True] * 6 + [False]
     assert chars[1]["size"] == 10.0000005 and chars[0]["upright"] is False  # inputs untouched
+    no_matrix = {"size": 9.0, "top": 1.0, "upright": False, "fontname": "F"}
+    assert _denoised_chars([no_matrix]) == [no_matrix]  # older pdfplumber: left as it is

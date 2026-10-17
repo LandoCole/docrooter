@@ -69,7 +69,7 @@ Issues = "https://github.com/docrooter/docrooter/issues"
 docrooter = "docrooter.cli:app"
 
 [dependency-groups]
-dev = ["pytest", "ruff"]
+dev = ["pyinstrument>=5.1", "pytest", "ruff"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/docrooter"]

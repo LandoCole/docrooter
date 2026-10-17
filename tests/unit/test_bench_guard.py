@@ -113,12 +113,13 @@ TABLE = [
     (500, 1, "Python", "/usr/bin/Python /x/bin/docrooter serve --port 8000"),
     (600, 1, "python3.12", f"{ROOT} -m pytest tests/unit/test_bench_pdf.py"),
     (700, 1, "python3.12", f"{ROOT} benchmarks/memory_check.py --case train"),
+    (800, 1, "python3.12", f"{ROOT} -m benchmarks.profile_pipeline"),
 ]
 
 
 def test_other_model_processes_skip_self_ancestors_wrappers_and_non_model_runs():
     found = _guard.other_model_processes(TABLE, pid=102, ppid=101)
-    assert [pid for pid, _ in found] == [200, 500, 700]
+    assert [pid for pid, _ in found] == [200, 500, 700, 800]
 
 
 def test_parent_is_excluded_even_when_ps_missed_it():

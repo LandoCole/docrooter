@@ -30,6 +30,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check the release tag matches the package version
+        # A v0.3.0 release must not upload code labelled 0.2.0 (or the reverse).
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/docrooter/__init__.py)
+          if [ -z "$version" ] || [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::release tag $GITHUB_REF_NAME does not match the package version (expected v$version)"
+            exit 1
+          fi
+          echo "release tag $GITHUB_REF_NAME matches docrooter $version"
       - uses: astral-sh/setup-uv@v5
       - name: Build sdist and wheel
         run: uv build

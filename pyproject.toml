@@ -55,7 +55,9 @@ pdf-mit = ["pdfplumber"]
 llm = ["httpx"]
 jev = ["typesafe-sdk>=0.7.5"]
 bench = ["datasets", "pandas"]
-ui = ["fastapi", "uvicorn", "python-multipart"]
+# fastapi 0.100: the first with pydantic 2 (Starlette 0.27 has form(max_files, max_fields));
+# uvicorn 0.22: timeout_graceful_shutdown; python-multipart 0.0.13: the python_multipart name.
+ui = ["fastapi>=0.100", "uvicorn>=0.22", "python-multipart>=0.0.13"]
 all = ["docrooter[models,pdf,pdf-mit,llm,jev,ui]"]
 
 [project.urls]
@@ -70,6 +72,7 @@ docrooter = "docrooter.cli:app"
 
 [dependency-groups]
 dev = [
+    "httpx",  # Starlette's TestClient, for the playground tests
     "mkdocs-material",
     "mkdocstrings[python]",
     "mypy",

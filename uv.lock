@@ -1050,6 +1050,7 @@ ui = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "httpx" },
     { name = "mkdocs-material" },
     { name = "mkdocstrings", version = "1.0.6", source = { registry = "https://pypi.org/simple" }, extra = ["python"], marker = "python_full_version < '3.11'" },
     { name = "mkdocstrings", version = "1.0.7", source = { registry = "https://pypi.org/simple" }, extra = ["python"], marker = "python_full_version >= '3.11'" },
@@ -1065,8 +1066,8 @@ requires-dist = [
     { name = "datasets", marker = "extra == 'all'" },
     { name = "datasets", marker = "extra == 'bench'" },
     { name = "datasets", marker = "extra == 'models'" },
-    { name = "fastapi", marker = "extra == 'all'" },
-    { name = "fastapi", marker = "extra == 'ui'" },
+    { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.100" },
+    { name = "fastapi", marker = "extra == 'ui'", specifier = ">=0.100" },
     { name = "httpx", marker = "extra == 'all'" },
     { name = "httpx", marker = "extra == 'llm'" },
     { name = "joblib", marker = "extra == 'all'" },
@@ -1078,8 +1079,8 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2" },
     { name = "pymupdf4llm", marker = "extra == 'all'" },
     { name = "pymupdf4llm", marker = "extra == 'pdf'" },
-    { name = "python-multipart", marker = "extra == 'all'" },
-    { name = "python-multipart", marker = "extra == 'ui'" },
+    { name = "python-multipart", marker = "extra == 'all'", specifier = ">=0.0.13" },
+    { name = "python-multipart", marker = "extra == 'ui'", specifier = ">=0.0.13" },
     { name = "rich" },
     { name = "scikit-learn", marker = "extra == 'all'" },
     { name = "scikit-learn", marker = "extra == 'models'" },
@@ -1092,13 +1093,14 @@ requires-dist = [
     { name = "typer" },
     { name = "typesafe-sdk", marker = "extra == 'all'", specifier = ">=0.7.5" },
     { name = "typesafe-sdk", marker = "extra == 'jev'", specifier = ">=0.7.5" },
-    { name = "uvicorn", marker = "extra == 'all'" },
-    { name = "uvicorn", marker = "extra == 'ui'" },
+    { name = "uvicorn", marker = "extra == 'all'", specifier = ">=0.22" },
+    { name = "uvicorn", marker = "extra == 'ui'", specifier = ">=0.22" },
 ]
 provides-extras = ["all", "bench", "jev", "llm", "models", "pdf", "pdf-mit", "ui"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "httpx" },
     { name = "mkdocs-material" },
     { name = "mkdocstrings", extras = ["python"] },
     { name = "mypy" },

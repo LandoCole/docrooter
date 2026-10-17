@@ -69,7 +69,15 @@ Issues = "https://github.com/docrooter/docrooter/issues"
 docrooter = "docrooter.cli:app"
 
 [dependency-groups]
-dev = ["mypy", "pyinstrument>=5.1", "pytest", "pytest-cov", "ruff"]
+dev = [
+    "mkdocs-material",
+    "mkdocstrings[python]",
+    "mypy",
+    "pyinstrument>=5.1",
+    "pytest",
+    "pytest-cov",
+    "ruff",
+]
 
 [tool.hatch.version]
 # The single source of the version; `docrooter.__version__` is the string in this file.

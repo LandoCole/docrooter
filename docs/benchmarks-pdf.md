@@ -132,7 +132,7 @@ The gap from the best local system to Jev is 6-7 documents (12-14 points). These
 <!-- doctype-benchmark:begin -->
 Corpus: 51 real PDFs from `benchmarks/corpus/` with gold labels from the manifest, 18 leaf types in 6 groups (`builtin:doc_types`; every label has a definition, see `benchmarks/corpus/README.md`). Classes have 2-4 documents each, so per-class numbers are anecdotal and one document moves leaf accuracy by 2.0 points. The 95% intervals are percentile bootstraps over documents (1000 resamples, seed 0). Every system labels every document (threshold 0).
 
-Environment: Python 3.12.13, arm64, 8 CPUs, device `mps` (MPS probe matmul took 0.64 s), torch 2.14.1, sentence-transformers 6.1.0, scikit-learn 1.9.1, typesafe-sdk 0.7.5, pymupdf 1.28.2, Jev `jev-1.13.0`. The load average at the start of each system is listed below; the machine was shared with another benchmark, so seconds are noisy upper bounds.
+Environment: Python 3.12.13, arm64, 8 CPUs, device `mps` (MPS probe matmul took 0.43 s), torch 2.14.1, sentence-transformers 6.1.0, scikit-learn 1.9.1, typesafe-sdk 0.7.5, pymupdf 1.28.2, Jev `jev-1.13.0`. The load average at the start of each system is listed below; the machine was shared with another benchmark, so seconds are noisy upper bounds.
 
 Timing: *parse* is one `load_pdf` call with the default engine (pymupdf), cached and shared by every system except `jev-chunks`, whose parse is pymupdf `page.get_text()` over all pages. *Classify* for the `classify_documents` systems (`*-view`, `ultrabert-hybrid`) is batch throughput: the wall time of the classify calls divided by the number of documents (local backends: one call over all documents; Jev: chunks of 8 documents with 8 concurrent requests, so each chunk's rows are saved before the next is paid for). For the leave-one-out systems (`*-loo`) it is view rendering, embedding and zero-shot scoring divided by the number of documents; the fit per fold (with its inner leave-one-out tuning) is listed separately. For `jev-chunks` it is per-document latency: the wall time of each document's concurrent chunk requests. The table marks each figure as `(batch)` or `(latency)`. *Load* is a warm-up excluded from the averages: model load plus one classification of a tiny synthetic document (the label vectors are encoded there). Jev cost is input tokens x $0.042/M (output tokens are free), with tokens as reported by the API (`usage.input_tokens`).
 
@@ -145,28 +145,28 @@ Views: every `*-view` system, `ultrabert-hybrid` (its view half), the leave-one-
 | `ultrabert-view` | UltraBERT-Embed-150M, DocumentView, Flat (zero-shot) | 0.765 | 0.65-0.86 | 0.902 | 0.689 | 0.759 | 0.709 | 1.47 | 0.616 (batch) | 2.08 | 12.2 | - | - |
 | `ultrabert-hybrid` | UltraBERT-Embed-150M, 0.6 view + 0.4 sections (zero-shot) | 0.824 | 0.73-0.92 | 0.922 | 0.739 | 0.806 | 0.765 | 1.47 | 3.094 (batch) | 4.56 | 2.6 | - | - |
 | `bge-view` | bge-small-en-v1.5, DocumentView, Flat (zero-shot) | 0.608 | 0.47-0.75 | 0.784 | 0.584 | 0.611 | 0.541 | 1.47 | 0.034 (batch) | 1.50 | 2.0 | - | - |
-| `nli-view` | deberta-v3-base-zeroshot-v2.0 NLI, DocumentView, Flat (zero-shot) | 0.569 | 0.43-0.69 | 0.765 | 0.510 | 0.532 | 0.485 | 1.60 | 15.076 (batch) | 16.68 | 5.2 | - | - |
+| `nli-view` | deberta-v3-base-zeroshot-v2.0 NLI, DocumentView, Flat (zero-shot) | 0.569 | 0.43-0.69 | 0.765 | 0.510 | 0.532 | 0.485 | 1.47 | 10.127 (batch) | 11.59 | 10.1 | - | - |
 | `jev-view` | Jev jev-1.13.0, DocumentView as state, one Choice over 18 leaves | 0.961 | 0.90-1.00 | 0.961 | 0.968 | 0.944 | 0.944 | 1.47 | 0.058 (batch) | 1.52 | 0.6 | 104,372 | $0.0044 |
 | `jev-chunks` | Jev jev-1.13.0, raw page text, <=8 chunks of ~1,500 tokens, mean of per-chunk Choices (no docrooter) | 0.922 | 0.84-0.98 | 0.961 | 0.947 | 0.912 | 0.911 | 0.49 | 0.320 (latency) | 0.81 | 0.0 | 1,121,481 | $0.0471 |
-| `ultrabert-view-tuned` | UltraBERT-Embed-150M, lead-first DocumentView (1,024 tokens, 400 lead words), Flat (zero-shot; view chosen on this corpus, dev-tuned) | 0.843 | 0.73-0.94 | 0.941 | 0.818 | 0.833 | 0.808 | 1.60 | 1.039 (batch) | 2.64 | 2.8 | - | - |
-| `ultrabert-loo` | UltraBERT-Embed-150M view embeddings + logistic regression, C in {1, 10, 100, 1000} by inner leave-one-out (trained, leave-one-out) | 0.706 | 0.59-0.82 | 0.902 | 0.615 | 0.690 | 0.647 | 1.60 | 0.474 (batch) | 2.08 | 1.6 | - | - |
-| `ultrabert-bge-loo` | Zero-shot UltraBERT-view and bge-view leaf distributions mixed, weight in {0, .25, .5, .75, 1} by inner leave-one-out (leave-one-out) | 0.745 | 0.63-0.86 | 0.882 | 0.656 | 0.741 | 0.680 | 1.60 | 0.485 (batch) | 2.09 | 3.5 | - | - |
+| `ultrabert-view-tuned` | UltraBERT-Embed-150M, lead-first DocumentView (1,024 tokens, 400 lead words), Flat (zero-shot; view chosen on this corpus, dev-tuned) | 0.843 | 0.75-0.92 | 0.941 | 0.830 | 0.833 | 0.814 | 1.47 | 0.309 (batch) | 1.78 | 3.1 | - | - |
+| `ultrabert-loo` | UltraBERT-Embed-150M view embeddings + logistic regression, C in {1, 10, 100, 1000} by inner leave-one-out (trained, leave-one-out) | 0.706 | 0.59-0.82 | 0.902 | 0.615 | 0.690 | 0.647 | 1.47 | 0.228 (batch) | 1.69 | 1.1 | - | - |
+| `ultrabert-bge-loo` | Zero-shot UltraBERT-view and bge-view leaf distributions mixed, weight in {0, .25, .5, .75, 1} by inner leave-one-out (leave-one-out) | 0.824 | 0.73-0.92 | 0.922 | 0.813 | 0.810 | 0.784 | 1.47 | 0.261 (batch) | 1.73 | 4.3 | - | - |
 
 Run metadata per system:
 
 - `ultrabert-view`: 2026-10-16 at `53090c0`, device `mps`, load average 19.8, 14.6, 11.8 at start; views differing from the backend's own counter: 25 of 51.
 - `ultrabert-hybrid`: 2026-10-16 at `53090c0`, device `mps`, load average 12.6, 13.5, 11.5 at start; views differing from the backend's own counter: 25 of 51.
 - `bge-view`: 2026-10-16 at `53090c0`, device `mps`, load average 4.1, 9.4, 10.2 at start; views differing from the backend's own counter: 16 of 51.
-- `nli-view`: 2026-10-16 at `196d4d0+dirty`, device `mps`, load average 5.7, 6.3, 6.5 at start; views differing from the backend's own counter: 13 of 51.
+- `nli-view`: 2026-10-16 at `0c22383+dirty`, device `mps`, load average 1.8, 2.3, 2.6 at start; views differing from the backend's own counter: 13 of 51.
 - `jev-view`: 2026-10-16 at `53090c0`, device `n/a`, load average 23.6, 15.1, 11.9 at start; views differing from the backend's own counter: 0 of 51.
 - `jev-chunks`: 2026-10-16 at `3bd85f2`, device `n/a`, load average 4.4, 6.5, 13.9 at start; 331 chunks sent (6.5 per document).
-- `ultrabert-view-tuned`: 2026-10-16 at `aad5b3f`, device `mps`, load average 4.7, 7.0, 7.3 at start; views differing from the backend's own counter: 20 of 51.
-- `ultrabert-loo`: 2026-10-16 at `aad5b3f`, device `mps`, load average 4.6, 6.5, 7.1 at start; mean fit 3.29 s per fold (inner LOO included); hyperparameter chosen per fold: 1000.0 x50, 100.0 x1; views differing from the backends' own counters: UltraBERT 25 of 51.
-- `ultrabert-bge-loo`: 2026-10-16 at `6d0a6eb`, device `mps`, load average 8.3, 8.2, 7.7 at start; mean fit 0.00 s per fold (inner LOO included); hyperparameter chosen per fold: 0.5 x48, 0.25 x3; views differing from the backends' own counters: UltraBERT 25, bge 18 of 51.
+- `ultrabert-view-tuned`: 2026-10-16 at `0c22383+dirty`, device `mps`, load average 3.6, 2.7, 2.7 at start; views differing from the backend's own counter: 20 of 51.
+- `ultrabert-loo`: 2026-10-16 at `0c22383+dirty`, device `mps`, load average 3.5, 2.8, 2.7 at start; mean fit 3.16 s per fold (inner LOO included); hyperparameter chosen per fold: 100.0 x2, 1000.0 x49; views differing from the backends' own counters: UltraBERT 25 of 51.
+- `ultrabert-bge-loo`: 2026-10-16 at `0c22383+dirty`, device `mps`, load average 2.6, 2.7, 2.7 at start; mean fit 0.00 s per fold (inner LOO included); hyperparameter chosen per fold: 0.5 x51; views differing from the backends' own counters: UltraBERT 25, bge 16 of 51.
 
 ### Configurations tried (P9b)
 
-Every configuration evaluated in P9b (2026-10-16 at `6d0a6eb`, device `mps`), with its leaf accuracy, 95% bootstrap CI and macro F1 on the same 51 documents. *Zero-shot, dev-tuned* configs need no labels, but each was scored on this corpus, so the best of them is an optimistic estimate. *Leave-one-out (honest)* systems predict each document from the other 50 only; every hyperparameter is chosen by an inner leave-one-out over those 50 (ties: lower inner log-loss, then the first value), so the held-out document never influences its own prediction. Their features are the default `DocumentView()` embeddings with the P9 instruction, fixed before P9b. *Diagnostic* rows fix a hyperparameter and are shown only to explain the tuned ones. All of them use the shared `estimate_tokens` view texts (see *Views* above).
+Every configuration evaluated in P9b (2026-10-16 at `0c22383+dirty`, device `mps`), with its leaf accuracy, 95% bootstrap CI and macro F1 on the same 51 documents. *Zero-shot, dev-tuned* configs need no labels, but each was scored on this corpus, so the best of them is an optimistic estimate. *Leave-one-out (honest)* systems predict each document from the other 50 only; every hyperparameter is chosen by an inner leave-one-out over those 50 (ties: lower inner log-loss, then the first value), so the held-out document never influences its own prediction. Their features are the default `DocumentView()` embeddings with the P9 instruction, fixed before P9b. *Diagnostic* rows fix a hyperparameter and are shown only to explain the tuned ones. All of them use the shared `estimate_tokens` view texts (see *Views* above).
 
 **Zero-shot, dev-tuned**
 
@@ -174,21 +174,21 @@ Every configuration evaluated in P9b (2026-10-16 at `6d0a6eb`, device `mps`), wi
 | --- | --- | --- | --- | --- | --- | --- |
 | `ultrabert/default512/what/label-def` | ultrabert, view default512, instruction what, labels label-def | 0.765 | 0.65-0.86 | 0.902 | 0.709 | - |
 | `ultrabert/default512/what/def-first` | ultrabert, view default512, instruction what, labels def-first | 0.804 | 0.69-0.90 | 0.922 | 0.749 | - |
-| `ultrabert/default512/identify/label-def` | ultrabert, view default512, instruction identify, labels label-def | 0.745 | 0.63-0.86 | 0.863 | 0.689 | - |
+| `ultrabert/default512/identify/label-def` | ultrabert, view default512, instruction identify, labels label-def | 0.765 | 0.65-0.86 | 0.882 | 0.715 | - |
 | `ultrabert/default512/identify/def-first` | ultrabert, view default512, instruction identify, labels def-first | 0.765 | 0.65-0.86 | 0.882 | 0.714 | - |
-| `ultrabert/lead1024/what/label-def` | ultrabert, view lead1024, instruction what, labels label-def | 0.843 | 0.73-0.94 | 0.941 | 0.808 | - |
-| `ultrabert/lead1024/what/def-first` | ultrabert, view lead1024, instruction what, labels def-first | 0.824 | 0.71-0.92 | 0.941 | 0.769 | - |
-| `ultrabert/lead1024/identify/label-def` | ultrabert, view lead1024, instruction identify, labels label-def | 0.784 | 0.67-0.88 | 0.882 | 0.731 | - |
-| `ultrabert/lead1024/identify/def-first` | ultrabert, view lead1024, instruction identify, labels def-first | 0.824 | 0.71-0.92 | 0.922 | 0.771 | - |
-| `ultrabert/toc1024/what/label-def` | ultrabert, view toc1024, instruction what, labels label-def | 0.784 | 0.67-0.88 | 0.902 | 0.725 | - |
-| `ultrabert/toc1024/what/def-first` | ultrabert, view toc1024, instruction what, labels def-first | 0.824 | 0.71-0.92 | 0.922 | 0.765 | - |
-| `ultrabert/toc1024/identify/label-def` | ultrabert, view toc1024, instruction identify, labels label-def | 0.765 | 0.65-0.88 | 0.863 | 0.703 | - |
-| `ultrabert/toc1024/identify/def-first` | ultrabert, view toc1024, instruction identify, labels def-first | 0.784 | 0.67-0.88 | 0.882 | 0.730 | - |
+| `ultrabert/lead1024/what/label-def` | ultrabert, view lead1024, instruction what, labels label-def | 0.843 | 0.75-0.92 | 0.941 | 0.814 | - |
+| `ultrabert/lead1024/what/def-first` | ultrabert, view lead1024, instruction what, labels def-first | 0.824 | 0.71-0.92 | 0.941 | 0.773 | - |
+| `ultrabert/lead1024/identify/label-def` | ultrabert, view lead1024, instruction identify, labels label-def | 0.804 | 0.69-0.90 | 0.902 | 0.751 | - |
+| `ultrabert/lead1024/identify/def-first` | ultrabert, view lead1024, instruction identify, labels def-first | 0.824 | 0.71-0.92 | 0.922 | 0.775 | - |
+| `ultrabert/toc1024/what/label-def` | ultrabert, view toc1024, instruction what, labels label-def | 0.784 | 0.67-0.88 | 0.882 | 0.732 | - |
+| `ultrabert/toc1024/what/def-first` | ultrabert, view toc1024, instruction what, labels def-first | 0.824 | 0.71-0.92 | 0.902 | 0.772 | - |
+| `ultrabert/toc1024/identify/label-def` | ultrabert, view toc1024, instruction identify, labels label-def | 0.745 | 0.63-0.86 | 0.863 | 0.688 | - |
+| `ultrabert/toc1024/identify/def-first` | ultrabert, view toc1024, instruction identify, labels def-first | 0.765 | 0.65-0.86 | 0.882 | 0.716 | - |
 | `ultrabert/lead512/what/label-def` | ultrabert, view lead512, instruction what, labels label-def | 0.804 | 0.69-0.90 | 0.941 | 0.782 | - |
 | `ultrabert/lead512/what/def-first` | ultrabert, view lead512, instruction what, labels def-first | 0.804 | 0.69-0.90 | 0.941 | 0.769 | - |
 | `ultrabert/default1024-lead400/what/label-def` | ultrabert, view default1024-lead400, instruction what, labels label-def | 0.784 | 0.67-0.88 | 0.941 | 0.720 | - |
 | `ultrabert/default1024-lead400/what/def-first` | ultrabert, view default1024-lead400, instruction what, labels def-first | 0.784 | 0.67-0.88 | 0.922 | 0.722 | - |
-| `bge/default512/what/label-def` | bge, view default512, instruction what, labels label-def | 0.608 | 0.47-0.75 | 0.784 | 0.538 | - |
+| `bge/default512/what/label-def` | bge, view default512, instruction what, labels label-def | 0.608 | 0.47-0.75 | 0.784 | 0.541 | - |
 | `bge/default512/what/def-first` | bge, view default512, instruction what, labels def-first | 0.569 | 0.43-0.71 | 0.725 | 0.503 | - |
 | `bge/lead512/what/label-def` | bge, view lead512, instruction what, labels label-def | 0.569 | 0.43-0.71 | 0.686 | 0.529 | - |
 | `bge/lead512/what/def-first` | bge, view lead512, instruction what, labels def-first | 0.549 | 0.41-0.69 | 0.686 | 0.493 | - |
@@ -197,13 +197,13 @@ Every configuration evaluated in P9b (2026-10-16 at `6d0a6eb`, device `mps`), wi
 
 | Config | What | Leaf acc | 95% CI | Level-1 acc | Macro F1 | Chosen |
 | --- | --- | --- | --- | --- | --- | --- |
-| `zero-shot-config-loo` | zero-shot UltraBERT config picked from the 16 above by accuracy on the other 50 documents (honest estimate of the dev-tuned choice) | 0.843 | 0.73-0.94 | 0.941 | 0.808 | ultrabert/lead1024/what/label-def: 51 |
-| `logistic-cv` | logistic regression, C in {1, 10, 100, 1000} by inner LOO | 0.706 | 0.59-0.82 | 0.902 | 0.647 | 1000.0: 50, 100.0: 1 |
+| `zero-shot-config-loo` | zero-shot UltraBERT config picked from the 16 above by accuracy on the other 50 documents (honest estimate of the dev-tuned choice) | 0.843 | 0.75-0.92 | 0.941 | 0.814 | ultrabert/lead1024/what/label-def: 51 |
+| `logistic-cv` | logistic regression, C in {1, 10, 100, 1000} by inner LOO | 0.706 | 0.59-0.82 | 0.902 | 0.647 | 1000.0: 49, 100.0: 2 |
 | `centroid` | nearest class centroid (cosine) | 0.667 | 0.53-0.78 | 0.882 | 0.633 | - |
 | `knn-cv` | cosine kNN, k in {1, 3, 5} by inner LOO | 0.765 | 0.65-0.88 | 0.961 | 0.739 | 1: 51 |
 | `prior-centroid-cv` | (1 - w) zero-shot + w centroid softmax, w in {0, .25, .5, .75, 1} by inner LOO | 0.725 | 0.61-0.84 | 0.941 | 0.672 | 0.25: 46, 0.5: 4, 0.0: 1 |
 | `examples` | package examples mechanism: leaf vector = unit mean of label vector and training views | 0.686 | 0.55-0.80 | 0.922 | 0.653 | - |
-| `ensemble-cv` | (1 - w) UltraBERT zero-shot + w bge zero-shot, w in {0, .25, .5, .75, 1} by inner LOO | 0.745 | 0.63-0.86 | 0.882 | 0.680 | 0.5: 48, 0.25: 3 |
+| `ensemble-cv` | (1 - w) UltraBERT zero-shot + w bge zero-shot, w in {0, .25, .5, .75, 1} by inner LOO | 0.824 | 0.73-0.92 | 0.922 | 0.784 | 0.5: 51 |
 
 **Diagnostic (fixed hyperparameter, not tuned honestly)**
 
@@ -211,39 +211,39 @@ Every configuration evaluated in P9b (2026-10-16 at `6d0a6eb`, device `mps`), wi
 | --- | --- | --- | --- | --- | --- | --- |
 | `logistic-C1` | logistic regression, fixed C=1 | 0.255 | 0.14-0.37 | 0.608 | 0.097 | - |
 | `logistic-C10` | logistic regression, fixed C=10 | 0.588 | 0.45-0.73 | 0.863 | 0.508 | - |
-| `logistic-C100` | logistic regression, fixed C=100 | 0.667 | 0.53-0.80 | 0.882 | 0.618 | - |
+| `logistic-C100` | logistic regression, fixed C=100 | 0.627 | 0.49-0.76 | 0.882 | 0.582 | - |
 | `logistic-C1000` | logistic regression, fixed C=1000 | 0.706 | 0.59-0.82 | 0.902 | 0.647 | - |
 | `knn-k1` | cosine kNN, fixed k=1 | 0.765 | 0.65-0.88 | 0.961 | 0.739 | - |
-| `knn-k3` | cosine kNN, fixed k=3 | 0.608 | 0.47-0.75 | 0.902 | 0.549 | - |
-| `knn-k5` | cosine kNN, fixed k=5 | 0.529 | 0.39-0.67 | 0.824 | 0.411 | - |
+| `knn-k3` | cosine kNN, fixed k=3 | 0.588 | 0.45-0.73 | 0.882 | 0.556 | - |
+| `knn-k5` | cosine kNN, fixed k=5 | 0.549 | 0.41-0.69 | 0.843 | 0.426 | - |
 | `ensemble-w0.25` | ensemble, fixed bge weight 0.25 | 0.784 | 0.67-0.88 | 0.902 | 0.725 | - |
-| `ensemble-w0.5` | ensemble, fixed bge weight 0.5 | 0.804 | 0.69-0.90 | 0.922 | 0.757 | - |
-| `ensemble-w0.75` | ensemble, fixed bge weight 0.75 | 0.725 | 0.61-0.84 | 0.902 | 0.650 | - |
+| `ensemble-w0.5` | ensemble, fixed bge weight 0.5 | 0.824 | 0.73-0.92 | 0.922 | 0.784 | - |
+| `ensemble-w0.75` | ensemble, fixed bge weight 0.75 | 0.725 | 0.61-0.84 | 0.902 | 0.652 | - |
 
 ### Per class
 
-Best honest docrooter system by macro F1 (zero-shot: `ultrabert-hybrid`; any, leave-one-out included: `ultrabert-hybrid`), `jev-view`, and the best dev-tuned system `ultrabert-view-tuned` (its settings were chosen on this corpus, so its numbers are optimistic). P / R / F1 per gold class.
+Best honest docrooter system by macro F1 (zero-shot: `ultrabert-hybrid`; any, leave-one-out included: `ultrabert-bge-loo`), `jev-view`, and the best dev-tuned system `ultrabert-view-tuned` (its settings were chosen on this corpus, so its numbers are optimistic). P / R / F1 per gold class.
 
-| Class | n | `ultrabert-hybrid` P / R / F1 | `jev-view` P / R / F1 | `ultrabert-view-tuned` (dev-tuned) P / R / F1 |
-| --- | --- | --- | --- | --- |
-| financial.annual_report | 3 | 0.67 / 0.67 / 0.67 | 1.00 / 1.00 / 1.00 | 0.50 / 0.33 / 0.40 |
-| financial.quarterly_report | 2 | 1.00 / 1.00 / 1.00 | 0.67 / 1.00 / 0.80 | 1.00 / 1.00 / 1.00 |
-| financial.shareholder_letter | 3 | 0.50 / 0.33 / 0.40 | 1.00 / 1.00 / 1.00 | 0.67 / 0.67 / 0.67 |
-| financial.earnings_release | 2 | 0.67 / 1.00 / 0.80 | 1.00 / 1.00 / 1.00 | 0.67 / 1.00 / 0.80 |
-| financial.prospectus | 2 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
-| financial.proxy_statement | 2 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 0.67 / 1.00 / 0.80 |
-| legal.contract | 2 | 0.00 / 0.00 / 0.00 | 1.00 / 0.50 / 0.67 | 1.00 / 0.50 / 0.67 |
-| legal.terms_policy | 3 | 0.75 / 1.00 / 0.86 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
-| legal.court_opinion | 4 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
-| legal.legislation | 3 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
-| research.research_paper | 4 | 0.67 / 1.00 / 0.80 | 1.00 / 1.00 / 1.00 | 0.67 / 1.00 / 0.80 |
-| research.technical_standard | 4 | 0.80 / 1.00 / 0.89 | 1.00 / 1.00 / 1.00 | 0.80 / 1.00 / 0.89 |
-| research.white_paper | 3 | 0.00 / 0.00 / 0.00 | 1.00 / 1.00 / 1.00 | 0.00 / 0.00 / 0.00 |
-| technical.user_manual | 3 | 1.00 / 1.00 / 1.00 | 0.75 / 1.00 / 0.86 | 1.00 / 1.00 / 1.00 |
-| technical.datasheet | 4 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
-| government.government_report | 3 | 0.75 / 1.00 / 0.86 | 1.00 / 1.00 / 1.00 | 0.75 / 1.00 / 0.86 |
-| corporate.sustainability_report | 2 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
-| corporate.investor_presentation | 2 | 0.50 / 0.50 / 0.50 | 1.00 / 0.50 / 0.67 | 1.00 / 0.50 / 0.67 |
+| Class | n | `ultrabert-hybrid` P / R / F1 | `ultrabert-bge-loo` P / R / F1 | `jev-view` P / R / F1 | `ultrabert-view-tuned` (dev-tuned) P / R / F1 |
+| --- | --- | --- | --- | --- | --- |
+| financial.annual_report | 3 | 0.67 / 0.67 / 0.67 | 0.50 / 0.33 / 0.40 | 1.00 / 1.00 / 1.00 | 0.67 / 0.67 / 0.67 |
+| financial.quarterly_report | 2 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 0.67 / 1.00 / 0.80 | 1.00 / 1.00 / 1.00 |
+| financial.shareholder_letter | 3 | 0.50 / 0.33 / 0.40 | 0.67 / 0.67 / 0.67 | 1.00 / 1.00 / 1.00 | 0.67 / 0.67 / 0.67 |
+| financial.earnings_release | 2 | 0.67 / 1.00 / 0.80 | 0.50 / 1.00 / 0.67 | 1.00 / 1.00 / 1.00 | 0.67 / 1.00 / 0.80 |
+| financial.prospectus | 2 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
+| financial.proxy_statement | 2 | 1.00 / 1.00 / 1.00 | 0.50 / 1.00 / 0.67 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
+| legal.contract | 2 | 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 | 1.00 / 0.50 / 0.67 | 1.00 / 0.50 / 0.67 |
+| legal.terms_policy | 3 | 0.75 / 1.00 / 0.86 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
+| legal.court_opinion | 4 | 1.00 / 1.00 / 1.00 | 1.00 / 0.75 / 0.86 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
+| legal.legislation | 3 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
+| research.research_paper | 4 | 0.67 / 1.00 / 0.80 | 0.67 / 1.00 / 0.80 | 1.00 / 1.00 / 1.00 | 0.67 / 1.00 / 0.80 |
+| research.technical_standard | 4 | 0.80 / 1.00 / 0.89 | 0.80 / 1.00 / 0.89 | 1.00 / 1.00 / 1.00 | 0.80 / 1.00 / 0.89 |
+| research.white_paper | 3 | 0.00 / 0.00 / 0.00 | 1.00 / 0.33 / 0.50 | 1.00 / 1.00 / 1.00 | 0.00 / 0.00 / 0.00 |
+| technical.user_manual | 3 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 0.75 / 1.00 / 0.86 | 1.00 / 0.67 / 0.80 |
+| technical.datasheet | 4 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 0.80 / 1.00 / 0.89 |
+| government.government_report | 3 | 0.75 / 1.00 / 0.86 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
+| corporate.sustainability_report | 2 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 0.67 / 1.00 / 0.80 |
+| corporate.investor_presentation | 2 | 0.50 / 0.50 / 0.50 | 1.00 / 0.50 / 0.67 | 1.00 / 0.50 / 0.67 | 1.00 / 0.50 / 0.67 |
 
 ### Confusion matrices
 
@@ -266,6 +266,29 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 | 11 research_paper |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |  |  |  |  |
 | 12 technical_standard |  |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |  |  |  |
 | 13 white_paper |  |  |  |  |  |  |  |  |  |  | 2 |  |  |  |  | 1 |  |  |
+| 14 user_manual |  |  |  |  |  |  |  |  |  |  |  |  |  | **3** |  |  |  |  |
+| 15 datasheet |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |
+| 16 government_report |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **3** |  |  |
+| 17 sustainability_report |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **2** |  |
+| 18 investor_presentation |  |  |  | 1 |  |  |  |  |  |  |  |  |  |  |  |  |  | **1** |
+
+`ultrabert-bge-loo`:
+
+| Gold \ Pred | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 annual_report | **1** |  | 1 |  |  | 1 |  |  |  |  |  |  |  |  |  |  |  |  |
+| 2 quarterly_report |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 3 shareholder_letter | 1 |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 4 earnings_release |  |  |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 5 prospectus |  |  |  |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| 6 proxy_statement |  |  |  |  |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |
+| 7 contract |  |  |  |  |  | 1 |  |  |  |  |  | 1 |  |  |  |  |  |  |
+| 8 terms_policy |  |  |  |  |  |  |  | **3** |  |  |  |  |  |  |  |  |  |  |
+| 9 court_opinion |  |  |  | 1 |  |  |  |  | **3** |  |  |  |  |  |  |  |  |  |
+| 10 legislation |  |  |  |  |  |  |  |  |  | **3** |  |  |  |  |  |  |  |  |
+| 11 research_paper |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |  |  |  |  |
+| 12 technical_standard |  |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |  |  |  |
+| 13 white_paper |  |  |  |  |  |  |  |  |  |  | 2 |  | **1** |  |  |  |  |  |
 | 14 user_manual |  |  |  |  |  |  |  |  |  |  |  |  |  | **3** |  |  |  |  |
 | 15 datasheet |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |
 | 16 government_report |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **3** |  |  |
@@ -299,7 +322,7 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 
 | Gold \ Pred | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 annual_report | **1** |  | 1 |  |  | 1 |  |  |  |  |  |  |  |  |  |  |  |  |
+| 1 annual_report | **2** |  | 1 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | 2 quarterly_report |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | 3 shareholder_letter | 1 |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | 4 earnings_release |  |  |  | **2** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
@@ -311,8 +334,8 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 | 10 legislation |  |  |  |  |  |  |  |  |  | **3** |  |  |  |  |  |  |  |  |
 | 11 research_paper |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |  |  |  |  |
 | 12 technical_standard |  |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |  |  |  |
-| 13 white_paper |  |  |  |  |  |  |  |  |  |  | 2 |  |  |  |  | 1 |  |  |
-| 14 user_manual |  |  |  |  |  |  |  |  |  |  |  |  |  | **3** |  |  |  |  |
+| 13 white_paper |  |  |  |  |  |  |  |  |  |  | 2 |  |  |  |  |  | 1 |  |
+| 14 user_manual |  |  |  |  |  |  |  |  |  |  |  |  |  | **2** | 1 |  |  |  |
 | 15 datasheet |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **4** |  |  |  |
 | 16 government_report |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **3** |  |  |
 | 17 sustainability_report |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | **2** |  |
@@ -324,12 +347,12 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 
 | Doc | Title | Pages | Gold | `ultrabert-view` | `ultrabert-hybrid` | `bge-view` | `nli-view` | `jev-view` | `jev-chunks` | `ultrabert-view-tuned` | `ultrabert-loo` | `ultrabert-bge-loo` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| doc_001 | Berkshire Hathaway Inc. 2023 Annual Report | 152 | annual_report | annual_report ✓ | annual_report ✓ | proxy_statement ✗ | investor_presentation ✗ | annual_report ✓ | annual_report ✓ | annual_report ✓ | shareholder_letter ✗ | shareholder_letter ✗ |
-| doc_002 | Tesla, Inc. Annual Report on Form 10-K for fi... | 130 | annual_report | proxy_statement ✗ | annual_report ✓ | proxy_statement ✗ | annual_report ✓ | annual_report ✓ | annual_report ✓ | proxy_statement ✗ | quarterly_report ✗ | proxy_statement ✗ |
+| doc_001 | Berkshire Hathaway Inc. 2023 Annual Report | 152 | annual_report | annual_report ✓ | annual_report ✓ | proxy_statement ✗ | investor_presentation ✗ | annual_report ✓ | annual_report ✓ | annual_report ✓ | shareholder_letter ✗ | annual_report ✓ |
+| doc_002 | Tesla, Inc. Annual Report on Form 10-K for fi... | 130 | annual_report | proxy_statement ✗ | annual_report ✓ | proxy_statement ✗ | annual_report ✓ | annual_report ✓ | annual_report ✓ | annual_report ✓ | quarterly_report ✗ | proxy_statement ✗ |
 | doc_003 | Amazon.com, Inc. 2023 Annual Report | 92 | annual_report | shareholder_letter ✗ | shareholder_letter ✗ | shareholder_letter ✗ | shareholder_letter ✗ | annual_report ✓ | annual_report ✓ | shareholder_letter ✗ | shareholder_letter ✗ | shareholder_letter ✗ |
 | doc_004 | Berkshire Hathaway Inc. Form 10-Q for the qua... | 56 | quarterly_report | quarterly_report ✓ | quarterly_report ✓ | proxy_statement ✗ | quarterly_report ✓ | quarterly_report ✓ | quarterly_report ✓ | quarterly_report ✓ | quarterly_report ✓ | quarterly_report ✓ |
 | doc_005 | Berkshire Hathaway Inc. Form 10-Q for the qua... | 59 | quarterly_report | quarterly_report ✓ | quarterly_report ✓ | proxy_statement ✗ | prospectus ✗ | quarterly_report ✓ | quarterly_report ✓ | quarterly_report ✓ | quarterly_report ✓ | quarterly_report ✓ |
-| doc_006 | Berkshire Hathaway Chairman's Letter to Share... | 16 | shareholder_letter | investor_presentation ✗ | investor_presentation ✗ | shareholder_letter ✓ | shareholder_letter ✓ | shareholder_letter ✓ | shareholder_letter ✓ | shareholder_letter ✓ | annual_report ✗ | investor_presentation ✗ |
+| doc_006 | Berkshire Hathaway Chairman's Letter to Share... | 16 | shareholder_letter | investor_presentation ✗ | investor_presentation ✗ | shareholder_letter ✓ | shareholder_letter ✓ | shareholder_letter ✓ | shareholder_letter ✓ | shareholder_letter ✓ | annual_report ✗ | shareholder_letter ✓ |
 | doc_007 | Berkshire Hathaway Chairman's Letter to Share... | 22 | shareholder_letter | annual_report ✗ | annual_report ✗ | earnings_release ✗ | annual_report ✗ | shareholder_letter ✓ | shareholder_letter ✓ | annual_report ✗ | annual_report ✗ | annual_report ✗ |
 | doc_008 | Amazon 2020 Shareholder Letter with the 1997 ... | 10 | shareholder_letter | shareholder_letter ✓ | shareholder_letter ✓ | shareholder_letter ✓ | prospectus ✗ | shareholder_letter ✓ | shareholder_letter ✓ | shareholder_letter ✓ | annual_report ✗ | shareholder_letter ✓ |
 | doc_009 | Amazon.com Announces Second Quarter Results (... | 12 | earnings_release | earnings_release ✓ | earnings_release ✓ | earnings_release ✓ | quarterly_report ✗ | earnings_release ✓ | quarterly_report ✗ | earnings_release ✓ | earnings_release ✓ | earnings_release ✓ |
@@ -346,7 +369,7 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 | doc_020 | Dobbs v. Jackson Women's Health Organization,... | 213 | court_opinion | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ |
 | doc_021 | Trump v. Anderson, No. 23-719 (per curiam sli... | 20 | court_opinion | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ |
 | doc_022 | O'Connor-Ratcliff v. Garnier, No. 22-324 (per... | 6 | court_opinion | court_opinion ✓ | court_opinion ✓ | earnings_release ✗ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | earnings_release ✗ |
-| doc_023 | Department of Education v. Louisiana, No. 24A... | 13 | court_opinion | legislation ✗ | court_opinion ✓ | proxy_statement ✗ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | legislation ✗ |
+| doc_023 | Department of Education v. Louisiana, No. 24A... | 13 | court_opinion | legislation ✗ | court_opinion ✓ | proxy_statement ✗ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ | court_opinion ✓ |
 | doc_024 | CHIPS and Science Act, Public Law 117-167 | 394 | legislation | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ |
 | doc_025 | Fiscal Responsibility Act of 2023, Public Law... | 41 | legislation | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ |
 | doc_026 | S. 623, Sunshine Protection Act of 2021 (as p... | 6 | legislation | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ | legislation ✓ |
@@ -359,11 +382,11 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 | doc_033 | RFC 9239: Updates to ECMAScript Media Types | 13 | technical_standard | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ |
 | doc_034 | RFC 9457: Problem Details for HTTP APIs | 16 | technical_standard | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ | technical_standard ✓ |
 | doc_035 | Google Cloud's AI Adoption Framework | 37 | white_paper | research_paper ✗ | research_paper ✗ | technical_standard ✗ | investor_presentation ✗ | white_paper ✓ | white_paper ✓ | research_paper ✗ | research_paper ✗ | research_paper ✗ |
-| doc_036 | Future of Jobs Report 2023 (Insight Report) | 296 | white_paper | government_report ✗ | government_report ✗ | white_paper ✓ | government_report ✗ | white_paper ✓ | white_paper ✓ | government_report ✗ | government_report ✗ | government_report ✗ |
+| doc_036 | Future of Jobs Report 2023 (Insight Report) | 296 | white_paper | government_report ✗ | government_report ✗ | white_paper ✓ | government_report ✗ | white_paper ✓ | white_paper ✓ | sustainability_report ✗ | government_report ✗ | white_paper ✓ |
 | doc_037 | Bitcoin: A Peer-to-Peer Electronic Cash System | 9 | white_paper | research_paper ✗ | research_paper ✗ | earnings_release ✗ | technical_standard ✗ | white_paper ✓ | research_paper ✗ | research_paper ✗ | user_manual ✗ | research_paper ✗ |
 | doc_038 | Bash Reference Manual, Edition 5.3 | 214 | user_manual | user_manual ✓ | user_manual ✓ | user_manual ✓ | user_manual ✓ | user_manual ✓ | user_manual ✓ | user_manual ✓ | user_manual ✓ | user_manual ✓ |
 | doc_039 | GNU Coreutils manual | 326 | user_manual | user_manual ✓ | user_manual ✓ | datasheet ✗ | technical_standard ✗ | user_manual ✓ | user_manual ✓ | user_manual ✓ | user_manual ✓ | user_manual ✓ |
-| doc_040 | Getting Started with Raspberry Pi Pico-series | 36 | user_manual | user_manual ✓ | user_manual ✓ | datasheet ✗ | datasheet ✗ | user_manual ✓ | user_manual ✓ | user_manual ✓ | datasheet ✗ | user_manual ✓ |
+| doc_040 | Getting Started with Raspberry Pi Pico-series | 36 | user_manual | user_manual ✓ | user_manual ✓ | datasheet ✗ | datasheet ✗ | user_manual ✓ | user_manual ✓ | datasheet ✗ | datasheet ✗ | user_manual ✓ |
 | doc_041 | NE555 / SA555 / SE555 Precision Timers datasheet | 39 | datasheet | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ |
 | doc_042 | RP2040 Datasheet | 642 | datasheet | user_manual ✗ | datasheet ✓ | datasheet ✓ | technical_standard ✗ | datasheet ✓ | datasheet ✓ | datasheet ✓ | user_manual ✗ | datasheet ✓ |
 | doc_043 | 1N4148 Small Signal Fast Switching Diode data... | 4 | datasheet | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ | datasheet ✓ |
@@ -583,9 +606,9 @@ If no node of the chosen taxonomy (for example, a custom one) has `examples`, `n
 <!-- normalize-benchmark:begin -->
 Silver set: `benchmarks/corpus/section_gold.jsonl`, 163 level-1/2 sections of 6 documents (18 marked as parser junk, i.e. not a real section, and excluded from accuracy). **These are agent-assigned silver labels, not human gold:** an agent (Claude Opus 5.5) read each heading and the first ~300 characters of its body and chose the best node of the doc type's section taxonomy from the node definitions, before any normalisation run (labelled 2026-10-16T14:41:44-04:00, documents loaded at `0dd70bc`). Ambiguous cases carry a `note` in the file. Expect a few points of label noise.
 
-Run 2026-10-16 at `ae6b037`, device `mps` (MPS probe matmul took 0.21 s). Each system calls `normalize_sections(doc, doc_type=<gold type>, backend=...)` once per document with the package defaults: Flat, view path + title at 96 tokens, with the taxonomies' heading synonyms. *Macro F1* averages over the gold classes (per document over that document's classes; overall over all classes, qualified by taxonomy). *s/section* is the summed wall time of the per-document calls (view rendering and label encoding included) divided by the sections labelled, junk included. Model load and the label encoding of every section taxonomy the run can use (one untimed warm-up per doc type) are excluded (*Load s*). Jev cost is input tokens x $0.042/M as reported by the API.
+Run 2026-10-16 at `0c22383`, device `mps` (MPS probe matmul took 0.18 s). Each system calls `normalize_sections(doc, doc_type=<gold type>, backend=...)` once per document with the package defaults: Flat, view path + title at 96 tokens, with the taxonomies' heading synonyms. *Macro F1* averages over the gold classes (per document over that document's classes; overall over all classes, qualified by taxonomy). *s/section* is the summed wall time of the per-document calls (view rendering and label encoding included) divided by the sections labelled, junk included. Model load and the label encoding of every section taxonomy the run can use (one untimed warm-up per doc type) are excluded (*Load s*). Jev cost is input tokens x $0.042/M as reported by the API.
 
-**Synonym overlap.** 39 of the 145 scored sections have a heading equal to a heading-synonym example of their taxonomy (28 distinct headings; compared case- and punctuation-insensitively after dropping one leading number such as "3.1", "Item 1A." or "Note 2."). For those, the synonyms can hand the model the answer, so every accuracy below is also given on the other 106 (*non-overlap*), as *all; non-overlap*.
+**Synonym overlap.** 39 of the 142 scored sections have a heading equal to a heading-synonym example of their taxonomy (28 distinct headings; compared case- and punctuation-insensitively after dropping one leading number such as "3.1", "Item 1A." or "Note 2."). For those, the synonyms can hand the model the answer, so every accuracy below is also given on the other 103 (*non-overlap*), as *all; non-overlap*.
 
 ### Before / after
 
@@ -593,10 +616,10 @@ Run 2026-10-16 at `ae6b037`, device `mps` (MPS probe matmul took 0.21 s). Each s
 
 | System | Baseline (P10) accuracy | After accuracy | Change (all) | Change (non-overlap) | Baseline macro F1 | After macro F1 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `ultrabert` | 0.345 (50/145); 0.170 (18/106) | 0.490 (71/145); 0.321 (34/106) | +14.5 pts | +15.1 pts | 0.456 | 0.540 |
-| `bge-small` | 0.228 (33/145); 0.160 (17/106) | 0.393 (57/145); 0.189 (20/106) | +16.6 pts | +2.8 pts | 0.308 | 0.532 |
-| `jev` | 0.703 (102/145); 0.613 (65/106) | 0.710 (103/145); 0.613 (65/106) | +0.7 pts | +0.0 pts | 0.755 | 0.734 |
-| `auto_doc_type` | 0.303 (44/145); 0.132 (14/106) | 0.455 (66/145); 0.292 (31/106) | +15.2 pts | +16.0 pts | 0.344 | 0.465 |
+| `ultrabert` | 0.345 (50/145); 0.170 (18/106) | 0.514 (73/142); 0.350 (36/103) | +16.9 pts | +18.0 pts | 0.456 | 0.572 |
+| `bge-small` | 0.228 (33/145); 0.160 (17/106) | 0.408 (58/142); 0.204 (21/103) | +18.1 pts | +4.4 pts | 0.308 | 0.554 |
+| `jev` | 0.703 (102/145); 0.613 (65/106) | 0.725 (103/142); 0.631 (65/103) | +2.2 pts | +1.8 pts | 0.755 | 0.762 |
+| `auto_doc_type` | 0.303 (44/145); 0.132 (14/106) | 0.479 (68/142); 0.320 (33/103) | +17.5 pts | +18.8 pts | 0.344 | 0.494 |
 
 ### Configurations tried (the silver set used as a dev set)
 
@@ -610,16 +633,16 @@ Every configuration that was run, all on the same scored sections, so the chosen
 | `title+lead@48` | title + lead @ 48 | no | 0.324 (47/145); 0.160 (17/106) | 0.262 (38/145); 0.151 (16/106) | - | `introduction` (42) | `experiments` (48) | - |
 | `title+lead@96+syn` | title + lead @ 96 | yes | 0.434 (63/145); 0.236 (25/106) | 0.303 (44/145); 0.198 (21/106) | 0.676 (98/145); 0.566 (60/106) | `experiments` (32) | `experiments` (60) | `experiments` (20) |
 | `title+syn` | title @ 96 | yes | 0.393 (57/145); 0.189 (20/106) | 0.400 (58/145); 0.189 (20/106) | - | `experiments` (20) | `experiments` (36) | - |
-| `path+title+syn` (default) | path + title @ 96 | yes | 0.490 (71/145); 0.321 (34/106) | 0.393 (57/145); 0.189 (20/106) | 0.710 (103/145); 0.613 (65/106) | `experiments` (18) | `experiments` (27) | `other` (25) |
+| `path+title+syn` (default) | path + title @ 96 | yes | 0.514 (73/142); 0.350 (36/103) | 0.408 (58/142); 0.204 (21/103) | 0.725 (103/142); 0.631 (65/103) | `experiments` (18) | `experiments` (27) | `other` (26) |
 | `title+lead@48+syn` | title + lead @ 48 | yes | 0.441 (64/145); 0.255 (27/106) | 0.310 (45/145); 0.189 (20/106) | - | `experiments` (28) | `experiments` (54) | - |
 
 ### Aggregate
 
 | System | Backend | Accuracy | Correct | Macro F1 | s/section | Load s | Jev tokens | Jev cost |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `ultrabert` | `embedding:dmis-lab/UltraBERT-Embed-150M` | 0.490 | 71/145 | 0.540 | 0.0185 | 14.6 | - | - |
-| `bge-small` | `embedding:BAAI/bge-small-en-v1.5` | 0.393 | 57/145 | 0.532 | 0.0037 | 5.9 | - | - |
-| `jev` | `jev:jev-1.13.0` | 0.710 | 103/145 | 0.734 | 0.0277 | 1.1 | 202,823 | $0.0085 |
+| `ultrabert` | `embedding:dmis-lab/UltraBERT-Embed-150M` | 0.514 | 73/142 | 0.572 | 0.0183 | 13.9 | - | - |
+| `bge-small` | `embedding:BAAI/bge-small-en-v1.5` | 0.408 | 58/142 | 0.554 | 0.0043 | 4.4 | - | - |
+| `jev` | `jev:jev-1.13.0` | 0.725 | 103/142 | 0.762 | 0.0431 | 1.2 | 196,825 | $0.0083 |
 
 ### Per document (accuracy / macro F1)
 
@@ -628,20 +651,20 @@ Every configuration that was run, all on the same scored sections, so the chosen
 | doc_027 Attention Is All You Need | `research.research_paper` | 23 | 1 | 0 | 0.545 / 0.604 | 0.409 / 0.504 | 0.818 / 0.724 |
 | doc_028 Deep Residual Learning for Image Recognition | `research.research_paper` | 16 | 2 | 0 | 0.500 / 0.571 | 0.429 / 0.550 | 0.714 / 0.683 |
 | doc_029 Language Models are Few-Shot Learners | `research.research_paper` | 38 | 2 | 0 | 0.694 / 0.745 | 0.361 / 0.618 | 0.722 / 0.711 |
-| doc_001 Berkshire Hathaway Inc. 2023 Annual Report | `financial.annual_report` | 29 | 5 | 0 | 0.250 / 0.268 | 0.333 / 0.304 | 0.583 / 0.471 |
+| doc_001 Berkshire Hathaway Inc. 2023 Annual Report | `financial.annual_report` | 29 | 5 | 5 | 0.381 / 0.404 | 0.429 / 0.408 | 0.667 / 0.564 |
 | doc_002 Tesla, Inc. Annual Report on Form 10-K for fiscal year 2023 | `financial.annual_report` | 45 | 7 | 0 | 0.421 / 0.614 | 0.368 / 0.536 | 0.632 / 0.726 |
 | doc_016 NIST Cooperative Research and Development Agreement (CRADA) template, 2018 | `legal.contract` | 12 | 1 | 0 | 0.455 / 0.352 | 0.636 / 0.553 | 1.000 / 1.000 |
 
 ### Auto doc type (`doc_type=None`)
 
-One run of `normalize_sections(doc)` with the default backend (`embedding:dmis-lab/UltraBERT-Embed-150M`), so `classify_document` picks the doc type and hence the section taxonomy. The doc type matched the gold type on **5/6** documents; section accuracy 0.455 (66/145), macro F1 0.465 (a wrong doc type usually means a different taxonomy, so its sections all count as wrong).
+One run of `normalize_sections(doc)` with the default backend (`embedding:dmis-lab/UltraBERT-Embed-150M`), so `classify_document` picks the doc type and hence the section taxonomy. The doc type matched the gold type on **5/6** documents; section accuracy 0.479 (68/142), macro F1 0.494 (a wrong doc type usually means a different taxonomy, so its sections all count as wrong).
 
 | Document | Gold type | Auto type | Confidence | Taxonomy | Accuracy |
 | --- | --- | --- | --- | --- | --- |
 | doc_027 | `research.research_paper` | ✓ `research.research_paper` | 0.627 | `section_types/research_paper` | 0.545 |
 | doc_028 | `research.research_paper` | ✓ `research.research_paper` | 0.662 | `section_types/research_paper` | 0.500 |
 | doc_029 | `research.research_paper` | ✓ `research.research_paper` | 0.372 | `section_types/research_paper` | 0.694 |
-| doc_001 | `financial.annual_report` | ✓ `financial.annual_report` | 0.196 | `section_types/annual_report` | 0.250 |
+| doc_001 | `financial.annual_report` | ✓ `financial.annual_report` | 0.190 | `section_types/annual_report` | 0.381 |
 | doc_002 | `financial.annual_report` | ✓ `financial.annual_report` | 0.121 | `section_types/annual_report` | 0.421 |
 | doc_016 | `legal.contract` | ✗ `research.technical_standard` | 0.500 | `section_types/generic` | 0.000 |
 

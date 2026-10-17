@@ -1,0 +1,1348 @@
+[
+  {
+    "suite": "few-shot",
+    "dataset": "b1",
+    "system": "ultrabert-embed/heads",
+    "strategy": "Beam(3)",
+    "shots": 4,
+    "n": 1000,
+    "macro_p": 0.6467914699415943,
+    "macro_r": 0.739186551520129,
+    "macro_f1": 0.6565995429074499,
+    "sections_per_sec": 4.193375186888747,
+    "seconds_total": 238.47138770855963,
+    "seconds_per_example": 0.23847138770855963,
+    "wall_seconds": 240.8508495418355,
+    "train_seconds": 179.655,
+    "n_train": 80,
+    "report": {
+      "n": 1000,
+      "exact": 0.765,
+      "hp": 0.8005,
+      "hr": 0.8005,
+      "hf1": 0.8005,
+      "macro_p": 0.6467914699415943,
+      "macro_r": 0.739186551520129,
+      "macro_f1": 0.6565995429074499,
+      "depth_acc": {
+        "1": 0.836,
+        "2": 0.765
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.765,
+      "confusions": {},
+      "sections_per_sec": 4.193375186888747,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b1",
+    "system": "ultrabert-embed/heads",
+    "strategy": "Beam(3)",
+    "shots": 8,
+    "n": 1000,
+    "macro_p": 0.6977069139909189,
+    "macro_r": 0.7799877594624718,
+    "macro_f1": 0.7164966978842819,
+    "sections_per_sec": 4.310555954249446,
+    "seconds_total": 231.98863687505946,
+    "seconds_per_example": 0.23198863687505944,
+    "wall_seconds": 234.6475620418787,
+    "train_seconds": 346.594,
+    "n_train": 160,
+    "report": {
+      "n": 1000,
+      "exact": 0.801,
+      "hp": 0.825,
+      "hr": 0.825,
+      "hf1": 0.825,
+      "macro_p": 0.6977069139909189,
+      "macro_r": 0.7799877594624718,
+      "macro_f1": 0.7164966978842819,
+      "depth_acc": {
+        "1": 0.849,
+        "2": 0.801
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.801,
+      "confusions": {},
+      "sections_per_sec": 4.310555954249446,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b1",
+    "system": "ultrabert-embed/heads",
+    "strategy": "Beam(3)",
+    "shots": 16,
+    "n": 1000,
+    "macro_p": 0.8017806073083535,
+    "macro_r": 0.8121062028976747,
+    "macro_f1": 0.7884290120239659,
+    "sections_per_sec": 4.593825636202704,
+    "seconds_total": 217.68349066609517,
+    "seconds_per_example": 0.2176834906660952,
+    "wall_seconds": 220.0888041248545,
+    "train_seconds": 595.105,
+    "n_train": 306,
+    "report": {
+      "n": 1000,
+      "exact": 0.869,
+      "hp": 0.8885,
+      "hr": 0.8885,
+      "hf1": 0.8885,
+      "macro_p": 0.8017806073083535,
+      "macro_r": 0.8121062028976747,
+      "macro_f1": 0.7884290120239659,
+      "depth_acc": {
+        "1": 0.908,
+        "2": 0.869
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.869,
+      "confusions": {},
+      "sections_per_sec": 4.593825636202704,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b1",
+    "system": "bge-small/heads",
+    "strategy": "Beam(3)",
+    "shots": 4,
+    "n": 1000,
+    "macro_p": 0.620948309682212,
+    "macro_r": 0.7031045318820878,
+    "macro_f1": 0.6359355379910563,
+    "sections_per_sec": 14.518708752069047,
+    "seconds_total": 68.87664854200557,
+    "seconds_per_example": 0.06887664854200556,
+    "wall_seconds": 69.36345495795831,
+    "train_seconds": 6.966,
+    "n_train": 80,
+    "report": {
+      "n": 1000,
+      "exact": 0.73,
+      "hp": 0.778,
+      "hr": 0.778,
+      "hf1": 0.778,
+      "macro_p": 0.620948309682212,
+      "macro_r": 0.7031045318820878,
+      "macro_f1": 0.6359355379910563,
+      "depth_acc": {
+        "1": 0.826,
+        "2": 0.73
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.73,
+      "confusions": {},
+      "sections_per_sec": 14.518708752069047,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b1",
+    "system": "bge-small/heads",
+    "strategy": "Beam(3)",
+    "shots": 8,
+    "n": 1000,
+    "macro_p": 0.6527125922910417,
+    "macro_r": 0.7449206933894523,
+    "macro_f1": 0.6746163839780127,
+    "sections_per_sec": 14.131454404047748,
+    "seconds_total": 70.7641245839186,
+    "seconds_per_example": 0.0707641245839186,
+    "wall_seconds": 71.3465043748729,
+    "train_seconds": 11.097,
+    "n_train": 160,
+    "report": {
+      "n": 1000,
+      "exact": 0.771,
+      "hp": 0.801,
+      "hr": 0.801,
+      "hf1": 0.801,
+      "macro_p": 0.6527125922910417,
+      "macro_r": 0.7449206933894523,
+      "macro_f1": 0.6746163839780127,
+      "depth_acc": {
+        "1": 0.831,
+        "2": 0.771
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.771,
+      "confusions": {},
+      "sections_per_sec": 14.131454404047748,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b1",
+    "system": "bge-small/heads",
+    "strategy": "Beam(3)",
+    "shots": 16,
+    "n": 1000,
+    "macro_p": 0.7795601176662844,
+    "macro_r": 0.7657227755231455,
+    "macro_f1": 0.747643339433364,
+    "sections_per_sec": 14.071370633402868,
+    "seconds_total": 71.06628245767206,
+    "seconds_per_example": 0.07106628245767206,
+    "wall_seconds": 71.65687824971974,
+    "train_seconds": 16.757,
+    "n_train": 306,
+    "report": {
+      "n": 1000,
+      "exact": 0.845,
+      "hp": 0.864,
+      "hr": 0.864,
+      "hf1": 0.864,
+      "macro_p": 0.7795601176662844,
+      "macro_r": 0.7657227755231455,
+      "macro_f1": 0.747643339433364,
+      "depth_acc": {
+        "1": 0.883,
+        "2": 0.845
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.845,
+      "confusions": {},
+      "sections_per_sec": 14.071370633402868,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b2",
+    "system": "ultrabert-embed/heads",
+    "strategy": "Beam(3)",
+    "shots": 4,
+    "n": 1000,
+    "macro_p": 0.6256032953401375,
+    "macro_r": 0.693552967576405,
+    "macro_f1": 0.6208067312210387,
+    "sections_per_sec": 4.738138493312215,
+    "seconds_total": 211.05334962485358,
+    "seconds_per_example": 0.2110533496248536,
+    "wall_seconds": 213.10431487485766,
+    "train_seconds": 82.606,
+    "n_train": 876,
+    "report": {
+      "n": 1000,
+      "exact": 0.691,
+      "hp": 0.7863333333333333,
+      "hr": 0.7863333333333333,
+      "hf1": 0.7863333333333333,
+      "macro_p": 0.6256032953401375,
+      "macro_r": 0.693552967576405,
+      "macro_f1": 0.6208067312210387,
+      "depth_acc": {
+        "1": 0.917,
+        "2": 0.751,
+        "3": 0.691
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.691,
+      "confusions": {},
+      "sections_per_sec": 4.738138493312215,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b2",
+    "system": "ultrabert-embed/heads",
+    "strategy": "Beam(3)",
+    "shots": 8,
+    "n": 1000,
+    "macro_p": 0.7754102957227956,
+    "macro_r": 0.8084781948679974,
+    "macro_f1": 0.7635673699855139,
+    "sections_per_sec": 3.758906997952203,
+    "seconds_total": 266.03478100011125,
+    "seconds_per_example": 0.26603478100011124,
+    "wall_seconds": 268.4612354580313,
+    "train_seconds": 169.714,
+    "n_train": 1752,
+    "report": {
+      "n": 1000,
+      "exact": 0.815,
+      "hp": 0.876,
+      "hr": 0.876,
+      "hf1": 0.8759999999999999,
+      "macro_p": 0.7754102957227956,
+      "macro_r": 0.8084781948679974,
+      "macro_f1": 0.7635673699855139,
+      "depth_acc": {
+        "1": 0.95,
+        "2": 0.863,
+        "3": 0.815
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.815,
+      "confusions": {},
+      "sections_per_sec": 3.758906997952203,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b2",
+    "system": "ultrabert-embed/heads",
+    "strategy": "Beam(3)",
+    "shots": 16,
+    "n": 1000,
+    "macro_p": 0.8610463032338033,
+    "macro_r": 0.8787646461268994,
+    "macro_f1": 0.8472234978533143,
+    "sections_per_sec": 3.997365621481477,
+    "seconds_total": 250.16475716559216,
+    "seconds_per_example": 0.25016475716559217,
+    "wall_seconds": 252.46310950024053,
+    "train_seconds": 381.215,
+    "n_train": 3504,
+    "report": {
+      "n": 1000,
+      "exact": 0.881,
+      "hp": 0.9223333333333333,
+      "hr": 0.9223333333333333,
+      "hf1": 0.9223333333333333,
+      "macro_p": 0.8610463032338033,
+      "macro_r": 0.8787646461268994,
+      "macro_f1": 0.8472234978533143,
+      "depth_acc": {
+        "1": 0.969,
+        "2": 0.917,
+        "3": 0.881
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.881,
+      "confusions": {},
+      "sections_per_sec": 3.997365621481477,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b2",
+    "system": "bge-small/heads",
+    "strategy": "Beam(3)",
+    "shots": 4,
+    "n": 1000,
+    "macro_p": 0.4069805471115214,
+    "macro_r": 0.5169221837190587,
+    "macro_f1": 0.41266589505430623,
+    "sections_per_sec": 14.979585465289917,
+    "seconds_total": 66.75752158276737,
+    "seconds_per_example": 0.06675752158276736,
+    "wall_seconds": 67.63150625023991,
+    "train_seconds": 37.576,
+    "n_train": 876,
+    "report": {
+      "n": 1000,
+      "exact": 0.503,
+      "hp": 0.673,
+      "hr": 0.673,
+      "hf1": 0.673,
+      "macro_p": 0.4069805471115214,
+      "macro_r": 0.5169221837190587,
+      "macro_f1": 0.41266589505430623,
+      "depth_acc": {
+        "1": 0.895,
+        "2": 0.621,
+        "3": 0.503
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.503,
+      "confusions": {},
+      "sections_per_sec": 14.979585465289917,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b2",
+    "system": "bge-small/heads",
+    "strategy": "Beam(3)",
+    "shots": 8,
+    "n": 1000,
+    "macro_p": 0.6133579817173568,
+    "macro_r": 0.6662666805964503,
+    "macro_f1": 0.5911186930831931,
+    "sections_per_sec": 17.04112907606517,
+    "seconds_total": 58.681557749863714,
+    "seconds_per_example": 0.05868155774986371,
+    "wall_seconds": 59.23751537501812,
+    "train_seconds": 44.18,
+    "n_train": 1752,
+    "report": {
+      "n": 1000,
+      "exact": 0.658,
+      "hp": 0.777,
+      "hr": 0.777,
+      "hf1": 0.777,
+      "macro_p": 0.6133579817173568,
+      "macro_r": 0.6662666805964503,
+      "macro_f1": 0.5911186930831931,
+      "depth_acc": {
+        "1": 0.924,
+        "2": 0.749,
+        "3": 0.658
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.658,
+      "confusions": {},
+      "sections_per_sec": 17.04112907606517,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b2",
+    "system": "bge-small/heads",
+    "strategy": "Beam(3)",
+    "shots": 16,
+    "n": 1000,
+    "macro_p": 0.7611523603711103,
+    "macro_r": 0.7867809015424148,
+    "macro_f1": 0.7467891301145598,
+    "sections_per_sec": 14.436964015805332,
+    "seconds_total": 69.26664074975997,
+    "seconds_per_example": 0.06926664074975998,
+    "wall_seconds": 69.78576845815405,
+    "train_seconds": 69.807,
+    "n_train": 3504,
+    "report": {
+      "n": 1000,
+      "exact": 0.772,
+      "hp": 0.8543333333333333,
+      "hr": 0.8543333333333333,
+      "hf1": 0.8543333333333333,
+      "macro_p": 0.7611523603711103,
+      "macro_r": 0.7867809015424148,
+      "macro_f1": 0.7467891301145598,
+      "depth_acc": {
+        "1": 0.956,
+        "2": 0.835,
+        "3": 0.772
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.772,
+      "confusions": {},
+      "sections_per_sec": 14.436964015805332,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b3",
+    "system": "ultrabert-embed/heads",
+    "strategy": "Beam(3)",
+    "shots": 4,
+    "n": 1000,
+    "macro_p": 0.5414585048476291,
+    "macro_r": 0.5899953823674968,
+    "macro_f1": 0.5275288401247225,
+    "sections_per_sec": 4.490405253164634,
+    "seconds_total": 222.69704929087308,
+    "seconds_per_example": 0.22269704929087308,
+    "wall_seconds": 224.92396645899862,
+    "train_seconds": 52.924,
+    "n_train": 400,
+    "report": {
+      "n": 1000,
+      "exact": 0.66,
+      "hp": 0.66,
+      "hr": 0.66,
+      "hf1": 0.66,
+      "macro_p": 0.5414585048476291,
+      "macro_r": 0.5899953823674968,
+      "macro_f1": 0.5275288401247225,
+      "depth_acc": {
+        "1": 0.66
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.66,
+      "confusions": {},
+      "sections_per_sec": 4.490405253164634,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b3-subset",
+    "system": "ultrabert-embed/heads",
+    "strategy": "Beam(3)",
+    "shots": 4,
+    "n": 300,
+    "macro_p": 0.5100640551860064,
+    "macro_r": 0.5709651709009861,
+    "macro_f1": 0.5045837576721818,
+    "sections_per_sec": 5.117738943776159,
+    "seconds_total": 58.61963716708124,
+    "seconds_per_example": 0.19539879055693746,
+    "wall_seconds": 59.24252595799044,
+    "train_seconds": 52.924,
+    "n_train": 400,
+    "report": {
+      "n": 300,
+      "exact": 0.6166666666666667,
+      "hp": 0.6166666666666667,
+      "hr": 0.6166666666666667,
+      "hf1": 0.6166666666666667,
+      "macro_p": 0.5100640551860064,
+      "macro_r": 0.5709651709009861,
+      "macro_f1": 0.5045837576721818,
+      "depth_acc": {
+        "1": 0.6166666666666667
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.6166666666666667,
+      "confusions": {},
+      "sections_per_sec": 5.117738943776159,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b3",
+    "system": "ultrabert-embed/heads",
+    "strategy": "Beam(3)",
+    "shots": 8,
+    "n": 1000,
+    "macro_p": 0.6173828326864722,
+    "macro_r": 0.6431992633191994,
+    "macro_f1": 0.5737599381858465,
+    "sections_per_sec": 5.401676226828863,
+    "seconds_total": 185.127719250042,
+    "seconds_per_example": 0.185127719250042,
+    "wall_seconds": 187.769112250302,
+    "train_seconds": 103.446,
+    "n_train": 800,
+    "report": {
+      "n": 1000,
+      "exact": 0.69,
+      "hp": 0.69,
+      "hr": 0.69,
+      "hf1": 0.69,
+      "macro_p": 0.6173828326864722,
+      "macro_r": 0.6431992633191994,
+      "macro_f1": 0.5737599381858465,
+      "depth_acc": {
+        "1": 0.69
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.69,
+      "confusions": {},
+      "sections_per_sec": 5.401676226828863,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b3-subset",
+    "system": "ultrabert-embed/heads",
+    "strategy": "Beam(3)",
+    "shots": 8,
+    "n": 300,
+    "macro_p": 0.5822264794825771,
+    "macro_r": 0.6258188074940321,
+    "macro_f1": 0.5519981778381623,
+    "sections_per_sec": 5.3836751706116726,
+    "seconds_total": 55.72401574999094,
+    "seconds_per_example": 0.18574671916663646,
+    "wall_seconds": 56.55167366703972,
+    "train_seconds": 103.446,
+    "n_train": 800,
+    "report": {
+      "n": 300,
+      "exact": 0.6633333333333333,
+      "hp": 0.6633333333333333,
+      "hr": 0.6633333333333333,
+      "hf1": 0.6633333333333333,
+      "macro_p": 0.5822264794825771,
+      "macro_r": 0.6258188074940321,
+      "macro_f1": 0.5519981778381623,
+      "depth_acc": {
+        "1": 0.6633333333333333
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.6633333333333333,
+      "confusions": {},
+      "sections_per_sec": 5.3836751706116726,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b3",
+    "system": "ultrabert-embed/heads",
+    "strategy": "Beam(3)",
+    "shots": 16,
+    "n": 1000,
+    "macro_p": 0.6165985973091237,
+    "macro_r": 0.6522933826871244,
+    "macro_f1": 0.59639306331871,
+    "sections_per_sec": 5.164528146319031,
+    "seconds_total": 193.62853133305907,
+    "seconds_per_example": 0.19362853133305907,
+    "wall_seconds": 195.75298687489703,
+    "train_seconds": 175.679,
+    "n_train": 1600,
+    "report": {
+      "n": 1000,
+      "exact": 0.719,
+      "hp": 0.719,
+      "hr": 0.719,
+      "hf1": 0.7190000000000001,
+      "macro_p": 0.6165985973091237,
+      "macro_r": 0.6522933826871244,
+      "macro_f1": 0.59639306331871,
+      "depth_acc": {
+        "1": 0.719
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.719,
+      "confusions": {},
+      "sections_per_sec": 5.164528146319031,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b3-subset",
+    "system": "ultrabert-embed/heads",
+    "strategy": "Beam(3)",
+    "shots": 16,
+    "n": 300,
+    "macro_p": 0.6349321071882047,
+    "macro_r": 0.664359264327172,
+    "macro_f1": 0.6073598788201909,
+    "sections_per_sec": 4.824178518997478,
+    "seconds_total": 62.18675341689959,
+    "seconds_per_example": 0.20728917805633196,
+    "wall_seconds": 63.32141691632569,
+    "train_seconds": 175.679,
+    "n_train": 1600,
+    "report": {
+      "n": 300,
+      "exact": 0.7,
+      "hp": 0.7,
+      "hr": 0.7,
+      "hf1": 0.7,
+      "macro_p": 0.6349321071882047,
+      "macro_r": 0.664359264327172,
+      "macro_f1": 0.6073598788201909,
+      "depth_acc": {
+        "1": 0.7
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.7,
+      "confusions": {},
+      "sections_per_sec": 4.824178518997478,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b3",
+    "system": "bge-small/heads",
+    "strategy": "Beam(3)",
+    "shots": 4,
+    "n": 1000,
+    "macro_p": 0.4850881927254649,
+    "macro_r": 0.5200806981927311,
+    "macro_f1": 0.4508587911580395,
+    "sections_per_sec": 16.51440318120795,
+    "seconds_total": 60.55320250010117,
+    "seconds_per_example": 0.060553202500101176,
+    "wall_seconds": 61.264021375216544,
+    "train_seconds": 11.358,
+    "n_train": 400,
+    "report": {
+      "n": 1000,
+      "exact": 0.589,
+      "hp": 0.589,
+      "hr": 0.589,
+      "hf1": 0.589,
+      "macro_p": 0.4850881927254649,
+      "macro_r": 0.5200806981927311,
+      "macro_f1": 0.4508587911580395,
+      "depth_acc": {
+        "1": 0.589
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.589,
+      "confusions": {},
+      "sections_per_sec": 16.51440318120795,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b3-subset",
+    "system": "bge-small/heads",
+    "strategy": "Beam(3)",
+    "shots": 4,
+    "n": 300,
+    "macro_p": 0.4608977404709112,
+    "macro_r": 0.5068142134573457,
+    "macro_f1": 0.4462372445710227,
+    "sections_per_sec": 19.339228521566664,
+    "seconds_total": 15.512511249631643,
+    "seconds_per_example": 0.05170837083210548,
+    "wall_seconds": 15.857464333064854,
+    "train_seconds": 11.358,
+    "n_train": 400,
+    "report": {
+      "n": 300,
+      "exact": 0.5533333333333333,
+      "hp": 0.5533333333333333,
+      "hr": 0.5533333333333333,
+      "hf1": 0.5533333333333333,
+      "macro_p": 0.4608977404709112,
+      "macro_r": 0.5068142134573457,
+      "macro_f1": 0.4462372445710227,
+      "depth_acc": {
+        "1": 0.5533333333333333
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.5533333333333333,
+      "confusions": {},
+      "sections_per_sec": 19.339228521566664,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b3",
+    "system": "bge-small/heads",
+    "strategy": "Beam(3)",
+    "shots": 8,
+    "n": 1000,
+    "macro_p": 0.5708369583531384,
+    "macro_r": 0.5838457388873514,
+    "macro_f1": 0.5056019790805893,
+    "sections_per_sec": 16.744477193873603,
+    "seconds_total": 59.72118379222229,
+    "seconds_per_example": 0.05972118379222229,
+    "wall_seconds": 60.58205454191193,
+    "train_seconds": 17.391,
+    "n_train": 800,
+    "report": {
+      "n": 1000,
+      "exact": 0.642,
+      "hp": 0.642,
+      "hr": 0.642,
+      "hf1": 0.642,
+      "macro_p": 0.5708369583531384,
+      "macro_r": 0.5838457388873514,
+      "macro_f1": 0.5056019790805893,
+      "depth_acc": {
+        "1": 0.642
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.642,
+      "confusions": {},
+      "sections_per_sec": 16.744477193873603,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b3-subset",
+    "system": "bge-small/heads",
+    "strategy": "Beam(3)",
+    "shots": 8,
+    "n": 300,
+    "macro_p": 0.5098806004293809,
+    "macro_r": 0.5520836566086887,
+    "macro_f1": 0.479205981790366,
+    "sections_per_sec": 18.29679719564335,
+    "seconds_total": 16.396312250290066,
+    "seconds_per_example": 0.05465437416763356,
+    "wall_seconds": 17.008538292255253,
+    "train_seconds": 17.391,
+    "n_train": 800,
+    "report": {
+      "n": 300,
+      "exact": 0.6,
+      "hp": 0.6,
+      "hr": 0.6,
+      "hf1": 0.6,
+      "macro_p": 0.5098806004293809,
+      "macro_r": 0.5520836566086887,
+      "macro_f1": 0.479205981790366,
+      "depth_acc": {
+        "1": 0.6
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.6,
+      "confusions": {},
+      "sections_per_sec": 18.29679719564335,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b3",
+    "system": "bge-small/heads",
+    "strategy": "Beam(3)",
+    "shots": 16,
+    "n": 1000,
+    "macro_p": 0.5750983792935882,
+    "macro_r": 0.6047206805608804,
+    "macro_f1": 0.5379096218774184,
+    "sections_per_sec": 15.677663066533766,
+    "seconds_total": 63.78501666709781,
+    "seconds_per_example": 0.06378501666709781,
+    "wall_seconds": 64.40877358289436,
+    "train_seconds": 33.93,
+    "n_train": 1600,
+    "report": {
+      "n": 1000,
+      "exact": 0.673,
+      "hp": 0.673,
+      "hr": 0.673,
+      "hf1": 0.673,
+      "macro_p": 0.5750983792935882,
+      "macro_r": 0.6047206805608804,
+      "macro_f1": 0.5379096218774184,
+      "depth_acc": {
+        "1": 0.673
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.673,
+      "confusions": {},
+      "sections_per_sec": 15.677663066533766,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b3-subset",
+    "system": "bge-small/heads",
+    "strategy": "Beam(3)",
+    "shots": 16,
+    "n": 300,
+    "macro_p": 0.5555490027730079,
+    "macro_r": 0.6068970111332114,
+    "macro_f1": 0.5405174420221406,
+    "sections_per_sec": 16.722760301229243,
+    "seconds_total": 17.93962208367884,
+    "seconds_per_example": 0.05979874027892948,
+    "wall_seconds": 18.291249458212405,
+    "train_seconds": 33.93,
+    "n_train": 1600,
+    "report": {
+      "n": 300,
+      "exact": 0.6433333333333333,
+      "hp": 0.6433333333333333,
+      "hr": 0.6433333333333333,
+      "hf1": 0.6433333333333333,
+      "macro_p": 0.5555490027730079,
+      "macro_r": 0.6068970111332114,
+      "macro_f1": 0.5405174420221406,
+      "depth_acc": {
+        "1": 0.6433333333333333
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.6433333333333333,
+      "confusions": {},
+      "sections_per_sec": 16.722760301229243,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b1",
+    "system": "ultrabert-embed/finetuned",
+    "strategy": "Beam(3)",
+    "shots": 16,
+    "n": 1000,
+    "macro_p": 0.8601498381793867,
+    "macro_r": 0.8296465633265129,
+    "macro_f1": 0.8313556066854103,
+    "sections_per_sec": 7.304472214615122,
+    "seconds_total": 136.90243054099847,
+    "seconds_per_example": 0.13690243054099846,
+    "wall_seconds": 139.15989037500185,
+    "train_seconds": 1060.585,
+    "n_train": 306,
+    "report": {
+      "n": 1000,
+      "exact": 0.92,
+      "hp": 0.9365,
+      "hr": 0.9365,
+      "hf1": 0.9365,
+      "macro_p": 0.8601498381793867,
+      "macro_r": 0.8296465633265129,
+      "macro_f1": 0.8313556066854103,
+      "depth_acc": {
+        "1": 0.953,
+        "2": 0.92
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.92,
+      "confusions": {},
+      "sections_per_sec": 7.304472214615122,
+      "device": "mps",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "mps",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  },
+  {
+    "suite": "few-shot",
+    "dataset": "b1",
+    "system": "bge-small/finetuned",
+    "strategy": "Beam(3)",
+    "shots": 16,
+    "n": 1000,
+    "macro_p": 0.7797740598199948,
+    "macro_r": 0.8022890211221017,
+    "macro_f1": 0.7851741123971283,
+    "sections_per_sec": 25.180929965739182,
+    "seconds_total": 39.712592083000345,
+    "seconds_per_example": 0.03971259208300035,
+    "wall_seconds": 40.20890162500291,
+    "train_seconds": 450.201,
+    "n_train": 306,
+    "report": {
+      "n": 1000,
+      "exact": 0.907,
+      "hp": 0.923,
+      "hr": 0.923,
+      "hf1": 0.923,
+      "macro_p": 0.7797740598199948,
+      "macro_r": 0.8022890211221017,
+      "macro_f1": 0.7851741123971283,
+      "depth_acc": {
+        "1": 0.939,
+        "2": 0.907
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.907,
+      "confusions": {},
+      "sections_per_sec": 25.180929965739182,
+      "device": "mps",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "mps",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      },
+      "train_batch_size": null,
+      "train_max_triplets": null
+    }
+  }
+]

@@ -1,0 +1,1759 @@
+[
+  {
+    "suite": "zero-shot",
+    "dataset": "b1",
+    "system": "ultrabert-embed",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 1000,
+    "macro_p": 0.7103058762227694,
+    "macro_r": 0.6102608368937223,
+    "macro_f1": 0.6216549874544551,
+    "sections_per_sec": 3.396347039726265,
+    "seconds_total": 294.4339869581163,
+    "seconds_per_example": 0.2944339869581163,
+    "wall_seconds": 319.77050999971107,
+    "report": {
+      "n": 1000,
+      "exact": 0.724,
+      "hp": 0.7525,
+      "hr": 0.7525,
+      "hf1": 0.7525,
+      "macro_p": 0.7103058762227694,
+      "macro_r": 0.6102608368937223,
+      "macro_f1": 0.6216549874544551,
+      "depth_acc": {
+        "1": 0.781,
+        "2": 0.724
+      },
+      "node_acc": {
+        "__root__": 0.787,
+        "part-i": 0.9148936170212766,
+        "part-ii": 0.8170103092783505,
+        "part-iii": 0.8955823293172691,
+        "part-iv": 1.0
+      },
+      "stop_rate": 0.0,
+      "selective_acc": 0.724,
+      "confusions": {
+        "__root__": [
+          [
+            "part-i",
+            "part-ii",
+            55
+          ],
+          [
+            "part-ii",
+            "part-i",
+            55
+          ],
+          [
+            "part-ii",
+            "part-iii",
+            35
+          ]
+        ],
+        "part-i": [
+          [
+            "part-i.item-1",
+            "part-i.item-2",
+            13
+          ],
+          [
+            "part-i.item-4",
+            "part-i.item-1",
+            4
+          ],
+          [
+            "part-i.item-2",
+            "part-i.item-1",
+            2
+          ]
+        ],
+        "part-ii": [
+          [
+            "part-ii.item-8",
+            "part-ii.item-9a",
+            35
+          ],
+          [
+            "part-ii.item-6",
+            "part-ii.item-7",
+            9
+          ],
+          [
+            "part-ii.item-8",
+            "part-ii.item-7",
+            5
+          ]
+        ],
+        "part-iii": [
+          [
+            "part-iii.item-14",
+            "part-iii.item-13",
+            8
+          ],
+          [
+            "part-iii.item-13",
+            "part-iii.item-12",
+            6
+          ],
+          [
+            "part-iii.item-11",
+            "part-iii.item-10",
+            3
+          ]
+        ]
+      },
+      "sections_per_sec": 3.396347039726265,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam",
+        "skipped_nodes": []
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      }
+    }
+  },
+  {
+    "suite": "zero-shot",
+    "dataset": "b2",
+    "system": "ultrabert-embed",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 1000,
+    "macro_p": 0.14516530014382276,
+    "macro_r": 0.12808939963545227,
+    "macro_f1": 0.11439842484493616,
+    "sections_per_sec": 3.552933800959542,
+    "seconds_total": 281.4575379169546,
+    "seconds_per_example": 0.2814575379169546,
+    "wall_seconds": 286.2251082910225,
+    "report": {
+      "n": 1000,
+      "exact": 0.143,
+      "hp": 0.17166666666666666,
+      "hr": 0.17166666666666666,
+      "hf1": 0.17166666666666666,
+      "macro_p": 0.14516530014382276,
+      "macro_r": 0.12808939963545227,
+      "macro_f1": 0.11439842484493616,
+      "depth_acc": {
+        "1": 0.22,
+        "2": 0.152,
+        "3": 0.143
+      },
+      "node_acc": {
+        "__root__": 0.342,
+        "agent": 0.5463917525773195,
+        "agent.actor": 0.875,
+        "agent.artist": 1.0,
+        "agent.athlete": 0.9850746268656716,
+        "agent.boxer": 1.0,
+        "agent.british-royalty": 1.0,
+        "agent.broadcaster": 0.9411764705882353,
+        "agent.cleric": 0.47058823529411764,
+        "agent.coach": 1.0,
+        "agent.comics-character": 1.0,
+        "agent.company": 0.9666666666666667,
+        "agent.educational-institution": 1.0,
+        "agent.fictional-character": 1.0,
+        "agent.gridiron-football-player": 1.0,
+        "agent.group": 1.0,
+        "agent.motorcycle-rider": 1.0,
+        "agent.organisation": 1.0,
+        "agent.person": 0.7662337662337663,
+        "agent.politician": 0.8461538461538461,
+        "agent.presenter": 1.0,
+        "agent.racing-driver": 1.0,
+        "agent.scientist": 1.0,
+        "agent.sports-league": 0.9,
+        "agent.sports-manager": 1.0,
+        "agent.sports-team": 0.9444444444444444,
+        "agent.winter-sport-player": 0.92,
+        "agent.wrestler": 1.0,
+        "agent.writer": 1.0,
+        "event": 0.7209302325581395,
+        "event.natural-event": 1.0,
+        "event.olympics": 1.0,
+        "event.race": 1.0,
+        "event.societal-event": 0.9523809523809523,
+        "event.sports-event": 1.0,
+        "event.tournament": 0.95,
+        "place": 0.4611872146118721,
+        "place.amusement-park-attraction": 1.0,
+        "place.body-of-water": 1.0,
+        "place.building": 1.0,
+        "place.celestial-body": 1.0,
+        "place.clerical-administrative-region": 1.0,
+        "place.infrastructure": 1.0,
+        "place.natural-place": 0.8260869565217391,
+        "place.race-track": 1.0,
+        "place.route-of-transportation": 1.0,
+        "place.satellite": 1.0,
+        "place.settlement": 0.7857142857142857,
+        "place.sport-facility": 1.0,
+        "place.station": 1.0,
+        "place.stream": 1.0,
+        "place.tower": 1.0,
+        "place.venue": 1.0,
+        "species": 0.8333333333333334,
+        "species.animal": 0.875,
+        "species.eukaryote": 1.0,
+        "species.flowering-plant": 1.0,
+        "species.horse": 1.0,
+        "species.plant": 1.0,
+        "sports-season": 0.5,
+        "sports-season.football-league-season": 1.0,
+        "sports-season.sports-team-season": 1.0,
+        "topical-concept": 1.0,
+        "topical-concept.genre": 1.0,
+        "unit-of-work": 1.0,
+        "unit-of-work.legal-case": 1.0,
+        "work": 0.6593406593406593,
+        "work.cartoon": 1.0,
+        "work.comic": 1.0,
+        "work.musical-work": 0.42424242424242425,
+        "work.periodical-literature": 0.8461538461538461,
+        "work.software": 1.0,
+        "work.song": 1.0,
+        "work.written-work": 1.0
+      },
+      "stop_rate": 0.0,
+      "selective_acc": 0.143,
+      "confusions": {
+        "__root__": [
+          [
+            "agent",
+            "topical-concept",
+            249
+          ],
+          [
+            "agent",
+            "sports-season",
+            134
+          ],
+          [
+            "work",
+            "topical-concept",
+            75
+          ]
+        ],
+        "agent": [
+          [
+            "agent.person",
+            "agent.politician",
+            24
+          ],
+          [
+            "agent.organisation",
+            "agent.politician",
+            16
+          ],
+          [
+            "agent.winter-sport-player",
+            "agent.athlete",
+            15
+          ]
+        ],
+        "agent.actor": [
+          [
+            "agent.actor.adult-actor",
+            "agent.actor.voice-actor",
+            1
+          ]
+        ],
+        "agent.athlete": [
+          [
+            "agent.athlete.basketball-player",
+            "agent.athlete.baseball-player",
+            1
+          ],
+          [
+            "agent.athlete.gymnast",
+            "agent.athlete.martial-artist",
+            1
+          ]
+        ],
+        "agent.broadcaster": [
+          [
+            "agent.broadcaster.television-station",
+            "agent.broadcaster.broadcast-network",
+            1
+          ]
+        ],
+        "agent.cleric": [
+          [
+            "agent.cleric.christian-bishop",
+            "agent.cleric.pope",
+            4
+          ],
+          [
+            "agent.cleric.saint",
+            "agent.cleric.pope",
+            3
+          ],
+          [
+            "agent.cleric.cardinal",
+            "agent.cleric.pope",
+            2
+          ]
+        ],
+        "agent.company": [
+          [
+            "agent.company.record-label",
+            "agent.company.publisher",
+            1
+          ]
+        ],
+        "agent.person": [
+          [
+            "agent.person.noble",
+            "agent.person.monarch",
+            3
+          ],
+          [
+            "agent.person.office-holder",
+            "agent.person.ambassador",
+            3
+          ],
+          [
+            "agent.person.model",
+            "agent.person.beauty-queen",
+            2
+          ]
+        ],
+        "agent.politician": [
+          [
+            "agent.politician.prime-minister",
+            "agent.politician.president",
+            2
+          ],
+          [
+            "agent.politician.congressman",
+            "agent.politician.president",
+            1
+          ],
+          [
+            "agent.politician.prime-minister",
+            "agent.politician.member-of-parliament",
+            1
+          ]
+        ],
+        "agent.sports-league": [
+          [
+            "agent.sports-league.soccer-league",
+            "agent.sports-league.rugby-league",
+            1
+          ]
+        ],
+        "agent.sports-team": [
+          [
+            "agent.sports-team.rugby-club",
+            "agent.sports-team.handball-team",
+            1
+          ]
+        ],
+        "agent.winter-sport-player": [
+          [
+            "agent.winter-sport-player.figure-skater",
+            "agent.winter-sport-player.skater",
+            1
+          ],
+          [
+            "agent.winter-sport-player.skier",
+            "agent.winter-sport-player.curler",
+            1
+          ]
+        ],
+        "event": [
+          [
+            "event.race",
+            "event.sports-event",
+            7
+          ],
+          [
+            "event.race",
+            "event.tournament",
+            4
+          ],
+          [
+            "event.tournament",
+            "event.sports-event",
+            4
+          ]
+        ],
+        "event.societal-event": [
+          [
+            "event.societal-event.convention",
+            "event.societal-event.election",
+            1
+          ]
+        ],
+        "event.tournament": [
+          [
+            "event.tournament.womens-tennis-association-tournament",
+            "event.tournament.tennis-tournament",
+            1
+          ]
+        ],
+        "place": [
+          [
+            "place.building",
+            "place.venue",
+            19
+          ],
+          [
+            "place.route-of-transportation",
+            "place.infrastructure",
+            17
+          ],
+          [
+            "place.body-of-water",
+            "place.natural-place",
+            16
+          ]
+        ],
+        "place.natural-place": [
+          [
+            "place.natural-place.mountain",
+            "place.natural-place.volcano",
+            1
+          ],
+          [
+            "place.natural-place.mountain-pass",
+            "place.natural-place.mountain",
+            1
+          ],
+          [
+            "place.natural-place.mountain-range",
+            "place.natural-place.mountain",
+            1
+          ]
+        ],
+        "place.settlement": [
+          [
+            "place.settlement.town",
+            "place.settlement.village",
+            2
+          ],
+          [
+            "place.settlement.village",
+            "place.settlement.town",
+            1
+          ]
+        ],
+        "species": [
+          [
+            "species.eukaryote",
+            "species.plant",
+            6
+          ],
+          [
+            "species.animal",
+            "species.eukaryote",
+            3
+          ],
+          [
+            "species.animal",
+            "species.plant",
+            3
+          ]
+        ],
+        "species.animal": [
+          [
+            "species.animal.arachnid",
+            "species.animal.insect",
+            4
+          ],
+          [
+            "species.animal.crustacean",
+            "species.animal.fish",
+            1
+          ],
+          [
+            "species.animal.crustacean",
+            "species.animal.insect",
+            1
+          ]
+        ],
+        "sports-season": [
+          [
+            "sports-season.football-league-season",
+            "sports-season.sports-team-season",
+            8
+          ],
+          [
+            "sports-season.sports-team-season",
+            "sports-season.football-league-season",
+            5
+          ]
+        ],
+        "work": [
+          [
+            "work.musical-work",
+            "work.song",
+            19
+          ],
+          [
+            "work.periodical-literature",
+            "work.written-work",
+            8
+          ],
+          [
+            "work.periodical-literature",
+            "work.software",
+            3
+          ]
+        ],
+        "work.musical-work": [
+          [
+            "work.musical-work.album",
+            "work.musical-work.musical",
+            6
+          ],
+          [
+            "work.musical-work.artist-discography",
+            "work.musical-work.album",
+            5
+          ],
+          [
+            "work.musical-work.artist-discography",
+            "work.musical-work.musical",
+            3
+          ]
+        ],
+        "work.periodical-literature": [
+          [
+            "work.periodical-literature.magazine",
+            "work.periodical-literature.academic-journal",
+            3
+          ],
+          [
+            "work.periodical-literature.magazine",
+            "work.periodical-literature.newspaper",
+            1
+          ]
+        ]
+      },
+      "sections_per_sec": 3.552933800959542,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam",
+        "skipped_nodes": []
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      }
+    }
+  },
+  {
+    "suite": "zero-shot",
+    "dataset": "b3",
+    "system": "ultrabert-embed",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 1000,
+    "macro_p": 0.4498395306892121,
+    "macro_r": 0.34637002283216906,
+    "macro_f1": 0.3292211474749888,
+    "sections_per_sec": 5.186268132707472,
+    "seconds_total": 192.81687225028872,
+    "seconds_per_example": 0.1928168722502887,
+    "wall_seconds": 198.11825275002047,
+    "report": {
+      "n": 1000,
+      "exact": 0.381,
+      "hp": 0.381,
+      "hr": 0.381,
+      "hf1": 0.381,
+      "macro_p": 0.4498395306892121,
+      "macro_r": 0.34637002283216906,
+      "macro_f1": 0.3292211474749888,
+      "depth_acc": {
+        "1": 0.381
+      },
+      "node_acc": {
+        "__root__": 0.381
+      },
+      "stop_rate": 0.0,
+      "selective_acc": 0.381,
+      "confusions": {
+        "__root__": [
+          [
+            "counterparts",
+            "agreements",
+            36
+          ],
+          [
+            "headings",
+            "agreements",
+            20
+          ],
+          [
+            "severability",
+            "enforceability",
+            16
+          ]
+        ]
+      },
+      "sections_per_sec": 5.186268132707472,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam",
+        "skipped_nodes": []
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      }
+    }
+  },
+  {
+    "suite": "zero-shot",
+    "dataset": "b3-subset",
+    "system": "ultrabert-embed",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 300,
+    "macro_p": 0.3938435388937541,
+    "macro_r": 0.35187487950645846,
+    "macro_f1": 0.3286889692099809,
+    "sections_per_sec": 5.416401851964544,
+    "seconds_total": 55.38732320815325,
+    "seconds_per_example": 0.18462441069384417,
+    "wall_seconds": 60.53262024978176,
+    "report": {
+      "n": 300,
+      "exact": 0.35,
+      "hp": 0.35,
+      "hr": 0.35,
+      "hf1": 0.35,
+      "macro_p": 0.3938435388937541,
+      "macro_r": 0.35187487950645846,
+      "macro_f1": 0.3286889692099809,
+      "depth_acc": {
+        "1": 0.35
+      },
+      "node_acc": {
+        "__root__": 0.35
+      },
+      "stop_rate": 0.0,
+      "selective_acc": 0.35,
+      "confusions": {
+        "__root__": [
+          [
+            "counterparts",
+            "agreements",
+            9
+          ],
+          [
+            "amendments",
+            "agreements",
+            7
+          ],
+          [
+            "assignments",
+            "assigns",
+            7
+          ]
+        ]
+      },
+      "sections_per_sec": 5.416401851964544,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam",
+        "skipped_nodes": []
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:dmis-lab/UltraBERT-Embed-150M": "367d5343b5a0164d57b810cedf5de4b8983d5984"
+      }
+    }
+  },
+  {
+    "suite": "zero-shot",
+    "dataset": "b1",
+    "system": "bge-small",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 1000,
+    "macro_p": 0.6185598139742948,
+    "macro_r": 0.35365446028132486,
+    "macro_f1": 0.374250009926239,
+    "sections_per_sec": 15.016457417904599,
+    "seconds_total": 66.59360274998471,
+    "seconds_per_example": 0.06659360274998471,
+    "wall_seconds": 76.02057800022885,
+    "report": {
+      "n": 1000,
+      "exact": 0.452,
+      "hp": 0.4625,
+      "hr": 0.4625,
+      "hf1": 0.4625,
+      "macro_p": 0.6185598139742948,
+      "macro_r": 0.35365446028132486,
+      "macro_f1": 0.374250009926239,
+      "depth_acc": {
+        "1": 0.473,
+        "2": 0.452
+      },
+      "node_acc": {
+        "__root__": 0.656,
+        "part-i": 0.6843971631205674,
+        "part-ii": 0.7474226804123711,
+        "part-iii": 0.8714859437751004,
+        "part-iv": 1.0
+      },
+      "stop_rate": 0.0,
+      "selective_acc": 0.452,
+      "confusions": {
+        "__root__": [
+          [
+            "part-ii",
+            "part-iv",
+            118
+          ],
+          [
+            "part-i",
+            "part-iv",
+            85
+          ],
+          [
+            "part-ii",
+            "part-iii",
+            29
+          ]
+        ],
+        "part-i": [
+          [
+            "part-i.item-1",
+            "part-i.item-1b",
+            31
+          ],
+          [
+            "part-i.item-1",
+            "part-i.item-2",
+            30
+          ],
+          [
+            "part-i.item-1",
+            "part-i.item-4",
+            7
+          ]
+        ],
+        "part-ii": [
+          [
+            "part-ii.item-8",
+            "part-ii.item-9a",
+            25
+          ],
+          [
+            "part-ii.item-7",
+            "part-ii.item-7a",
+            17
+          ],
+          [
+            "part-ii.item-7",
+            "part-ii.item-8",
+            11
+          ]
+        ],
+        "part-iii": [
+          [
+            "part-iii.item-13",
+            "part-iii.item-12",
+            8
+          ],
+          [
+            "part-iii.item-14",
+            "part-iii.item-12",
+            7
+          ],
+          [
+            "part-iii.item-11",
+            "part-iii.item-12",
+            5
+          ]
+        ]
+      },
+      "sections_per_sec": 15.016457417904599,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam",
+        "skipped_nodes": []
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      }
+    }
+  },
+  {
+    "suite": "zero-shot",
+    "dataset": "b2",
+    "system": "bge-small",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 1000,
+    "macro_p": 0.0728417392207112,
+    "macro_r": 0.06298995990607832,
+    "macro_f1": 0.04382771756192643,
+    "sections_per_sec": 16.18141089786202,
+    "seconds_total": 61.79930825019255,
+    "seconds_per_example": 0.06179930825019256,
+    "wall_seconds": 65.91428554104641,
+    "report": {
+      "n": 1000,
+      "exact": 0.069,
+      "hp": 0.10933333333333334,
+      "hr": 0.10933333333333334,
+      "hf1": 0.10933333333333334,
+      "macro_p": 0.0728417392207112,
+      "macro_r": 0.06298995990607832,
+      "macro_f1": 0.04382771756192643,
+      "depth_acc": {
+        "1": 0.187,
+        "2": 0.072,
+        "3": 0.069
+      },
+      "node_acc": {
+        "__root__": 0.353,
+        "agent": 0.3752577319587629,
+        "agent.actor": 0.875,
+        "agent.artist": 0.9130434782608695,
+        "agent.athlete": 0.8507462686567164,
+        "agent.boxer": 1.0,
+        "agent.british-royalty": 1.0,
+        "agent.broadcaster": 0.8823529411764706,
+        "agent.cleric": 0.35294117647058826,
+        "agent.coach": 1.0,
+        "agent.comics-character": 1.0,
+        "agent.company": 1.0,
+        "agent.educational-institution": 0.9444444444444444,
+        "agent.fictional-character": 1.0,
+        "agent.gridiron-football-player": 1.0,
+        "agent.group": 1.0,
+        "agent.motorcycle-rider": 1.0,
+        "agent.organisation": 0.9354838709677419,
+        "agent.person": 0.6493506493506493,
+        "agent.politician": 0.8076923076923077,
+        "agent.presenter": 1.0,
+        "agent.racing-driver": 1.0,
+        "agent.scientist": 0.6666666666666666,
+        "agent.sports-league": 0.9,
+        "agent.sports-manager": 1.0,
+        "agent.sports-team": 0.8888888888888888,
+        "agent.winter-sport-player": 0.68,
+        "agent.wrestler": 1.0,
+        "agent.writer": 1.0,
+        "event": 0.7209302325581395,
+        "event.natural-event": 1.0,
+        "event.olympics": 1.0,
+        "event.race": 1.0,
+        "event.societal-event": 0.9047619047619048,
+        "event.sports-event": 0.95,
+        "event.tournament": 0.8,
+        "place": 0.4474885844748858,
+        "place.amusement-park-attraction": 1.0,
+        "place.body-of-water": 1.0,
+        "place.building": 0.9811320754716981,
+        "place.celestial-body": 0.8888888888888888,
+        "place.clerical-administrative-region": 1.0,
+        "place.infrastructure": 0.9473684210526315,
+        "place.natural-place": 0.7391304347826086,
+        "place.race-track": 1.0,
+        "place.route-of-transportation": 1.0,
+        "place.satellite": 1.0,
+        "place.settlement": 0.5714285714285714,
+        "place.sport-facility": 1.0,
+        "place.station": 1.0,
+        "place.stream": 1.0,
+        "place.tower": 1.0,
+        "place.venue": 1.0,
+        "species": 0.24444444444444444,
+        "species.animal": 0.5892857142857143,
+        "species.eukaryote": 1.0,
+        "species.flowering-plant": 1.0,
+        "species.horse": 1.0,
+        "species.plant": 0.9333333333333333,
+        "sports-season": 0.5384615384615384,
+        "sports-season.football-league-season": 1.0,
+        "sports-season.sports-team-season": 1.0,
+        "topical-concept": 1.0,
+        "topical-concept.genre": 1.0,
+        "unit-of-work": 1.0,
+        "unit-of-work.legal-case": 1.0,
+        "work": 0.6263736263736264,
+        "work.cartoon": 1.0,
+        "work.comic": 1.0,
+        "work.musical-work": 0.7272727272727273,
+        "work.periodical-literature": 0.9230769230769231,
+        "work.software": 1.0,
+        "work.song": 1.0,
+        "work.written-work": 0.8
+      },
+      "stop_rate": 0.0,
+      "selective_acc": 0.069,
+      "confusions": {
+        "__root__": [
+          [
+            "agent",
+            "sports-season",
+            186
+          ],
+          [
+            "agent",
+            "unit-of-work",
+            73
+          ],
+          [
+            "agent",
+            "place",
+            53
+          ]
+        ],
+        "agent": [
+          [
+            "agent.athlete",
+            "agent.gridiron-football-player",
+            33
+          ],
+          [
+            "agent.athlete",
+            "agent.winter-sport-player",
+            25
+          ],
+          [
+            "agent.organisation",
+            "agent.organisation-member",
+            21
+          ]
+        ],
+        "agent.actor": [
+          [
+            "agent.actor.adult-actor",
+            "agent.actor.voice-actor",
+            1
+          ]
+        ],
+        "agent.artist": [
+          [
+            "agent.artist.painter",
+            "agent.artist.comics-creator",
+            1
+          ],
+          [
+            "agent.artist.painter",
+            "agent.artist.fashion-designer",
+            1
+          ]
+        ],
+        "agent.athlete": [
+          [
+            "agent.athlete.cyclist",
+            "agent.athlete.bodybuilder",
+            2
+          ],
+          [
+            "agent.athlete.soccer-player",
+            "agent.athlete.australian-rules-football-player",
+            2
+          ],
+          [
+            "agent.athlete.soccer-player",
+            "agent.athlete.rugby-player",
+            2
+          ]
+        ],
+        "agent.broadcaster": [
+          [
+            "agent.broadcaster.broadcast-network",
+            "agent.broadcaster.television-station",
+            1
+          ],
+          [
+            "agent.broadcaster.television-station",
+            "agent.broadcaster.broadcast-network",
+            1
+          ]
+        ],
+        "agent.cleric": [
+          [
+            "agent.cleric.christian-bishop",
+            "agent.cleric.pope",
+            3
+          ],
+          [
+            "agent.cleric.saint",
+            "agent.cleric.pope",
+            3
+          ],
+          [
+            "agent.cleric.cardinal",
+            "agent.cleric.christian-bishop",
+            1
+          ]
+        ],
+        "agent.educational-institution": [
+          [
+            "agent.educational-institution.school",
+            "agent.educational-institution.university",
+            1
+          ]
+        ],
+        "agent.organisation": [
+          [
+            "agent.organisation.political-party",
+            "agent.organisation.trade-union",
+            1
+          ],
+          [
+            "agent.organisation.trade-union",
+            "agent.organisation.legislature",
+            1
+          ]
+        ],
+        "agent.person": [
+          [
+            "agent.person.noble",
+            "agent.person.monarch",
+            4
+          ],
+          [
+            "agent.person.office-holder",
+            "agent.person.journalist",
+            3
+          ],
+          [
+            "agent.person.model",
+            "agent.person.beauty-queen",
+            2
+          ]
+        ],
+        "agent.politician": [
+          [
+            "agent.politician.congressman",
+            "agent.politician.governor",
+            2
+          ],
+          [
+            "agent.politician.prime-minister",
+            "agent.politician.member-of-parliament",
+            2
+          ],
+          [
+            "agent.politician.governor",
+            "agent.politician.senator",
+            1
+          ]
+        ],
+        "agent.scientist": [
+          [
+            "agent.scientist.medician",
+            "agent.scientist.entomologist",
+            1
+          ]
+        ],
+        "agent.sports-league": [
+          [
+            "agent.sports-league.soccer-league",
+            "agent.sports-league.rugby-league",
+            1
+          ]
+        ],
+        "agent.sports-team": [
+          [
+            "agent.sports-team.rugby-club",
+            "agent.sports-team.cricket-team",
+            1
+          ],
+          [
+            "agent.sports-team.rugby-club",
+            "agent.sports-team.cycling-team",
+            1
+          ]
+        ],
+        "agent.winter-sport-player": [
+          [
+            "agent.winter-sport-player.figure-skater",
+            "agent.winter-sport-player.skater",
+            4
+          ],
+          [
+            "agent.winter-sport-player.curler",
+            "agent.winter-sport-player.ice-hockey-player",
+            1
+          ],
+          [
+            "agent.winter-sport-player.figure-skater",
+            "agent.winter-sport-player.ice-hockey-player",
+            1
+          ]
+        ],
+        "event": [
+          [
+            "event.societal-event",
+            "event.race",
+            6
+          ],
+          [
+            "event.sports-event",
+            "event.race",
+            5
+          ],
+          [
+            "event.race",
+            "event.sports-event",
+            3
+          ]
+        ],
+        "event.societal-event": [
+          [
+            "event.societal-event.convention",
+            "event.societal-event.election",
+            1
+          ],
+          [
+            "event.societal-event.convention",
+            "event.societal-event.music-festival",
+            1
+          ]
+        ],
+        "event.sports-event": [
+          [
+            "event.sports-event.mixed-martial-arts-event",
+            "event.sports-event.grand-prix",
+            1
+          ]
+        ],
+        "event.tournament": [
+          [
+            "event.tournament.tennis-tournament",
+            "event.tournament.womens-tennis-association-tournament",
+            2
+          ],
+          [
+            "event.tournament.golf-tournament",
+            "event.tournament.womens-tennis-association-tournament",
+            1
+          ],
+          [
+            "event.tournament.womens-tennis-association-tournament",
+            "event.tournament.tennis-tournament",
+            1
+          ]
+        ],
+        "place": [
+          [
+            "place.building",
+            "place.clerical-administrative-region",
+            24
+          ],
+          [
+            "place.settlement",
+            "place.clerical-administrative-region",
+            12
+          ],
+          [
+            "place.building",
+            "place.sport-facility",
+            10
+          ]
+        ],
+        "place.building": [
+          [
+            "place.building.museum",
+            "place.building.historic-building",
+            1
+          ]
+        ],
+        "place.celestial-body": [
+          [
+            "place.celestial-body.planet",
+            "place.celestial-body.galaxy",
+            1
+          ]
+        ],
+        "place.infrastructure": [
+          [
+            "place.infrastructure.airport",
+            "place.infrastructure.dam",
+            1
+          ]
+        ],
+        "place.natural-place": [
+          [
+            "place.natural-place.mountain",
+            "place.natural-place.mountain-range",
+            2
+          ],
+          [
+            "place.natural-place.mountain-pass",
+            "place.natural-place.mountain-range",
+            2
+          ],
+          [
+            "place.natural-place.mountain",
+            "place.natural-place.glacier",
+            1
+          ]
+        ],
+        "place.settlement": [
+          [
+            "place.settlement.town",
+            "place.settlement.village",
+            3
+          ],
+          [
+            "place.settlement.village",
+            "place.settlement.town",
+            3
+          ]
+        ],
+        "species": [
+          [
+            "species.animal",
+            "species.flowering-plant",
+            37
+          ],
+          [
+            "species.plant",
+            "species.flowering-plant",
+            14
+          ],
+          [
+            "species.animal",
+            "species.eukaryote",
+            9
+          ]
+        ],
+        "species.animal": [
+          [
+            "species.animal.bird",
+            "species.animal.reptile",
+            4
+          ],
+          [
+            "species.animal.arachnid",
+            "species.animal.crustacean",
+            2
+          ],
+          [
+            "species.animal.arachnid",
+            "species.animal.reptile",
+            2
+          ]
+        ],
+        "species.plant": [
+          [
+            "species.plant.green-alga",
+            "species.plant.moss",
+            1
+          ]
+        ],
+        "sports-season": [
+          [
+            "sports-season.sports-team-season",
+            "sports-season.football-league-season",
+            8
+          ],
+          [
+            "sports-season.football-league-season",
+            "sports-season.sports-team-season",
+            4
+          ]
+        ],
+        "work": [
+          [
+            "work.musical-work",
+            "work.song",
+            15
+          ],
+          [
+            "work.comic",
+            "work.cartoon",
+            5
+          ],
+          [
+            "work.software",
+            "work.cartoon",
+            3
+          ]
+        ],
+        "work.musical-work": [
+          [
+            "work.musical-work.album",
+            "work.musical-work.artist-discography",
+            3
+          ],
+          [
+            "work.musical-work.single",
+            "work.musical-work.album",
+            3
+          ],
+          [
+            "work.musical-work.album",
+            "work.musical-work.classical-music-composition",
+            1
+          ]
+        ],
+        "work.periodical-literature": [
+          [
+            "work.periodical-literature.magazine",
+            "work.periodical-literature.academic-journal",
+            1
+          ],
+          [
+            "work.periodical-literature.magazine",
+            "work.periodical-literature.newspaper",
+            1
+          ]
+        ],
+        "work.written-work": [
+          [
+            "work.written-work.play",
+            "work.written-work.poem",
+            1
+          ]
+        ]
+      },
+      "sections_per_sec": 16.18141089786202,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam",
+        "skipped_nodes": []
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      }
+    }
+  },
+  {
+    "suite": "zero-shot",
+    "dataset": "b3",
+    "system": "bge-small",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 1000,
+    "macro_p": 0.3657859683479725,
+    "macro_r": 0.2955368828234807,
+    "macro_f1": 0.2596968460144117,
+    "sections_per_sec": 17.387876466411594,
+    "seconds_total": 57.51133566722274,
+    "seconds_per_example": 0.05751133566722274,
+    "wall_seconds": 61.77551191719249,
+    "report": {
+      "n": 1000,
+      "exact": 0.337,
+      "hp": 0.337,
+      "hr": 0.337,
+      "hf1": 0.337,
+      "macro_p": 0.3657859683479725,
+      "macro_r": 0.2955368828234807,
+      "macro_f1": 0.2596968460144117,
+      "depth_acc": {
+        "1": 0.337
+      },
+      "node_acc": {
+        "__root__": 0.337
+      },
+      "stop_rate": 0.0,
+      "selective_acc": 0.337,
+      "confusions": {
+        "__root__": [
+          [
+            "severability",
+            "enforceability",
+            35
+          ],
+          [
+            "entire-agreements",
+            "agreements",
+            14
+          ],
+          [
+            "counterparts",
+            "agreements",
+            13
+          ]
+        ]
+      },
+      "sections_per_sec": 17.387876466411594,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam",
+        "skipped_nodes": []
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      }
+    }
+  },
+  {
+    "suite": "zero-shot",
+    "dataset": "b3-subset",
+    "system": "bge-small",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 300,
+    "macro_p": 0.3259364455371536,
+    "macro_r": 0.2865286653155716,
+    "macro_f1": 0.25401666177779647,
+    "sections_per_sec": 16.929458297934488,
+    "seconds_total": 17.720590624958277,
+    "seconds_per_example": 0.05906863541652759,
+    "wall_seconds": 21.55876212520525,
+    "report": {
+      "n": 300,
+      "exact": 0.30333333333333334,
+      "hp": 0.30333333333333334,
+      "hr": 0.30333333333333334,
+      "hf1": 0.30333333333333334,
+      "macro_p": 0.3259364455371536,
+      "macro_r": 0.2865286653155716,
+      "macro_f1": 0.25401666177779647,
+      "depth_acc": {
+        "1": 0.30333333333333334
+      },
+      "node_acc": {
+        "__root__": 0.30333333333333334
+      },
+      "stop_rate": 0.0,
+      "selective_acc": 0.30333333333333334,
+      "confusions": {
+        "__root__": [
+          [
+            "severability",
+            "enforceability",
+            7
+          ],
+          [
+            "entire-agreements",
+            "agreements",
+            5
+          ],
+          [
+            "assignments",
+            "agreements",
+            4
+          ]
+        ]
+      },
+      "sections_per_sec": 16.929458297934488,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam",
+        "skipped_nodes": []
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "embedding:BAAI/bge-small-en-v1.5": null
+      }
+    }
+  },
+  {
+    "suite": "zero-shot",
+    "dataset": "b1",
+    "system": "ultrabert-mlm",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 200,
+    "macro_p": 0.5395705172020961,
+    "macro_r": 0.3403593482540851,
+    "macro_f1": 0.3565198017587214,
+    "sections_per_sec": 0.15102926022682908,
+    "seconds_total": 1324.2467035832815,
+    "seconds_per_example": 6.621233517916407,
+    "wall_seconds": 1369.247751957737,
+    "train_seconds": null,
+    "n_train": null,
+    "report": {
+      "n": 200,
+      "exact": 0.41,
+      "hp": 0.435,
+      "hr": 0.435,
+      "hf1": 0.435,
+      "macro_p": 0.5395705172020961,
+      "macro_r": 0.3403593482540851,
+      "macro_f1": 0.3565198017587214,
+      "depth_acc": {
+        "1": 0.46,
+        "2": 0.41
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.41,
+      "confusions": {},
+      "sections_per_sec": 0.15102926022682908,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "mlm-choice:dmis-lab/UltraBERT-380M": "65bbbfeefb03bc93b9965d1d511708dabcee8511"
+      }
+    }
+  },
+  {
+    "suite": "zero-shot",
+    "dataset": "b2",
+    "system": "ultrabert-mlm",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 200,
+    "macro_p": 0.1968897468897469,
+    "macro_r": 0.2057057057057057,
+    "macro_f1": 0.18774748774748776,
+    "sections_per_sec": 0.16990525023958455,
+    "seconds_total": 1177.1266615833156,
+    "seconds_per_example": 5.885633307916578,
+    "wall_seconds": 1189.8293117079884,
+    "train_seconds": null,
+    "n_train": null,
+    "report": {
+      "n": 200,
+      "exact": 0.2,
+      "hp": 0.26101694915254237,
+      "hr": 0.25666666666666665,
+      "hf1": 0.2588235294117647,
+      "macro_p": 0.1968897468897469,
+      "macro_r": 0.2057057057057057,
+      "macro_f1": 0.18774748774748776,
+      "depth_acc": {
+        "1": 0.345,
+        "2": 0.225,
+        "3": 0.2
+      },
+      "node_acc": {},
+      "stop_rate": 0.025,
+      "selective_acc": 0.20512820512820512,
+      "confusions": {},
+      "sections_per_sec": 0.16990525023958455,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "mlm-choice:dmis-lab/UltraBERT-380M": "65bbbfeefb03bc93b9965d1d511708dabcee8511"
+      }
+    }
+  },
+  {
+    "suite": "zero-shot",
+    "dataset": "b1",
+    "system": "deberta-nli",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 200,
+    "macro_p": 0.46616679732201594,
+    "macro_r": 0.3190493072459017,
+    "macro_f1": 0.3157806711782596,
+    "sections_per_sec": 0.07343991997859844,
+    "seconds_total": 2723.31451420812,
+    "seconds_per_example": 13.616572571040598,
+    "wall_seconds": 2750.301329124719,
+    "train_seconds": null,
+    "n_train": null,
+    "report": {
+      "n": 200,
+      "exact": 0.345,
+      "hp": 0.38,
+      "hr": 0.38,
+      "hf1": 0.38,
+      "macro_p": 0.46616679732201594,
+      "macro_r": 0.3190493072459017,
+      "macro_f1": 0.3157806711782596,
+      "depth_acc": {
+        "1": 0.415,
+        "2": 0.345
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.345,
+      "confusions": {},
+      "sections_per_sec": 0.07343991997859844,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "nli:MoritzLaurer/deberta-v3-base-zeroshot-v2.0": null
+      }
+    }
+  },
+  {
+    "suite": "zero-shot",
+    "dataset": "b2",
+    "system": "deberta-nli",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 200,
+    "macro_p": 0.15655655655655654,
+    "macro_r": 0.1683183183183183,
+    "macro_f1": 0.15564410564410566,
+    "sections_per_sec": 0.1670987454563244,
+    "seconds_total": 1196.897076957859,
+    "seconds_per_example": 5.984485384789296,
+    "wall_seconds": 1203.80724824965,
+    "train_seconds": null,
+    "n_train": null,
+    "report": {
+      "n": 200,
+      "exact": 0.205,
+      "hp": 0.27166666666666667,
+      "hr": 0.27166666666666667,
+      "hf1": 0.27166666666666667,
+      "macro_p": 0.15655655655655654,
+      "macro_r": 0.1683183183183183,
+      "macro_f1": 0.15564410564410566,
+      "depth_acc": {
+        "1": 0.37,
+        "2": 0.24,
+        "3": 0.205
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.205,
+      "confusions": {},
+      "sections_per_sec": 0.1670987454563244,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "nli:MoritzLaurer/deberta-v3-base-zeroshot-v2.0": null
+      }
+    }
+  },
+  {
+    "suite": "zero-shot",
+    "dataset": "b3-subset",
+    "system": "deberta-nli",
+    "strategy": "Beam(3)",
+    "shots": 0,
+    "n": 300,
+    "macro_p": 0.33897335726604017,
+    "macro_r": 0.28336338814515966,
+    "macro_f1": 0.26765350265868587,
+    "sections_per_sec": 0.119626020028153,
+    "seconds_total": 2507.815606750082,
+    "seconds_per_example": 8.359385355833608,
+    "wall_seconds": 2526.3924905839376,
+    "train_seconds": null,
+    "n_train": null,
+    "report": {
+      "n": 300,
+      "exact": 0.29,
+      "hp": 0.29,
+      "hr": 0.29,
+      "hf1": 0.29,
+      "macro_p": 0.33897335726604017,
+      "macro_r": 0.28336338814515966,
+      "macro_f1": 0.26765350265868587,
+      "depth_acc": {
+        "1": 0.29
+      },
+      "node_acc": {},
+      "stop_rate": 0.0,
+      "selective_acc": 0.29,
+      "confusions": {},
+      "sections_per_sec": 0.119626020028153,
+      "device": "cpu",
+      "meta": {
+        "strategy": "Beam"
+      }
+    },
+    "env": {
+      "device": "cpu",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence_transformers": "6.1.0",
+      "docrooter": "0.1.0.dev0",
+      "revisions": {
+        "nli:MoritzLaurer/deberta-v3-base-zeroshot-v2.0": null
+      }
+    }
+  }
+]

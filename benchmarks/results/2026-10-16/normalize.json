@@ -3,13 +3,13 @@
     "ultrabert": {
       "backend": "embedding:dmis-lab/UltraBERT-Embed-150M",
       "config": "path+title+syn",
-      "load_s": 14.648197500000606,
-      "seconds": 3.0160277920003864,
-      "n_labelled": 163,
-      "s_per_section": 0.018503237987732433,
+      "load_s": 13.926639041994349,
+      "seconds": 2.9136698760048603,
+      "n_labelled": 159,
+      "s_per_section": 0.018324967773615475,
       "per_doc": {
         "doc_027": {
-          "seconds": 0.27724783299890987,
+          "seconds": 0.28195995900023263,
           "n_labelled": 23,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -24,7 +24,7 @@
           "macro_f1": 0.6038159371492705
         },
         "doc_028": {
-          "seconds": 0.2761081250009738,
+          "seconds": 0.27284637500270037,
           "n_labelled": 16,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -39,7 +39,7 @@
           "macro_f1": 0.5708333333333333
         },
         "doc_029": {
-          "seconds": 0.5096537079989503,
+          "seconds": 0.47719741699984297,
           "n_labelled": 38,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -54,22 +54,53 @@
           "macro_f1": 0.7453042328042327
         },
         "doc_001": {
-          "seconds": 0.5587209170007554,
-          "n_labelled": 29,
+          "seconds": 0.5646086670021759,
+          "n_labelled": 25,
           "doc_type": "financial.annual_report",
           "doc_type_confidence": null,
           "doc_type_matched": true,
           "taxonomy": "section_types/annual_report",
-          "unmatched_gold": [],
-          "unlabelled_sections": [],
-          "n_scored": 24,
-          "n_junk": 5,
-          "n_correct": 6,
-          "accuracy": 0.25,
-          "macro_f1": 0.2677248677248677
+          "unmatched_gold": [
+            {
+              "section_title": "Pilot Travel Centers (PTC)",
+              "page": 35,
+              "level": 2
+            },
+            {
+              "section_title": "Insurance—Investment Income",
+              "page": 66,
+              "level": 2
+            },
+            {
+              "section_title": "Insurance—Investment Income",
+              "page": 67,
+              "level": 2
+            },
+            {
+              "section_title": "Railroad",
+              "page": 67,
+              "level": 2
+            },
+            {
+              "section_title": "Railroad",
+              "page": 68,
+              "level": 2
+            }
+          ],
+          "unlabelled_sections": [
+            {
+              "title": "The Scorecard in 2023",
+              "page": 13
+            }
+          ],
+          "n_scored": 21,
+          "n_junk": 3,
+          "n_correct": 8,
+          "accuracy": 0.38095238095238093,
+          "macro_f1": 0.4041666666666667
         },
         "doc_002": {
-          "seconds": 1.0813294170002337,
+          "seconds": 0.9964383749975241,
           "n_labelled": 45,
           "doc_type": "financial.annual_report",
           "doc_type_confidence": null,
@@ -84,7 +115,7 @@
           "macro_f1": 0.6137566137566137
         },
         "doc_016": {
-          "seconds": 0.31296779200056335,
+          "seconds": 0.3206190830023843,
           "n_labelled": 12,
           "doc_type": "legal.contract",
           "doc_type_confidence": null,
@@ -100,11 +131,11 @@
         }
       },
       "overall": {
-        "n_scored": 145,
-        "n_junk": 18,
-        "n_correct": 71,
-        "accuracy": 0.4896551724137931,
-        "macro_f1": 0.5400167703995455
+        "n_scored": 142,
+        "n_junk": 16,
+        "n_correct": 73,
+        "accuracy": 0.5140845070422535,
+        "macro_f1": 0.57155916999667
       },
       "rows": [
         {
@@ -1039,8 +1070,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "market_for_equity",
-          "pred": "business_overview",
-          "score": 0.1979
+          "pred": "market_for_equity",
+          "score": 0.2234
         },
         {
           "doc_id": "doc_001",
@@ -1050,8 +1081,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "business_overview",
-          "score": 0.2278
+          "pred": "notes_to_financial_statements",
+          "score": 0.1682
         },
         {
           "doc_id": "doc_001",
@@ -1062,7 +1093,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "market_for_equity",
-          "score": 0.7065
+          "score": 0.8182
         },
         {
           "doc_id": "doc_001",
@@ -1073,7 +1104,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "corporate_governance",
-          "score": 0.6327
+          "score": 0.7864
         },
         {
           "doc_id": "doc_001",
@@ -1084,18 +1115,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "exhibits",
-          "score": 0.8363
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Pilot Travel Centers (PTC)",
-          "page": 35,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": "business_overview",
-          "pred": "business_overview",
-          "score": 0.2583
+          "score": 0.8643
         },
         {
           "doc_id": "doc_001",
@@ -1106,7 +1126,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "risk_factors",
           "pred": "risk_factors",
-          "score": 0.831
+          "score": 0.9332
         },
         {
           "doc_id": "doc_001",
@@ -1116,8 +1136,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "business_overview",
-          "score": 0.1532
+          "pred": "notes_to_financial_statements",
+          "score": 0.1482
         },
         {
           "doc_id": "doc_001",
@@ -1127,8 +1147,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "risk_factors",
-          "pred": "business_overview",
-          "score": 0.2163
+          "pred": "risk_factors",
+          "score": 0.1611
         },
         {
           "doc_id": "doc_001",
@@ -1138,8 +1158,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "sustainability",
-          "score": 0.126
+          "pred": "management_discussion",
+          "score": 0.1317
         },
         {
           "doc_id": "doc_001",
@@ -1150,51 +1170,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "market_for_equity",
           "pred": "market_for_equity",
-          "score": 0.6554
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Insurance—Investment Income",
-          "page": 66,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": "management_discussion",
-          "pred": "market_for_equity",
-          "score": 0.1514
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Insurance—Investment Income",
-          "page": 67,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": null,
-          "pred": "market_for_equity",
-          "score": 0.1514
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Railroad",
-          "page": 67,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": "management_discussion",
-          "pred": "business_overview",
-          "score": 0.2074
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Railroad",
-          "page": 68,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": null,
-          "pred": "business_overview",
-          "score": 0.2074
+          "score": 0.7864
         },
         {
           "doc_id": "doc_001",
@@ -1205,7 +1181,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "management_discussion",
           "pred": "management_discussion",
-          "score": 0.3767
+          "score": 0.4192
         },
         {
           "doc_id": "doc_001",
@@ -1216,7 +1192,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "controls_and_procedures",
-          "score": 0.2073
+          "score": 0.1812
         },
         {
           "doc_id": "doc_001",
@@ -1227,7 +1203,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "controls_and_procedures",
           "pred": "controls_and_procedures",
-          "score": 0.7978
+          "score": 0.9082
         },
         {
           "doc_id": "doc_001",
@@ -1237,8 +1213,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "business_overview",
-          "score": 0.2345
+          "pred": "other",
+          "score": 0.1548
         },
         {
           "doc_id": "doc_001",
@@ -1249,7 +1225,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "controls_and_procedures",
-          "score": 0.2109
+          "score": 0.2118
         },
         {
           "doc_id": "doc_001",
@@ -1259,8 +1235,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
-          "pred": "business_overview",
-          "score": 0.1745
+          "pred": "management_discussion",
+          "score": 0.1153
         },
         {
           "doc_id": "doc_001",
@@ -1270,8 +1246,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "business_overview",
-          "score": 0.1945
+          "pred": "other",
+          "score": 0.1111
         },
         {
           "doc_id": "doc_002",
@@ -1902,21 +1878,21 @@
         }
       ],
       "loadavg_end": [
-        10.8193359375,
-        10.98095703125,
-        9.51904296875
+        3.373046875,
+        2.93505859375,
+        2.78662109375
       ]
     },
     "bge-small": {
       "backend": "embedding:BAAI/bge-small-en-v1.5",
       "config": "path+title+syn",
-      "load_s": 5.928471458999411,
-      "seconds": 0.5975637080009619,
-      "n_labelled": 163,
-      "s_per_section": 0.0036660350184108095,
+      "load_s": 4.405261124993558,
+      "seconds": 0.6901675420012907,
+      "n_labelled": 159,
+      "s_per_section": 0.004340676364787992,
       "per_doc": {
         "doc_027": {
-          "seconds": 0.0676737920002779,
+          "seconds": 0.06711237499985145,
           "n_labelled": 23,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -1931,7 +1907,7 @@
           "macro_f1": 0.5041394335511983
         },
         "doc_028": {
-          "seconds": 0.04680816700056312,
+          "seconds": 0.04645304199948441,
           "n_labelled": 16,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -1946,7 +1922,7 @@
           "macro_f1": 0.55
         },
         "doc_029": {
-          "seconds": 0.11026791599942953,
+          "seconds": 0.10835033300099894,
           "n_labelled": 38,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -1961,22 +1937,53 @@
           "macro_f1": 0.6176485551485552
         },
         "doc_001": {
-          "seconds": 0.12415450000116834,
-          "n_labelled": 29,
+          "seconds": 0.2498045419997652,
+          "n_labelled": 25,
           "doc_type": "financial.annual_report",
           "doc_type_confidence": null,
           "doc_type_matched": true,
           "taxonomy": "section_types/annual_report",
-          "unmatched_gold": [],
-          "unlabelled_sections": [],
-          "n_scored": 24,
-          "n_junk": 5,
-          "n_correct": 8,
-          "accuracy": 0.3333333333333333,
-          "macro_f1": 0.30398428731762067
+          "unmatched_gold": [
+            {
+              "section_title": "Pilot Travel Centers (PTC)",
+              "page": 35,
+              "level": 2
+            },
+            {
+              "section_title": "Insurance—Investment Income",
+              "page": 66,
+              "level": 2
+            },
+            {
+              "section_title": "Insurance—Investment Income",
+              "page": 67,
+              "level": 2
+            },
+            {
+              "section_title": "Railroad",
+              "page": 67,
+              "level": 2
+            },
+            {
+              "section_title": "Railroad",
+              "page": 68,
+              "level": 2
+            }
+          ],
+          "unlabelled_sections": [
+            {
+              "title": "The Scorecard in 2023",
+              "page": 13
+            }
+          ],
+          "n_scored": 21,
+          "n_junk": 3,
+          "n_correct": 9,
+          "accuracy": 0.42857142857142855,
+          "macro_f1": 0.4076923076923077
         },
         "doc_002": {
-          "seconds": 0.1845467919993098,
+          "seconds": 0.15694483300467255,
           "n_labelled": 45,
           "doc_type": "financial.annual_report",
           "doc_type_confidence": null,
@@ -1991,7 +1998,7 @@
           "macro_f1": 0.5356481481481482
         },
         "doc_016": {
-          "seconds": 0.06411254100021324,
+          "seconds": 0.06150241699651815,
           "n_labelled": 12,
           "doc_type": "legal.contract",
           "doc_type_confidence": null,
@@ -2007,11 +2014,11 @@
         }
       },
       "overall": {
-        "n_scored": 145,
-        "n_junk": 18,
-        "n_correct": 57,
-        "accuracy": 0.3931034482758621,
-        "macro_f1": 0.5323277024233962
+        "n_scored": 142,
+        "n_junk": 16,
+        "n_correct": 58,
+        "accuracy": 0.4084507042253521,
+        "macro_f1": 0.5543395939491478
       },
       "rows": [
         {
@@ -2946,8 +2953,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "market_for_equity",
-          "pred": "management_discussion",
-          "score": 0.239
+          "pred": "market_for_equity",
+          "score": 0.1967
         },
         {
           "doc_id": "doc_001",
@@ -2957,8 +2964,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "business_overview",
-          "score": 0.1435
+          "pred": "notes_to_financial_statements",
+          "score": 0.1639
         },
         {
           "doc_id": "doc_001",
@@ -2969,7 +2976,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "market_for_equity",
-          "score": 0.8036
+          "score": 0.8198
         },
         {
           "doc_id": "doc_001",
@@ -2980,7 +2987,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "corporate_governance",
-          "score": 0.6468
+          "score": 0.6389
         },
         {
           "doc_id": "doc_001",
@@ -2991,18 +2998,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "exhibits",
-          "score": 0.4074
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Pilot Travel Centers (PTC)",
-          "page": 35,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": "business_overview",
-          "pred": "business_overview",
-          "score": 0.185
+          "score": 0.4656
         },
         {
           "doc_id": "doc_001",
@@ -3013,7 +3009,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "risk_factors",
           "pred": "risk_factors",
-          "score": 0.675
+          "score": 0.7473
         },
         {
           "doc_id": "doc_001",
@@ -3024,7 +3020,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.176
+          "score": 0.2199
         },
         {
           "doc_id": "doc_001",
@@ -3034,8 +3030,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "risk_factors",
-          "pred": "business_overview",
-          "score": 0.2432
+          "pred": "sustainability",
+          "score": 0.1242
         },
         {
           "doc_id": "doc_001",
@@ -3046,7 +3042,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "management_discussion",
-          "score": 0.1619
+          "score": 0.1469
         },
         {
           "doc_id": "doc_001",
@@ -3057,51 +3053,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "market_for_equity",
           "pred": "market_for_equity",
-          "score": 0.7796
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Insurance—Investment Income",
-          "page": 66,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": "management_discussion",
-          "pred": "market_for_equity",
-          "score": 0.1807
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Insurance—Investment Income",
-          "page": 67,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": null,
-          "pred": "market_for_equity",
-          "score": 0.1807
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Railroad",
-          "page": 67,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": "management_discussion",
-          "pred": "business_overview",
-          "score": 0.2765
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Railroad",
-          "page": 68,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": null,
-          "pred": "business_overview",
-          "score": 0.2765
+          "score": 0.8024
         },
         {
           "doc_id": "doc_001",
@@ -3112,7 +3064,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "management_discussion",
           "pred": "management_discussion",
-          "score": 0.3539
+          "score": 0.3334
         },
         {
           "doc_id": "doc_001",
@@ -3122,8 +3074,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "controls_and_procedures",
-          "score": 0.2175
+          "pred": "management_discussion",
+          "score": 0.1797
         },
         {
           "doc_id": "doc_001",
@@ -3134,7 +3086,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "controls_and_procedures",
           "pred": "controls_and_procedures",
-          "score": 0.5789
+          "score": 0.5384
         },
         {
           "doc_id": "doc_001",
@@ -3144,8 +3096,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
-          "pred": "business_overview",
-          "score": 0.215
+          "pred": "other",
+          "score": 0.1753
         },
         {
           "doc_id": "doc_001",
@@ -3156,7 +3108,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "controls_and_procedures",
-          "score": 0.2121
+          "score": 0.1669
         },
         {
           "doc_id": "doc_001",
@@ -3166,8 +3118,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
-          "pred": "business_overview",
-          "score": 0.156
+          "pred": "sustainability",
+          "score": 0.1573
         },
         {
           "doc_id": "doc_001",
@@ -3177,8 +3129,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
-          "pred": "business_overview",
-          "score": 0.1624
+          "pred": "other",
+          "score": 0.183
         },
         {
           "doc_id": "doc_002",
@@ -3809,21 +3761,21 @@
         }
       ],
       "loadavg_end": [
-        10.11279296875,
-        10.83154296875,
-        9.474609375
+        3.2626953125,
+        2.91943359375,
+        2.78173828125
       ]
     },
     "jev": {
       "backend": "jev:jev-1.13.0",
       "config": "path+title+syn",
-      "load_s": 1.0600699589995202,
-      "seconds": 4.520171374000711,
-      "n_labelled": 163,
-      "s_per_section": 0.02773111272393074,
+      "load_s": 1.2333671669985051,
+      "seconds": 6.851084375004575,
+      "n_labelled": 159,
+      "s_per_section": 0.04308858097487154,
       "per_doc": {
         "doc_027": {
-          "seconds": 0.7841975409992301,
+          "seconds": 0.873105917002249,
           "n_labelled": 23,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -3840,7 +3792,7 @@
           "tokens_estimated": false
         },
         "doc_028": {
-          "seconds": 0.4177110830005404,
+          "seconds": 0.6799451249971753,
           "n_labelled": 16,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -3857,7 +3809,7 @@
           "tokens_estimated": false
         },
         "doc_029": {
-          "seconds": 0.9445437499998661,
+          "seconds": 1.8111690000005183,
           "n_labelled": 38,
           "doc_type": "research.research_paper",
           "doc_type_confidence": null,
@@ -3874,24 +3826,55 @@
           "tokens_estimated": false
         },
         "doc_001": {
-          "seconds": 0.6865170000000944,
-          "n_labelled": 29,
+          "seconds": 0.8278490000011516,
+          "n_labelled": 25,
           "doc_type": "financial.annual_report",
           "doc_type_confidence": null,
           "doc_type_matched": true,
           "taxonomy": "section_types/annual_report",
-          "unmatched_gold": [],
-          "unlabelled_sections": [],
-          "n_scored": 24,
-          "n_junk": 5,
+          "unmatched_gold": [
+            {
+              "section_title": "Pilot Travel Centers (PTC)",
+              "page": 35,
+              "level": 2
+            },
+            {
+              "section_title": "Insurance—Investment Income",
+              "page": 66,
+              "level": 2
+            },
+            {
+              "section_title": "Insurance—Investment Income",
+              "page": 67,
+              "level": 2
+            },
+            {
+              "section_title": "Railroad",
+              "page": 67,
+              "level": 2
+            },
+            {
+              "section_title": "Railroad",
+              "page": 68,
+              "level": 2
+            }
+          ],
+          "unlabelled_sections": [
+            {
+              "title": "The Scorecard in 2023",
+              "page": 13
+            }
+          ],
+          "n_scored": 21,
+          "n_junk": 3,
           "n_correct": 14,
-          "accuracy": 0.5833333333333334,
-          "macro_f1": 0.4712522045855379,
-          "tokens": 43865,
+          "accuracy": 0.6666666666666666,
+          "macro_f1": 0.5635964912280702,
+          "tokens": 37867,
           "tokens_estimated": false
         },
         "doc_002": {
-          "seconds": 1.261343083000611,
+          "seconds": 2.0724766249986715,
           "n_labelled": 45,
           "doc_type": "financial.annual_report",
           "doc_type_confidence": null,
@@ -3908,7 +3891,7 @@
           "tokens_estimated": false
         },
         "doc_016": {
-          "seconds": 0.4258589170003688,
+          "seconds": 0.5865387080048095,
           "n_labelled": 12,
           "doc_type": "legal.contract",
           "doc_type_confidence": null,
@@ -3926,11 +3909,11 @@
         }
       },
       "overall": {
-        "n_scored": 145,
-        "n_junk": 18,
+        "n_scored": 142,
+        "n_junk": 16,
         "n_correct": 103,
-        "accuracy": 0.7103448275862069,
-        "macro_f1": 0.7340366487772422
+        "accuracy": 0.7253521126760564,
+        "macro_f1": 0.7619005263395681
       },
       "rows": [
         {
@@ -4008,7 +3991,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 1.0
+          "score": 0.99
         },
         {
           "doc_id": "doc_027",
@@ -4052,7 +4035,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.42
+          "score": 0.39
         },
         {
           "doc_id": "doc_027",
@@ -4063,7 +4046,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.73
+          "score": 0.697
         },
         {
           "doc_id": "doc_027",
@@ -4074,7 +4057,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.7
+          "score": 0.75
         },
         {
           "doc_id": "doc_027",
@@ -4096,7 +4079,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "method",
-          "score": 0.61
+          "score": 0.65
         },
         {
           "doc_id": "doc_027",
@@ -4107,7 +4090,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "method",
-          "score": 0.87
+          "score": 0.78
         },
         {
           "doc_id": "doc_027",
@@ -4118,7 +4101,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.97
+          "score": 0.98
         },
         {
           "doc_id": "doc_027",
@@ -4129,7 +4112,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.88
+          "score": 0.87
         },
         {
           "doc_id": "doc_027",
@@ -4140,7 +4123,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.9
+          "score": 0.89
         },
         {
           "doc_id": "doc_027",
@@ -4151,7 +4134,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.88
+          "score": 0.86
         },
         {
           "doc_id": "doc_027",
@@ -4195,7 +4178,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "introduction",
-          "score": 0.7
+          "score": 0.69
         },
         {
           "doc_id": "doc_028",
@@ -4239,7 +4222,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.83
+          "score": 0.72
         },
         {
           "doc_id": "doc_028",
@@ -4250,7 +4233,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.98
+          "score": 0.96
         },
         {
           "doc_id": "doc_028",
@@ -4261,7 +4244,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.9394
+          "score": 0.93
         },
         {
           "doc_id": "doc_028",
@@ -4294,7 +4277,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "experiments",
-          "score": 0.91
+          "score": 0.92
         },
         {
           "doc_id": "doc_028",
@@ -4305,7 +4288,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "experiments",
           "pred": "experiments",
-          "score": 0.83
+          "score": 0.8
         },
         {
           "doc_id": "doc_028",
@@ -4316,7 +4299,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "experiments",
-          "score": 0.8
+          "score": 0.73
         },
         {
           "doc_id": "doc_028",
@@ -4338,7 +4321,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.87
+          "score": 0.85
         },
         {
           "doc_id": "doc_028",
@@ -4349,7 +4332,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "method",
-          "score": 0.84
+          "score": 0.8081
         },
         {
           "doc_id": "doc_028",
@@ -4360,7 +4343,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.77
+          "score": 0.7
         },
         {
           "doc_id": "doc_029",
@@ -4371,7 +4354,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "introduction",
-          "score": 0.73
+          "score": 0.75
         },
         {
           "doc_id": "doc_029",
@@ -4393,7 +4376,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": null,
           "pred": "introduction",
-          "score": 0.52
+          "score": 0.56
         },
         {
           "doc_id": "doc_029",
@@ -4415,7 +4398,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.99
+          "score": 0.98
         },
         {
           "doc_id": "doc_029",
@@ -4437,7 +4420,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.68
+          "score": 0.63
         },
         {
           "doc_id": "doc_029",
@@ -4448,7 +4431,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "method",
           "pred": "method",
-          "score": 0.88
+          "score": 0.89
         },
         {
           "doc_id": "doc_029",
@@ -4470,7 +4453,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.98
+          "score": 0.97
         },
         {
           "doc_id": "doc_029",
@@ -4481,7 +4464,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.78
+          "score": 0.88
         },
         {
           "doc_id": "doc_029",
@@ -4492,7 +4475,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.9495
+          "score": 0.88
         },
         {
           "doc_id": "doc_029",
@@ -4503,7 +4486,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.6
+          "score": 0.48
         },
         {
           "doc_id": "doc_029",
@@ -4514,7 +4497,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.74
+          "score": 0.76
         },
         {
           "doc_id": "doc_029",
@@ -4525,7 +4508,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.73
+          "score": 0.67
         },
         {
           "doc_id": "doc_029",
@@ -4536,7 +4519,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.63
+          "score": 0.58
         },
         {
           "doc_id": "doc_029",
@@ -4547,7 +4530,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.84
+          "score": 0.94
         },
         {
           "doc_id": "doc_029",
@@ -4569,7 +4552,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "results",
           "pred": "results",
-          "score": 0.65
+          "score": 0.76
         },
         {
           "doc_id": "doc_029",
@@ -4580,7 +4563,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "limitations",
           "pred": "experiments",
-          "score": 0.62
+          "score": 0.64
         },
         {
           "doc_id": "doc_029",
@@ -4602,7 +4585,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "discussion",
           "pred": "limitations",
-          "score": 1.0
+          "score": 0.99
         },
         {
           "doc_id": "doc_029",
@@ -4679,7 +4662,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "acknowledgements",
           "pred": "introduction",
-          "score": 0.51
+          "score": 0.63
         },
         {
           "doc_id": "doc_029",
@@ -4701,7 +4684,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.62
+          "score": 0.69
         },
         {
           "doc_id": "doc_029",
@@ -4723,7 +4706,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "appendix",
-          "score": 0.64
+          "score": 0.72
         },
         {
           "doc_id": "doc_029",
@@ -4734,7 +4717,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "experiments",
-          "score": 0.64
+          "score": 0.65
         },
         {
           "doc_id": "doc_029",
@@ -4756,7 +4739,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "method",
-          "score": 0.41
+          "score": 0.45
         },
         {
           "doc_id": "doc_029",
@@ -4767,7 +4750,7 @@
           "pred_taxonomy": "section_types/research_paper",
           "gold": "appendix",
           "pred": "results",
-          "score": 0.62
+          "score": 0.63
         },
         {
           "doc_id": "doc_029",
@@ -4789,7 +4772,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.86
+          "score": 0.9
         },
         {
           "doc_id": "doc_001",
@@ -4811,7 +4794,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "other",
-          "score": 0.94
+          "score": 0.93
         },
         {
           "doc_id": "doc_001",
@@ -4844,7 +4827,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "business_overview",
-          "score": 0.7
+          "score": 0.74
         },
         {
           "doc_id": "doc_001",
@@ -4855,7 +4838,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "shareholder_letter",
           "pred": "notes_to_financial_statements",
-          "score": 0.41
+          "score": 0.33
         },
         {
           "doc_id": "doc_001",
@@ -4866,7 +4849,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "market_for_equity",
           "pred": "market_for_equity",
-          "score": 0.51
+          "score": 0.79
         },
         {
           "doc_id": "doc_001",
@@ -4877,7 +4860,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.81
+          "score": 0.85
         },
         {
           "doc_id": "doc_001",
@@ -4914,17 +4897,6 @@
         },
         {
           "doc_id": "doc_001",
-          "section_title": "Pilot Travel Centers (PTC)",
-          "page": 35,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": "business_overview",
-          "pred": "business_overview",
-          "score": 0.57
-        },
-        {
-          "doc_id": "doc_001",
           "section_title": "Item 1A. Risk Factors",
           "page": 49,
           "level": 2,
@@ -4943,7 +4915,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.88
+          "score": 0.64
         },
         {
           "doc_id": "doc_001",
@@ -4953,7 +4925,7 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "risk_factors",
-          "pred": "business_overview",
+          "pred": "risk_factors",
           "score": 0.38
         },
         {
@@ -4965,7 +4937,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.68
+          "score": 0.65
         },
         {
           "doc_id": "doc_001",
@@ -4977,50 +4949,6 @@
           "gold": "market_for_equity",
           "pred": "market_for_equity",
           "score": 1.0
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Insurance—Investment Income",
-          "page": 66,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": "management_discussion",
-          "pred": "notes_to_financial_statements",
-          "score": 0.42
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Insurance—Investment Income",
-          "page": 67,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": null,
-          "pred": "notes_to_financial_statements",
-          "score": 0.44
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Railroad",
-          "page": 67,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": "management_discussion",
-          "pred": "business_overview",
-          "score": 0.7
-        },
-        {
-          "doc_id": "doc_001",
-          "section_title": "Railroad",
-          "page": 68,
-          "level": 2,
-          "taxonomy": "section_types/annual_report",
-          "pred_taxonomy": "section_types/annual_report",
-          "gold": null,
-          "pred": "business_overview",
-          "score": 0.67
         },
         {
           "doc_id": "doc_001",
@@ -5042,7 +4970,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.67
+          "score": 0.73
         },
         {
           "doc_id": "doc_001",
@@ -5064,7 +4992,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.9
+          "score": 0.89
         },
         {
           "doc_id": "doc_001",
@@ -5075,7 +5003,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.7
+          "score": 0.61
         },
         {
           "doc_id": "doc_001",
@@ -5085,8 +5013,8 @@
           "taxonomy": "section_types/annual_report",
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
-          "pred": "business_overview",
-          "score": 0.43
+          "pred": "other",
+          "score": 0.52
         },
         {
           "doc_id": "doc_001",
@@ -5097,7 +5025,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.47
+          "score": 0.41
         },
         {
           "doc_id": "doc_002",
@@ -5108,7 +5036,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "other",
-          "score": 0.9394
+          "score": 0.94
         },
         {
           "doc_id": "doc_002",
@@ -5119,7 +5047,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "other",
-          "score": 0.79
+          "score": 0.78
         },
         {
           "doc_id": "doc_002",
@@ -5152,7 +5080,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "other",
-          "score": 0.71
+          "score": 0.68
         },
         {
           "doc_id": "doc_002",
@@ -5163,7 +5091,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "other",
-          "score": 0.72
+          "score": 0.75
         },
         {
           "doc_id": "doc_002",
@@ -5174,7 +5102,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "other",
-          "score": 0.69
+          "score": 0.65
         },
         {
           "doc_id": "doc_002",
@@ -5185,7 +5113,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": null,
           "pred": "other",
-          "score": 0.5
+          "score": 0.45
         },
         {
           "doc_id": "doc_002",
@@ -5240,7 +5168,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.91
+          "score": 0.92
         },
         {
           "doc_id": "doc_002",
@@ -5350,7 +5278,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.59
+          "score": 0.5657
         },
         {
           "doc_id": "doc_002",
@@ -5372,7 +5300,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.9495
+          "score": 0.95
         },
         {
           "doc_id": "doc_002",
@@ -5383,7 +5311,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.8081
+          "score": 0.8182
         },
         {
           "doc_id": "doc_002",
@@ -5416,7 +5344,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "corporate_governance",
           "pred": "market_for_equity",
-          "score": 0.67
+          "score": 0.697
         },
         {
           "doc_id": "doc_002",
@@ -5438,7 +5366,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "other",
           "pred": "other",
-          "score": 0.91
+          "score": 0.95
         },
         {
           "doc_id": "doc_002",
@@ -5460,7 +5388,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.85
+          "score": 0.84
         },
         {
           "doc_id": "doc_002",
@@ -5471,7 +5399,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "controls_and_procedures",
-          "score": 0.43
+          "score": 0.36
         },
         {
           "doc_id": "doc_002",
@@ -5493,7 +5421,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.5455
+          "score": 0.6
         },
         {
           "doc_id": "doc_002",
@@ -5504,7 +5432,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "executive_compensation",
-          "score": 0.71
+          "score": 0.66
         },
         {
           "doc_id": "doc_002",
@@ -5526,7 +5454,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.52
+          "score": 0.4545
         },
         {
           "doc_id": "doc_002",
@@ -5537,7 +5465,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.97
+          "score": 0.96
         },
         {
           "doc_id": "doc_002",
@@ -5548,7 +5476,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.62
+          "score": 0.6
         },
         {
           "doc_id": "doc_002",
@@ -5559,7 +5487,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "management_discussion",
-          "score": 0.52
+          "score": 0.43
         },
         {
           "doc_id": "doc_002",
@@ -5570,7 +5498,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "other",
-          "score": 0.6869
+          "score": 0.69
         },
         {
           "doc_id": "doc_002",
@@ -5581,7 +5509,7 @@
           "pred_taxonomy": "section_types/annual_report",
           "gold": "exhibits",
           "pred": "corporate_governance",
-          "score": 0.46
+          "score": 0.39
         },
         {
           "doc_id": "doc_002",
@@ -5603,7 +5531,7 @@
           "pred_taxonomy": "section_types/contract",
           "gold": null,
           "pred": "parties_recitals",
-          "score": 0.75
+          "score": 0.74
         },
         {
           "doc_id": "doc_016",
@@ -5614,7 +5542,7 @@
           "pred_taxonomy": "section_types/contract",
           "gold": "parties_recitals",
           "pred": "parties_recitals",
-          "score": 0.93
+          "score": 0.92
         },
         {
           "doc_id": "doc_016",
@@ -5636,7 +5564,7 @@
           "pred_taxonomy": "section_types/contract",
           "gold": "scope_services",
           "pred": "scope_services",
-          "score": 0.84
+          "score": 0.86
         },
         {
           "doc_id": "doc_016",
@@ -5702,7 +5630,7 @@
           "pred_taxonomy": "section_types/contract",
           "gold": "signatures_exhibits",
           "pred": "signatures_exhibits",
-          "score": 0.99
+          "score": 0.98
         },
         {
           "doc_id": "doc_016",
@@ -5713,7 +5641,7 @@
           "pred_taxonomy": "section_types/contract",
           "gold": "signatures_exhibits",
           "pred": "signatures_exhibits",
-          "score": 1.0
+          "score": 0.99
         },
         {
           "doc_id": "doc_016",
@@ -5724,21 +5652,21 @@
           "pred_taxonomy": "section_types/contract",
           "gold": "signatures_exhibits",
           "pred": "signatures_exhibits",
-          "score": 0.66
+          "score": 0.697
         }
       ],
-      "tokens": 202823,
+      "tokens": 196825,
       "tokens_estimated": false,
-      "cost_usd": 0.008518566,
+      "cost_usd": 0.00826665,
       "loadavg_end": [
-        9.623046875,
-        10.7177734375,
-        9.4423828125
+        3.4013671875,
+        2.95361328125,
+        2.79443359375
       ]
     }
   },
   "date": "2026-10-16",
-  "commit": "ae6b037",
+  "commit": "0c22383",
   "env": {
     "python": "3.12.13",
     "platform": "macOS-26.5-arm64-arm-64bit",
@@ -5754,7 +5682,7 @@
       "pymupdf": "1.28.2"
     },
     "device": "mps",
-    "device_note": "MPS probe matmul took 0.21 s"
+    "device_note": "MPS probe matmul took 0.18 s"
   },
   "gold": {
     "path": "benchmarks/corpus/section_gold.jsonl",
@@ -5811,7 +5739,7 @@
       "id": "doc_001",
       "title": "Berkshire Hathaway Inc. 2023 Annual Report",
       "doc_type": "financial.annual_report",
-      "n_sections": 29,
+      "n_sections": 25,
       "n_gold": 29,
       "n_junk": 5
     },
@@ -14001,42 +13929,42 @@
     },
     "path+title+syn": {
       "ultrabert": {
-        "accuracy": 0.4896551724137931,
-        "macro_f1": 0.5400167703995455,
-        "n_correct": 71,
-        "n_scored": 145,
+        "accuracy": 0.5140845070422535,
+        "macro_f1": 0.57155916999667,
+        "n_correct": 73,
+        "n_scored": 142,
         "non_overlap": {
-          "accuracy": 0.32075471698113206,
-          "n_correct": 34,
-          "n_scored": 106
+          "accuracy": 0.34951456310679613,
+          "n_correct": 36,
+          "n_scored": 103
         },
-        "s_per_section": 0.018503237987732433,
+        "s_per_section": 0.018324967773615475,
         "top_preds": [
           [
             "experiments",
             18
           ],
           [
-            "business_overview",
-            18
-          ],
-          [
             "results",
             15
+          ],
+          [
+            "notes_to_financial_statements",
+            11
           ]
         ]
       },
       "bge-small": {
-        "accuracy": 0.3931034482758621,
-        "macro_f1": 0.5323277024233962,
-        "n_correct": 57,
-        "n_scored": 145,
+        "accuracy": 0.4084507042253521,
+        "macro_f1": 0.5543395939491478,
+        "n_correct": 58,
+        "n_scored": 142,
         "non_overlap": {
-          "accuracy": 0.18867924528301888,
-          "n_correct": 20,
-          "n_scored": 106
+          "accuracy": 0.20388349514563106,
+          "n_correct": 21,
+          "n_scored": 103
         },
-        "s_per_section": 0.0036660350184108095,
+        "s_per_section": 0.004340676364787992,
         "top_preds": [
           [
             "experiments",
@@ -14053,20 +13981,20 @@
         ]
       },
       "jev": {
-        "accuracy": 0.7103448275862069,
-        "macro_f1": 0.7340366487772422,
+        "accuracy": 0.7253521126760564,
+        "macro_f1": 0.7619005263395681,
         "n_correct": 103,
-        "n_scored": 145,
+        "n_scored": 142,
         "non_overlap": {
-          "accuracy": 0.6132075471698113,
+          "accuracy": 0.6310679611650486,
           "n_correct": 65,
-          "n_scored": 106
+          "n_scored": 103
         },
-        "s_per_section": 0.02773111272393074,
+        "s_per_section": 0.04308858097487154,
         "top_preds": [
           [
             "other",
-            25
+            26
           ],
           [
             "method",
@@ -14077,22 +14005,22 @@
             16
           ]
         ],
-        "tokens": 202823,
+        "tokens": 196825,
         "tokens_estimated": false,
-        "cost_usd": 0.008518566
+        "cost_usd": 0.00826665
       }
     }
   },
   "auto_doc_type": {
     "backend": "embedding:dmis-lab/UltraBERT-Embed-150M",
     "config": "path+title+syn",
-    "load_s": 18.053004082999905,
-    "seconds": 6.308037250999405,
-    "n_labelled": 163,
-    "s_per_section": 0.03869961503680616,
+    "load_s": 14.918895000002522,
+    "seconds": 4.140400374002638,
+    "n_labelled": 159,
+    "s_per_section": 0.026040253924544895,
     "per_doc": {
       "doc_027": {
-        "seconds": 0.7136017079992598,
+        "seconds": 0.5503787920024479,
         "n_labelled": 23,
         "doc_type": "research.research_paper",
         "doc_type_confidence": 0.6265047260813298,
@@ -14107,7 +14035,7 @@
         "macro_f1": 0.6038159371492705
       },
       "doc_028": {
-        "seconds": 0.698867084000085,
+        "seconds": 0.5751105829986045,
         "n_labelled": 16,
         "doc_type": "research.research_paper",
         "doc_type_confidence": 0.6624679945875664,
@@ -14122,7 +14050,7 @@
         "macro_f1": 0.5708333333333333
       },
       "doc_029": {
-        "seconds": 1.0155172089998814,
+        "seconds": 0.6985634579978068,
         "n_labelled": 38,
         "doc_type": "research.research_paper",
         "doc_type_confidence": 0.3721223094002722,
@@ -14137,22 +14065,53 @@
         "macro_f1": 0.7453042328042327
       },
       "doc_001": {
-        "seconds": 1.162137041999813,
-        "n_labelled": 29,
+        "seconds": 0.6685558750032214,
+        "n_labelled": 25,
         "doc_type": "financial.annual_report",
-        "doc_type_confidence": 0.1957273743920463,
+        "doc_type_confidence": 0.19001521526573667,
         "doc_type_matched": true,
         "taxonomy": "section_types/annual_report",
-        "unmatched_gold": [],
-        "unlabelled_sections": [],
-        "n_scored": 24,
-        "n_junk": 5,
-        "n_correct": 6,
-        "accuracy": 0.25,
-        "macro_f1": 0.2677248677248677
+        "unmatched_gold": [
+          {
+            "section_title": "Pilot Travel Centers (PTC)",
+            "page": 35,
+            "level": 2
+          },
+          {
+            "section_title": "Insurance—Investment Income",
+            "page": 66,
+            "level": 2
+          },
+          {
+            "section_title": "Insurance—Investment Income",
+            "page": 67,
+            "level": 2
+          },
+          {
+            "section_title": "Railroad",
+            "page": 67,
+            "level": 2
+          },
+          {
+            "section_title": "Railroad",
+            "page": 68,
+            "level": 2
+          }
+        ],
+        "unlabelled_sections": [
+          {
+            "title": "The Scorecard in 2023",
+            "page": 13
+          }
+        ],
+        "n_scored": 21,
+        "n_junk": 3,
+        "n_correct": 8,
+        "accuracy": 0.38095238095238093,
+        "macro_f1": 0.4041666666666667
       },
       "doc_002": {
-        "seconds": 1.9503649170001154,
+        "seconds": 1.0664913330037962,
         "n_labelled": 45,
         "doc_type": "financial.annual_report",
         "doc_type_confidence": 0.12098409356469637,
@@ -14167,7 +14126,7 @@
         "macro_f1": 0.6137566137566137
       },
       "doc_016": {
-        "seconds": 0.7675492910002504,
+        "seconds": 0.5813003329967614,
         "n_labelled": 12,
         "doc_type": "research.technical_standard",
         "doc_type_confidence": 0.5000303244616063,
@@ -14183,11 +14142,11 @@
       }
     },
     "overall": {
-      "n_scored": 145,
-      "n_junk": 18,
-      "n_correct": 66,
-      "accuracy": 0.45517241379310347,
-      "macro_f1": 0.46526929565207076
+      "n_scored": 142,
+      "n_junk": 16,
+      "n_correct": 68,
+      "accuracy": 0.4788732394366197,
+      "macro_f1": 0.49447583666333667
     },
     "rows": [
       {
@@ -15122,8 +15081,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "market_for_equity",
-        "pred": "business_overview",
-        "score": 0.1979
+        "pred": "market_for_equity",
+        "score": 0.2234
       },
       {
         "doc_id": "doc_001",
@@ -15133,8 +15092,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
-        "pred": "business_overview",
-        "score": 0.2278
+        "pred": "notes_to_financial_statements",
+        "score": 0.1682
       },
       {
         "doc_id": "doc_001",
@@ -15145,7 +15104,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "market_for_equity",
-        "score": 0.7065
+        "score": 0.8182
       },
       {
         "doc_id": "doc_001",
@@ -15156,7 +15115,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "corporate_governance",
-        "score": 0.6327
+        "score": 0.7864
       },
       {
         "doc_id": "doc_001",
@@ -15167,18 +15126,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": null,
         "pred": "exhibits",
-        "score": 0.8363
-      },
-      {
-        "doc_id": "doc_001",
-        "section_title": "Pilot Travel Centers (PTC)",
-        "page": 35,
-        "level": 2,
-        "taxonomy": "section_types/annual_report",
-        "pred_taxonomy": "section_types/annual_report",
-        "gold": "business_overview",
-        "pred": "business_overview",
-        "score": 0.2583
+        "score": 0.8643
       },
       {
         "doc_id": "doc_001",
@@ -15189,7 +15137,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "risk_factors",
         "pred": "risk_factors",
-        "score": 0.831
+        "score": 0.9332
       },
       {
         "doc_id": "doc_001",
@@ -15199,8 +15147,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
-        "pred": "business_overview",
-        "score": 0.1532
+        "pred": "notes_to_financial_statements",
+        "score": 0.1482
       },
       {
         "doc_id": "doc_001",
@@ -15210,8 +15158,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "risk_factors",
-        "pred": "business_overview",
-        "score": 0.2163
+        "pred": "risk_factors",
+        "score": 0.1611
       },
       {
         "doc_id": "doc_001",
@@ -15221,8 +15169,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
-        "pred": "sustainability",
-        "score": 0.126
+        "pred": "management_discussion",
+        "score": 0.1317
       },
       {
         "doc_id": "doc_001",
@@ -15233,51 +15181,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "market_for_equity",
         "pred": "market_for_equity",
-        "score": 0.6554
-      },
-      {
-        "doc_id": "doc_001",
-        "section_title": "Insurance—Investment Income",
-        "page": 66,
-        "level": 2,
-        "taxonomy": "section_types/annual_report",
-        "pred_taxonomy": "section_types/annual_report",
-        "gold": "management_discussion",
-        "pred": "market_for_equity",
-        "score": 0.1514
-      },
-      {
-        "doc_id": "doc_001",
-        "section_title": "Insurance—Investment Income",
-        "page": 67,
-        "level": 2,
-        "taxonomy": "section_types/annual_report",
-        "pred_taxonomy": "section_types/annual_report",
-        "gold": null,
-        "pred": "market_for_equity",
-        "score": 0.1514
-      },
-      {
-        "doc_id": "doc_001",
-        "section_title": "Railroad",
-        "page": 67,
-        "level": 2,
-        "taxonomy": "section_types/annual_report",
-        "pred_taxonomy": "section_types/annual_report",
-        "gold": "management_discussion",
-        "pred": "business_overview",
-        "score": 0.2074
-      },
-      {
-        "doc_id": "doc_001",
-        "section_title": "Railroad",
-        "page": 68,
-        "level": 2,
-        "taxonomy": "section_types/annual_report",
-        "pred_taxonomy": "section_types/annual_report",
-        "gold": null,
-        "pred": "business_overview",
-        "score": 0.2074
+        "score": 0.7864
       },
       {
         "doc_id": "doc_001",
@@ -15288,7 +15192,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "management_discussion",
         "pred": "management_discussion",
-        "score": 0.3767
+        "score": 0.4192
       },
       {
         "doc_id": "doc_001",
@@ -15299,7 +15203,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
         "pred": "controls_and_procedures",
-        "score": 0.2073
+        "score": 0.1812
       },
       {
         "doc_id": "doc_001",
@@ -15310,7 +15214,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "controls_and_procedures",
         "pred": "controls_and_procedures",
-        "score": 0.7978
+        "score": 0.9082
       },
       {
         "doc_id": "doc_001",
@@ -15320,8 +15224,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
-        "pred": "business_overview",
-        "score": 0.2345
+        "pred": "other",
+        "score": 0.1548
       },
       {
         "doc_id": "doc_001",
@@ -15332,7 +15236,7 @@
         "pred_taxonomy": "section_types/annual_report",
         "gold": "other",
         "pred": "controls_and_procedures",
-        "score": 0.2109
+        "score": 0.2118
       },
       {
         "doc_id": "doc_001",
@@ -15342,8 +15246,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "corporate_governance",
-        "pred": "business_overview",
-        "score": 0.1745
+        "pred": "management_discussion",
+        "score": 0.1153
       },
       {
         "doc_id": "doc_001",
@@ -15353,8 +15257,8 @@
         "taxonomy": "section_types/annual_report",
         "pred_taxonomy": "section_types/annual_report",
         "gold": "exhibits",
-        "pred": "business_overview",
-        "score": 0.1945
+        "pred": "other",
+        "score": 0.1111
       },
       {
         "doc_id": "doc_002",
@@ -15985,11 +15889,12 @@
       }
     ],
     "loadavg_end": [
-      9.25634765625,
-      10.583984375,
-      9.4326171875
+      8.1552734375,
+      4.09765625,
+      3.20947265625
     ],
     "matched": 5,
     "n": 6
-  }
+  },
+  "corpus": "benchmarks/corpus"
 }

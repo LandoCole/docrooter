@@ -80,12 +80,14 @@ MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 """Largest accepted upload; read on every request, so tests can patch it."""
 MAX_TEXT_UPLOAD_BYTES = 5 * 1024 * 1024
 """Largest accepted ``.md`` or ``.txt`` upload. PDFs are bounded by :data:`MAX_PAGES`; text has
-no pages, and its work and memory grow with its headings (about 250x the file for a
-heading-dense one). 5 MB is about a million words, well beyond a real filing as text."""
+no pages, and its work and memory grow with its headings: a heading on every other line peaks
+at about 250x the file, and about 900x with section labels on. 5 MB is most of a million
+words, well beyond a real filing as text."""
 MAX_TOC_ENTRIES = 5000
 """TOC (and section-label) entries a run keeps and returns; the rest are dropped and the
-result says ``truncated``. A long filing has a few hundred; 5,000 entries are about 0.6 MB
-of JSON per run, so :data:`HISTORY` runs stay small and the page builds a bounded tree."""
+result says ``truncated``. A long filing has a few hundred; 5,000 entries are about 0.6 MB of
+JSON per run (1.2 MB with section labels), so :data:`HISTORY` runs stay small and the page
+builds a bounded tree."""
 MAX_PAGES = 2000
 HISTORY = 20
 """Runs kept in memory; the oldest is dropped when a new one arrives."""

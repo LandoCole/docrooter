@@ -21,8 +21,11 @@ held-out evaluation and the repository essentials.
 - **Memory budget.** `docrooter.configure(memory_budget_gb=..., threads=..., device=...)` and the
   `DOCROOTER_MEMORY_BUDGET_GB`, `DOCROOTER_THREADS` and `DOCROOTER_DEVICE` variables set
   process-wide limits (8 GiB by default). On Apple silicon, Metal gets the budget minus 1.5 GiB of
-  host headroom. A model that runs out of MPS memory moves to the CPU once, with the same weights,
-  and logs a warning; fine-tuning first retries with half the batch.
+  host headroom. The cap applies to the whole process, configured or not: the first model load
+  sets `PYTORCH_MPS_HIGH_WATERMARK_RATIO` and `PYTORCH_MPS_LOW_WATERMARK_RATIO` in `os.environ`
+  (subprocesses inherit them) unless you set either one yourself. A model that runs out of MPS
+  memory moves to the CPU once, with the same weights, and logs a warning; fine-tuning first
+  retries with half the batch.
 - **Releasing models.** Every backend has `close()`; `Classifier` and `TrainedModel` close their
   models too, and `Classifier` works as a context manager. `classify_document` and
   `normalize_sections` close the backends they load from a spec string.
@@ -63,9 +66,10 @@ held-out evaluation and the repository essentials.
 - **Documentation site** (`mkdocs.yml`, pages in `docs/site/`): getting started, concepts, guides,
   a CLI reference generated from `--help` (`docs/gen_cli.py`), an API reference generated from the
   docstrings, the benchmark reports, and an FAQ. Every Python sample on it is a line of a script in
-  `examples/` (nine new ones; all but `openai_backend.py` run with the keyword backend, and some
-  need the `pdf` extra), and `tests/unit/test_docs_snippets.py` runs them and checks every CLI
-  option the pages mention. A `docs` workflow builds it with `mkdocs build --strict` on pushes to
+  `examples/` (ten new ones). All but `memory.py` (UltraBERT) and `openai_backend.py` (an
+  OpenAI-compatible server) run with the keyword backend, some need the `pdf` extra, and
+  `tests/unit/test_docs_snippets.py` runs those eight and checks every CLI option the pages
+  mention. A `docs` workflow builds it with `mkdocs build --strict` on pushes to
   `main` and on pull requests; nothing is deployed yet.
 - **`docrooter --version`** prints the installed version.
 - The playground uses the new mark (`favicon.svg`) as its tab icon.
@@ -74,11 +78,13 @@ held-out evaluation and the repository essentials.
 
 - The UltraBERT recipes read at most 1024 tokens (was 8192), and `train()` truncates to 512 tokens
   (`max_seq_len`) and fine-tunes with gradient checkpointing (`gradient_checkpointing=False`
-  restores the old behaviour). Fine-tuning on MPS used to reach 19.5 GB and fail.
+  restores the old behaviour). Fine-tuning on MPS used to fail (it reached 19.5 GB in a
+  development run).
 - The embedding cache is an LRU of 50,000 texts (`cache_size=`); it used to grow without bound.
 - The pdfplumber engine frees each page after reading it.
-- Loading a PDF with the default engine is about a fifth faster: 1.05 s per 100 pages on the dev
-  corpus, against 1.34 s before (see [docs/performance.md](docs/performance.md)).
+- Loading a PDF with the default engine is faster: its four load stages took 19% less time on
+  the ten profiling PDFs (0.94 against 1.15 s per 100 pages), and the TOC benchmark's 24 dev
+  PDFs load at 1.05 s per 100 pages (see [docs/performance.md](docs/performance.md)).
 - The package version is read from `docrooter.__version__` (a hatch dynamic version), so
   `pyproject.toml` and the module can no longer disagree.
 
@@ -93,7 +99,7 @@ held-out evaluation and the repository essentials.
 - The playground answers 400 to a `Content-Length` that is not an ASCII number (it answered 411,
   or 500 for a superscript digit, which `str.isdigit` accepts; a missing one is still 411), and
   ignores such a `Last-Event-ID` instead of failing.
-  `--env-file` reads `KEY= # comment` as an empty value instead of `# comment`.
+- `docrooter serve --env-file` reads `KEY= # comment` as an empty value instead of `# comment`.
 - The pdfplumber engine no longer splits every glyph into its own word when a slightly skewed
   text matrix gives the glyphs sizes that differ by float noise; such titles came out
   letter-spaced and were never heading candidates. Found through the held-out run, fixed on dev

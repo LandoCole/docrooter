@@ -543,7 +543,12 @@ with docrooter.Classifier(taxonomy) as clf:  # closes the models it loaded
 
 On Apple silicon, Metal gets a hard cap of the budget minus 1.5 GiB, and a model that still runs
 out of MPS memory moves to the CPU once, with a warning. On the CPU the budget only scales the
-batch size. Every backend has `close()`; a `TrainedModel` closes its body too, so save a body
+batch size. The cap is process-wide and applies whether or not you call `configure()`: the first
+model load sets `PYTORCH_MPS_HIGH_WATERMARK_RATIO` and `PYTORCH_MPS_LOW_WATERMARK_RATIO` in
+`os.environ`, so subprocesses you start afterwards inherit them, and caps Metal memory for the
+process, your own MPS models included. To opt out, set either variable yourself before the first
+model load (your values win; docrooter then sets neither and applies no fraction), or raise the
+budget. Every backend has `close()`; a `TrainedModel` closes its body too, so save a body
 fine-tuned in memory first. `docrooter doctype --chunk-size N --max-pages N` bounds memory on
 large corpora. The [memory guide](docs/site/guides/memory-performance.md) has every setting, and
 [docs/performance.md](docs/performance.md) the measured peaks (for example, classifying a

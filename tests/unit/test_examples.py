@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "examples"
 README = ROOT / "README.md"
 DOCS = ROOT / "docs"
-GENERATED = {"docs/benchmarks.md"}  # written by `python -m benchmarks.report`, not committed yet
+GENERATED = {"docs/benchmarks.md"}  # written by `python -m benchmarks.report` (committed)
 
 
 def _taxonomy(kind: str, body: str) -> Taxonomy:

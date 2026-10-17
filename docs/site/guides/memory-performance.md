@@ -28,11 +28,19 @@ next model load.
 
 - **Apple silicon (MPS).** Metal and the host share memory, so Metal gets a hard cap of the
   budget minus 1.5 GiB of headroom (at least half the budget), applied with
-  `torch.mps.set_per_process_memory_fraction`. If `configure` runs before torch is imported,
-  the `PYTORCH_MPS_HIGH_WATERMARK_RATIO` / `PYTORCH_MPS_LOW_WATERMARK_RATIO` variables are set
-  first so the cap holds from the first allocation. Watermark variables you set yourself are
-  never overridden. The cap covers Metal memory, not the whole process; the headroom is what
+  `torch.mps.set_per_process_memory_fraction`. If torch is not imported yet when the first
+  model loads, the `PYTORCH_MPS_HIGH_WATERMARK_RATIO` / `PYTORCH_MPS_LOW_WATERMARK_RATIO`
+  variables are set first (high = the fraction, low = 0.8 x the fraction), so the cap holds from
+  the first allocation. If something imported torch earlier, only the fraction applies, once the
+  model is loaded. The cap covers Metal memory, not the whole process; the headroom is what
   keeps the total within the budget.
+- **The cap is process-wide.** It applies on the first model load whether or not `configure`
+  was called (with the default 8 GiB budget). The watermark variables go into `os.environ`, so
+  subprocesses started afterwards inherit them, and the Metal fraction also caps the host
+  application's own MPS models. To opt out, set `PYTORCH_MPS_HIGH_WATERMARK_RATIO` or
+  `PYTORCH_MPS_LOW_WATERMARK_RATIO` yourself before the first model load: user values always
+  win, and docrooter then writes neither variable and applies no fraction. Raising the budget
+  loosens the cap instead.
 - **CPU.** Nothing caps the resident set. The budget only scales the default batch size.
 - **Batch size.** 32 on CUDA. Otherwise 16 at a budget of 8 GiB or more, halved for each halving
   below that, never under 4.

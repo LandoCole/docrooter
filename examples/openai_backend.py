@@ -15,10 +15,8 @@ import sys
 
 from docrooter import Classifier, Greedy, Taxonomy, load
 
-if not any(
-    os.environ.get(name)
-    for name in ("DOCROOTER_LLM_API_KEY", "OPENAI_API_KEY", "DOCROOTER_LLM_BASE_URL")
-):
+SETTINGS = ("DOCROOTER_LLM_API_KEY", "OPENAI_API_KEY", "DOCROOTER_LLM_BASE_URL", "OPENAI_BASE_URL")
+if not any(os.environ.get(name) for name in SETTINGS):
     sys.exit("set OPENAI_API_KEY, or DOCROOTER_LLM_BASE_URL for a local server (see the docs)")
 
 model = sys.argv[1] if len(sys.argv) > 1 else "gpt-4o-mini"

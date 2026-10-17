@@ -91,6 +91,7 @@ _STATIC = {
     "index.html": "text/html; charset=utf-8",
     "app.js": "text/javascript; charset=utf-8",
     "style.css": "text/css; charset=utf-8",
+    "favicon.svg": "image/svg+xml",
 }
 _SECURITY_HEADERS = {
     "Content-Security-Policy": (

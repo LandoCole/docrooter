@@ -398,12 +398,16 @@ def test_static_index_is_served(client):
     for name, kind in (("app.js", "text/javascript"), ("style.css", "text/css")):
         asset = client.get(f"/static/{name}")
         assert asset.status_code == 200 and asset.headers["content-type"].startswith(kind)
+    icon = client.get("/static/favicon.svg")
+    assert icon.status_code == 200 and icon.headers["content-type"].startswith("image/svg+xml")
+    assert 'rel="icon" type="image/svg+xml" href="/static/favicon.svg"' in html
+    assert "default-src 'self'" in icon.headers["content-security-policy"]
     assert client.get("/static/server.py").status_code == 404
     assert client.get("/static/..%2Fserver.py").status_code == 404
 
 
 def test_page_uses_no_external_assets(client):
-    for path in ("/", "/static/app.js", "/static/style.css"):
+    for path in ("/", "/static/app.js", "/static/style.css", "/static/favicon.svg"):
         text = client.get(path).text
         assert "http://" not in text.replace("http://www.w3.org", "")
         assert "https://" not in text

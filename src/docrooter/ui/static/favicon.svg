@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-labelledby="t">
+  <title id="t">docrooter</title>
+  <style>
+    .page { stroke: #1B2A49; }
+    .root { stroke: #14956A; }
+    .node { fill: #14956A; }
+    @media (prefers-color-scheme: dark) {
+      .page { stroke: #E8EEF8; }
+      .root { stroke: #4FD1A1; }
+      .node { fill: #4FD1A1; }
+    }
+  </style>
+  <g fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path class="page" d="M5 18V3H19L27 11V18M19 3V11H27"/>
+    <path class="page" d="M10 9H14"/>
+    <path class="root" d="M10 14H16V18M16 18L8 27M16 18V28M16 18L24 27"/>
+  </g>
+  <g class="node">
+    <circle cx="8" cy="27.5" r="2.5"/>
+    <circle cx="16" cy="28.5" r="2.5"/>
+    <circle cx="24" cy="27.5" r="2.5"/>
+  </g>
+</svg>

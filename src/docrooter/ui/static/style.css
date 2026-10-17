@@ -126,8 +126,6 @@ ol, ul { padding: 0; list-style: none; }
 
 .brand { display: flex; align-items: center; gap: 0.625rem; }
 .brand-mark { width: 1.5rem; height: 1.5rem; }
-.mark-doc { fill: var(--doc); }
-.mark-model { fill: var(--model); }
 .brand-name { font-weight: 700; font-size: 1.0625rem; letter-spacing: -0.01em; }
 .brand-name span { font-weight: 400; color: var(--muted); }
 

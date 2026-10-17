@@ -519,3 +519,24 @@ def test_render_markdown_handles_empty_dir_and_missing_suites(tmp_path):
 
 def test_benchdata_is_a_namedtuple_with_the_briefed_fields():
     assert BenchData._fields == ("name", "taxonomy", "test", "train_pool", "subset_ids")
+
+
+def test_render_markdown_skips_the_results_of_other_benchmarks(tmp_path):
+    (tmp_path / "zero-shot.json").write_text(json.dumps([_fixture_row("alpha", "b1", 0.8, 50.0)]))
+    (tmp_path / "pdf.json").write_text(json.dumps({"systems": {}, "env": {}}))
+    (tmp_path / "heldout-toc.json").write_text(json.dumps({"engines": {}}))
+    (tmp_path / "profile.json").write_text(json.dumps([{"doc": "x", "seconds": 1.0}]))
+    md = bench_report.render_markdown(tmp_path, link_base=tmp_path)
+    assert "## zero-shot" in md
+    assert "pdf.json" not in md and "heldout-toc" not in md and "profile" not in md
+
+
+def test_latest_results_dir_has_classification_results(tmp_path):
+    older, newer = tmp_path / "2026-01-01", tmp_path / "2026-01-02"
+    older.mkdir()
+    newer.mkdir()
+    (older / "few-shot.json").write_text(json.dumps([_fixture_row("a", "b1", 0.8, 5.0)]))
+    (newer / "profile.json").write_text(json.dumps({"documents": []}))
+    assert bench_report.latest_results_dir(tmp_path) == older
+    with pytest.raises(FileNotFoundError):
+        bench_report.latest_results_dir(newer)

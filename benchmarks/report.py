@@ -31,10 +31,24 @@ TITLES = {
 DECISIONS_FILE = "decisions.md"
 
 
+def classification_results(results_dir: Path) -> dict[str, list[dict[str, Any]]]:
+    """The section-classification suites in ``results_dir``: ``{suite: rows}`` for every JSON
+    file that holds a list of rows with a ``report``. Files of the other benchmarks (PDF, TOC,
+    normalisation, held-out, memory, profile) sit in the same directories and are skipped."""
+    suites = {}
+    for path in sorted(results_dir.glob("*.json")):
+        rows = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(rows, list) and all(isinstance(r, dict) and "report" in r for r in rows):
+            suites[path.stem] = rows
+    return suites
+
+
 def latest_results_dir(root: Path = RESULTS_ROOT) -> Path:
+    """The latest results directory under ``root`` that has classification results."""
     dirs = sorted(p for p in root.iterdir() if p.is_dir()) if root.exists() else []
+    dirs = [d for d in dirs if classification_results(d)]
     if not dirs:
-        raise FileNotFoundError(f"no results directories under {root}")
+        raise FileNotFoundError(f"no classification results under {root}")
     return dirs[-1]
 
 
@@ -151,13 +165,15 @@ def _env_line(rows: list[dict[str, Any]]) -> str:
 
 
 def render_markdown(results_dir: str | Path, link_base: str | Path | None = None) -> str:
-    """Markdown for every ``<suite>.json`` in ``results_dir``, then its ``decisions.md`` if any.
+    """Markdown for every classification suite in ``results_dir`` (see
+    :func:`classification_results`), then its ``decisions.md`` if any.
 
     ``link_base`` is the directory the result links are relative to (default: ``docs/``).
     """
     results_dir = Path(results_dir)
     base = Path(link_base) if link_base is not None else DOCS_OUT.parent
-    files = {p.stem: p for p in results_dir.glob("*.json")}
+    suites = classification_results(results_dir)
+    files = {stem: results_dir / f"{stem}.json" for stem in suites}
     ordered = [s for s in SUITE_ORDER if s in files] + sorted(set(files) - set(SUITE_ORDER))
     lines = [
         "# Benchmarks",
@@ -167,7 +183,7 @@ def render_markdown(results_dir: str | Path, link_base: str | Path | None = None
         "sections per second in the timed classification pass (model loading excluded).",
     ]
     for suite in ordered:
-        rows = json.loads(files[suite].read_text(encoding="utf-8"))
+        rows = suites[suite]
         lines += ["", f"## {suite}", ""]
         lines.append(f"Results: [{files[suite].name}]({_link(files[suite], base)})")
         if not rows:

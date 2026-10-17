@@ -54,3 +54,176 @@ devices: cpu; torch 2.14.1; transformers 5.20.0; sentence-transformers 6.1.0; do
 | ultrabert-embed | Beam(3) | 0 | 300 | 0.350 | 0.350 | 0.350 | 0.350 | 0.394 | 0.352 | 0.329 | 0.000 | 5.4 | 0.1846 | cpu |
 | bge-small | Beam(3) | 0 | 300 | 0.303 | 0.303 | 0.303 | 0.303 | 0.326 | 0.287 | 0.254 | 0.000 | 16.9 | 0.0591 | cpu |
 | deberta-nli | Beam(3) | 0 | 300 | 0.290 | 0.290 | 0.290 | 0.290 | 0.339 | 0.283 | 0.268 | 0.000 | 0.1 | 8.3594 | cpu |
+
+## few-shot
+
+Results: [few-shot.json](../benchmarks/results/2026-10-16/few-shot.json)
+
+devices: cpu, mps; torch 2.14.1; transformers 5.20.0; sentence-transformers 6.1.0; docrooter 0.1.0.dev0; revisions: embedding:dmis-lab/UltraBERT-Embed-150M @ 367d5343
+
+### Summary
+
+| System | Strategy | Shots | b1 hF1 | b2 hF1 | b3-subset hF1 | Mean hF1 | Min sections/s |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| ultrabert-embed/heads | Beam(3) | 16 | 0.888 (n=1000) | 0.922 (n=1000) | 0.700 (n=300) | 0.837 | 4.0 |
+| ultrabert-embed/heads | Beam(3) | 8 | 0.825 (n=1000) | 0.876 (n=1000) | 0.663 (n=300) | 0.788 | 3.8 |
+| bge-small/heads | Beam(3) | 16 | 0.864 (n=1000) | 0.854 (n=1000) | 0.643 (n=300) | 0.787 | 14.1 |
+| ultrabert-embed/heads | Beam(3) | 4 | 0.800 (n=1000) | 0.786 (n=1000) | 0.617 (n=300) | 0.735 | 4.2 |
+| bge-small/heads | Beam(3) | 8 | 0.801 (n=1000) | 0.777 (n=1000) | 0.600 (n=300) | 0.726 | 14.1 |
+| bge-small/heads | Beam(3) | 4 | 0.778 (n=1000) | 0.673 (n=1000) | 0.553 (n=300) | 0.668 | 14.5 |
+| bge-small/finetuned | Beam(3) | 16 | 0.923 (n=1000) | n/a | n/a | n/a | 25.2 |
+| ultrabert-embed/finetuned | Beam(3) | 16 | 0.936 (n=1000) | n/a | n/a | n/a | 7.3 |
+
+### B1: EDGAR-CORPUS 10-K items (Part, Item)
+
+| System | Strategy | Shots | n | Exact | hP | hR | hF1 | Macro-P | Macro-R | Macro-F1 | Stop rate | Sections/s | s/example | Device | Train s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ultrabert-embed/finetuned | Beam(3) | 16 | 1000 | 0.920 | 0.936 | 0.936 | 0.936 | 0.860 | 0.830 | 0.831 | 0.000 | 7.3 | 0.1369 | mps | 1061 |
+| bge-small/finetuned | Beam(3) | 16 | 1000 | 0.907 | 0.923 | 0.923 | 0.923 | 0.780 | 0.802 | 0.785 | 0.000 | 25.2 | 0.0397 | mps | 450 |
+| ultrabert-embed/heads | Beam(3) | 16 | 1000 | 0.869 | 0.888 | 0.888 | 0.888 | 0.802 | 0.812 | 0.788 | 0.000 | 4.6 | 0.2177 | cpu | 595 |
+| bge-small/heads | Beam(3) | 16 | 1000 | 0.845 | 0.864 | 0.864 | 0.864 | 0.780 | 0.766 | 0.748 | 0.000 | 14.1 | 0.0711 | cpu | 17 |
+| ultrabert-embed/heads | Beam(3) | 8 | 1000 | 0.801 | 0.825 | 0.825 | 0.825 | 0.698 | 0.780 | 0.716 | 0.000 | 4.3 | 0.2320 | cpu | 347 |
+| bge-small/heads | Beam(3) | 8 | 1000 | 0.771 | 0.801 | 0.801 | 0.801 | 0.653 | 0.745 | 0.675 | 0.000 | 14.1 | 0.0708 | cpu | 11 |
+| ultrabert-embed/heads | Beam(3) | 4 | 1000 | 0.765 | 0.800 | 0.800 | 0.800 | 0.647 | 0.739 | 0.657 | 0.000 | 4.2 | 0.2385 | cpu | 180 |
+| bge-small/heads | Beam(3) | 4 | 1000 | 0.730 | 0.778 | 0.778 | 0.778 | 0.621 | 0.703 | 0.636 | 0.000 | 14.5 | 0.0689 | cpu | 7 |
+
+### B2: DBPedia Classes (L1, L2, L3)
+
+| System | Strategy | Shots | n | Exact | hP | hR | hF1 | Macro-P | Macro-R | Macro-F1 | Stop rate | Sections/s | s/example | Device | Train s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ultrabert-embed/heads | Beam(3) | 16 | 1000 | 0.881 | 0.922 | 0.922 | 0.922 | 0.861 | 0.879 | 0.847 | 0.000 | 4.0 | 0.2502 | cpu | 381 |
+| ultrabert-embed/heads | Beam(3) | 8 | 1000 | 0.815 | 0.876 | 0.876 | 0.876 | 0.775 | 0.808 | 0.764 | 0.000 | 3.8 | 0.2660 | cpu | 170 |
+| bge-small/heads | Beam(3) | 16 | 1000 | 0.772 | 0.854 | 0.854 | 0.854 | 0.761 | 0.787 | 0.747 | 0.000 | 14.4 | 0.0693 | cpu | 70 |
+| ultrabert-embed/heads | Beam(3) | 4 | 1000 | 0.691 | 0.786 | 0.786 | 0.786 | 0.626 | 0.694 | 0.621 | 0.000 | 4.7 | 0.2111 | cpu | 83 |
+| bge-small/heads | Beam(3) | 8 | 1000 | 0.658 | 0.777 | 0.777 | 0.777 | 0.613 | 0.666 | 0.591 | 0.000 | 17.0 | 0.0587 | cpu | 44 |
+| bge-small/heads | Beam(3) | 4 | 1000 | 0.503 | 0.673 | 0.673 | 0.673 | 0.407 | 0.517 | 0.413 | 0.000 | 15.0 | 0.0668 | cpu | 38 |
+
+### B3: LEDGAR contract clauses (100 flat classes)
+
+| System | Strategy | Shots | n | Exact | hP | hR | hF1 | Macro-P | Macro-R | Macro-F1 | Stop rate | Sections/s | s/example | Device | Train s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ultrabert-embed/heads | Beam(3) | 16 | 1000 | 0.719 | 0.719 | 0.719 | 0.719 | 0.617 | 0.652 | 0.596 | 0.000 | 5.2 | 0.1936 | cpu | 176 |
+| ultrabert-embed/heads | Beam(3) | 8 | 1000 | 0.690 | 0.690 | 0.690 | 0.690 | 0.617 | 0.643 | 0.574 | 0.000 | 5.4 | 0.1851 | cpu | 103 |
+| bge-small/heads | Beam(3) | 16 | 1000 | 0.673 | 0.673 | 0.673 | 0.673 | 0.575 | 0.605 | 0.538 | 0.000 | 15.7 | 0.0638 | cpu | 34 |
+| ultrabert-embed/heads | Beam(3) | 4 | 1000 | 0.660 | 0.660 | 0.660 | 0.660 | 0.541 | 0.590 | 0.528 | 0.000 | 4.5 | 0.2227 | cpu | 53 |
+| bge-small/heads | Beam(3) | 8 | 1000 | 0.642 | 0.642 | 0.642 | 0.642 | 0.571 | 0.584 | 0.506 | 0.000 | 16.7 | 0.0597 | cpu | 17 |
+| bge-small/heads | Beam(3) | 4 | 1000 | 0.589 | 0.589 | 0.589 | 0.589 | 0.485 | 0.520 | 0.451 | 0.000 | 16.5 | 0.0606 | cpu | 11 |
+
+### B3 subset: LEDGAR, the fixed like-for-like sample
+
+| System | Strategy | Shots | n | Exact | hP | hR | hF1 | Macro-P | Macro-R | Macro-F1 | Stop rate | Sections/s | s/example | Device | Train s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ultrabert-embed/heads | Beam(3) | 16 | 300 | 0.700 | 0.700 | 0.700 | 0.700 | 0.635 | 0.664 | 0.607 | 0.000 | 4.8 | 0.2073 | cpu | 176 |
+| ultrabert-embed/heads | Beam(3) | 8 | 300 | 0.663 | 0.663 | 0.663 | 0.663 | 0.582 | 0.626 | 0.552 | 0.000 | 5.4 | 0.1857 | cpu | 103 |
+| bge-small/heads | Beam(3) | 16 | 300 | 0.643 | 0.643 | 0.643 | 0.643 | 0.556 | 0.607 | 0.541 | 0.000 | 16.7 | 0.0598 | cpu | 34 |
+| ultrabert-embed/heads | Beam(3) | 4 | 300 | 0.617 | 0.617 | 0.617 | 0.617 | 0.510 | 0.571 | 0.505 | 0.000 | 5.1 | 0.1954 | cpu | 53 |
+| bge-small/heads | Beam(3) | 8 | 300 | 0.600 | 0.600 | 0.600 | 0.600 | 0.510 | 0.552 | 0.479 | 0.000 | 18.3 | 0.0547 | cpu | 17 |
+| bge-small/heads | Beam(3) | 4 | 300 | 0.553 | 0.553 | 0.553 | 0.553 | 0.461 | 0.507 | 0.446 | 0.000 | 19.3 | 0.0517 | cpu | 11 |
+
+## strategies
+
+Results: [strategies.json](../benchmarks/results/2026-10-16/strategies.json)
+
+devices: mps; torch 2.14.1; transformers 5.20.0; sentence-transformers 6.1.0; docrooter 0.1.0.dev0; revisions: embedding:dmis-lab/UltraBERT-Embed-150M @ 367d5343
+
+### Summary
+
+| System | Strategy | Shots | b1 hF1 | b2 hF1 | b3-subset hF1 | Mean hF1 | Min sections/s |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| deberta-nli | Greedy | 0 | n/a | 0.291 (n=1000) | n/a | n/a | 0.4 |
+| deberta-nli | Beam(3) | 0 | n/a | 0.292 (n=1000) | n/a | n/a | 0.2 |
+| ultrabert-embed/heads | Greedy | 16 | n/a | 0.833 (n=1000) | n/a | n/a | 7.8 |
+| ultrabert-embed/heads | Beam(3) | 16 | n/a | 0.922 (n=1000) | n/a | n/a | 7.8 |
+
+### B2: DBPedia Classes (L1, L2, L3)
+
+| System | Strategy | Shots | n | Exact | hP | hR | hF1 | Macro-P | Macro-R | Macro-F1 | Stop rate | Sections/s | s/example | Device | Train s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ultrabert-embed/heads | Beam(3) | 16 | 1000 | 0.881 | 0.922 | 0.922 | 0.922 | 0.861 | 0.879 | 0.847 | 0.000 | 7.8 | 0.1287 | mps | 381 |
+| ultrabert-embed/heads | Greedy | 16 | 1000 | 0.770 | 0.833 | 0.833 | 0.833 | 0.731 | 0.768 | 0.718 | 0.000 | 7.8 | 0.1288 | mps | 381 |
+| deberta-nli | Beam(3) | 0 | 1000 | 0.233 | 0.292 | 0.292 | 0.292 | 0.171 | 0.202 | 0.164 | 0.000 | 0.2 | 4.4901 | mps | n/a |
+| deberta-nli | Greedy | 0 | 1000 | 0.219 | 0.291 | 0.291 | 0.291 | 0.165 | 0.192 | 0.150 | 0.000 | 0.4 | 2.7578 | mps | n/a |
+
+## Decisions
+
+The v0.1 spec wrote these rules down before any run
+([section classification design, "Decision rules"](superpowers/specs/2026-10-15-docrooter-section-classification-design.md)).
+Each rule is quoted verbatim, then applied to the results files above. Results that contradict
+expectations are recorded as they are. Mean hF1 is over B1, B2 and the fixed B3 subset (the
+*Summary* tables), unless stated otherwise.
+
+### Default zero-shot backend
+
+> **Default zero-shot backend:** highest mean hierarchical F1 across B1–B3, among backends with
+> at least 20 sections per second on M1 MPS. Ties go to the smaller model.
+
+Results: [zero-shot.json](../benchmarks/results/2026-10-16/zero-shot.json).
+
+- **The throughput criterion was not measured.** Every zero-shot run in `zero-shot.json` ran on
+  the CPU, not on M1 MPS, so the rule cannot be applied as written. On the CPU no backend reaches
+  20 sections/s: the slowest dataset of each gives UltraBERT-Embed 3.4, bge-small 15.0,
+  `ultrabert-mlm` 0.2 and `deberta-nli` 0.1 sections/s. The only zero-shot MPS measurement is
+  `deberta-nli` on B2 in [strategies.json](../benchmarks/results/2026-10-16/strategies.json):
+  0.2 (Beam(3)) and 0.4 (Greedy) sections/s.
+- **Accuracy.** Mean hF1: UltraBERT-Embed 0.425, `deberta-nli` 0.314, bge-small 0.292;
+  `ultrabert-mlm` has no B3 run, so no mean. On the full B3 (n=1000) UltraBERT-Embed scores
+  0.381 against bge-small's 0.337.
+- **Ruling: UltraBERT-Embed (`embedding:dmis-lab/UltraBERT-Embed-150M`) stays the default.** It
+  has the highest mean hF1 by 11 points. Its intended use, the document-type gate, classifies one
+  view per document, so per-section throughput is not what limits it. bge-small
+  (`embedding:BAAI/bge-small-en-v1.5`) is the speed alternative: about 4.4 times as fast on the
+  CPU (15.0 against 3.4 sections/s) at a mean hF1 of 0.292.
+
+### `mlm-choice` status
+
+> **`mlm-choice` status:** ships non-experimental only if, on both B1 and B2, it is within 3
+> hierarchical-F1 points of the best zero-shot backend.
+
+Results: [zero-shot.json](../benchmarks/results/2026-10-16/zero-shot.json).
+
+| Dataset | Best zero-shot backend | `ultrabert-mlm` | Gap |
+| --- | --- | --- | --- |
+| B1 | UltraBERT-Embed 0.752 (n=1000) | 0.435 (n=200) | 31.7 points |
+| B2 | `deberta-nli` 0.272 (n=200) | 0.259 (n=200) | 1.3 points |
+
+**Ruling: `mlm-choice` stays experimental.** It is within 3 points on B2 but 31.7 points behind
+on B1, and the rule asks for both. (The B1 samples differ in size, 200 against 1000; a gap of
+this size does not depend on that.)
+
+### Default training base model
+
+> **Default training base model:** highest hierarchical F1 at 16 examples per class, averaged
+> over B1–B3.
+
+Results: [few-shot.json](../benchmarks/results/2026-10-16/few-shot.json).
+
+| Base model (trained heads, k=16) | B1 | B2 | B3 (n=1000) | Mean | Mean with the B3 subset |
+| --- | --- | --- | --- | --- | --- |
+| UltraBERT-Embed | 0.888 | 0.922 | 0.719 | 0.843 | 0.837 |
+| bge-small | 0.864 | 0.854 | 0.673 | 0.797 | 0.787 |
+
+- **What ran.** Trained heads on a frozen body ran on all three datasets at 4, 8 and 16 examples
+  per class (on the CPU). The fine-tuned body ran only on B1 at k=16 (on MPS): UltraBERT-Embed
+  0.936, bge-small 0.923. So the averaged rule is applied to the heads, and the fine-tuned B1
+  pair agrees with it but cannot be averaged.
+- **Ruling: UltraBERT-Embed stays the default training base** (`train(base_model=...)` defaults
+  to `dmis-lab/UltraBERT-Embed-150M`): 0.843 against 0.797 averaged over B1-B3 at k=16, and
+  ahead at every k and on every dataset.
+
+### Default strategy
+
+> **Default strategy:** Beam(3), unless Greedy is within 1 point of Beam(3) path accuracy on B2
+> and at least 1.5× faster. In that case Greedy becomes the default.
+
+Results: [strategies.json](../benchmarks/results/2026-10-16/strategies.json) (B2, n=1000, MPS).
+Path accuracy is the *Exact* column.
+
+| System | Beam(3) exact | Greedy exact | Greedy behind by | Greedy speed-up |
+| --- | --- | --- | --- | --- |
+| UltraBERT-Embed trained heads (k=16) | 0.881 | 0.770 | 11.1 points | 1.00× (7.8 against 7.8 sections/s) |
+| `deberta-nli` zero-shot | 0.233 | 0.219 | 1.4 points | 1.63× (0.36 against 0.22 sections/s) |
+
+**Ruling: Beam(3) stays the default.** Neither system meets the accuracy condition. For the
+trained heads Greedy is also no faster; for the NLI backend it is fast enough but 1.4 points
+behind. In hF1 the heads show the same gap (0.922 against 0.833), while NLI's two strategies tie
+(0.292 against 0.291).

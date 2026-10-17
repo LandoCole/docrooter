@@ -83,4 +83,6 @@ is missing are skipped with a log line.
 Each row stores the full `Report`, the top-level `macro_p/r/f1`, `sections_per_sec`, `seconds_total`
 and `seconds_per_example` (the timed classification pass; model loading is excluded), plus
 `wall_seconds` for the whole cell and an `env` block with library versions and model revisions.
-A `decisions.md` next to the results file is appended to `docs/benchmarks.md`.
+A `decisions.md` next to the results file is appended to `docs/benchmarks.md`. The report reads
+only these classification suites (by default from the latest results directory that has
+any) and skips the other benchmarks' files in the same directory.

@@ -409,3 +409,37 @@ def test_pdfplumber_closes_every_page(toc_pdf, monkeypatch):
     monkeypatch.setattr(Page, "close", spy)
     load_pdf(toc_pdf, engine="pdfplumber", max_pages=2)
     assert closed[:2] == [1, 2]  # each page as soon as it is read
+
+
+def test_pdfplumber_headings_survive_glyph_size_noise(tmp_path):
+    """A text matrix with a tiny skew gives every glyph a slightly different float size in
+    pdfminer. Words were split at each change, so titles came out letter-spaced ("T o P r i
+    m i t i v e") and a long specification lost almost every heading under pdfplumber while
+    pymupdf found them all. With ``b * c > 0`` (as here) pdfminer also calls the glyphs not
+    upright, and merging them by size alone would order their letters top to bottom."""
+    pytest.importorskip("pdfplumber")
+    skew = 0.00002
+    pdf = pymupdf.open()
+    titles = []
+    for p in range(4):
+        page = pdf.new_page(width=612, height=792)
+        for font in ("helv", "hebo"):
+            page.insert_text((0, 0), " ", fontname=font, fontsize=1)  # registers the font
+        ops, y = [], 700
+        for s in range(3):
+            title = f"7.{p + 1}.{s + 1} ToPrimitive ( input [ , preferredType ] )"
+            titles.append(title)
+            ops.append(f"BT /hebo 1 Tf 12 {-skew:.6f} {-skew / 2:.6f} 12 72 {y} Tm ({title}) Tj ET")
+            y -= 30
+            for _ in range(5):
+                ops.append(
+                    f"BT /helv 1 Tf 10 {-skew:.6f} {-skew / 2:.6f} 10 72 {y} Tm "
+                    "(The abstract operation takes an argument and returns a value.) Tj ET"
+                )
+                y -= 14
+            y -= 24
+        pdf.update_stream(page.get_contents()[0], "\n".join(ops).encode())
+    path = _write(pdf, tmp_path / "skewed-spec.pdf")
+    for engine in ("pymupdf", "pdfplumber", "both"):
+        doc = load_pdf(path, engine=engine, use_bookmarks=False)
+        assert [s.title for s in doc.walk() if s.level > 0] == titles, engine

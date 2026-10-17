@@ -187,3 +187,77 @@ def test_touching_row_fragments_join_without_a_space():
     assert [f["text"] for f in joined] == ["This is the opening sentence"]
     spaced = frag("his", 95.0, 110.0, 125.0, 139.0, 10.0)
     assert _join_row_fragments([drop_cap, spaced])[0]["text"] == "T his"
+
+
+def _skewed_pdf(path, rows, b=-0.00002, c=0.00001):
+    """A PDF whose text matrices carry a tiny skew (``b``/``c`` off zero), as some producers
+    write them; pdfminer then gives every glyph a slightly different float ``size``, and with
+    ``b * c > 0`` it also calls the glyphs not upright."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    for font in ("helv", "hebo"):
+        page.insert_text((0, 0), " ", fontname=font, fontsize=1)  # registers the font
+    ops = [
+        f"BT /{font} 1 Tf {size} {b:.6f} {c:.6f} {size} 72 {y} Tm ({text}) Tj ET"
+        for font, size, y, text in rows
+    ]
+    doc.update_stream(page.get_contents()[0], "\n".join(ops).encode())
+    doc.save(path)
+    doc.close()
+    return path
+
+
+@pytest.mark.parametrize("c", [0.00001, -0.00001])  # upright / "rotated" to pdfminer
+def test_pdfplumber_keeps_words_whole_when_glyph_sizes_carry_float_noise(tmp_path, c):
+    pytest.importorskip("pdfplumber")
+    path = _skewed_pdf(
+        tmp_path / "skew.pdf",
+        [("hebo", 14, 700, "7.1.1 ToPrimitive ( input [ , preferredType ] )"),
+         ("helv", 10, 670, "The abstract operation takes an argument and returns a value.")],
+        c=c,
+    )  # fmt: skip
+    ref, _ = extract_lines(path, engine="pymupdf")
+    lines, _ = extract_lines(path, engine="pdfplumber")
+    expected = [
+        "7.1.1 ToPrimitive ( input [ , preferredType ] )",
+        "The abstract operation takes an argument and returns a value.",
+    ]
+    assert [ln.text for ln in ref] == expected
+    assert [ln.text for ln in lines] == expected
+    assert [(ln.size, ln.bold) for ln in lines] == [(14.0, True), (10.0, False)]
+
+
+def test_pdfplumber_rotated_text_is_left_alone(tmp_path):
+    pytest.importorskip("pdfplumber")
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 100), "Upright line", fontsize=11)
+    page.insert_text((300, 400), "Sideways", fontsize=11, rotate=90)
+    path = tmp_path / "rot.pdf"
+    doc.save(path)
+    doc.close()
+    lines, _ = extract_lines(path, engine="pdfplumber")
+    assert lines[0].text == "Upright line"
+    assert "Sideways" not in [ln.text for ln in lines]  # still read glyph by glyph, not as a word
+
+
+def test_denoised_chars_snaps_size_noise_along_a_line_only():
+    from docrooter.pdf.lines import _denoised_chars
+
+    def char(size, top, matrix=(1, 0, 0, 1, 0, 0), upright=True, font="F"):
+        return {"size": size, "top": top, "matrix": matrix, "upright": upright, "fontname": font}
+
+    skewed = (10, -2e-5, -1e-5, 10, 0, 0)  # b * c > 0: pdfminer says "not upright"
+    chars = [
+        char(10.0000011, 100.0, skewed, upright=False),
+        char(10.0000005, 100.00002, skewed, upright=False),
+        char(10.0004, 100.1),  # still noise: takes the line's size
+        char(10.0004, 140.0),  # another line (a diagram label): keeps its own size
+        char(10.5, 140.0),  # a real size change
+        char(10.5000001, 140.0, font="G"),  # another font
+        char(12.0, 300.0, (0, 1, -1, 0, 0, 0), upright=False),  # rotated 90 degrees
+    ]
+    out = _denoised_chars(chars)
+    assert [c["size"] for c in out] == [10.0000011] * 3 + [10.0004, 10.5, 10.5000001, 12.0]
+    assert [c["upright"] for c in out] == [True] * 6 + [False]
+    assert chars[1]["size"] == 10.0000005 and chars[0]["upright"] is False  # inputs untouched

@@ -26,6 +26,9 @@ _BOLD_FRACTION = 0.5
 _LINE_TOLERANCE = 2.0  # pdfplumber: words whose tops differ by at most this share a line
 _COLUMN_GAP_FACTOR = 3.0  # a gap above this many char widths splits a line (both engines)
 _BLOCK_GAP_FACTOR = 0.5  # pdfplumber: a gap above this fraction of the line height starts a block
+_SKEW_TOLERANCE = 1e-3  # pdfplumber: |b| + |c| below this share of the scale is float noise
+_SIZE_NOISE = 1e-3  # pdfplumber: pt; a smaller size change along a line is float noise
+_SAME_LINE_TOP = 1.0  # pdfplumber: pt; consecutive glyphs this close in top share a line
 _ROW_OVERLAP = 0.5  # pymupdf: lines overlapping vertically by half the shorter height share a row
 _WIDE_GAP_FACTOR = 2.0  # pymupdf: past this many char widths only a short label joins its row
 _SHORT_LABEL_CHARS = 12
@@ -241,10 +244,49 @@ def _pdfplumber_rows(
             progress(page_index + 1, len(pages))
 
 
+def _pdfplumber_words(page: Any) -> list[dict[str, Any]]:
+    """The page's words. pdfplumber cuts the glyph stream into runs of equal ``upright``, size
+    and font and finds the words of each run separately, so a size change always ends a word.
+
+    pdfminer derives a glyph's size from its transformed box, so a text matrix with a tiny
+    skew (``b``/``c`` around 1e-6, as some producers write) gives every glyph a slightly
+    different float size, and with ``b * c > 0`` it also calls the glyph not upright. Every
+    glyph then became a word of its own and the line text came out letter-spaced ("T o P r i
+    m i t i v e"), which silently removed almost every heading of a long specification. See
+    :func:`_denoised_chars`."""
+    utils = _import_pdfplumber().utils
+    return utils.extract_words(_denoised_chars(page.chars), extra_attrs=["size", "fontname"])
+
+
+def _denoised_chars(chars: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Copies of ``chars`` without float noise. A glyph that continues the previous one's line
+    (same font, top within 1 pt) at a size within 0.001 pt of it takes that size; other
+    size changes, such as nearby labels of a diagram, stay as they are. A glyph whose matrix is
+    axis-aligned up to noise counts as upright, or pdfplumber would order the letters of its
+    words top to bottom. Rotated text is left alone."""
+    out: list[dict[str, Any]] = []
+    prev: dict[str, Any] | None = None
+    for char in chars:
+        fixed = dict(char)
+        if (
+            prev is not None
+            and fixed["fontname"] == prev["fontname"]
+            and abs(fixed["size"] - prev["size"]) <= _SIZE_NOISE
+            and abs(fixed["top"] - prev["top"]) <= _SAME_LINE_TOP
+        ):
+            fixed["size"] = prev["size"]
+        a, b, c, d = (float(v) for v in fixed["matrix"][:4])
+        if a * d > 0 and abs(b) + abs(c) <= _SKEW_TOLERANCE * max(abs(a), abs(d)):
+            fixed["upright"] = True
+        out.append(fixed)
+        prev = fixed
+    return out
+
+
 def _pdfplumber_page_rows(page: Any, page_index: int) -> list[dict[str, Any]]:
     """The rows of one pdfplumber page, with block numbers."""
     width, height = float(page.width), float(page.height)
-    words = page.extract_words(extra_attrs=["size", "fontname"])
+    words = _pdfplumber_words(page)
     words.sort(key=lambda w: (w["top"], w["x0"]))
     grouped: list[list[dict[str, Any]]] = []
     for word in words:

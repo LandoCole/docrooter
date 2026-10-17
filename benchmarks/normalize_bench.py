@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from benchmarks import _guard, jev_chunks, pdf_bench
+from benchmarks import _guard, corpora, jev_chunks, pdf_bench
 from benchmarks.toc import git_revision
 from docrooter.document import Document
 from docrooter.evaluate.metrics import leaf_prf
@@ -555,12 +555,13 @@ def _variants(result: Mapping[str, Any]) -> list[str]:
     return lines
 
 
-def render_section(result: Mapping[str, Any]) -> str:
+def render_section(result: Mapping[str, Any], table_docs: Sequence[str] = TABLE_DOCS) -> str:
+    """The generated block; ``table_docs`` get a per-entry table each."""
     meta, systems = result["gold"]["meta"], result["systems"]
     names = [n for n in SYSTEMS if n in systems and "error" not in systems[n]]
     docs = result["documents"]
     lines = [
-        f"Silver set: `benchmarks/corpus/section_gold.jsonl`, {result['gold']['n_entries']} "
+        f"Silver set: `{result['gold']['path']}`, {result['gold']['n_entries']} "
         f"level-1/2 sections of {len(docs)} documents ({result['gold']['n_junk']} marked as "
         "parser junk, i.e. not a real section, and excluded from accuracy). **These are "
         "agent-assigned silver labels, not human gold:** an agent (Claude Opus 5.5) read each "
@@ -640,7 +641,7 @@ def render_section(result: Mapping[str, Any]) -> str:
                 f"| {d['id']} | `{d['doc_type']}` | {mark} `{p['doc_type']}` "
                 f"| {_f(p['doc_type_confidence'])} | `{p['taxonomy']}` | {_f(p['accuracy'])} |"
             )
-    for doc_id in TABLE_DOCS:
+    for doc_id in table_docs:
         d = next((x for x in docs if x["id"] == doc_id), None)
         if d is None or not names:
             continue
@@ -700,8 +701,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         "per-document results and the auto doc-type run, the others a summary",
     )
     parser.add_argument("--no-auto", action="store_true", help="skip the doc_type=None run")
-    parser.add_argument("--gold", type=Path, default=GOLD_PATH)
-    parser.add_argument("--corpus", type=Path, default=pdf_bench.CORPUS)
+    parser.add_argument(
+        "--gold", type=Path, default=None, help="default: <corpus>/section_gold.jsonl"
+    )
+    parser.add_argument(
+        "--corpus",
+        type=corpora.corpus_path,
+        default=pdf_bench.CORPUS,
+        help="dev, heldout or a corpus directory (results of a non-dev corpus go to "
+        "<name>-normalize.json)",
+    )
     parser.add_argument("--out", type=Path, default=None, help="results dir (default: dated)")
     parser.add_argument("--device", default=None, help="skip the MPS probe and use this device")
     parser.add_argument("--docs", type=Path, default=None, help="also update this Markdown file")
@@ -711,7 +720,8 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     out_dir = args.out or pdf_bench.RESULTS_ROOT / datetime.date.today().isoformat()
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / "normalize.json"
+    path = out_dir / corpora.results_name(args.corpus, "normalize.json")
+    args.gold = args.gold or args.corpus / GOLD_PATH.name
     if args.report_only:
         update_docs(args.docs or pdf_bench.DOCS_PATH, render_section(json.loads(path.read_text())))
         return
@@ -759,9 +769,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         },
         "date": datetime.date.today().isoformat(),
         "commit": git_revision(),
+        "corpus": corpora.relative(args.corpus),
         "env": pdf_bench.collect_env() | {"device": device, "device_note": note},
         "gold": {
-            "path": str(args.gold.relative_to(pdf_bench.ROOT)),
+            "path": str(args.gold.resolve().relative_to(pdf_bench.ROOT.resolve())),
             "meta": meta,
             "n_entries": len(gold_rows),
             "n_junk": sum(r["canonical"] is None for r in gold_rows),

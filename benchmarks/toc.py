@@ -23,12 +23,12 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
-from benchmarks import _guard
+from benchmarks import _guard, corpora
 from docrooter.pdf.signals import normalize_title, read_bookmarks
 
 Heading = tuple[str, int, int]  # (title, page, level)
 
-CORPUS = Path(__file__).parent / "corpus"
+CORPUS = corpora.DEV
 RESULTS_ROOT = Path(__file__).parent / "results"
 CACHE = Path(__file__).parent / ".cache"
 MIN_BOOKMARKS = 5
@@ -162,10 +162,7 @@ def aggregate(docs: Sequence[dict[str, Any]]) -> dict[str, Any]:
 def corpus_docs(corpus: Path = CORPUS, min_bookmarks: int = MIN_BOOKMARKS) -> list[dict[str, Any]]:
     """Corpus documents with at least ``min_bookmarks`` bookmarks, each with its gold headings."""
     docs = []
-    for line in (corpus / "manifest.jsonl").read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        row = json.loads(line)
+    for row in corpora.read_manifest(corpus):
         path = corpus / row["file"]
         if not path.exists():
             continue
@@ -434,7 +431,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="PDF TOC extraction benchmark")
     parser.add_argument("--engines", default=",".join(DEFAULT_ENGINES))
     parser.add_argument("--out", type=Path, default=None, help="results dir (default: dated)")
-    parser.add_argument("--corpus", type=Path, default=CORPUS)
+    parser.add_argument(
+        "--corpus",
+        type=corpora.corpus_path,
+        default=CORPUS,
+        help="dev, heldout or a corpus directory (results of a non-dev corpus go to "
+        "<name>-toc.json)",
+    )
     parser.add_argument("--min-bookmarks", type=int, default=MIN_BOOKMARKS)
     parser.add_argument("--llm-max-docs", type=int, default=LLM_MAX_DOCS)
     parser.add_argument("--docs", type=Path, default=None, help="also update this Markdown file")
@@ -444,19 +447,20 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     out_dir = args.out or RESULTS_ROOT / datetime.date.today().isoformat()
     out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / corpora.results_name(args.corpus, "toc.json")
     if args.report_only:
-        saved = json.loads((out_dir / "toc.json").read_text(encoding="utf-8"))
+        saved = json.loads(path.read_text(encoding="utf-8"))
         update_docs(args.docs or DOCS_PATH, render_tables(saved))
         return
     docs = corpus_docs(args.corpus, args.min_bookmarks)
     print(f"{len(docs)} corpus documents with >= {args.min_bookmarks} bookmarks", flush=True)
 
-    path = out_dir / "toc.json"
     if path.exists():  # keep engines from earlier invocations; --engines replaces only its own
         result = json.loads(path.read_text(encoding="utf-8"))
     else:
         result = {"engines": {}}
     result["env"] = collect_env()  # this invocation's; each engine keeps its own run metadata
+    result["corpus"] = corpora.relative(args.corpus)
     result |= {"min_bookmarks": args.min_bookmarks, "match": {"ratio": 0.85, "page_tol": 1}}
     for engine in [e.strip() for e in args.engines.split(",") if e.strip()]:
         subset = docs

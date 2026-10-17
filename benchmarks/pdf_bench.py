@@ -36,7 +36,7 @@ from typing import Any
 
 import numpy as np
 
-from benchmarks import _guard, jev_chunks
+from benchmarks import _guard, corpora, jev_chunks
 from docrooter.document import Document
 from docrooter.evaluate.metrics import leaf_prf
 from docrooter.taxonomies import builtin_taxonomy
@@ -44,7 +44,8 @@ from docrooter.taxonomy import Taxonomy
 from docrooter.views import RenderedView, estimate_tokens
 
 ROOT = Path(__file__).parent.parent
-CORPUS = Path(__file__).parent / "corpus"
+CORPUS = corpora.DEV
+HELDOUT = corpora.HELDOUT
 CACHE = Path(__file__).parent / ".cache"
 DOC_CACHE = CACHE / "docs"
 RESULTS_ROOT = Path(__file__).parent / "results"
@@ -73,12 +74,12 @@ MIX_GRID = (0.0, 0.25, 0.5, 0.75, 1.0)
 @dataclass(frozen=True)
 class System:
     id: str
-    kind: str  # "docrooter" (classify_documents), "jev-chunks" or "loo"
+    kind: str  # "docrooter" (classify_documents), "jev-chunks", "loo" or "transfer"
     what: str
     backend: str | None = None
     mode: str = "view"
     view: Mapping[str, Any] | None = None  # DocumentView(**view); None is the default view
-    method: str | None = None  # "loo" systems: "logistic-cv" or "ensemble-cv"
+    method: str | None = None  # "loo"/"transfer" systems: "logistic-cv" or "ensemble-cv"
     dev_tuned: bool = False  # settings chosen by looking at results on this corpus
 
     @property
@@ -147,6 +148,22 @@ SYSTEMS: dict[str, System] = {
             "loo",
             "Zero-shot UltraBERT-view and bge-view leaf distributions mixed, weight in "
             "{0, .25, .5, .75, 1} by inner leave-one-out (leave-one-out)",
+            method="ensemble-cv",
+        ),
+        System(
+            "ultrabert-dev-logistic",
+            "transfer",
+            "UltraBERT-Embed-150M view embeddings + logistic regression trained on all 51 dev "
+            "docs, C in {1, 10, 100, 1000} by inner leave-one-out on dev (trained on dev, "
+            "tested on another corpus)",
+            method="logistic-cv",
+        ),
+        System(
+            "ultrabert-bge-dev-ensemble",
+            "transfer",
+            "Zero-shot UltraBERT-view and bge-view leaf distributions mixed, weight in "
+            "{0, .25, .5, .75, 1} chosen by leave-one-out on the 51 dev docs (tested on another "
+            "corpus)",
             method="ensemble-cv",
         ),
     )
@@ -243,8 +260,8 @@ def bench_revision(root: Path = ROOT) -> str | None:
 
 
 def manifest(corpus: Path = CORPUS) -> list[dict[str, Any]]:
-    with (corpus / "manifest.jsonl").open(encoding="utf-8") as fh:
-        return [json.loads(line) for line in fh if line.strip()]
+    """The corpus's document records (a ``_meta`` header record is skipped)."""
+    return corpora.read_manifest(corpus)
 
 
 def parse_corpus(
@@ -842,7 +859,8 @@ def run_docrooter(
         batch_s += part_s
         new = []
         for doc_id, result in zip(part, results, strict=True):
-            if result.view_text != rendered[doc_id].text:
+            empty = result.best.stopped_reason == "empty_text"
+            if not empty and result.view_text != rendered[doc_id].text:
                 raise RuntimeError(f"{doc_id}: the classifier saw a different view text")
             row: dict[str, Any] = {
                 "doc_id": doc_id,
@@ -853,6 +871,8 @@ def run_docrooter(
                 "classify_s": part_s / len(part),
                 "view_sha": text_sha(result.view_text),
             }
+            if empty:  # no text layer: never sent to the backend, counted as a miss
+                row["stopped_reason"] = "empty_text"
             if isinstance(backend, jev_chunks.UsageJevBackend):
                 row["tokens"] = backend.tokens_for([result.view_text])
                 row["tokens_estimated"] = False
@@ -1066,6 +1086,109 @@ def run_loo(
     }
 
 
+def transfer_predict(
+    train_x: Sequence[Any],
+    train_y: Sequence[str],
+    test_x: Sequence[Any],
+    tuned: InnerLoo,
+) -> tuple[Any, list[tuple[str, dict[str, float], float]]]:
+    """Train on one corpus, predict another: the hyperparameter is chosen once, by ``tuned``'s
+    inner leave-one-out over the training documents only, then the model with that value is
+    fitted on all training documents and predicts every test document. Returns the chosen
+    value and ``(label, probs, seconds)`` per test document."""
+    value = tuned.select(train_x, train_y)
+    fit_predict = tuned.make(value)
+    out = []
+    for x in test_x:
+        start = time.perf_counter()
+        label, probs = fit_predict(train_x, train_y, x)
+        out.append((label, probs, time.perf_counter() - start))
+    return value, out
+
+
+def run_transfer(
+    system: System,
+    ids: Sequence[str],
+    docs: Mapping[str, tuple[Document, float]],
+    taxonomy: Taxonomy,
+    shared: SharedViews,
+    add_rows: AddRows = _no_rows,
+    train_corpus: Path = CORPUS,
+) -> dict[str, Any]:
+    """A "trained on dev, tested here" system: the :func:`run_loo` features (shared default
+    DocumentView, P9 instruction) of every ``train_corpus`` document and of ``ids``; the
+    hyperparameter is chosen by inner leave-one-out on the training corpus only. A test
+    document with no content (``classify_documents`` would stop it as ``empty_text``) gets no
+    prediction and counts as a miss."""
+    from docrooter.classify.documents import _has_content
+
+    train_entries = manifest(train_corpus)
+    train_ids = [e["id"] for e in train_entries]
+    overlap = sorted(set(train_ids) & set(ids))
+    if overlap:
+        raise ValueError(f"test documents are in the training corpus: {overlap[:5]}")
+    train_y = [e["label"] for e in train_entries]
+    train_docs = parse_corpus("auto", entries=train_entries, corpus=train_corpus)
+    train_shared = SharedViews(train_ids, train_docs)
+    models = [ULTRABERT] + ([BGE] if system.method == "ensemble-cv" else [])
+    load_s, embed_s = 0.0, 0.0
+    feats: dict[str, dict[str, tuple[np.ndarray, list[dict[str, float]]]]] = {}
+    differing: dict[str, int] = {}
+    for model in models:
+        embedder = ZeroShotEmbedder(model, taxonomy)
+        load_s += embedder.load_s
+        differing[model] = shared.n_differing(None, embedder.count)
+        log(
+            f"{system.id}: {model} load {embedder.load_s:.1f} s; embedding {len(train_ids)} "
+            f"training and {len(ids)} test views"
+        )
+        label_vecs = embedder.label_vecs("label-def")
+        start = time.perf_counter()
+        for part, texts in (("train", train_shared.texts(None)), ("test", shared.texts(None))):
+            vecs = embedder.embed(texts, INSTRUCTION)
+            feats.setdefault(part, {})[model] = (vecs, embedder.distributions(vecs, label_vecs))
+        embed_s += time.perf_counter() - start
+        del embedder
+        free_memory()
+
+    def features(part: str, n: int) -> list[LooDoc]:
+        vecs, dists = feats[part][ULTRABERT]
+        other = feats[part][BGE][1] if BGE in feats[part] else None
+        return [LooDoc(vecs[k], dists[k], other[k] if other else {}) for k in range(n)]
+
+    if system.method == "logistic-cv":
+        tuned = InnerLoo(logistic, LOGISTIC_C_GRID)
+    elif system.method == "ensemble-cv":
+        tuned = InnerLoo(ensemble, MIX_GRID)
+    else:
+        raise ValueError(f"unknown transfer method {system.method!r}")
+    chosen, preds = transfer_predict(
+        features("train", len(train_ids)), train_y, features("test", len(ids)), tuned
+    )
+    rows = _loo_rows(ids, docs, preds, embed_s / len(ids))
+    view_text = shared.rendered(None)
+    for row in rows:
+        row["chosen"] = chosen
+        row["view_sha"] = text_sha(view_text[row["doc_id"]].text)
+        if not _has_content(docs[row["doc_id"]][0]):
+            row |= {"pred": None, "confidence": 0.0, "leaf_probs_top3": {}}
+            row["stopped_reason"] = "empty_text"
+    add_rows(rows)
+    return {
+        "rows": rows,
+        "load_s": load_s,
+        "embed_s": embed_s,
+        "chosen": {str(chosen): len(rows)},
+        "train_corpus": corpora.relative(train_corpus),
+        "n_train": len(train_ids),
+        "train_views_sha256_12": dict(
+            zip(train_ids, map(text_sha, train_shared.texts(None)), strict=True)
+        ),
+        "view_counter": SHARED_COUNTER,
+        "views_differing_from_own_counter": differing,
+    }
+
+
 def _experiment(
     exp_id: str,
     group: str,
@@ -1249,7 +1372,7 @@ def best_docrooter(
         for s in _ordered(result)
         if not SYSTEMS[s].is_jev
         and SYSTEMS[s].dev_tuned == dev_tuned
-        and not (zero_shot_only and SYSTEMS[s].kind == "loo")
+        and not (zero_shot_only and SYSTEMS[s].kind in ("loo", "transfer"))
     ]
     metrics = {s: result["systems"][s]["metrics"] for s in candidates}
     return max(
@@ -1283,10 +1406,11 @@ def render_section(result: Mapping[str, Any], taxonomy: Taxonomy) -> str:
     counts = Counter(d["gold"] for d in result.get("documents", []))
     versions = env.get("versions", {})
     lo_n, hi_n = min(counts.values(), default=0), max(counts.values(), default=0)
+    corpus = result.get("corpus", "benchmarks/corpus")
     out.append(
-        f"Corpus: {n_docs} real PDFs from `benchmarks/corpus/` with gold labels from the "
+        f"Corpus: {n_docs} real PDFs from `{corpus}/` with gold labels from the "
         f"manifest, {len(leaves)} leaf types in 6 groups (`builtin:doc_types`; every label has a "
-        "definition, see `benchmarks/corpus/README.md`). Classes have "
+        f"definition, see `{corpus}/README.md`). Classes have "
         f"{lo_n}-{hi_n} documents each, so per-class numbers are anecdotal and one document "
         f"moves leaf accuracy by {100 / max(n_docs, 1):.1f} points. The 95% intervals are "
         f"percentile bootstraps over documents ({BOOTSTRAP_RESAMPLES} resamples, seed 0). Every "
@@ -1545,7 +1669,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Real-PDF document-type benchmark")
     parser.add_argument("--systems", default=",".join(DEFAULT_ORDER))
     parser.add_argument("--out", type=Path, default=None, help="results dir (default: dated)")
-    parser.add_argument("--corpus", type=Path, default=CORPUS)
+    parser.add_argument(
+        "--corpus",
+        type=corpora.corpus_path,
+        default=CORPUS,
+        help="dev, heldout or a corpus directory (results of a non-dev corpus go to "
+        "<name>-pdf.json)",
+    )
     parser.add_argument("--only", default=None, help="comma-separated doc ids (smoke runs)")
     parser.add_argument("--device", default=None, help="skip the MPS probe and use this device")
     parser.add_argument("--docs", type=Path, default=None, help="also update this Markdown file")
@@ -1561,7 +1691,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     taxonomy = builtin_taxonomy("doc_types")
     out_dir = args.out or RESULTS_ROOT / datetime.date.today().isoformat()
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / "pdf.json"
+    path = out_dir / corpora.results_name(args.corpus, "pdf.json")
     if args.report_only:
         saved = json.loads(path.read_text(encoding="utf-8"))
         update_docs(args.docs or DOCS_PATH, render_section(saved, taxonomy))
@@ -1585,6 +1715,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"systems": {}}
     )
     result["env"] = collect_env()
+    result["corpus"] = corpora.relative(args.corpus)
     result["documents"] = [
         {"id": e["id"], "title": e["title"], "pages": e["pages"], "gold": e["label"]}
         for e in entries
@@ -1623,6 +1754,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                 run = run_docrooter(system, ids, docs, taxonomy, shared, writer.add)
             elif system.kind == "jev-chunks":
                 run = run_jev_chunks(system, ids, by_id, taxonomy, args.corpus, writer.add)
+            elif system.kind == "transfer":
+                run = run_transfer(system, ids, docs, taxonomy, shared, writer.add)
             else:
                 run = run_loo(system, ids, docs, gold, taxonomy, shared, writer.add)
         except Exception as exc:  # noqa: BLE001 - one failing system must not lose the others

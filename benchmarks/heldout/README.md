@@ -9,6 +9,11 @@ set. Run it once, report the numbers, and stop. If you need to iterate, do it on
 corpus in `benchmarks/corpus/`. If this set is ever used for tuning, it is no longer held-out and
 a new set must be collected.
 
+**Status: spent.** It was run once, at the frozen commit `72f6135`
+([results](../../docs/benchmarks-heldout.md)). Its `pdfplumber` result led to the word-splitting
+fix `f3baa43`, which was developed on dev and synthetic PDFs only. Because a result from this set
+shaped a change, collect a new held-out set before the next generalisation claim.
+
 ## How it differs from the dev corpus
 
 - Same taxonomy: the 18 leaf ids of `benchmarks/corpus/doc_types.json`, unchanged.

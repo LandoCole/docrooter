@@ -66,11 +66,11 @@ normalisation it led by 11-21 points.
 each type's description. That gets the group right (UltraBERT picks the right one of the 6
 groups for 90% of documents), but siblings inside a group often differ by who published the
 document or why: a white paper is "not peer-reviewed", a government report is "issued by an
-agency". Those are not similarity features, so the local models got 0 of 3 white papers right.
-Jev answers a typed choice question over the view and the written definitions together, so it
-can apply such distinctions. Its two development misses were documents whose view itself was
-misleading (an NDA that opens with a page of instructions; a slide deck that parses to one
-section).
+agency". Those are not similarity features, so the UltraBERT-only systems got 0 of 3 white
+papers right (bge-small, alone or mixed with UltraBERT, got 1 of 3). Jev answers a typed choice
+question over the view and the written definitions together, so it can apply such distinctions.
+Its two development misses were documents whose view itself was misleading (an NDA that opens
+with a page of instructions; a slide deck that parses to one section).
 
 **What it costs.** A network call, a per-token price (the benchmark paid $0.0044 for typing 51
 documents from their views, and $0.008 for normalising 159 sections), and sending your text to

@@ -31,8 +31,15 @@ frozen commit. It finished at 22:29 with every harness exiting 0. Each results f
 with the frozen commit, the label commits (`ae6b037` for the manifest and `9d195cb` for the
 silver sections), per-step start and end times, HEAD at the end of each step (`72f6135` every
 time) and the list of benchmark-code paths changed since the freeze (empty every time). There
-were no code or configuration changes between the freeze and the run, and none after it. The run
-happened once and nothing was re-run. One later edit to those files: the `--out` argument in
+were no code or configuration changes between the freeze and the end of the run. Later changes
+postdate every held-out number, and none of them was run on this set. As of `f59afa2`, the later
+`src/` commits are: `f3baa43` and `1739fc5`, the pdfplumber word-splitting fix, which this run's
+`ho_025` result prompted and which was developed on dev and synthetic PDFs only (see the TOC
+analysis below); `70a9a0f`, faster PDF loading with unchanged output on the dev corpus; and
+typing, CLI, playground and packaging changes (`529fbcc`, `e0d9b49`, `3761126`, `55f0ac7`,
+`6ed6455`). The benchmark harnesses changed too: the profiler, the report renderers and the
+recorded `argv` (`74ac798`, below). Review fixes after `f59afa2` are listed in `CHANGELOG.md`.
+The run happened once and nothing was re-run. One later edit to those files: the `--out` argument in
 each step's recorded `argv` held an absolute path under the author's home directory, and v0.3 Q8
 shortened it to the repository-relative `benchmarks/results/2026-10-16`. No other byte changed.
 
@@ -46,7 +53,8 @@ Disclosures:
   under renamed ids, never on held-out data.
 - **Commits behind the dev numbers.** The dev numbers in the comparison come from the dev
   results files at the commits recorded in them:
-  - TOC: `e72fca6`.
+  - TOC: `e72fca6`, re-run at `70a9a0f` after `f3baa43` with identical aggregates and
+    per-document counts, so the committed `toc.json` now records `70a9a0f`.
   - Doc type: `53090c0`, `3bd85f2` and `0c22383+dirty`. The `+dirty` is a heading-level edit of
     the report renderer that was uncommitted when the dev re-run started.
   - Normalisation: `0c22383`.
@@ -159,18 +167,18 @@ micro F1 is 0.553.
    raising an error. That one document takes `pdfplumber` from roughly level with `pymupdf` to
    0.360 all-depth micro F1. It also drags `both` down at all depths (272 predictions against
    pymupdf's 2,065). Excluding `ho_025`, the three engines are within about 2 points of each
-   other (d<=2 micro 0.505-0.526). The cause was not investigated, because the held-out set must not be
-   used for debugging. It should be reproduced on a dev or synthetic document: a silent collapse
-   on a large, well-formed PDF is a robustness bug, not a tuning matter.
+   other (d<=2 micro 0.505-0.526). The cause was not investigated, because the held-out set must
+   not be used for debugging. It should be reproduced on a dev or synthetic document: a silent
+   collapse on a large, well-formed PDF is a robustness bug, not a tuning matter.
 
    **After the frozen run, a candidate cause was reproduced on dev and synthetic PDFs and fixed
    (v0.3 Q5, `f3baa43`); whether it is `ho_025`'s cause is not confirmed.** The fix did not
-   touch this set. On those PDFs, a text matrix with a tiny skew gives every glyph a slightly different float size in
-   pdfminer, and pdfplumber then split every glyph into its own word, so titles came out
-   letter-spaced and stopped being heading candidates. A synthetic specification went from 0
-   to 12 of 12 headings under `pdfplumber` with the fix. Whether this was `ho_025`'s cause
-   was not checked, because that would mean debugging on the held-out PDF; see the tuning log
-   in [benchmarks-pdf.md](benchmarks-pdf.md#tuning-log-p5b). **Every held-out number in this
+   touch this set. On those PDFs, a text matrix with a tiny skew gives every glyph a slightly
+   different float size in pdfminer, and pdfplumber then split every glyph into its own word, so
+   titles came out letter-spaced and stopped being heading candidates. A synthetic specification
+   went from 0 to 12 of 12 headings under `pdfplumber` with the fix. Whether this was `ho_025`'s
+   cause was not checked, because that would mean debugging on the held-out PDF; see the tuning
+   log in [benchmarks-pdf.md](benchmarks-pdf.md#tuning-log-p5b). **Every held-out number in this
    document is pre-fix:** it was measured at the frozen commit `72f6135`, before `f3baa43`
    landed, and is not re-run, so the `pdfplumber` and `both` rows still include the collapse.
 2. **Earnings releases and bilingual statutes.**
@@ -191,7 +199,7 @@ micro F1 is 0.553.
 
 Excluding those three (post hoc, shown only for scale), pymupdf d<=2 is 0.649 micro and 0.551
 macro, against 0.703 and 0.591 on dev. That remaining gap of about 5 points is within what
-23 documents can show.
+the remaining 20 documents can show.
 
 ### Section normalisation: holds for local models, Jev slightly lower
 
@@ -249,8 +257,8 @@ insurance and remedies clauses; mining reserves pages in the annual report).
 - add a guard so that `both` does not lose a good `pymupdf` parse when the second engine
   returns almost nothing;
 - add an `empty_text` or `no_text_layer` hint to the CLI output;
-- record the doc-type confidence in `normalize_sections` results, so a low-confidence auto type
-  can be flagged.
+- flag a low-confidence auto doc type in `normalize_sections` (the confidence is already
+  recorded, as `NormalizeResult.doc_type_confidence`).
 
 A held-out set used to choose these fixes is no longer held-out. A new set must be collected
 before the next generalisation claim.

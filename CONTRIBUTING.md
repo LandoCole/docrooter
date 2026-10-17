@@ -97,15 +97,21 @@ The benchmarks (`benchmarks/`) are how docrooter's claims are checked, so they f
   benchmark scripts may be changed by looking at its documents or results. Its numbers are in
   [docs/benchmarks-heldout.md](docs/benchmarks-heldout.md) from a single frozen run. If you need to
   iterate, do it on the development corpus (`benchmarks/corpus/`, 51 PDFs). A held-out set that has
-  been used for tuning is no longer held out, and a new one must be collected.
+  been used for tuning is no longer held out, and a new one must be collected. The current set is
+  spent: its `pdfplumber` result led to the fix `f3baa43` (developed on dev and synthetic PDFs
+  only), so collect a new set before the next generalisation claim.
 - **Report dev numbers as dev numbers.** Rules and defaults were chosen while looking at the
   development corpus, so its scores are optimistic. Say which corpus a number comes from, and keep
   the dev-versus-held-out comparison honest, including drops.
 - **Commit labels before you run.** Gold and silver labels are written and committed before any
   model sees the documents they label.
 - **Record provenance.** Results go to `benchmarks/results/<date>/` as JSON with the commit, the
-  environment and the machine load; the Markdown in `docs/benchmarks*.md` is generated from them
-  (`python -m benchmarks.report`, `python -m benchmarks.heldout_eval render`), not edited by hand.
+  environment and the machine load. The tables in `docs/benchmarks*.md` between the
+  `<!-- ...:begin -->` and `<!-- ...:end -->` markers, and all of `docs/benchmarks.md`, are
+  generated from them (`python -m benchmarks.report`, `python -m benchmarks.heldout_eval render`
+  and the `--docs` option of the PDF harnesses) and not edited by hand. The analysis around the
+  markers, and the `decisions.md` that `benchmarks.report` appends, are hand-written: after every
+  re-run, re-check each number in them against the JSON.
 - **Do not hide failures.** Rejected experiments, caveats and negative results belong in the write-up.
 - The PDFs themselves are not redistributed: the manifests list URLs and hashes, and the corpora are
   fetched into git-ignored folders.

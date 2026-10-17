@@ -46,9 +46,10 @@ sentence-transformers 6.1.0. Benchmark defaults applied: 4 threads, `TOKENIZERS_
 
 - **MPS train run:** the fraction 0.549 is 6.5 GiB of the 11.84 GiB that Metal recommends on
   this machine. Training stayed on MPS at batch 16, with no retry or fallback.
-- **Before the headroom:** with the whole budget given to Metal (fraction 0.6757), the same
-  run peaked at 7.02 GiB of Metal memory plus 1.13 GiB RSS, about 8.15 GiB in total. That was
-  over the budget, so the 1.5 GiB headroom was added.
+- **Before the headroom** (measured during development, not in a committed results file):
+  with the whole budget given to Metal (fraction 0.6757), the same run peaked at 7.02 GiB of
+  Metal memory plus 1.13 GiB RSS, about 8.15 GiB in total. That was over the budget, so the
+  1.5 GiB headroom was added.
 - **¹ classify on MPS** was measured under the earlier 0.6757 cap, before the footprint was
   recorded. Its total is RSS + Metal driver, and it is far under the budget either way.
 - **² CPU rows** were measured with `--device cpu` before the budget existed. They hold no
@@ -58,6 +59,9 @@ sentence-transformers 6.1.0. Benchmark defaults applied: 4 threads, `TOKENIZERS_
 - **Raw rows:** `benchmarks/results/2026-10-16/memory.json`.
 
 ### What the defaults changed
+
+The memory figures in this list come from development runs and are not in a committed results
+file, except the checkpointed CPU run, which is the `train` / CPU row of `memory.json` above.
 
 - **Fine-tuning activations dominate training memory.** One CPU fine-tuning step over 16 triplets
   (48 texts) at 512 tokens took the process to 9.7 GiB without gradient checkpointing and to
@@ -196,9 +200,15 @@ The v0.2 spec asks `load()` with the default engine to take under 1.5 s per 100 
 TOC benchmark's 24 bookmarked documents (2,649 pages, `use_bookmarks=False`, one untimed
 warm-up) at `70a9a0f`:
 
-- **Benchmark run:** **1.05 s/100 pages** (27.8 s), load average 3.2 / 2.4 / 2.4.
-- **A/B passes:** two back-to-back passes per version measured 1.34 s/100 pages before the Q5
-  optimisations (`f3baa43`) and 1.05-1.06 s/100 pages after them (load 2.4-3.4).
+- **Benchmark run:** **1.05 s/100 pages** (27.8 s), load average 3.2 / 2.4 / 2.4
+  (`benchmarks/results/2026-10-16/toc.json`).
+- **Before and after Q5, from the committed profiles:** on the profiling set (1,439 pages), the
+  four load stages (`extract`, `signals`, `headings`, `assemble`) took 16.55 s before the
+  optimisations (`profile-before-q5.json`) and 13.49 s after them (`profile.json`): 1.15
+  against 0.94 s/100 pages, 19% less. Almost all of what remains is pymupdf's
+  `get_text("dict")`.
+- **A/B passes** (measured during development, not in a committed results file): two
+  back-to-back passes per version over the 24 benchmark documents measured 1.34 s/100 pages
+  before the Q5 optimisations (`f3baa43`) and 1.05-1.06 s/100 pages after them (load 2.4-3.4).
 
-The criterion is met. On the profiling set, the four load stages took 13.5 s for 1,439 pages
-(0.94 s/100 pages), and almost all of it is pymupdf's `get_text("dict")`.
+The criterion is met.

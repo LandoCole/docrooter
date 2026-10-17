@@ -61,7 +61,7 @@ Environment: Python 3.12.13, arm64, 8 CPUs, pymupdf 1.28.2, pdfplumber 0.11.10, 
 
 After the P5b tuning and the v0.2 review fix for dot-leader tables (see the tuning log below), the default engine (`pymupdf`, what `engine="auto"` resolves to) scores 0.703 micro F1 at depth <= 2 (P 0.633, R 0.791), up from 0.478 (P 0.369, R 0.678) in P5. Macro F1 rose from 0.464 to 0.591. Level accuracy on matched pairs fell from 0.802 to 0.770 at depth <= 2, because many more headings now match (708 vs 607) and some of the new matches carry a gold level the extractor gets wrong. Over all depths it rose from 0.548 to 0.596. These figures were measured on the same 24 documents that were used to choose the rules, so they are optimistic; see the disclosure below. `pdfplumber` (0.711) and `both` (0.716) are slightly ahead on quality but take about 6x and 7x longer per document. The `pymupdf4llm` row is the P5 run (2026-10-16, commit `5610ada`). It was not re-run, because that engine uses the v0.1 Markdown path and does not go through the tuned detector. On its 8-document subset the tuned `pymupdf` now leads on F1 (0.650 vs 0.611 micro) while `pymupdf4llm` keeps far better level accuracy (0.97 vs 0.68).
 
-**Speed: the v0.2 criterion is met.** The v0.2 spec asks for under 1.5 s per 100 pages with the default engine. Re-measured in v0.3 (Q5) at `70a9a0f`, on the 24 documents (2,649 pages) with a load average of 3.2 at the start: 27.8 s, **1.05 s/100 pages**. Two back-to-back A/B passes over the same documents measured 1.34 s/100 pages with the code before the Q5 optimisations (`f3baa43`) and 1.05-1.06 s/100 pages after them (load 2.4-3.4), so the optimisations account for about a fifth of the time. Earlier runs measured 1.76 s/100 pages (P5b, load about 8) and 1.38 s/100 pages (`e72fca6`, load 9.8). See [Speed and the Rust decision](performance.md#speed-and-the-rust-decision).
+**Speed: the v0.2 criterion is met.** The v0.2 spec asks for under 1.5 s per 100 pages with the default engine. Re-measured in v0.3 (Q5) at `70a9a0f`, on the 24 documents (2,649 pages) with a load average of 3.2 at the start: 27.8 s, **1.05 s/100 pages**. The committed profiles give the effect of the Q5 optimisations: on the ten profiling documents (1,439 pages), the four load stages took 16.55 s before them (`f3baa43`, `profile-before-q5.json`) and 13.49 s after them (`70a9a0f`, `profile.json`), 1.15 against 0.94 s/100 pages, 19% less. Two back-to-back A/B passes over the 24 benchmark documents, measured during development and not in a committed results file, gave 1.34 s/100 pages before the optimisations and 1.05-1.06 s/100 pages after them (load 2.4-3.4). Earlier committed runs of this benchmark, since replaced in `toc.json` (see its git history), measured 1.76 s/100 pages (P5b, `0e8c75e`, load about 8) and 1.38 s/100 pages (`e72fca6`, load 9.8). See [Speed and the Rust decision](performance.md#speed-and-the-rust-decision).
 
 ### Tuning log (P5b)
 
@@ -107,7 +107,7 @@ The spec §2.3 score weights and the 0.55 default threshold were not changed.
 
 ### Remaining failure patterns (default engine, after tuning)
 
-- **RFC bookmarks nest every section under the title (doc_031-034).** Sections are gold level 2 and subsections gold level 3. The extractor puts sections at level 1 and subsections at level 2, so the subsections count as false positives at depth <= 2. Level accuracy is about 0 for these four documents. They account for 252 of the 413 depth <= 2 false positives. Without them, micro F1 on the other 20 documents is 0.781 (P 0.791, R 0.770). This comes from how the gold is built, not from the extractor, and it was left alone.
+- **RFC bookmarks nest every section under the title (doc_031-034).** Sections are gold level 2 and subsections gold level 3. The extractor puts sections at level 1 and subsections at level 2, so the subsections count as false positives at depth <= 2. Level accuracy is about 0 for these four documents. They account for 252 of the 411 depth <= 2 false positives. Without them, micro F1 on the other 20 documents is 0.782 (P 0.794, R 0.770). This comes from how the gold is built, not from the extractor, and it was left alone.
 - **Earnings releases (doc_009/010, F1 0.00).** All text is body size. Most gold titles (`Page 1 Financials (QTD)`, `CEO Quote`) are labels of page regions and are not printed as headings, so the only rule tried (above) was rejected.
 - **Slide decks (doc_050/051, F1 0.07/0.27).** Gold titles are `Slide N: ...`, which never occur in the text.
 - **Shallow gold (doc_001, F1 0.05).** The Berkshire annual report has 9 bookmarks. The extractor finds the Form 10-K `Item` headings and the letter's section titles, which the bookmarks do not list.
@@ -121,16 +121,18 @@ The spec §2.3 score weights and the 0.55 default threshold were not changed.
 
 ## Document-type classification
 
-**Headline.** On 51 real PDFs and 18 defined leaf types, TypeSafe Jev given docrooter's DocumentView (`jev-view`) is the most accurate system: 49/51 correct (leaf accuracy 0.961, macro F1 0.944), at 1.52 s/doc end to end and $0.0044 for the whole corpus. Jev on naive raw-text chunks (`jev-chunks`) gets 47/51 (0.922) using 10.7x the input tokens. Every view-based system now receives the same view text, rendered once with a shared word-based token counter (see *Views* below). The `jev-view`, `ultrabert-view`, `ultrabert-hybrid` and `bge-view` rows were re-run after the v0.2 contents-page fix (dot-leader tables no longer delete body text); no accuracy changed (see *Provenance*).
+**Headline.** On 51 real PDFs and 18 defined leaf types, TypeSafe Jev given docrooter's DocumentView (`jev-view`) is the most accurate system: 49/51 correct (leaf accuracy 0.961, macro F1 0.944), at 1.52 s/doc end to end and $0.0044 for the whole corpus. Jev on naive raw-text chunks (`jev-chunks`) gets 47/51 (0.922) using 10.7x the input tokens. Every view-based system now receives the same view text, rendered once with a shared word-based token counter (see *Views* below). The `jev-view`, `ultrabert-view`, `ultrabert-hybrid` and `bge-view` rows were re-run after the v0.2 contents-page fix (dot-leader tables no longer delete body text), and no accuracy changed. The other view-based rows and the P9b experiments were re-run on the same post-fix parses in v0.3; that moved `ultrabert-bge-loo` by 4 documents (see *Provenance*).
 
 With no API:
 
-- **Best honest local system:** the P9 configuration `ultrabert-hybrid` (0.6 view + 0.4 sections), chosen before any P9b result, gets 42/51 (0.824, macro F1 0.765). The plain `ultrabert-view` gets 39/51 (0.765).
-- **Best zero-shot, dev-tuned:** `ultrabert-view-tuned`, a lead-first DocumentView chosen on these same 51 documents, gets 43/51 (0.843, macro F1 0.808). The leave-one-out estimate of making that choice is also 43/51. That estimate is only a lower bound on the optimism, because the grid it chooses from was itself designed after seeing results on these documents.
-- **Promoted leave-one-out system:** `ultrabert-bge-loo`, a mix of the UltraBERT and bge zero-shot distributions with the weight chosen by inner LOO, gets 38/51 (0.745). This is 4 documents *below* its P9b result under per-backend rendering (0.824). It is now no better than `ultrabert-view`. The pairing, the mixing method and the decision to promote it were all made after seeing results on these documents, so even its earlier figure was mildly optimistic.
+- **Best honest local systems, tied at 42/51 (0.824):**
+  - `ultrabert-hybrid` (0.6 view + 0.4 sections), the P9 configuration, fixed before any P9b result: macro F1 0.765.
+  - `ultrabert-bge-loo`, a mix of the UltraBERT and bge zero-shot distributions with the weight chosen by inner leave-one-out (0.5 in all 51 folds): macro F1 0.784, so it is the per-class tables' pick below. It is the less clean estimate of the two. The pairing, the mixing method and the decision to promote it were all made after seeing results on these documents, and its score has moved by 4 documents twice without any change to the method: 0.824 in the first P9b run, 0.745 after the shared-view re-run, 0.824 again on the post-fix parses.
+  - The two disagree on 4 documents, 2 each way. The plain `ultrabert-view` gets 39/51 (0.765).
+- **Best zero-shot, dev-tuned:** `ultrabert-view-tuned`, a lead-first DocumentView chosen on these same 51 documents, gets 43/51 (0.843, macro F1 0.814). The leave-one-out estimate of making that choice is also 43/51. That estimate is only a lower bound on the optimism, because the grid it chooses from was itself designed after seeing results on these documents.
 - **Trained head:** the logistic head with C tuned by inner LOO (`ultrabert-loo`, which replaces P9's C=1 row at 0.235) gets 36/51 (0.706). No few-shot head beats zero-shot at 1-3 labelled documents per class.
 
-The gap from the best local system to Jev is 6-7 documents (12-14 points). These are single-run numbers on a small corpus, and rendering alone moves UltraBERT systems by up to 4 documents.
+The gap from the best local systems to Jev is 6-7 documents (12-14 points). These are single-run numbers on a small corpus, and rendering and parsing changes alone have moved UltraBERT systems by up to 4 documents.
 
 <!-- doctype-benchmark:begin -->
 Corpus: 51 real PDFs from `benchmarks/corpus/` with gold labels from the manifest, 18 leaf types in 6 groups (`builtin:doc_types`; every label has a definition, see `benchmarks/corpus/README.md`). Classes have 2-4 documents each, so per-class numbers are anecdotal and one document moves leaf accuracy by 2.0 points. The 95% intervals are percentile bootstraps over documents (1000 resamples, seed 0). Every system labels every document (threshold 0).
@@ -405,9 +407,9 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 
 ### Analysis
 
-**Shared views, and what changed (review fix).** In P9 and the first P9b run, each system rendered its own view with its own token counter: the backend's tokenizer for local models, and the word-based `estimate_tokens` for Jev, which has none. The same document could therefore reach different systems as different text. All view-based systems now get one rendering per document and view config, made with `estimate_tokens` (see *Views* above), and all were re-run on all 51 documents.
+**Shared views, and what changed (review fix).** In P9 and the first P9b run, each system rendered its own view with its own token counter: the backend's tokenizer for local models, and the word-based `estimate_tokens` for Jev, which has none. The same document could therefore reach different systems as different text. All view-based systems now get one rendering per document and view config, made with `estimate_tokens` (see *Views* above), and all were re-run on all 51 documents. The bullets and the table below compare the first P9b run with that shared-view re-run, which was still on the pre-fix parses; the v0.3 re-run on the post-fix parses comes after them.
 
-- **How many views differed under the old rendering.** For the default view: 25 of 51 for UltraBERT, 18 for bge-small, 13 for the NLI model and 0 for Jev. For the P9b view configs with UltraBERT: 20 (`lead1024`, `default1024-lead400`), 11 (`toc1024`) and 51 (`lead512`); bge's `lead512` also differed on all 51. Every difference is in where the budget cut falls, so it changes how much contents, lead or keyphrases a view keeps, never which fields appear first.
+- **How many views differed under the old rendering (shared-view re-run).** For the default view: 25 of 51 for UltraBERT, 18 for bge-small, 13 for the NLI model and 0 for Jev. For the P9b view configs with UltraBERT: 20 (`lead1024`, `default1024-lead400`), 11 (`toc1024`) and 51 (`lead512`); bge's `lead512` also differed on all 51. Every difference is in where the budget cut falls, so it changes how much contents, lead or keyphrases a view keeps, never which fields appear first.
 - **Unchanged predictions.** `jev-view` (identical inputs, 104,384 tokens again), `bge-view` and `nli-view` give the same prediction on every document. bge and the NLI model cut at 512 tokens themselves, so the extra text never reached them.
 - **Changed predictions.** UltraBERT reads up to 8,192 tokens, and its systems moved:
 
@@ -420,23 +422,35 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
   | `ultrabert-bge-loo` | -4 | none | doc_001, doc_006, doc_023, doc_036 |
 
   In the zero-shot grid, 7 of the 16 UltraBERT configs moved by 1-2 documents. Most notably, `lead512` dropped from 43 to 41 with the P9 labels.
-- **What this implies.** Differences of 1-4 documents between UltraBERT configurations are within what the token-counting detail alone produces. The earlier P9b ensemble gain was not robust to it.
+- **The v0.3 re-run on the post-fix parses.** The four systems below and the P9b experiments had still read pre-fix views. On the post-fix parses, the text of 7 documents (doc_001, doc_013, doc_014, doc_031, doc_032, doc_036 and doc_045) changed in the default view (as in the contents-page re-run, see *Provenance*) and in the `lead1024`, `toc1024` and `default1024-lead400` views; the `lead512` view changed for doc_031 only. Against the shared-view re-run:
+
+  | System | Change in correct documents | Fixed | Broken |
+  |---|---|---|---|
+  | `nli-view` | 0 | none | none |
+  | `ultrabert-view-tuned` | 0 | doc_002 | doc_040 |
+  | `ultrabert-loo` | 0 | none | none |
+  | `ultrabert-bge-loo` | +4 | doc_001, doc_006, doc_023, doc_036 | none |
+
+  `ultrabert-bge-loo` regained exactly the four documents the shared-view re-run had cost it. doc_001's view changed with the fix. In the other three folds (doc_006, doc_023, doc_036; doc_036's view also changed) the inner leave-one-out now picks the weight 0.5 instead of 0.25. In the grid, 4 of the 16 UltraBERT configs moved by 1 document, and in the experiment tables `ensemble-cv` gained 4, `logistic-C100` lost 2, `ensemble-w0.5` and `knn-k5` gained 1, and `knn-k3` lost 1.
+- **What this implies.** Differences of 1-4 documents between UltraBERT configurations are within what the token-counting detail and the parse alone produce. The ensemble's 0.824 is not a robust estimate: the same method has scored 0.824, 0.745 and 0.824 on renderings of the same 51 documents.
 
 **Is the gap real?** On 51 documents one document is 2 accuracy points. Paired comparisons on the same documents use an exact McNemar test on the discordant documents and a paired bootstrap of the accuracy difference (1000 resamples, seed 0):
 
 | Comparison | Only the first right | Only the second right | p | Difference (paired CI) |
 |---|---|---|---|---|
 | `jev-view` vs `ultrabert-hybrid` | 7 | 0 | 0.016 | +0.137 (+0.06 to +0.24) |
-| `jev-view` vs `ultrabert-view-tuned` | 7 | 1 (doc_015) | 0.07 | +0.118 (+0.02 to +0.24) |
+| `jev-view` vs `ultrabert-bge-loo` | 7 | 0 | 0.016 | +0.137 (+0.06 to +0.24) |
+| `jev-view` vs `ultrabert-view-tuned` | 7 | 1 (doc_015) | 0.07 | +0.118 (+0.02 to +0.22) |
 | `jev-view` vs `ultrabert-view` | 10 | 0 | 0.002 | |
-| `jev-view` vs `ultrabert-bge-loo` | 11 | 0 | 0.001 | |
 | `jev-view` vs `jev-chunks` | 3 | 1 | 0.63 | |
-| `ultrabert-view-tuned` vs `ultrabert-view` | 4 | 0 | 0.125 | |
+| `ultrabert-view-tuned` vs `ultrabert-view` | 5 | 1 (doc_040) | 0.22 | |
 | `ultrabert-hybrid` vs `ultrabert-view` | 3 | 0 | 0.25 | |
+| `ultrabert-bge-loo` vs `ultrabert-view` | 4 | 1 (doc_022) | 0.38 | |
+| `ultrabert-bge-loo` vs `ultrabert-hybrid` | 2 | 2 | 1.00 | |
 
 - **Jev's lead is real** over every local system except the dev-tuned view. Against that view it is likely but not significant at 5%.
 - **Jev view vs Jev chunks:** this corpus cannot separate them.
-- **Local gains over `ultrabert-view`:** none is significant on its own.
+- **Local gains over `ultrabert-view`:** none is significant on its own, and the two systems tied at 0.824 cannot be told apart.
 
 **Where `jev-view` fails (2 of 51).**
 
@@ -451,44 +465,48 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
 
 **Where the local zero-shot backends fail.** UltraBERT is good at the group: level-1 accuracy is 0.90 for `ultrabert-view`, 0.92 for `ultrabert-hybrid` and 0.94 for `ultrabert-view-tuned`. Most errors fall inside a group, between siblings whose definitions differ by who published the document or why rather than by vocabulary.
 
-- **White papers.** `ultrabert-view`, `ultrabert-hybrid` and `ultrabert-view-tuned` each get 0 of 3. They predict `research_paper` or `government_report`, because "not peer-reviewed" and "issued by an agency" are not similarity features.
+- **White papers.** `ultrabert-view`, `ultrabert-hybrid` and `ultrabert-view-tuned` each get 0 of 3. They predict `research_paper` or `government_report` (`ultrabert-view-tuned`: `sustainability_report` for doc_036), because "not peer-reviewed" and "issued by an agency" are not similarity features.
 - **Contracts.**
   - `ultrabert-view` and `ultrabert-hybrid` get 0 of 2. The NIST CRADA (doc_016) reads like a `technical_standard`, and the NDA (doc_015) like `government_report` or `terms_policy`.
   - `ultrabert-view-tuned` gets the NDA right, narrowly: `contract` 0.17 against `terms_policy` 0.17.
 - **Shareholder letters vs annual reports.**
   - doc_003, Amazon's annual report, starts with the 1997 shareholder letter, and DocumentView takes its title from the first non-letter-spaced level-1 heading ("1997 LETTER TO SHAREHOLDERS").
   - The Berkshire letters go to `investor_presentation` or `annual_report` in `ultrabert-view`.
-  - doc_002 (Tesla's 10-K) goes to `proxy_statement` in both `ultrabert-view` (0.15 against 0.10 for `annual_report`) and `ultrabert-view-tuned` (0.18 against 0.15).
+  - doc_002 (Tesla's 10-K) goes to `proxy_statement` in `ultrabert-view` (0.15 against 0.10 for `annual_report`). `ultrabert-view-tuned` gets it right on the post-fix parses (`annual_report` 0.24 against 0.12); it had predicted `proxy_statement` in the shared-view re-run.
 - **Other `ultrabert-view` errors.**
   - doc_023 (a per-curiam court opinion) is predicted as `legislation` (0.22 against 0.18 for `court_opinion`). Dobbs (doc_020) is now right (`court_opinion` 0.63); under the old rendering `ultrabert-view` predicted `legislation`.
   - The RP2040 datasheet (doc_042) is predicted as `user_manual` (0.32 against 0.26 for `datasheet`).
   - `ultrabert-hybrid` fixes doc_002, doc_023 and doc_042 and breaks nothing. The cost is about 5x the classify time (3.1 vs 0.62 s/doc in the contents-page re-run; 5.4 vs 0.75 in the shared-view run), because it embeds every leaf section.
 
-`bge-view` (0.608) is limited by bge-small's 512-token window: the view plus the query prompt does not fit, so the end of the view is truncated. It also sends documents of several groups to `proxy_statement` and `earnings_release`. `nli-view` (0.569) is both the least accurate zero-shot system and by far the slowest (15.1 s/doc), because it runs 18 premise-hypothesis pairs of up to 512 tokens per document through DeBERTa on MPS.
+`bge-view` (0.608) is limited by bge-small's 512-token window: the view plus the query prompt does not fit, so the end of the view is truncated. It also sends documents of several groups to `proxy_statement` and `earnings_release`. `nli-view` (0.569) is both the least accurate zero-shot system and by far the slowest (11.59 s/doc end to end, 10.13 s of it classification), because it runs 18 premise-hypothesis pairs of up to 512 tokens per document through DeBERTa on MPS.
 
-**How close can local get (P9b).** Every configuration tried is in the *Configurations tried (P9b)* tables above. The numbers there are from the shared-view re-run, and nothing else was evaluated except the scratch prototypes noted below.
+**How close can local get (P9b).** Every configuration tried is in the *Configurations tried (P9b)* tables above. The numbers there are from the v0.3 re-run (shared views, post-fix parses), and nothing else was evaluated except the scratch prototypes noted below.
 
 - **Zero-shot variants (16 UltraBERT configs and 4 bge configs, all scored on this corpus).** The grid is a 3x2x2 factorial (view x instruction x label text), plus two ablations of the lead-first view. The ablations were added after the first results.
   - *View.* Putting 400 words of lead first is what helps.
     - At 1,024 tokens (`lead1024`) it gains 1-4 documents over the default view in all four instruction/label combinations.
     - At the default 512 tokens (`lead512`), where it leaves little room for the contents, it gains 0-2.
     - Keeping the default field order and only raising the budget and lead (`default1024-lead400`) gains +1 or -1, so the order matters.
-    - A contents-heavy view (`toc1024`) gains 1 document in each combination.
+    - A contents-heavy view (`toc1024`) moves by -1 to +1 document (+1, +1, -1 and 0 over the four combinations).
   - *Instruction.* "Identify the type of document from its title, contents and opening text" is worse than or equal to "What type of document is this?" in all 6 paired comparisons, by 0-3 documents.
-  - *Label text.* Definition-first helps in 5 of the 8 UltraBERT pairs (+1 or +2), is neutral in 2 and hurts in 1 (-1 at `lead1024`). It hurts bge in both pairs. It is not a consistent win, and no gain exceeds 2 documents, which is within the rendering noise above.
+  - *Label text.* Definition-first helps in 4 of the 8 UltraBERT pairs (+1 or +2), is neutral in 3 and hurts in 1 (-1 at `lead1024`). It hurts bge in both pairs. It is not a consistent win, and no gain exceeds 2 documents, which is within the rendering noise above.
   - *Selection bias.* The best config (43/51) was picked after seeing these 51 documents. Re-running the choice by leave-one-out (`zero-shot-config-loo`: the config most accurate on the other 50 documents predicts the held-out one) picks `lead1024` in all 51 folds and also gives 43/51. This estimate is mildly optimistic and is a lower bound on the optimism: it accounts for choosing among the 16 configs, but not for having designed the grid (the views, instructions and ablations) after seeing results on the same documents.
 - **Few-shot, honest leave-one-out.** The features are the shared default view, as fixed in P9. Each held-out document is predicted from the other 50, with hyperparameters chosen by inner leave-one-out on those 50 only.
-  - Logistic regression (C = 1000 in 50 of 51 folds): 0.706. Nearest centroid: 0.667. kNN (k = 1 in every fold): 0.765, the same as zero-shot `ultrabert-view`.
+  - Logistic regression (C = 1000 in 49 of 51 folds, C = 100 in 2): 0.706. Nearest centroid: 0.667. kNN (k = 1 in every fold): 0.765, the same as zero-shot `ultrabert-view`.
   - The package's own few-shot mechanism (`TaxonomyNode.examples`, where a leaf vector is the mean of the label and example vectors) gets 0.686, 4 documents *below* zero-shot. Whole-document embeddings of 1-3 examples pull each leaf towards the examples' publisher and layout rather than the type.
   - Mixing the zero-shot distribution with centroid evidence (`prior-centroid-cv`, weight 0.25 in 46 folds) gets 0.725, below zero-shot alone.
   - The supervised heads reach level-1 accuracy of 0.88-0.96. They fail at the same within-group distinctions as zero-shot, with less information than the written definitions.
-- **Ensemble.** `ensemble-cv` mixes the UltraBERT-view and bge-view zero-shot distributions, with the weight chosen by inner LOO (0.5 in 48 folds, 0.25 in 3), and gets 0.745. A fixed weight of 0.5 would have given 0.804. Under the old rendering this system was 0.824 with 0.5 in every fold. It was promoted to the aggregate table (`ultrabert-bge-loo`) from that result. The choices of pairing (UltraBERT with bge), mixing method (a linear mix of distributions) and which LOO system to call "best honest" were all made after seeing results on these 51 documents, so it is mildly optimistic as a system. Re-running under shared views shows the gain was not robust. It stays in the table, not swapped for a post-hoc winner, so the record shows what was promoted.
+- **Ensemble.** `ensemble-cv` mixes the UltraBERT-view and bge-view zero-shot distributions, with the weight chosen by inner LOO (0.5 in all 51 folds), and gets 0.824 (42/51, macro F1 0.784), the same as a fixed weight of 0.5 (`ensemble-w0.5`). It is the aggregate table's `ultrabert-bge-loo`, and it ties `ultrabert-hybrid` (2 discordant documents each way).
+  - *History.* It was promoted to the aggregate table from the first P9b run, where it scored 0.824 with 0.5 in every fold. The shared-view re-run gave 0.745 (0.5 in 48 folds, 0.25 in 3; a fixed 0.5 gave 0.804). The v0.3 re-run on the post-fix parses gives 0.824 again (see *Shared views* above for the four documents that moved).
+  - *Caveats.* The choices of pairing (UltraBERT with bge), mixing method (a linear mix of distributions) and which LOO system to call "best honest" were all made after seeing results on these 51 documents, so it is mildly optimistic as a system. A 4-document swing caused by rendering and parsing, not by the method, means its edge over `ultrabert-view` (+3 documents) is not a stable estimate.
+  - It stays in the table, not swapped for a post-hoc winner, so the record shows what was promoted. On the held-out corpus its dev-weighted counterpart scores 0.800, below zero-shot `ultrabert-view` (0.825; see *Dev vs held-out* below).
 - **Not reported as rows, disclosed here.** Prototype runs during the first P9b pass, on the dev-tuned `lead512` features with the old rendering, gave 0.765 for the UltraBERT+bge mix and 0.26-0.84 for the few-shot heads. None was above that view's own zero-shot score.
 - **Remaining errors of `ultrabert-view-tuned` (8 of 51).**
   - All three white papers (doc_035-037).
   - The NIST CRADA (doc_016) as `technical_standard`.
-  - Amazon's annual report (doc_003) and Tesla's 10-K (doc_002), as `shareholder_letter` and `proxy_statement`.
+  - Amazon's annual report (doc_003) as `shareholder_letter`.
   - One Berkshire letter (doc_007) as `annual_report`.
+  - The Raspberry Pi Pico guide (doc_040, a user manual) as `datasheet` (0.34 against 0.24).
   - doc_050, which every system misses.
 
   Jev gets 7 of these 8 right. They are distinctions of genre and intent ("not peer-reviewed", "issued to promote a view", "a letter bundled into a report") that cosine similarity to a definition does not capture.
@@ -496,11 +514,11 @@ Rows are gold, columns are predictions, numbered as the rows. Empty cells are 0;
   - *More labelled data.* At 1-3 documents per class no supervised head beats zero-shot, so the learning curve starts above this corpus. A trained head, or the package's fine-tuning, would plausibly need tens of documents per class, plus a separate held-out set to measure it.
   - *A larger or different local model.* The errors are judgements about genre, not missing text, so model capacity rather than the view looks like the bottleneck. Candidates are larger instruction-tuned embedding models, or a small local generative model asked the same Choice as Jev. Neither was tested here.
   - *A held-out corpus.* The P9b view should be confirmed on documents not used to choose it before it is trusted at 0.84.
-- **Package defaults were not changed.** The lead-first view is the only zero-shot change worth at least 3 points, and it is not clearly general.
+- **Package defaults were not changed.** The lead-first view is the only single change to the default configuration worth more than 2 documents (+4), and it is not clearly general.
   - It costs bge 2 documents (0.608 to 0.569).
   - `jev-view`'s 0.961 was measured with the default view.
   - It was chosen on the evaluation set itself.
-  - Its gain over the default (4 vs 0 discordant documents, p = 0.125) is not significant.
+  - Its gain over the default (5 vs 1 discordant documents, p = 0.22) is not significant.
 
   `DocumentView(fields=("title", "lead", "toc", "keyphrases", "stats"), max_tokens=1024, lead_words=400)` is the documented option for UltraBERT users. The instruction and label-text variants did not help consistently.
 
@@ -522,7 +540,7 @@ When no API is allowed:
 
 - **The honest local choice is `ultrabert-hybrid`** (0.824, 0.92 group accuracy). It is a P9 configuration fixed before P9b, at about 5x the classify time of `ultrabert-view` (7x in the shared-view run).
 - **`ultrabert-view-tuned`** is a single pass at 0.843, but it was tuned on these documents. Its leave-one-out estimate (0.843) is a lower bound on that optimism, not an unbiased figure, and it should be confirmed on held-out documents.
-- **`ultrabert-bge-loo`** (0.745) was promoted from a result that did not survive the shared-view re-run. Its pairing, mixing method and "best honest" label were all chosen after seeing these 51 documents.
+- **`ultrabert-bge-loo`** ties it at 0.824 (macro F1 0.784, 0.92 group accuracy) and classifies faster (0.26 against 3.09 s/doc), but it needs two models, its pairing, mixing method and "best honest" label were all chosen after seeing these 51 documents, and its score has swung by 4 documents with rendering and parsing (0.824, 0.745, 0.824). The two cannot be separated on this corpus.
 - **Routing:** `confidence` is available for sending low-confidence documents to review.
 
 `bge-view` and `nli-view` are not competitive alone.
@@ -536,54 +554,48 @@ When no API is allowed:
 
 **Provenance.**
 
-- **Runs.** The P9 runs, the first P9b run and the shared-view re-run were all on 2026-10-16. Parsed documents are cached in `benchmarks/.cache/docs/`, so every system within a run uses the same parses. The cache was deleted and rebuilt for the contents-page re-run (below), so its four systems saw the post-fix parses and the other rows the pre-fix ones. Raw rows, including the top-3 probabilities, per-document tokens and each row's `view_sha`, are in `benchmarks/results/2026-10-16/pdf.json`. The experiment rows, with per-document predictions and the hyperparameter chosen per fold, are under `experiments`.
-- **The shared-view re-run.** The command was `python -m benchmarks.pdf_bench --systems jev-view,ultrabert-view,ultrabert-hybrid,bge-view,nli-view,ultrabert-view-tuned,ultrabert-loo,ultrabert-bge-loo --experiments`, with the harness at commit `196d4d0`. `jev-chunks` does not use DocumentView and was not re-run; its row is from P9 at `3bd85f2`.
-- **Recorded commits.** Each system's commit is HEAD at its start. It is marked `+dirty` when tracked files under `src/` or `benchmarks/` (results excluded) had uncommitted changes. Other agents committed during the run, hence `aad5b3f` and `6d0a6eb` for the later systems.
-  - The `+dirty` on the first five systems of the shared-view run (now only `nli-view`'s row still carries it) was another agent's uncommitted change to `render_budgeted` in `src/docrooter/views.py`, later committed as `8cc9f10`. It cuts each view line to 4 x `max_tokens` words before the token counter sees it, so a whole section is never tokenised. No other file under `src/` or `benchmarks/` was dirty.
+- **Runs.** The P9 runs, the first P9b run and the shared-view re-run were all on 2026-10-16. Parsed documents are cached in `benchmarks/.cache/docs/`, so every system within a run uses the same parses. The cache was deleted and rebuilt for the contents-page re-run (below). Since the v0.3 re-run (below), every row except `jev-chunks`, which does not read parsed text, is on the post-fix parses. Raw rows, including the top-3 probabilities, per-document tokens and each row's `view_sha`, are in `benchmarks/results/2026-10-16/pdf.json`. The experiment rows, with per-document predictions and the hyperparameter chosen per fold, are under `experiments`.
+- **The shared-view re-run (historical).** The command was `python -m benchmarks.pdf_bench --systems jev-view,ultrabert-view,ultrabert-hybrid,bge-view,nli-view,ultrabert-view-tuned,ultrabert-loo,ultrabert-bge-loo --experiments`, with the harness at commit `196d4d0`. `jev-chunks` does not use DocumentView and was not re-run; its row is from P9 at `3bd85f2`.
+- **Recorded commits.** Each system's commit is HEAD at its start. It is marked `+dirty` when tracked files under `src/` or `benchmarks/` (results excluded) had uncommitted changes. In the shared-view run, other agents committed during the run, hence `aad5b3f` and `6d0a6eb` for its later systems; those rows have since been replaced.
+  - The `+dirty` on the first five systems of the shared-view run (no current row carries it) was another agent's uncommitted change to `render_budgeted` in `src/docrooter/views.py`, later committed as `8cc9f10`. It cuts each view line to 4 x `max_tokens` words before the token counter sees it, so a whole section is never tokenised. No other file under `src/` or `benchmarks/` was dirty.
   - All 255 shared view texts (5 view configs x 51 documents) were re-rendered with HEAD's `views.py` afterwards and are byte-identical.
 - **Contents-page re-run (after the v0.2 dot-leader fix, `e72fca6`).** The fix changes the body text, and for doc_001 the headings, of some PDFs. So `jev-view`, `ultrabert-view`, `ultrabert-hybrid` and `bge-view` were re-run on all 51 documents at `53090c0`, after deleting the cached parses: `python -m benchmarks.pdf_bench --systems jev-view,ultrabert-view,ultrabert-hybrid,bge-view --docs docs/benchmarks-pdf.md`.
   - The default view text changed for 7 documents (doc_001, doc_013, doc_014, doc_031, doc_032, doc_036, doc_045).
   - No leaf or level-1 accuracy changed. The only prediction that changed is `bge-view` on doc_001 (gold `annual_report`): `shareholder_letter` became `proxy_statement`, still wrong. That moves bge's macro P from 0.576 to 0.584 and macro F1 from 0.538 to 0.541.
   - `jev-view` used 104,372 input tokens instead of 104,384, still $0.0044.
   - Parse and classify seconds moved with machine load.
-  - **Not re-run:** `nli-view`, `ultrabert-view-tuned`, `ultrabert-loo`, `ultrabert-bge-loo`, the P9b experiment tables and the *Analysis* comparisons that use them. They are still on the pre-fix parses, and `pdf.json` keeps the pre-fix view hashes for their view configs. `jev-chunks` does not read parsed text.
-- **Environment line.** It is from the re-run (MPS).
+  - Not re-run then: `nli-view`, `ultrabert-view-tuned`, `ultrabert-loo`, `ultrabert-bge-loo` and the P9b experiments, which stayed on the pre-fix parses until the v0.3 re-run.
+- **v0.3 re-run (committed in `0d36689`).** `nli-view`, `ultrabert-view-tuned`, `ultrabert-loo`, `ultrabert-bge-loo` and every P9b experiment were re-run on the post-fix parses at `0c22383+dirty`. The `+dirty` was the heading-level edit of the held-out report renderer (`benchmarks/heldout_eval.py`) that was uncommitted when the re-run started and was committed as `72f6135`; the PDF and doc-type harnesses do not use it. The changes against the shared-view re-run are listed under *Shared views* above: `ultrabert-bge-loo` +4 documents, `ultrabert-view-tuned` one fixed and one broken, `nli-view` and `ultrabert-loo` unchanged. All of the *Analysis* above uses these rows. `jev-chunks` (P9, `3bd85f2`) and the four contents-page rows (`53090c0`) were not re-run.
+- **Environment line.** It is from the v0.3 re-run (MPS).
 
 ## Section normalisation
 
-**Headline.** These are scores on 145 scored sections from 6 real PDFs. The labels are agent-assigned silver labels (see below), and the same set was used to choose the defaults. Two package changes in P10b improve the local backends:
+**Headline.** These are scores on 142 scored sections from 6 real PDFs. The labels are agent-assigned silver labels (see below), and the same set was used to choose the defaults. Two package changes in P10b improve the local backends:
 
 - heading synonyms, added as `examples` on every node of the 5 built-in section taxonomies;
 - a headings-only default view, `path + title`, used when the chosen taxonomy has examples.
 
 If no node of the chosen taxonomy (for example, a custom one) has `examples`, `normalize_sections` keeps the previous `title + lead` view at 96 tokens, because without synonyms `path + title` was worse for UltraBERT (0.262 vs 0.345). An explicit `view=` always wins.
 
-39 scored sections have a heading that equals one of the synonyms (see *Synonym overlap* below), so each cell gives *all* (out of 145) and *non-overlap* (out of 106):
+**Two row sets.** The P10 baseline and the seven other P10b configurations were run on the pre-fix parses and score 145 sections, 106 of them outside the synonym overlap. The shipped default was re-run in v0.3 on the post-fix parses and scores 142 sections (103 non-overlap): three of doc_001's scored sections no longer exist as sections (see *Re-run after the dot-leader fix* below). The generated *Before / after* table below compares P10 with the current run on their own row sets: UltraBERT 0.345 to 0.514, bge-small 0.228 to 0.408, Jev 0.703 to 0.725 and the auto doc-type path 0.303 to 0.479. The per-section comparisons in this section use the 142 sections both runs scored.
 
-| System | P10 | P10b | Change |
-| --- | --- | --- | --- |
-| UltraBERT (default backend) | 50/145 (0.345); 18/106 (0.170) | 71/145 (0.490); 34/106 (0.321) | +14.5; +15.1 points |
-| bge-small | 33/145 (0.228); 17/106 (0.160) | 57/145 (0.393); 20/106 (0.189) | +16.6; +2.8 points |
-| Jev | 102/145 (0.703); 65/106 | 103/145 (0.710); 65/106 | +0.7 points |
-| Auto doc-type path | 0.303; 0.132 | 0.455; 0.292 | +15.2; +16.0 points |
-
-- **For bge, most of the gain needs a heading the synonyms already list.** Only 3 of its 24 gained sections are on non-overlap rows. This does not hold for UltraBERT: 16 of its 21 gained sections are on non-overlap rows.
-- **Jev's change is within noise.** Re-running the P10 configuration today gave 101/145 (0.697) against P10's 102.
-- **Jev costs more.** $0.0085 instead of $0.0064, because the synonyms are sent with every candidate.
+- **For bge, most of the gain needs a heading the synonyms already list.** On the 142 shared sections, bge gains 25 sections net over P10, and only 4 of them are on non-overlap rows. This does not hold for UltraBERT: 19 of its 24 net gained sections are on non-overlap rows.
+- **Jev's change is within noise.** On the same sections it gains 17 and loses 15 against P10. Re-running the P10 configuration in P10b gave 101/145 (0.697) against P10's 102/145.
+- **Jev costs more.** $0.0083 (196,825 input tokens) instead of $0.0064 (152,807), because the synonyms are sent with every candidate.
 
 **How the default was chosen.** Read this before trusting the numbers above.
 
 - **The silver set served as the dev set.**
   - The labels, the P10 runs and the P10 per-section tables for doc_027 and doc_002 were committed before the synonyms. Those tables show some silver titles.
   - Git proves only that the synonyms (`da38a07`) came before any run that used them, not that they were written blind to those tables.
-- **The synonyms were changed once afterwards, at review.** `b9cf84b` removed six entries: "Model Architecture", "Training", "Chapter 2", "Item 1B. Unresolved Staff Comments", "Item 4. Mine Safety Disclosures" and "Item 16. Form 10-K Summary". These are removals only. After them, UltraBERT's overall score fell from 0.600 to 0.490, mostly on doc_027 (19 → 12 of 22). That document's level-2 sections sit under "3 Model Architecture" and "5 Training", which the path view puts into every one of them.
-- **Eight configurations were run.** Each of 4 views was run with and without synonyms on both local backends; Jev was run on 3 of them. All results are in the table below.
-- **`path+title+syn` is the best of the 8 for UltraBERT on both row sets.** For bge it is one section behind `title+syn` on all rows and level with it on non-overlap rows. Against synonyms with the old view, it gains:
-  - UltraBERT: +5.5 points on all rows, +8.5 on non-overlap rows;
-  - bge: +9.0 on all rows, but −0.9 (one section) on non-overlap rows.
+- **The synonyms were changed once afterwards, at review.** `b9cf84b` removed six entries: "Model Architecture", "Training", "Chapter 2", "Item 1B. Unresolved Staff Comments", "Item 4. Mine Safety Disclosures" and "Item 16. Form 10-K Summary". These are removals only. After them, UltraBERT's overall score fell from 0.600 to 0.490 on the 145 sections scored at the time (the v0.3 re-run gives 0.514 on 142), mostly on doc_027 (19 → 12 of 22). That document's level-2 sections sit under "3 Model Architecture" and "5 Training", which the path view puts into every one of them.
+- **Eight configurations were run.** Each of 4 views was run with and without synonyms on both local backends; Jev was run on 3 of them. All results are in the *Configurations tried* table below. The seven alternatives were run once, in P10b, on the 145 sections; only the default was re-run, so its row is on the 142.
+- **`path+title+syn` is the best of the 8 for UltraBERT on both row sets:** 0.514 on all rows and 0.350 on non-overlap rows, against 0.441 and 0.255 for the next best (`title+lead@48+syn`). For bge it is level with `title+syn`: 58 correct sections each, and 21 against 20 on non-overlap rows (out of 142 and 103 against 145 and 106). Against synonyms with the old view (`title+lead@96+syn`), it gains:
+  - UltraBERT: +8.0 points on all rows, +11.4 on non-overlap rows;
+  - bge: +10.5 on all rows, but the same 21 sections on non-overlap rows.
 
   So for bge the view change helps only on headings the synonyms already list.
-- **Synonyms alone, with the old view, give +9.0 (UltraBERT) and +7.6 (bge).**
+- **Synonyms alone, with the old view, give +9.0 (UltraBERT) and +7.6 (bge)** (both on the 145 sections).
 
 **Synonym overlap.** The non-overlap rule compares each heading with its gold taxonomy's examples. The comparison ignores case and punctuation and drops one leading number, such as "3.1", "Item 1A." or "Note 2.". Under this rule, 39 scored sections (28 distinct headings) match an example. The review count of 47 rows was made before `b9cf84b` and may have used a different rule.
 
@@ -591,20 +603,19 @@ If no node of the chosen taxonomy (for example, a custom one) has `examples`, `n
 
 - **Top predictions.** UltraBERT's most frequent prediction changes from `introduction` (39) to `experiments` (18). bge's stays `experiments`, but drops from 54 to 27.
 - **Remaining errors.**
-  - UltraBERT labels annual-report `other` sections as `business_overview` (7).
-  - bge labels `method` as `experiments` (11) and `results` as `background` (9).
-  - Research appendices go to `experiments`.
+  - UltraBERT labels research appendices as `experiments` (6), annual-report exhibits as `notes_to_financial_statements` (5), and annual-report `other` sections as `business_overview` or `controls_and_procedures` (4 each).
+  - bge labels `method` as `experiments` (11) and `results` as `background` (9). It also sends research appendices to `experiments` (5).
 
-**Label sensitivity.** 124 of the scored rows have no "could be X" note. On those rows the scores are UltraBERT 66 (0.532), bge 53 (0.427) and Jev 90 (0.726). All numbers here are single runs on 6 documents.
+**Label sensitivity.** 121 of the 142 scored rows have no "could be X" note. On those rows the scores are UltraBERT 65 (0.537), bge 52 (0.430) and Jev 89 (0.736). All numbers here are single runs on 6 documents.
 
-**Speed.** Each system now runs one untimed warm-up that encodes every section taxonomy it can use, so *s/section* no longer includes the one-off encoding of the examples. Under the same rule, the P10 runs warmed only the research-paper taxonomy. This run's *s/section*: UltraBERT 0.019, bge 0.004 and Jev 0.028.
+**Speed.** Each system now runs one untimed warm-up that encodes every section taxonomy it can use, so *s/section* no longer includes the one-off encoding of the examples. Under the same rule, the P10 runs warmed only the research-paper taxonomy. This run's *s/section*: UltraBERT 0.018, bge 0.004 and Jev 0.043.
 
 **View rendering.** `render_budgeted` now cuts each line to 4 × `max_tokens` words before the token counter sees it, so a whole section is never tokenised. P10 had logged 8521- and 5243-token sequences.
 
 - **Same output.** Views were identical before and after for all 204 sections of the 6 documents, with both local tokenizers and 4 views. A seeded differential unit test guards this.
 - **Remaining warning.** Garbled PDF text can still exceed bge's 512-token limit; the longest seen was 1084 tokens for 384 words. When that happens, transformers logs one harmless warning.
 
-**Not re-run after the dot-leader fix.** The normalisation numbers were measured before the v0.2 contents-page fix (`e72fca6`). That fix changes doc_001's parse: page 13's earnings table is no longer a contents page, so "The Scorecard in 2023" is now a section. The rows of that table and of page 149's list of operating companies are also no longer printed-contents entries, and those entries had boosted the borderline headings "Pilot Travel Centers (PTC)", "Insurance—Investment Income" and "Railroad" (pages 35-68) over the score threshold; without the boost they are no longer detected. Against today's parse, 5 silver rows of doc_001 no longer match a section (3 scored, 2 marked as junk) and 1 section has no silver row. The other 5 documents match exactly as before. The section benchmark should be re-run, and doc_001's silver rows re-checked, in v0.3.
+**Re-run after the dot-leader fix (v0.3).** P10 and P10b were measured before the v0.2 contents-page fix (`e72fca6`). That fix changes doc_001's parse: page 13's earnings table is no longer a contents page, so "The Scorecard in 2023" is now a section. The rows of that table and of page 149's list of operating companies are also no longer printed-contents entries, and those entries had boosted the borderline headings "Pilot Travel Centers (PTC)", "Insurance—Investment Income" and "Railroad" (pages 35-68) over the score threshold; without the boost they are no longer detected. The default configuration was re-run on the post-fix parses at `0c22383` (committed in `0d36689`), and that run is the one in the tables below. Against the post-fix parse, 5 silver rows of doc_001 no longer match a section (3 scored, 2 marked as junk) and are dropped, and 1 section ("The Scorecard in 2023") has no silver row and is not scored. The other 5 documents match exactly as before. The silver labels were not changed or re-checked.
 
 <!-- normalize-benchmark:begin -->
 Silver set: `benchmarks/corpus/section_gold.jsonl`, 163 level-1/2 sections of 6 documents (18 marked as parser junk, i.e. not a real section, and excluded from accuracy). **These are agent-assigned silver labels, not human gold:** an agent (Claude Opus 5.5) read each heading and the first ~300 characters of its body and chose the best node of the doc type's section taxonomy from the node definitions, before any normalisation run (labelled 2026-10-16T14:41:44-04:00, documents loaded at `0dd70bc`). Ambiguous cases carry a `note` in the file. Expect a few points of label noise.
@@ -626,7 +637,7 @@ Run 2026-10-16 at `0c22383`, device `mps` (MPS probe matmul took 0.18 s). Each s
 
 ### Configurations tried (the silver set used as a dev set)
 
-Every configuration that was run, all on the same scored sections, so the chosen default (`path+title+syn`) is selected on the evaluation data and its margin over the others is optimistic. Accuracy cells are *all; non-overlap*. *Top prediction* is the most frequent predicted label over the scored sections and its count (a collapse onto one label shows up here).
+Every configuration that was run, on the same silver set but not all on the same parse (the cells' counts show 142 and 145 scored sections), so the chosen default (`path+title+syn`) is selected on the evaluation data and its margin over the others is optimistic. Accuracy cells are *all; non-overlap*. *Top prediction* is the most frequent predicted label over the scored sections and its count (a collapse onto one label shows up here).
 
 | Config | View | Synonyms | `ultrabert` accuracy | `bge-small` accuracy | `jev` accuracy | `ultrabert` top prediction | `bge-small` top prediction | `jev` top prediction |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -757,7 +768,8 @@ shares no documents or publishers with the dev corpus and was never used for tun
 method, per-document tables and analysis are in [benchmarks-heldout.md](benchmarks-heldout.md).
 Dev numbers come from `benchmarks/results/2026-10-16/{toc,pdf,normalize}.json`, read when the
 held-out run finished. The dev leave-one-out systems and the normalisation rows had been re-run
-just before. The dev leave-one-out systems become "trained on all 51 dev documents, tested on
+just before. The dev TOC rows were re-run at `70a9a0f` afterwards, with identical aggregates
+and per-document counts. The dev leave-one-out systems become "trained on all 51 dev documents, tested on
 held-out". One held-out document is 2.5 points.
 
 <!-- heldout-compare:begin -->

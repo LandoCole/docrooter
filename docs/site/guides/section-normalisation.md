@@ -85,7 +85,8 @@ loaded itself.
 
 Accuracy against silver labels (assigned by an agent, not checked by a human) for the
 level-1/2 sections of 6 development documents (142 scored sections) and 4 held-out documents
-(133):
+(133). The defaults (the `path + title` view and the heading synonyms) were chosen on the dev
+sections, so the *Dev* column is optimistic:
 
 | Backend | Dev | Held-out |
 | --- | ---: | ---: |

@@ -1,8 +1,9 @@
 # Benchmarks
 
-docrooter is measured on three kinds of data. Every number on these pages comes from a results
-file committed under `benchmarks/results/`, produced by the scripts in `benchmarks/` at a
-recorded commit.
+docrooter is measured on three kinds of data. The measured numbers on these pages come from
+results files committed under `benchmarks/results/`, produced by the scripts in `benchmarks/` at
+a recorded commit. A few figures from development runs (some memory peaks and an A/B timing on
+the performance page) are not in a results file; the pages say so where they appear.
 
 | Page | Data | What it measures |
 | --- | --- | --- |

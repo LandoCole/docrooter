@@ -513,8 +513,17 @@ def _variants(result: Mapping[str, Any]) -> list[str]:
     names = [n for n in SYSTEMS if any(n in v for v in variants.values())]
     if len(variants) > 1:
         heading = "### Configurations tried (the silver set used as a dev set)"
+        sizes = sorted(
+            {v["n_scored"] for runs in variants.values() for v in runs.values() if "n_scored" in v}
+        )
+        rows = (
+            "all on the same scored sections"
+            if len(sizes) <= 1
+            else "on the same silver set but not all on the same parse (the cells' counts show "
+            f"{' and '.join(map(str, sizes))} scored sections)"
+        )
         what = (
-            "Every configuration that was run, all on the same scored sections, so the chosen "
+            f"Every configuration that was run, {rows}, so the chosen "
             f"default (`{result['final_config']}`) is selected on the evaluation data and its "
             "margin over the others is optimistic."
         )

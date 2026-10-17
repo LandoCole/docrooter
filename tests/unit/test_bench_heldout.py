@@ -246,3 +246,49 @@ def test_replace_block_appends_once_then_replaces_in_place():
     twice = heldout_eval.replace_block(once, "<!-- b -->", "<!-- e -->", "v2", "## Dev vs held-out")
     assert twice.count("## Dev vs held-out") == 1 and "v2" in twice and "v1" not in twice
     assert "kept" in twice
+
+
+def test_git_output_keeps_the_status_column_of_the_first_line(monkeypatch):
+    class Done:
+        def __init__(self, stdout):
+            self.stdout = stdout
+
+    status = " M benchmarks/toc.py\n?? src/docrooter/new.py\n"
+    outputs = {"status": status, "rev-parse": "abc1234\n"}
+    monkeypatch.setattr(
+        heldout_eval.subprocess, "run", lambda argv, **kwargs: Done(outputs[argv[1]])
+    )
+    assert heldout_eval.git(["rev-parse", "--short", "HEAD"]) == "abc1234"
+    # stripping the whole output used to drop the first line's leading space: "rc/..."
+    assert heldout_eval.code_changes(run=heldout_eval.git) == [
+        "benchmarks/toc.py",
+        "src/docrooter/new.py",
+    ]
+
+
+def test_run_steps_records_repo_relative_arguments(monkeypatch):
+    launched = []
+
+    class Done:
+        returncode = 0
+
+    def fake_run(argv, **kwargs):
+        launched.append((argv, kwargs["cwd"]))
+        return Done()
+
+    monkeypatch.setattr(heldout_eval.subprocess, "run", fake_run)
+    record = {"frozen_commit": "abc", "steps": {}}
+    monkeypatch.setattr(heldout_eval, "freeze_record", lambda: record)
+    monkeypatch.setattr(heldout_eval, "code_changes", lambda since=None: [])
+    monkeypatch.setattr(heldout_eval, "git", lambda args: "abc")
+    monkeypatch.setattr(heldout_eval, "stamp", lambda path, freeze: None)
+    out_dir = heldout_eval.ROOT / "benchmarks" / "results" / "2099-01-01"
+    freeze = heldout_eval.run_steps(["toc"], out_dir)
+    argv = freeze["steps"]["toc"]["argv"]
+    assert argv[argv.index("--out") + 1] == "benchmarks/results/2099-01-01"
+    assert not any(str(heldout_eval.ROOT) in a for a in argv)
+    ((ran, cwd),) = launched
+    assert ran[1:] == argv and cwd == heldout_eval.ROOT  # what ran is what was recorded
+    assert heldout_eval.repo_relative(heldout_eval.ROOT.parent / "x") == str(
+        heldout_eval.ROOT.parent / "x"
+    )  # outside the repository: kept as given

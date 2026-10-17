@@ -93,9 +93,20 @@ Git = Callable[[Sequence[str]], str]
 
 
 def git(args: Sequence[str]) -> str:
+    """The output of ``git args`` without its trailing newlines. Leading whitespace is kept: in
+    ``status --porcelain`` it is the first line's status column."""
     return subprocess.run(
         ["git", *args], cwd=ROOT, capture_output=True, text=True, check=True
-    ).stdout.strip()
+    ).stdout.rstrip("\n")
+
+
+def repo_relative(path: Path) -> str:
+    """``path`` relative to the repository root (POSIX separators), or as given when it lies
+    outside it, so recorded command lines carry no home directory."""
+    try:
+        return path.resolve().relative_to(ROOT.resolve()).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def code_changes(since: str | None = None, run: Git = git) -> list[str]:
@@ -157,7 +168,8 @@ def run_steps(steps: Sequence[str], out_dir: Path) -> dict[str, Any]:
         if step in MODEL_STEPS:
             wait_for_other_model_processes()
         started = now()
-        argv = [sys.executable, "-m", module, "--corpus", "heldout", "--out", str(out_dir), *extra]
+        out = repo_relative(out_dir)  # the harness runs with cwd=ROOT
+        argv = [sys.executable, "-m", module, "--corpus", "heldout", "--out", out, *extra]
         print(f"== {step}: {' '.join(argv[1:])}", flush=True)
         status = subprocess.run(argv, cwd=ROOT).returncode
         changed = code_changes(freeze["frozen_commit"])

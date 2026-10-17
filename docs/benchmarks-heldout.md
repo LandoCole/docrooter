@@ -32,7 +32,9 @@ with the frozen commit, the label commits (`ae6b037` for the manifest and `9d195
 silver sections), per-step start and end times, HEAD at the end of each step (`72f6135` every
 time) and the list of benchmark-code paths changed since the freeze (empty every time). There
 were no code or configuration changes between the freeze and the run, and none after it. The run
-happened once and nothing was re-run.
+happened once and nothing was re-run. One later edit to those files: the `--out` argument in
+each step's recorded `argv` held an absolute path under the author's home directory, and v0.3 Q8
+shortened it to the repository-relative `benchmarks/results/2026-10-16`. No other byte changed.
 
 Disclosures:
 

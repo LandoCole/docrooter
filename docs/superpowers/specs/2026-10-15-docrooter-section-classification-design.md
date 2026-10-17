@@ -119,7 +119,7 @@ A `SectionView` decides what text a backend sees for a section. It is configurab
 ```python
 SectionView(
     fields=("path", "title", "keyphrases", "lead", "text"),  # order = render order
-    max_tokens=512,          # budget for the whole rendered view
+    max_tokens=512,  # budget for the whole rendered view
     lead_sentences=3,
     keyphrases=8,
     empty_section="children_titles",  # sections with no body: use child titles instead
@@ -298,20 +298,22 @@ tax = dr.Taxonomy.load("taxonomy.csv")
 clf = dr.Classifier(
     tax,
     backend="embedding:dmis-lab/UltraBERT-Embed-150M",
-    fallback=None,                     # backend for nodes the primary can't handle
+    fallback=None,  # backend for nodes the primary can't handle
     overrides={"depth>=3": "nli:...", "node:fin.tax": "trained:./bundle"},
-    strategy=dr.Beam(width=3),         # or dr.Greedy(), dr.Flat()
+    strategy=dr.Beam(width=3),  # or dr.Greedy(), dr.Flat()
     view=dr.SectionView(),
     instruction="Classify this section of a corporate annual report",
-    threshold=0.35,                    # default per-node descend threshold
-    min_margin=0.0,                    # stop if top1 - top2 < margin
-    sections="leaves",                 # "all" | "leaves" | levels=[1,2] | callable
+    threshold=0.35,  # default per-node descend threshold
+    min_margin=0.0,  # stop if top1 - top2 < margin
+    sections="leaves",  # "all" | "leaves" | levels=[1,2] | callable
     batch_size=32,
 )
 
-result = clf.classify(doc)             # also: clf.classify_texts([...]), clf.classify_many(docs)
-result.sections["s7.2"].path_labels    # ["Financial", "Liquidity"]
-result.to_json(); result.to_dataframe(); result.summary(depth=1)
+result = clf.classify(doc)  # also: clf.classify_texts([...]), clf.classify_many(docs)
+result.sections["s7.2"].path_labels  # ["Financial", "Liquidity"]
+result.to_json()
+result.to_dataframe()
+result.summary(depth=1)
 ```
 
 ### Traversal strategies
@@ -396,9 +398,15 @@ Deep, wide taxonomies make "one fine-tuned transformer per node" too expensive: 
 
 ```python
 train_ds, test_ds = dr.Dataset.load("labels.jsonl").split(test_size=0.2, stratify_depth=1, seed=0)
-model = dr.train(tax, train_ds, base_model="dmis-lab/UltraBERT-Embed-150M",
-                 finetune_body=True, epochs=None, lr=None)   # None = from recipe
-model.save("bundle/")      # manifest.json + body/ + heads/*.joblib + training metrics
+model = dr.train(
+    tax,
+    train_ds,
+    base_model="dmis-lab/UltraBERT-Embed-150M",
+    finetune_body=True,
+    epochs=None,
+    lr=None,
+)  # None = from recipe
+model.save("bundle/")  # manifest.json + body/ + heads/*.joblib + training metrics
 clf = dr.Classifier(tax, backend=model, fallback="embedding:dmis-lab/UltraBERT-Embed-150M")
 ```
 
@@ -418,8 +426,9 @@ The bundle `manifest.json` records:
 
 ```python
 report = dr.evaluate(clf, test_ds)
-report.print()           # rich table in terminal
-report.to_json(); report.to_markdown()
+report.print()  # rich table in terminal
+report.to_json()
+report.to_markdown()
 dr.compare({"zero-shot": clf_a, "trained": clf_b}, test_ds).print()
 ```
 

@@ -55,12 +55,15 @@
 def test_require_returns_module():
     assert require("json", "models").dumps({}) == "{}"
 
+
 def test_require_missing_names_extra():
     with pytest.raises(MissingExtraError, match=r"pip install 'docrooter\[models\]'"):
         require("definitely_not_a_module_xyz", "models")
 
+
 def test_version():
     import docrooter
+
     assert docrooter.__version__ == "0.1.0.dev0"
 ```
 
@@ -92,25 +95,30 @@ def test_atx_headings_build_tree():
     doc = build_document(extract_headings(read("simple.md")), source="simple.md")
     assert [e.title for e in doc.toc()] == ["Intro", "Background", "Scope", "Results"]
     assert doc.section("s1.2").title == "Scope" and doc.section("s1.2").parent_id == "s1"
-    assert doc.section("Intro").text.startswith("Intro body")   # body excludes child sections
+    assert doc.section("Intro").text.startswith("Intro body")  # body excludes child sections
+
 
 def test_no_headings_single_section():
     doc = build_document(extract_headings("just text\nmore"), source="notes.md")
     assert list(doc.sections) == ["s0"] and doc.sections["s0"].title == "notes"
 
+
 def test_preamble_before_first_heading():
     doc = build_document(extract_headings("lead text\n# A\nbody"), source="x.md")
     assert doc.sections["s0"].title == "Preamble" and doc.root_ids == ["s0", "s1"]
 
+
 def test_setext_and_fenced_code_ignored():
     titles = [h.title for h in extract_headings(read("setext_and_code.md"))]
-    assert titles == ["Setext Title", "Sub"]          # '# comment' inside ``` is not a heading
+    assert titles == ["Setext Title", "Sub"]  # '# comment' inside ``` is not a heading
+
 
 def test_duplicate_titles_unique_ids():
     doc = build_document(extract_headings(read("duplicate_titles.md")), source="d.md")
     ids = [s.id for s in doc.walk() if s.title == "Overview"]
     assert len(ids) == 2 and len(set(ids)) == 2
     assert doc.section("Overview").id == ids[0]
+
 
 def test_deep_doc_no_recursion():
     md = "\n".join(f"{'#' * min(d, 6)} H{d}\nx" for d in range(1, 31))  # repeated H6s stay siblings
@@ -135,30 +143,50 @@ def test_deep_doc_no_recursion():
 - [ ] **Step 1: Write failing tests:**
 
 ```python
-@pytest.mark.parametrize("title,ok", [
-    ("1.2 Liquidity and Capital Resources", True), ("RISK FACTORS", True), ("Appendix A", True),
-    ("Page 3", False), ("3 of 12", False), ("https://example.com/x", False),
-    ("This sentence is clearly a paragraph that someone formatted as a heading by mistake.", False),
-    ("- bullet item", False), ("| a | b |", False),
-])
+@pytest.mark.parametrize(
+    "title,ok",
+    [
+        ("1.2 Liquidity and Capital Resources", True),
+        ("RISK FACTORS", True),
+        ("Appendix A", True),
+        ("Page 3", False),
+        ("3 of 12", False),
+        ("https://example.com/x", False),
+        (
+            "This sentence is clearly a paragraph that someone formatted as a heading by mistake.",
+            False,
+        ),
+        ("- bullet item", False),
+        ("| a | b |", False),
+    ],
+)
 def test_score_heading(title, ok):
     assert (score_heading(title)[0] >= 0.5) is ok
 
+
 def test_repeated_title_penalized():
     assert score_heading("ACME Corp Annual Report", repeat_count=5)[0] < 0.5
+
 
 def test_validate_merges_rejected_into_previous():
     out = validate_headings(extract_headings(read("noisy_headings.md")))
     assert "Page 3" not in [h.title for h in out]
     assert "Page 3" in out[0].text
 
+
 def test_repair_numbering_overrides_hashes():
-    raw = [RawHeading(title=t, level=2, text="", line=i)
-           for i, t in enumerate(["1 Intro", "1.1 Scope", "1.1.1 Detail", "2 Next"])]
+    raw = [
+        RawHeading(title=t, level=2, text="", line=i)
+        for i, t in enumerate(["1 Intro", "1.1 Scope", "1.1.1 Detail", "2 Next"])
+    ]
     assert [h.level for h in repair_levels(raw)] == [1, 2, 3, 1]
 
+
 def test_repair_closes_gaps():
-    raw = [RawHeading(title="A", level=1, text="", line=0), RawHeading(title="B", level=4, text="", line=1)]
+    raw = [
+        RawHeading(title="A", level=1, text="", line=0),
+        RawHeading(title="B", level=4, text="", line=1),
+    ]
     out = repair_levels(raw)
     assert [h.level for h in out] == [1, 2] and "level_repaired" in out[1].flags
 ```
@@ -227,26 +255,42 @@ def test_repair_closes_gaps():
 - [ ] **Step 1: Write failing tests:**
 
 ```python
-@pytest.mark.parametrize("name", ["nested.json", "flat.json", "adjacency.csv", "levels.csv", "path.csv", "excel_export.csv"])
+@pytest.mark.parametrize(
+    "name",
+    ["nested.json", "flat.json", "adjacency.csv", "levels.csv", "path.csv", "excel_export.csv"],
+)
 def test_all_formats_same_tree(name):
     t = Taxonomy.load(FIX / name)
-    assert {n.id: [c.id for c in t.children(n.id)] for n in t.children()} == \
-           {"financial": ["financial.tax", "financial.audit"], "legal": ["legal.contracts", "legal.litigation"]}
+    assert {n.id: [c.id for c in t.children(n.id)] for n in t.children()} == {
+        "financial": ["financial.tax", "financial.audit"],
+        "legal": ["legal.contracts", "legal.litigation"],
+    }
+
 
 def test_resolve_path_by_label_uses_parent_context():
-    t = Taxonomy.from_dict({"nodes": [
-        {"id": "a", "label": "A", "children": [{"id": "a.o", "label": "Other"}]},
-        {"id": "b", "label": "B", "children": [{"id": "b.o", "label": "Other"}]}]})
+    t = Taxonomy.from_dict(
+        {
+            "nodes": [
+                {"id": "a", "label": "A", "children": [{"id": "a.o", "label": "Other"}]},
+                {"id": "b", "label": "B", "children": [{"id": "b.o", "label": "Other"}]},
+            ]
+        }
+    )
     assert t.resolve_path(["B", "other"]) == ["b", "b.o"]
+
 
 def test_validation_errors_have_locations():
     with pytest.raises(TaxonomyError) as e:
-        Taxonomy.load(FIX / "broken.csv")       # contains a missing parent on row 4 and a cycle
+        Taxonomy.load(FIX / "broken.csv")  # contains a missing parent on row 4 and a cycle
     codes = {(i.code, i.location) for i in e.value.issues}
     assert ("missing_parent", "row 4") in codes and any(c == "cycle" for c, _ in codes)
 
+
 def test_deep_and_wide():
-    nodes = [TaxonomyNode(id=f"n{d}", label=f"L{d}", parent_id=f"n{d-1}" if d else None) for d in range(30)]
+    nodes = [
+        TaxonomyNode(id=f"n{d}", label=f"L{d}", parent_id=f"n{d - 1}" if d else None)
+        for d in range(30)
+    ]
     nodes += [TaxonomyNode(id=f"w{i}", label=f"W{i}", parent_id="n0") for i in range(500)]
     t = Taxonomy(nodes)
     assert t.depth() == 30 and len(t.children("n0")) == 501 and len(t.path("n29")) == 30
@@ -282,21 +326,29 @@ def test_keyphrases_prefer_distinctive_terms():
     kp = extract_keyphrases(sec, [sec, *others], k=3)
     assert kp[0] == "revolving credit facility" and "the company" not in kp
 
+
 def test_render_field_order_and_labels():
     v = SectionView(fields=("path", "title", "text")).render_all(doc, ["s1.2"])["s1.2"]
-    assert v.text.splitlines()[0] == "Path: Intro > Scope" and v.text.splitlines()[1] == "Title: Scope"
+    assert (
+        v.text.splitlines()[0] == "Path: Intro > Scope" and v.text.splitlines()[1] == "Title: Scope"
+    )
+
 
 def test_budget_truncates_last_fitting_field():
     v = SectionView(fields=("title", "text"), max_tokens=20).render_all(long_doc, ["s1"])["s1"]
     assert v.truncated and v.n_tokens <= 20
+
 
 def test_heading_only_leaf_renders_title():
     d = Document.from_sections([{"title": "Signatures", "level": 1}])
     v = SectionView(fields=("text",)).render_all(d, ["s1"])["s1"]
     assert v.text.strip() != "" and "Signatures" in v.text
 
+
 def test_empty_parent_uses_children_titles():
-    d = Document.from_sections([{"title": "Part II", "level": 1}, {"title": "Item 7", "level": 2, "text": "x"}])
+    d = Document.from_sections(
+        [{"title": "Part II", "level": 1}, {"title": "Item 7", "level": 2, "text": "x"}]
+    )
     assert "Subsections: Item 7" in SectionView(fields=("text",)).render_all(d, ["s1"])["s1"].text
 ```
 
@@ -347,20 +399,30 @@ def test_similarity_softmax_with_temperature():
     p = to_probs(Scores(np.array([[0.9, 0.1]]), "similarity"), temperature=0.1, multi_label=False)
     assert p.shape == (1, 2) and p[0, 0] > 0.99 and np.isclose(p.sum(), 1)
 
+
 def test_independent_renormalised_for_single_label():
     p = to_probs(Scores(np.array([[0.6, 0.6]]), "independent"), temperature=1, multi_label=False)
     assert np.allclose(p, [[0.5, 0.5]])
 
+
 def test_parse_spec():
-    assert parse_spec("embedding:dmis-lab/UltraBERT-Embed-150M@abc") == ("embedding", "dmis-lab/UltraBERT-Embed-150M", "abc")
+    assert parse_spec("embedding:dmis-lab/UltraBERT-Embed-150M@abc") == (
+        "embedding",
+        "dmis-lab/UltraBERT-Embed-150M",
+        "abc",
+    )
     assert parse_spec("keyword") == ("keyword", "", None)
+
 
 def test_unknown_kind_lists_known():
     with pytest.raises(BackendError, match="embedding"):
         resolve_backend("bogus:x")
 
+
 def test_keyword_backend_scores():
-    s = KeywordBackend().score(["income tax expense"], [Candidate("t", "Tax: income tax"), Candidate("a", "Audit")])
+    s = KeywordBackend().score(
+        ["income tax expense"], [Candidate("t", "Tax: income tax"), Candidate("a", "Audit")]
+    )
     assert s.values[0, 0] > s.values[0, 1]
 ```
 
@@ -387,40 +449,71 @@ def test_keyword_backend_scores():
 
 ```python
 def test_greedy_reaches_leaf():
-    out = run_tree({"x": "income tax deferred tax financial"}, tax, router, Greedy(), EngineSettings(threshold=0.0))
+    out = run_tree(
+        {"x": "income tax deferred tax financial"},
+        tax,
+        router,
+        Greedy(),
+        EngineSettings(threshold=0.0),
+    )
     best, _, _ = out["x"]
     assert best.node_ids == ["financial", "financial.tax"] and best.stopped_reason is None
     assert best.steps[0].node_id == Taxonomy.ROOT_ID and len(best.steps) == 2
 
+
 def test_low_confidence_stops_at_internal_node():
-    best, _, _ = run_tree({"x": "financial"}, tax, router, Greedy(), EngineSettings(threshold=0.9))["x"]
+    best, _, _ = run_tree({"x": "financial"}, tax, router, Greedy(), EngineSettings(threshold=0.9))[
+        "x"
+    ]
     assert best.node_ids == ["financial"] and best.stopped_reason == "low_confidence"
 
+
 def test_beam_returns_alternatives_sorted():
-    best, alts, _ = run_tree({"x": "tax contracts"}, tax, router, Beam(3), EngineSettings(threshold=0.0))["x"]
+    best, alts, _ = run_tree(
+        {"x": "tax contracts"}, tax, router, Beam(3), EngineSettings(threshold=0.0)
+    )["x"]
     assert alts and all(a.score <= best.score for a in alts)
+
 
 def test_multilabel_node_selects_several():
     t = taxonomy_with_multilabel_root()
-    _, _, selected = run_tree({"x": "tax audit contracts litigation"}, t, router, Beam(2), EngineSettings(threshold=0.1))["x"]
+    _, _, selected = run_tree(
+        {"x": "tax audit contracts litigation"}, t, router, Beam(2), EngineSettings(threshold=0.1)
+    )["x"]
     assert {p.node_ids[0] for p in selected} == {"financial", "legal"}
 
+
 def test_low_margin_stops():
-    best, _, _ = run_tree({"x": "tax contracts"}, tax, router, Greedy(), EngineSettings(threshold=0, min_margin=0.2))["x"]
+    best, _, _ = run_tree(
+        {"x": "tax contracts"}, tax, router, Greedy(), EngineSettings(threshold=0, min_margin=0.2)
+    )["x"]
     assert best.node_ids == [] and best.stopped_reason == "low_margin"
+
 
 def test_no_backend_reason():
     best, _, _ = run_tree({"x": "tax"}, tax, lambda n: [], Greedy(), EngineSettings())["x"]
     assert best.node_ids == [] and best.stopped_reason == "no_backend"
 
+
 def test_batching_one_call_per_node_per_round():
     spy = CountingBackend(KeywordBackend())
-    run_tree({str(i): "income tax" for i in range(100)}, tax, lambda n: [spy], Greedy(), EngineSettings(threshold=0, batch_size=1000))
-    assert spy.calls == 2          # root round + financial round
+    run_tree(
+        {str(i): "income tax" for i in range(100)},
+        tax,
+        lambda n: [spy],
+        Greedy(),
+        EngineSettings(threshold=0, batch_size=1000),
+    )
+    assert spy.calls == 2  # root round + financial round
+
 
 def test_depth_30_chain():
-    best, _, _ = run_tree({"x": "l29"}, chain_taxonomy(30), router, Greedy(), EngineSettings(threshold=0))["x"]
-    assert len(best.node_ids) == 30   # single-child nodes are auto-chosen with p=1.0, no backend call
+    best, _, _ = run_tree(
+        {"x": "l29"}, chain_taxonomy(30), router, Greedy(), EngineSettings(threshold=0)
+    )["x"]
+    assert (
+        len(best.node_ids) == 30
+    )  # single-child nodes are auto-chosen with p=1.0, no backend call
 ```
 
 - [ ] **Step 2:** Run and expect a FAIL.
@@ -488,11 +581,13 @@ def test_classify_doc_leaves_only():
     res = Classifier(tax, backend=KeywordBackend(), threshold=0).classify(doc)
     assert set(res.sections) == {s.id for s in doc.leaves()}
 
+
 def test_override_precedence():
     a, b, c = KeywordBackend(name="a"), KeywordBackend(name="b"), KeywordBackend(name="c")
     clf = Classifier(tax, backend=a, overrides={"depth>=1": b, "node:legal": c})
     assert clf.router("financial")[0].name == "b" and clf.router("legal")[0].name == "c"
     assert clf.router(Taxonomy.ROOT_ID)[0].name == "a"
+
 
 def test_flat_uses_full_path_candidates_for_duplicate_labels():
     t = taxonomy_with_other_under_each_parent()
@@ -500,32 +595,54 @@ def test_flat_uses_full_path_candidates_for_duplicate_labels():
     Classifier(t, backend=spy, strategy=Flat()).classify_texts(["x"])
     assert {"A > Other", "B > Other"} <= {c.text.split(":")[0] for c in spy.last_candidates}
 
+
 def test_summary_weighted_by_tokens():
-    res = Classifier(tax, backend=KeywordBackend(), threshold=0).classify(doc_one_long_tax_one_short_legal)
+    res = Classifier(tax, backend=KeywordBackend(), threshold=0).classify(
+        doc_one_long_tax_one_short_legal
+    )
     s = res.summary(depth=1)
     assert s["Financial"] > s["Legal"] and abs(sum(s.values()) - 1) < 1e-9
+
 
 def test_classify_many_single_traversal():
     spy = CountingBackend(KeywordBackend())
     out = Classifier(tax, backend=spy, strategy=Greedy(), threshold=0).classify_many([doc, doc])
     assert len(out) == 2 and out[0].sections.keys() == out[1].sections.keys()
-    assert spy.calls == 2      # both docs share each round's call
+    assert spy.calls == 2  # both docs share each round's call
+
 
 def test_no_backend_warns_once_per_run():
     with pytest.warns(UserWarning, match="no_backend") as w:
         Classifier(tax, backend=NeverSupports(), threshold=0).classify(doc)
     assert len([x for x in w if "no_backend" in str(x.message)]) == 1
 
+
 def test_truncated_flag_passed_through():
-    res = Classifier(tax, backend=KeywordBackend(), view=SectionView(max_tokens=5)).classify(long_doc)
+    res = Classifier(tax, backend=KeywordBackend(), view=SectionView(max_tokens=5)).classify(
+        long_doc
+    )
     assert any(r.truncated for r in res.sections.values())
+
 
 def test_construction_does_not_resolve_backend(monkeypatch):
     monkeypatch.setattr("docrooter.backends.registry.resolve_backend", boom)
-    Classifier(tax, backend="embedding:whatever")   # no error until classify()
+    Classifier(tax, backend="embedding:whatever")  # no error until classify()
+
 
 def test_cli_classify_keyword(tmp_path):
-    r = runner.invoke(app, ["classify", "simple.md", "-t", "nested.json", "-b", "keyword", "-o", str(tmp_path / "o.json")])
+    r = runner.invoke(
+        app,
+        [
+            "classify",
+            "simple.md",
+            "-t",
+            "nested.json",
+            "-b",
+            "keyword",
+            "-o",
+            str(tmp_path / "o.json"),
+        ],
+    )
     assert r.exit_code == 0 and json.loads((tmp_path / "o.json").read_text())["sections"]
 ```
 
@@ -579,8 +696,13 @@ def test_cli_classify_keyword(tmp_path):
 @pytest.mark.parametrize("model", ["BAAI/bge-small-en-v1.5", "dmis-lab/UltraBERT-Embed-150M"])
 def test_embedding_zero_shot_sanity(model):
     b = EmbeddingBackend(model)
-    s = b.score(["The company recorded a deferred income tax liability."],
-                [Candidate("tax", "Tax: income taxes"), Candidate("lit", "Litigation: lawsuits and legal proceedings")])
+    s = b.score(
+        ["The company recorded a deferred income tax liability."],
+        [
+            Candidate("tax", "Tax: income taxes"),
+            Candidate("lit", "Litigation: lawsuits and legal proceedings"),
+        ],
+    )
     assert s.kind == "similarity" and s.values[0, 0] > s.values[0, 1]
 ```
 
@@ -675,14 +797,19 @@ def test_hierarchical_prf_partial_credit():
     p, r, f = hierarchical_prf([["a", "a.x"]], [["a", "a.y"]])
     assert (p, r) == (0.5, 0.5) and f == 0.5
 
+
 def test_depth_accuracy_counts_only_deep_enough_gold():
     assert depth_accuracy([["a"], ["b", "b.x"]], [["a"], ["b", "b.y"]]) == {1: 1.0, 2: 0.0}
+
 
 def test_stopped_short_prediction_wrong_at_depth2():
     assert depth_accuracy([["a"]], [["a", "a.x"]])[2] == 0.0
 
+
 def test_evaluate_with_keyword_backend_end_to_end():
-    rep = evaluate(Classifier(tax, backend=KeywordBackend(), threshold=0), Dataset.load(FIX / "small.jsonl"))
+    rep = evaluate(
+        Classifier(tax, backend=KeywordBackend(), threshold=0), Dataset.load(FIX / "small.jsonl")
+    )
     assert rep.n == 8 and 0 <= rep.hf1 <= 1 and set(rep.node_acc) >= {Taxonomy.ROOT_ID, "financial"}
     assert "| hF1 |" in rep.to_markdown()
 ```
@@ -865,14 +992,36 @@ Dataset specifics (spec Section 9):
 ```python
 def test_public_api_surface():
     import docrooter as dr
-    for name in ["load", "Document", "Section", "Taxonomy", "TaxonomyNode", "SectionView", "Classifier",
-                 "Greedy", "Beam", "Flat", "Dataset", "train", "TrainedModel", "evaluate", "compare", "calibrate"]:
+
+    for name in [
+        "load",
+        "Document",
+        "Section",
+        "Taxonomy",
+        "TaxonomyNode",
+        "SectionView",
+        "Classifier",
+        "Greedy",
+        "Beam",
+        "Flat",
+        "Dataset",
+        "train",
+        "TrainedModel",
+        "evaluate",
+        "compare",
+        "calibrate",
+    ]:
         assert hasattr(dr, name), name
+
 
 def test_core_import_does_not_import_torch():
     import subprocess, sys
-    out = subprocess.run([sys.executable, "-c", "import docrooter, sys; print('torch' in sys.modules)"],
-                         capture_output=True, text=True)
+
+    out = subprocess.run(
+        [sys.executable, "-c", "import docrooter, sys; print('torch' in sys.modules)"],
+        capture_output=True,
+        text=True,
+    )
     assert out.stdout.strip() == "False"
 ```
 

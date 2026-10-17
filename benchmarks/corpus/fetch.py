@@ -12,6 +12,7 @@ Files that already exist with the right sha256 are skipped. A sha256 mismatch me
 changed the document at that URL since the manifest was written (some publishers overwrite
 files in place); the file is kept but reported, and the exit status is 1 unless --lenient.
 """
+
 from __future__ import annotations
 
 import argparse

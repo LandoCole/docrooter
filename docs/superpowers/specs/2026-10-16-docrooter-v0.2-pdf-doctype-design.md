@@ -48,10 +48,10 @@ v0.2 replaces it with a native multi-signal TOC engine and proves the whole pipe
 
 ```python
 class Line(BaseModel):
-    page: int                # 1-based
+    page: int  # 1-based
     text: str
-    size: float              # dominant span size (by characters)
-    bold: bool               # span flag bit 16 or "Bold"/"Black"/"Heavy" in the font name, for most characters
+    size: float  # dominant span size (by characters)
+    bold: bool  # span flag bit 16 or "Bold"/"Black"/"Heavy" in the font name, for most characters
     font: str
     x0: float
     y0: float
@@ -59,7 +59,7 @@ class Line(BaseModel):
     y1: float
     page_height: float
     page_width: float
-    gap_above: float         # vertical gap to the previous line on the same page (inf at page top)
+    gap_above: float  # vertical gap to the previous line on the same page (inf at page top)
     gap_below: float
     block: int
 ```

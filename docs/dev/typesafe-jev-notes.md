@@ -55,13 +55,13 @@ Exact call (sync). Verified working **[live]**:
 ```python
 from typesafe_sdk import TypeSafeClient, Choice
 
-with TypeSafeClient() as client:                      # reads TYPESAFE_API_KEY
+with TypeSafeClient() as client:  # reads TYPESAFE_API_KEY
     response = client.system_one(
         state="Dear fellow shareholders, this year our operating earnings rose ...",
         questions={
             "doc_type": Choice(
                 instructions="What type of document is this?",
-                criteria={                            # option -> description (or None)
+                criteria={  # option -> description (or None)
                     "Investor letter": "A letter from company management to shareholders ...",
                     "Legal contract": "A binding agreement between parties ...",
                     "Research paper": "An academic paper presenting methods, results ...",
@@ -72,14 +72,14 @@ with TypeSafeClient() as client:                      # reads TYPESAFE_API_KEY
         # model="jev-latest",   # optional; default jev-latest
     )
 
-ans = response.choices["doc_type"]     # or response.answers["doc_type"]
-ans.choice           # str: highest-probability option
-ans.probabilities    # dict[str, float], sums to 1
-ans.confidence       # float 0..1 (see section 5)
-response.model       # e.g. "jev-1.13.0"
-response.usage       # input_tokens=..., output_tokens=...
+ans = response.choices["doc_type"]  # or response.answers["doc_type"]
+ans.choice  # str: highest-probability option
+ans.probabilities  # dict[str, float], sums to 1
+ans.confidence  # float 0..1 (see section 5)
+response.model  # e.g. "jev-1.13.0"
+response.usage  # input_tokens=..., output_tokens=...
 response.request_id  # from x-typesafe-request-id header
-response.raw_http_response.json()   # full raw JSON
+response.raw_http_response.json()  # full raw JSON
 ```
 
 Signature (SDK 0.7.5, both clients; async version is awaited):
@@ -134,15 +134,19 @@ with TypeSafeClient() as client:
     response = client.system_one(
         state="...document text...",
         questions={
-            "is_investor_letter": Noul(instructions="Is this text a letter from management to shareholders?"),
+            "is_investor_letter": Noul(
+                instructions="Is this text a letter from management to shareholders?"
+            ),
             "has_financials": Noul(
                 instructions="Does the text discuss financial results?",
-                criteria=NoulCriteria(true="Mentions earnings, revenue or profit figures",
-                                      false="No financial figures"),   # criteria optional
+                criteria=NoulCriteria(
+                    true="Mentions earnings, revenue or profit figures",
+                    false="No financial figures",
+                ),  # criteria optional
             ),
         },
     )
-p = response.nouls["is_investor_letter"].noul     # float 0..1  (also response.answers[id].noul)
+p = response.nouls["is_investor_letter"].noul  # float 0..1  (also response.answers[id].noul)
 ```
 
 Signature: `Noul(*, instructions: Content, criteria: NoulCriteria|None)` where `NoulCriteria(true=..., false=...)`.

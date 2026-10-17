@@ -88,14 +88,16 @@ Disclosures:
 **Headline:**
 
 - Document-type classification generalises: no system drops by more than about 5 points, and
-  the zero-shot view systems do better on held-out than on dev.
+  the local zero-shot view systems (`ultrabert-view`, `bge-view`) do better on held-out than on
+  dev.
 - Section normalisation holds up for the local models and drops slightly for Jev.
 - TOC extraction is where the held-out set exposes real weaknesses: d<=2 F1 falls by about 12
   points for the default engine. The `pdfplumber` engine also fails outright on one large
   document.
 
-With 40 documents, one document is 2.5 points. The 95% intervals are 25-35 points wide, so only
-the large changes below mean anything.
+With 40 documents, one document is 2.5 points. The 95% bootstrap intervals of leaf accuracy are
+25-30 points wide for the local systems and 7.5-17.5 points for Jev, whose scores sit near the
+ceiling, so only the large changes below mean anything.
 
 ### Document type: generalises
 
@@ -131,12 +133,16 @@ the large changes below mean anything.
 - **Weak classes for local models.**
   - `investor_presentation`: every local system misclassifies both the Moody's and the Urban
     Edge decks.
-  - `white_paper`: Uniswap v3 and the Ethereum explainer go to `research_paper` or
-    `government_report`.
-  - Also *An Introduction to R* (`ho_030`), which goes to `research_paper`.
-  - Similar confusions show up on dev, where `ultrabert-view` already scores white-paper F1
-    0.00 and investor-presentation F1 0.50. They come from the slide-deck and explainer genres
-    themselves, not from overfitting.
+  - `white_paper`: the zero-shot local systems miss both Uniswap v3 and the Ethereum explainer.
+    The UltraBERT systems send them to `research_paper` or `government_report`, bge-small to
+    `earnings_release` and `technical_standard`. Only the dev-trained logistic head gets both.
+  - *An Introduction to R* (`ho_030`, a user manual): the UltraBERT systems say
+    `research_paper`, bge-small `datasheet`; the dev-trained head gets it right.
+  - The first two weaknesses are already there on dev, where `ultrabert-view` scores
+    white-paper F1 0.00 and investor-presentation F1 0.50, so they are not something the
+    held-out set introduced. (On dev its user-manual F1 is 0.86, so `ho_030` is a new miss.)
+    With 2-3 documents per class, the data cannot say how much of this comes from the genres
+    themselves.
 
 ### TOC extraction: drops, partly real and partly bookmark artefacts
 
@@ -150,20 +156,21 @@ micro F1 is 0.553.
 1. **`pdfplumber` returns 3 headings for ECMA-262 (816 pages, 2,159 bookmarks)**, without
    raising an error. That one document takes `pdfplumber` from roughly level with `pymupdf` to
    0.360 all-depth micro F1. It also drags `both` down at all depths (272 predictions against
-   pymupdf's 2,065). Excluding `ho_025`, the three engines are within 2 points of each other
-   (d<=2 micro 0.51-0.53). The cause was not investigated, because the held-out set must not be
+   pymupdf's 2,065). Excluding `ho_025`, the three engines are within about 2 points of each
+   other (d<=2 micro 0.505-0.526). The cause was not investigated, because the held-out set must not be
    used for debugging. It should be reproduced on a dev or synthetic document: a silent collapse
    on a large, well-formed PDF is a robustness bug, not a tuning matter.
 
-   **A candidate cause was reproduced and fixed on dev and synthetic PDFs (v0.3 Q5, `f3baa43`);
-   `ho_025`'s cause was not confirmed.** The fix did not touch this set. On those PDFs,
-   a text matrix with a tiny skew gives every glyph a slightly different float size in
+   **After the frozen run, a candidate cause was reproduced on dev and synthetic PDFs and fixed
+   (v0.3 Q5, `f3baa43`); whether it is `ho_025`'s cause is not confirmed.** The fix did not
+   touch this set. On those PDFs, a text matrix with a tiny skew gives every glyph a slightly different float size in
    pdfminer, and pdfplumber then split every glyph into its own word, so titles came out
    letter-spaced and stopped being heading candidates. A synthetic specification went from 0
    to 12 of 12 headings under `pdfplumber` with the fix. Whether this was `ho_025`'s cause
    was not checked, because that would mean debugging on the held-out PDF; see the tuning log
-   in [benchmarks-pdf.md](benchmarks-pdf.md#tuning-log-p5b). **The frozen held-out numbers in
-   this document are unchanged by design:** they were measured at `72f6135` and are not re-run.
+   in [benchmarks-pdf.md](benchmarks-pdf.md#tuning-log-p5b). **Every held-out number in this
+   document is pre-fix:** it was measured at the frozen commit `72f6135`, before `f3baa43`
+   landed, and is not re-run, so the `pdfplumber` and `both` rows still include the collapse.
 2. **Earnings releases and bilingual statutes.**
    - Pinterest's earnings release (`ho_007`, 16 bookmarks) yields one heading. Its section
      headings ("Q2 2024 Financial Highlights") are bold at body size (10 pt Arial) and are not
@@ -494,9 +501,9 @@ Run 2026-10-16 at `72f6135`, device `mps` (MPS probe matmul took 0.18 s). Each s
 
 **Synonym overlap.** 14 of the 133 scored sections have a heading equal to a heading-synonym example of their taxonomy (14 distinct headings; compared case- and punctuation-insensitively after dropping one leading number such as "3.1", "Item 1A." or "Note 2."). For those, the synonyms can hand the model the answer, so every accuracy below is also given on the other 119 (*non-overlap*), as *all; non-overlap*.
 
-### Configurations tried (the silver set used as a dev set)
+### Configurations tried
 
-Every configuration that was run, all on the same scored sections, so the chosen default (`path+title+syn`) is selected on the evaluation data and its margin over the others is optimistic. Accuracy cells are *all; non-overlap*. *Top prediction* is the most frequent predicted label over the scored sections and its count (a collapse onto one label shows up here).
+Only the package default (`path+title+syn`) was run on these sections, so no configuration was selected on them. Accuracy cells are *all; non-overlap*. *Top prediction* is the most frequent predicted label over the scored sections and its count (a collapse onto one label shows up here).
 
 | Config | View | Synonyms | `ultrabert` accuracy | `bge-small` accuracy | `jev` accuracy | `ultrabert` top prediction | `bge-small` top prediction | `jev` top prediction |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

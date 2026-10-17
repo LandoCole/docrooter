@@ -50,7 +50,8 @@ corpus that no tuning step ever saw. The held-out column is the honest estimate;
 | Section normalisation, accuracy | Jev | 0.725 | 0.692 |
 | Section normalisation, accuracy | UltraBERT, the local default | 0.514 | 0.579 |
 
-- With 40 documents, one document is 2.5 points; the 95% intervals are 25-35 points wide.
+- With 40 documents, one document is 2.5 points; the 95% intervals of document-type accuracy
+  are 25-30 points wide for the local models (7.5-17.5 for Jev).
 - TOC extraction is where the held-out set exposed real weaknesses (earnings releases,
   bilingual statutes, slide decks). Document typing generalised.
 - Loading a PDF with the default engine takes about 1 s per 100 pages on an Apple M1.

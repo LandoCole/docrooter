@@ -511,13 +511,24 @@ def _variants(result: Mapping[str, Any]) -> list[str]:
     if not variants:
         return []
     names = [n for n in SYSTEMS if any(n in v for v in variants.values())]
+    if len(variants) > 1:
+        heading = "### Configurations tried (the silver set used as a dev set)"
+        what = (
+            "Every configuration that was run, all on the same scored sections, so the chosen "
+            f"default (`{result['final_config']}`) is selected on the evaluation data and its "
+            "margin over the others is optimistic."
+        )
+    else:
+        heading = "### Configurations tried"
+        what = (
+            f"Only the package default (`{result['final_config']}`) was run on these sections, "
+            "so no configuration was selected on them."
+        )
     lines = [
         "",
-        "### Configurations tried (the silver set used as a dev set)",
+        heading,
         "",
-        "Every configuration that was run, all on the same scored sections, so the chosen "
-        f"default (`{result['final_config']}`) is selected on the evaluation data and its margin "
-        "over the others is optimistic. Accuracy cells are *all; non-overlap*. *Top prediction* "
+        f"{what} Accuracy cells are *all; non-overlap*. *Top prediction* "
         "is the most frequent predicted label over the scored sections and its count (a "
         "collapse onto one label shows up here).",
         "",

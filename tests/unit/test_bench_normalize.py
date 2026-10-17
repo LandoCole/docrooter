@@ -273,3 +273,21 @@ def test_warmup_encodes_each_doc_type_taxonomy_and_all_leaves_for_auto(monkeypat
     calls.clear()
     nb._warmup(object(), nb.CONFIGS[nb.FINAL_CONFIG], [None])
     assert calls[0]["doc_type"] is None and len(calls) == 1 + 18
+
+
+def test_a_single_configuration_is_not_described_as_selected_on_the_data():
+    configs = {
+        k: {"fields": list(c.view.fields), "max_tokens": c.view.max_tokens, "synonyms": c.synonyms}
+        for k, c in nb.CONFIGS.items()
+    }
+    run = _run(0.75, 3, ["a", "a", "a", "b"])
+    result = {
+        "final_config": nb.FINAL_CONFIG,
+        "configs": configs,
+        "variants": {nb.FINAL_CONFIG: {"ultrabert": nb.summarize(run)}},
+    }
+    variants = "\n".join(nb._variants(result))
+    assert "### Configurations tried\n" in variants and "dev set" not in variants
+    assert "selected on the evaluation data" not in variants
+    assert f"Only the package default (`{nb.FINAL_CONFIG}`) was run" in variants
+    assert f"| `{nb.FINAL_CONFIG}` (default) |" in variants

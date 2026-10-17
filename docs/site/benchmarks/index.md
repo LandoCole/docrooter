@@ -44,8 +44,9 @@ What these say:
   labels, "Slide N:" titles, a scan); the rest is real (bold body-size headings, a bilingual
   statute, a split cover title). `pdfplumber` returned only 3 headings for an 816-page
   specification, which drives its collapse.
-- **Small samples.** With 40 documents, one document is 2.5 points and the 95% intervals are
-  25-35 points wide. Only large differences mean anything.
+- **Small samples.** With 40 documents, one document is 2.5 points, and the 95% intervals of
+  document-type accuracy are 25-30 points wide for the local models (7.5-17.5 for Jev). Only
+  large differences mean anything.
 
 **Public datasets (zero-shot, hierarchical F1).** UltraBERT is the best local backend on 10-K
 items (0.752) and LEDGAR clauses (0.381); every zero-shot backend is weak on DBpedia's

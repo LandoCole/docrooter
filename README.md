@@ -28,6 +28,35 @@ train per-node classifiers from a few labelled examples when zero-shot is not en
 install is small (`pydantic`, `numpy`, `typer`, `rich`); models, PDF parsing and LLM backends
 are extras.
 
+## Results
+
+Measured on a 51-PDF development corpus, which the defaults were chosen on, and then once, at a
+frozen commit, on a separate 40-PDF held-out corpus that no tuning step saw (no document or
+publisher in common). The held-out column is the honest estimate.
+
+| Task (metric) | System | Dev, 51 PDFs | Held-out, 40 PDFs |
+| --- | --- | ---: | ---: |
+| Document type, 18 types (leaf accuracy) | `jev-view`: TypeSafe Jev on docrooter's `DocumentView` | 0.961 | 0.925 |
+| | `jev-chunks`: Jev on raw page text, no docrooter view | 0.922 | 0.975 |
+| | `ultrabert-view`: UltraBERT zero-shot, the local default | 0.765 | 0.825 |
+| | `ultrabert-hybrid`: UltraBERT on the view and the sections | 0.824 | 0.775 |
+| | `bge-view`: bge-small zero-shot | 0.608 | 0.700 |
+| TOC extraction (F1 at depth ≤ 2 against PDF bookmarks) | default engine (`pymupdf`) | 0.703 (dev-tuned) | 0.576 |
+
+- *Dev-tuned*: the heading rules were tuned on the dev documents (the 24 with at least 5
+  bookmarks are scored; 23 on held-out), so 0.703 is optimistic; it was 0.478 before tuning. No dev-tuned
+  document-type system is in the table (the dev-tuned view, `ultrabert-view-tuned`, scored 0.843
+  on dev and was not part of the held-out run).
+- With 40 documents one document is 2.5 points, and the 95% intervals of leaf accuracy are
+  25-30 points wide for the local models (7.5-17.5 for Jev).
+- **Public datasets** (section classification, hierarchical F1): zero-shot UltraBERT-Embed scores
+  0.752 on SEC 10-K items, 0.381 on LEDGAR clauses and 0.172 on DBpedia classes; with 16
+  labelled examples per class, trained heads reach 0.888, 0.719 and 0.922.
+
+Details: [held-out evaluation](docs/benchmarks-heldout.md), [PDF benchmarks on the dev
+corpus](docs/benchmarks-pdf.md), [public datasets](docs/benchmarks.md) (with the decisions they
+led to) and [performance and memory](docs/performance.md).
+
 ## Install
 
 ```bash
@@ -179,14 +208,23 @@ References: references
 - **`normalize_sections(doc)`** without `doc_type` classifies the document type first, with the
   same backend.
 
-The `doctype` and `normalize` commands do the same from the shell. `--keep` filters by type id
-(a group such as `financial` keeps all its leaves) and `--paths-only` prints just the kept
-files, so the type can gate a pipeline:
+The `doctype` and `normalize` commands do the same from the shell.
+
+### Gating a pipeline
+
+`--keep` filters by type id (a group such as `financial` keeps all its leaves, and it can be
+repeated) and `--paths-only` prints just the kept files, so the document type decides what the
+next step sees. For example, to keep the shareholder letters in a folder of filings and extract
+their tables of contents:
 
 ```bash
-docrooter doctype inbox/ -b keyword --keep financial --paths-only > financial.txt
-while read -r f; do docrooter normalize "$f" -b keyword --json; done < financial.txt
+docrooter doctype filings/ --keep financial.shareholder_letter --paths-only > letters.txt
+while read -r f; do docrooter toc "$f" --json > "${f%.*}.toc.json"; done < letters.txt
 ```
+
+This uses the default local model (`docrooter[models]`, and `docrooter[pdf]` for PDFs); add
+`-b keyword` to try it without one, or `-b jev` for the most accurate backend. With
+`--threshold T`, a file whose confidence is below `T` gets no type and is never kept.
 
 ## Command line
 
@@ -229,6 +267,13 @@ pip install 'docrooter[ui]'
 docrooter serve                    # http://127.0.0.1:8765
 docrooter serve -b keyword --open  # pick the preselected backend, open the browser
 ```
+
+![The docrooter playground after a run: the pipeline stages as a timed waterfall, then the
+table of contents](docs/assets/playground.png)
+
+*The Federal Reserve's July 2024 Monetary Policy Report (`doc_045` of the dev corpus, 79 pages)
+with the `keyword` backend: 1.53 s end to end, most of it reading the pages. The keyword backend
+needs no model and only checks the pipeline; it calls this report a proxy statement.*
 
 `docrooter serve` starts a local web page. Drop in a PDF, Markdown or text file, choose a backend,
 and watch the pipeline run stage by stage (reading pages, finding headings, loading the model,
@@ -482,11 +527,9 @@ A trained bundle is self-contained (the fine-tuned body is inside it) and loads 
 
 ### Memory
 
-docrooter works within a memory budget, 8 GiB by default. UltraBERT reads at most 1024 tokens,
-`train()` truncates to `max_seq_len=512` and fine-tunes with gradient checkpointing, and
-embeddings are computed in batches of 16 (32 on CUDA) and cached in an LRU of 50,000 texts.
-Release models when you are done with them, and set process-wide limits before the first model
-loads:
+docrooter keeps its models within a memory budget, **8 GiB by default**. Set it, and the thread
+count, before the first model loads, with `DOCROOTER_MEMORY_BUDGET_GB` and `DOCROOTER_THREADS`
+or in code; release models when you are done:
 
 ```python
 import docrooter
@@ -498,26 +541,27 @@ with docrooter.Classifier(taxonomy) as clf:  # closes the models it loaded
     results = clf.classify(doc)
 ```
 
-The device order stays CUDA, MPS, CPU. On Apple silicon, Metal and the host share memory, so
-Metal gets a hard cap of the budget minus 1.5 GiB of headroom
-(`torch.mps.set_per_process_memory_fraction(...)`, preceded by the
-`PYTORCH_MPS_HIGH_WATERMARK_RATIO` / `PYTORCH_MPS_LOW_WATERMARK_RATIO` variables when
-`configure` runs before torch is imported; variables you set yourself win). The cap covers
-Metal memory, not the process total. If a model still runs out of MPS memory while loading or
-encoding, it moves to the CPU once, with the same weights, and logs a warning; fine-tuning
-first retries with half the batch. On the CPU nothing caps the resident set: a
-smaller budget only shrinks the default batch sizes.
-
-Every backend has `close()`; a `TrainedModel` closes its body too (save it first if it was
-fine-tuned in memory). `docrooter doctype --chunk-size N --max-pages N` bounds memory on large
-corpora. Measured peaks are in [docs/performance.md](docs/performance.md).
+On Apple silicon, Metal gets a hard cap of the budget minus 1.5 GiB, and a model that still runs
+out of MPS memory moves to the CPU once, with a warning. On the CPU the budget only scales the
+batch size. Every backend has `close()`; a `TrainedModel` closes its body too, so save a body
+fine-tuned in memory first. `docrooter doctype --chunk-size N --max-pages N` bounds memory on
+large corpora. The [memory guide](docs/site/guides/memory-performance.md) has every setting, and
+[docs/performance.md](docs/performance.md) the measured peaks (for example, classifying a
+642-page datasheet and fine-tuning on EDGAR items).
 
 ## Benchmarks
 
-The repository includes a benchmark suite (`benchmarks/`) that scores the backends zero-shot and
-with few-shot training on three public datasets: SEC 10-K filings (EDGAR-CORPUS), DBpedia
-classes and LEDGAR contract clauses. Results are being finalised and will be published in
-[docs/benchmarks.md](docs/benchmarks.md), which is generated by `python -m benchmarks.report`.
+The benchmark suite (`benchmarks/`) produces every number in [Results](#results), from results
+files committed under `benchmarks/results/`:
+
+- [docs/benchmarks-pdf.md](docs/benchmarks-pdf.md): TOC extraction, document type and section
+  normalisation on the 51-PDF dev corpus;
+- [docs/benchmarks-heldout.md](docs/benchmarks-heldout.md): the frozen run on the 40-PDF
+  held-out corpus;
+- [docs/benchmarks.md](docs/benchmarks.md): section classification, zero-shot and few-shot, on
+  SEC 10-K items (EDGAR-CORPUS), DBpedia classes and LEDGAR contract clauses, with the default
+  backend, training base and strategy decided under rules written down before the runs.
+
 See [benchmarks/README.md](benchmarks/README.md) for the setup and how to run them.
 
 ## Development

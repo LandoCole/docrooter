@@ -4,6 +4,12 @@
 watch each stage of the pipeline run with its timing, and inspect the table of contents, the
 document type and the section labels.
 
+![The docrooter playground after a run: the pipeline stages as a timed waterfall, then the table
+of contents](../../assets/playground.png)
+
+*The Federal Reserve's July 2024 Monetary Policy Report (79 pages) with the `keyword` backend,
+which needs no model and only checks the pipeline: it calls this report a proxy statement.*
+
 ```bash
 pip install 'docrooter[ui]'
 docrooter serve                    # http://127.0.0.1:8765

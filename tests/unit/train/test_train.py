@@ -248,11 +248,40 @@ def test_finetuning_retries_half_batch_then_cpu_on_mps_oom(
     assert body.closed == failures  # each retry starts again from the base weights
     metrics = model.manifest["train_metrics"]
     assert (metrics["device"], metrics["batch_size"]) == expected[-1]
-    assert model.manifest["recipe"]["batch_size"] == (None if failures == 0 else 8)
+    # the bundle keeps the recipe's batch; the half batch only applied to this run
+    assert model.manifest["recipe"]["batch_size"] is None
     if failures:
         assert "retrying with batch 8" in caplog.text
     if failures == 2:
         assert "falling back to the CPU" in caplog.text
+
+
+def test_an_explicit_batch_is_saved_unhalved_after_an_mps_oom(nested, monkeypatch):
+    from docrooter.train import trainer
+
+    runs = []
+
+    def flaky(body, triplets, **kw):
+        runs.append(body.batch_size)
+        if len(runs) == 1:
+            raise RuntimeError(OOM)
+
+    monkeypatch.setattr(trainer, "_finetune", flaky)
+    model = train(nested, _data(DATA), min_examples_per_child=2, device="mps", batch_size=12)
+    assert runs == [12, 6]
+    assert model.manifest["train_metrics"]["batch_size"] == 6
+    assert model.manifest["recipe"]["batch_size"] == 12
+
+
+def test_a_fine_tuned_body_is_marked_unrecoverable_until_saved(nested, monkeypatch):
+    from docrooter.train import trainer
+
+    monkeypatch.setattr(trainer, "_finetune", lambda body, triplets, **kw: None)
+    fine_tuned = train(nested, _data(DATA), min_examples_per_child=2)
+    assert "closed before it was saved" in fine_tuned.as_zero_shot()._unrecoverable
+    FakeEmbedding.instances.clear()
+    heads_only = train(nested, _data(DATA), min_examples_per_child=2, finetune_body=False)
+    assert getattr(heads_only.as_zero_shot(), "_unrecoverable", None) is None
 
 
 def test_finetuning_gives_up_after_the_cpu_attempt(nested, monkeypatch):

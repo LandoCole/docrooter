@@ -11,6 +11,7 @@ from docrooter._extras import require
 from docrooter.backends.base import Candidate, ScoreKind, Scores, _row_softmax
 from docrooter.backends.loading import (
     after_model_load,
+    place_on_device,
     prepare_model_load,
     release_memory,
     run_with_cpu_fallback,
@@ -96,8 +97,7 @@ class NLIBackend:
                 self.model_id, **kwargs
             )
             self._entail, self._other = _label_indices(dict(model.config.label2id), self.model_id)
-            self._device_in_use = device  # before the move, so an MPS OOM there is caught
-            model.to(device)
+            device = place_on_device(self, model, device)
             model.eval()
             after_model_load(device, self.name)
             self._tokenizer, self._model = tokenizer, model

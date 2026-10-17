@@ -75,7 +75,8 @@ class EmbeddingBackend:
         self._device_in_use = "cpu"
         self._cache: OrderedDict[tuple[str, str], np.ndarray] = OrderedDict()
         self._label_cache: dict[tuple, np.ndarray] = {}
-        # Set when closing would lose weights that cannot be reloaded (an unsaved fine-tune).
+        # Set while the weights in memory cannot be reloaded (a fine-tune not saved yet): a
+        # load after close() then raises instead of silently building the base model.
         self._unrecoverable: str | None = None
 
     @property
@@ -173,7 +174,9 @@ class EmbeddingBackend:
     def _remember(self, key: tuple[str, str], vec: np.ndarray) -> None:
         if self.cache_size == 0:
             return
-        self._cache[key] = vec
+        # A copy: a row view would keep its whole encode batch alive after the batch's other
+        # rows are evicted, so the cache would bound its entries but not the memory they hold.
+        self._cache[key] = vec.copy()
         self._cache.move_to_end(key)
         while len(self._cache) > self.cache_size:
             self._cache.popitem(last=False)

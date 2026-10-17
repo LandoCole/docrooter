@@ -552,3 +552,23 @@ def test_normalize_closes_the_backends_it_loaded_before_done(monkeypatch):
     normalize_sections(paper(), backend="keyword", on_event=rec)
     assert seen and all("done" not in stages for stages in seen)
     assert rec.stages()[-1] == "done"
+
+
+def test_classify_documents_loads_the_model_before_the_view_as_documented():
+    """The view counts tokens with the backend's tokenizer, so a model loads before ``view``
+    starts; the docstrings must give that order."""
+
+    class LoadingBackend(KeywordBackend):
+        def tokenizer(self):
+            device = loading.prepare_model_load("cpu", "loading:test")
+            loading.after_model_load(device, "loading:test")
+            return lambda text: len(text.split())
+
+    rec = Recorder()
+    classify_document(paper(), doc_type_taxonomy(), backend=LoadingBackend(), on_event=rec)
+    assert rec.stages("start") == ["model_load", "view", "classify"]
+    assert_well_formed(rec)
+    for doc in (classify_document.__doc__, Classifier.classify_documents.__doc__):
+        events_part = doc[doc.index("``on_event``") :]
+        order = [events_part.index(f"``{stage}``") for stage in ("model_load", "view", "classify")]
+        assert order == sorted(order)

@@ -470,3 +470,50 @@ def test_nli_mps_oom_moves_the_loaded_model_to_cpu(fake_transformers, monkeypatc
     assert s.values[0, 0] > s.values[0, 1]
     (model,) = fake_transformers.models  # moved, not reloaded
     assert model.moved_to == "cpu" and b._device_in_use == "cpu"
+
+
+OOM_LOAD = "MPS backend out of memory (MPS allocated: 7.9 GB, max allowed: 8.0 GB)"
+
+
+def _oom_on_mps_move(cls, monkeypatch):
+    real_to = cls.to
+
+    def to(self, device):
+        if device == "mps":
+            raise RuntimeError(OOM_LOAD)
+        return real_to(self, device)
+
+    monkeypatch.setattr(cls, "to", to)
+
+
+def _model_load_events(call):
+    from docrooter import events
+
+    seen = []
+    with events.pipeline_run(seen.append):
+        call()
+    return [(e.status, e.data.get("device"), e.data.get("aborted")) for e in seen
+            if e.stage == "model_load"]  # fmt: skip
+
+
+def test_nli_mps_oom_while_loading_reports_one_load_on_cpu(fake_transformers, monkeypatch, caplog):
+    _oom_on_mps_move(FakeNLIModel, monkeypatch)
+    b = NLIBackend(device="mps")
+    with caplog.at_level("WARNING"):
+        loads = _model_load_events(lambda: b.score(["tax filing"], [TAX, LIT]))
+    assert loads == [("start", "mps", None), ("end", "cpu", None)]
+    (model,) = fake_transformers.models  # built once, moved to the CPU
+    assert model.moved_to == "cpu" and b._device_in_use == "cpu" and b._device == "cpu"
+    assert "while loading" in caplog.text and "while scoring" not in caplog.text
+
+
+def test_mlm_mps_oom_while_loading_reports_one_load_on_cpu(fake_mlm, monkeypatch, caplog):
+    _oom_on_mps_move(FakeMLM, monkeypatch)
+    b = MLMChoiceBackend(device="mps")
+    cands = [Candidate("a", "Alpha"), Candidate("b", "Beta")]
+    with caplog.at_level("WARNING"):
+        loads = _model_load_events(lambda: b.score(["Alpha"], cands))
+    assert loads == [("start", "mps", None), ("end", "cpu", None)]
+    assert len(fake_mlm.model_kwargs) == 1 and fake_mlm.model.moved_to == "cpu"
+    assert b._device_in_use == "cpu" and b._device == "cpu"
+    assert "while loading" in caplog.text and "while scoring" not in caplog.text

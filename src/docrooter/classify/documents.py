@@ -58,9 +58,10 @@ def classify_document(
     from a spec string is released before returning; pass a backend instance to reuse one
     across calls.
 
-    ``on_event`` receives pipeline :class:`~docrooter.events.Event` objects: ``view``,
-    ``model_load`` (when a backend loads its model), ``classify`` (its end carries ``type`` and
-    ``confidence``) and a final ``done``.
+    ``on_event`` receives pipeline :class:`~docrooter.events.Event` objects: ``model_load``
+    (when a backend loads its model; it comes first, because the view counts tokens with the
+    model's tokenizer), ``view``, ``classify`` (its end carries ``type`` and ``confidence``) and
+    a final ``done``.
     """
     with (
         events.pipeline_run(on_event),

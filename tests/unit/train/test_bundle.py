@@ -271,21 +271,77 @@ def test_close_of_a_saved_model_drops_heads_and_closes_the_body(nested, tmp_path
     assert np.allclose(loaded.score(["audit opinion"], candidates).values, before)  # reloaded
 
 
-def test_close_of_an_unsaved_fine_tuned_model_refuses_reuse(nested, monkeypatch, tmp_path):
+class CountingST:
+    """A SentenceTransformer stand-in that records every model it is built from."""
+
+    built: list[str] = []
+
+    def __init__(self, model_id, **kwargs):
+        CountingST.built.append(model_id)
+        self.max_seq_length = None
+
+    def encode(self, texts, prompt="", **kwargs):
+        return np.array([[float(w in t.lower()) for w in WORDS] + [1.0] for t in texts])
+
+    def save(self, path):
+        Path(path).mkdir(parents=True, exist_ok=True)
+
+
+def _fine_tuned(nested, monkeypatch):
+    """``train()`` with a real ``EmbeddingBackend`` body over :class:`CountingST`; the
+    fine-tune step only loads the body."""
     import sys
     import types
 
-    monkeypatch.setitem(sys.modules, "sentence_transformers", types.SimpleNamespace(
-        SentenceTransformer=lambda *a, **k: pytest.fail("must not reload base weights")
-    ))  # fmt: skip
+    from docrooter.train import Dataset, Example, trainer
+
+    CountingST.built = []
+    monkeypatch.setitem(
+        sys.modules, "sentence_transformers", types.SimpleNamespace(SentenceTransformer=CountingST)
+    )
     monkeypatch.setenv("DOCROOTER_DEVICE", "cpu")
-    model, _ = _model(nested)
-    model.manifest["train_metrics"]["triplets"] = 10
-    model._body = body = EmbeddingBackend("BAAI/bge-small-en-v1.5")
-    model.close()
+    monkeypatch.setattr(trainer, "_finetune", lambda body, triplets, **kw: body._load())
+    spec = {
+        ("financial", "financial.tax"): ["tax one", "tax two"],
+        ("financial", "financial.audit"): ["audit one", "audit two"],
+        ("legal", "legal.contracts"): ["contract one", "contract two"],
+        ("legal", "legal.litigation"): ["court one", "court two"],
+    }
+    data = Dataset([Example(text=t, path=list(p)) for p, texts in spec.items() for t in texts])
+    model = docrooter.train(
+        nested, data, base_model="BAAI/bge-small-en-v1.5", min_examples_per_child=2
+    )
+    assert model.manifest["train_metrics"]["triplets"] > 0
+    assert CountingST.built == ["BAAI/bge-small-en-v1.5"]
+    return model
+
+
+@pytest.mark.parametrize("closing", ["model", "zero_shot"])
+def test_closing_an_unsaved_fine_tuned_body_refuses_reuse(nested, monkeypatch, closing):
+    """Closing the body by any route, the model or its :meth:`as_zero_shot` backend, must not
+    let the next call rebuild the base weights under heads fitted on the fine-tuned ones."""
+    model = _fine_tuned(nested, monkeypatch)
+    candidates = [Candidate("financial.audit", "A"), Candidate("financial.tax", "T")]
+    model.score(["tax due"], candidates)  # usable before closing
+    (model if closing == "model" else model.as_zero_shot()).close()
     assert model._heads  # the only copy of the heads is kept
     with pytest.raises(BackendError, match="closed before it was saved"):
-        body.encode(["tax"], prompt="")
+        model.score(["tax due"], candidates)
+    with pytest.raises(BackendError, match="closed before it was saved"):
+        model.as_zero_shot().encode(["tax"], prompt="")
+    assert CountingST.built == ["BAAI/bge-small-en-v1.5"]  # the base was never rebuilt
+
+
+def test_a_saved_fine_tuned_body_reloads_from_its_bundle(nested, monkeypatch, tmp_path):
+    model = _fine_tuned(nested, monkeypatch)
+    model.save(tmp_path / "b")
+    model.as_zero_shot().close()
+    candidates = [Candidate("financial.audit", "A"), Candidate("financial.tax", "T")]
+    model.score(["tax due"], candidates)
+    assert CountingST.built == ["BAAI/bge-small-en-v1.5", str(tmp_path / "b" / "body")]
+
+
+def test_closing_a_model_without_fine_tuning_leaves_its_body_reloadable(nested):
     unsaved_heads_only, _ = _model(nested)  # no fine-tuning: the base body reloads fine
     unsaved_heads_only.close()
     assert getattr(unsaved_heads_only._body, "_unrecoverable", None) is None
@@ -300,6 +356,7 @@ def test_save_points_an_embedding_body_at_the_bundle(nested, tmp_path):
     model._body = body = EmbeddingBackend("dmis-lab/UltraBERT-Embed-150M")
     body._model = SavingST()  # "loaded": save writes it without a real model
     model.manifest["train_metrics"]["triplets"] = 10  # a fine-tuned body
+    body._unrecoverable = "set by train() after fine-tuning"
     model.save(tmp_path / "b")
     assert body.model_id == str(tmp_path / "b" / "body") and body.recipe.revision is None
     assert body.trust_remote_code is True

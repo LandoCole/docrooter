@@ -239,3 +239,13 @@ def test_other_errors_while_encoding_are_raised(fake_st, monkeypatch):
     with pytest.raises(RuntimeError, match="shape mismatch"):
         EmbeddingBackend("some/model", device="mps").encode(["a"], prompt="")
     assert len(fake_st.instances) == 1
+
+
+def test_cached_rows_do_not_keep_their_batch_alive(fake_st):
+    """Each cached row owns its memory: a view would keep its whole encode batch alive, so
+    ``cache_size`` would bound the entries but not the bytes held."""
+    backend = EmbeddingBackend("some/model", cache_size=2)
+    backend.encode(["a", "b", "c", "ab", "bc"], prompt="")
+    assert len(backend._cache) == 2
+    assert all(vec.base is None for vec in backend._cache.values())
+    assert all(vec.dtype == np.float32 for vec in backend._cache.values())

@@ -128,16 +128,12 @@ class TrainedModel:
         """Release the body (also the :meth:`as_zero_shot` backend) and reloadable heads.
 
         A saved or loaded model reloads both from its bundle on its next use. A body fine-tuned
-        in memory and never saved cannot be reloaded: using the model after ``close`` then
-        raises ``BackendError``, so save it first if you still need it.
+        in memory and never saved cannot be reloaded: using the model after its body is closed
+        (by this method or through :meth:`as_zero_shot`) raises ``BackendError``, so save it
+        first if you still need it.
         """
         if self._path is not None:
             self._heads.clear()  # reloaded from the bundle on demand
-        elif self.manifest.get("train_metrics", {}).get("triplets"):
-            self._body._unrecoverable = (
-                f"{self.name} was fine-tuned in memory and closed before it was saved; "
-                "its fine-tuned weights are gone (save the model before closing it)"
-            )
         close_backend(self._body)
 
     def _head(self, node_id: str) -> Any:
@@ -172,6 +168,7 @@ class TrainedModel:
         if isinstance(self._body, EmbeddingBackend):
             self._body.model_id = str(body_dir)
             self._body.recipe = self._body.recipe.model_copy(update={"revision": None})
+            self._body._unrecoverable = None  # the fine-tuned weights now reload from disk
 
     @classmethod
     def load(

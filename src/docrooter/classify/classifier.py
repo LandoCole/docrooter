@@ -341,8 +341,9 @@ class Classifier:
         the root decision's probabilities over the top-level nodes and ``confidence`` is their
         maximum, so it is never 0 just because the traversal stopped.
 
-        ``on_event`` receives pipeline :class:`~docrooter.events.Event` objects (``view``,
-        ``model_load``, ``classify``, then ``done``); see :func:`~docrooter.classify_document`.
+        ``on_event`` receives pipeline :class:`~docrooter.events.Event` objects (``model_load``
+        when a model loads, before ``view``, then ``classify`` and ``done``); see
+        :func:`~docrooter.classify_document`.
         """
         from docrooter.classify.documents import classify_documents
 

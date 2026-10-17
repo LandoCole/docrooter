@@ -13,6 +13,7 @@ from docrooter.backends.base import Candidate, Scores, _row_softmax
 from docrooter.backends.loading import (
     after_model_load,
     attn_implementation,
+    place_on_device,
     prepare_model_load,
     release_memory,
     run_with_cpu_fallback,
@@ -105,8 +106,7 @@ class MLMChoiceBackend:
             if not getattr(tokenizer, "mask_token", None):
                 raise BackendError(f"{self.model_id} has no mask token; it is not a masked LM")
             model = transformers.AutoModelForMaskedLM.from_pretrained(self.model_id, **kwargs)
-            self._device_in_use = device  # before the move, so an MPS OOM there is caught
-            model.to(device)
+            device = place_on_device(self, model, device)
             model.eval()
             after_model_load(device, self.name)
             self._tokenizer, self._model = tokenizer, model

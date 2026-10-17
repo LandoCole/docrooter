@@ -81,6 +81,29 @@ def warn_cpu_fallback(name: str, what: str) -> None:
     )
 
 
+def place_on_device(backend: Any, model: Any, device: str) -> str:
+    """Move a just-built ``model`` to ``device``; returns the device it ended up on.
+
+    If the move runs out of MPS memory, the model goes to the CPU instead and the backend's
+    ``_device`` and ``_device_in_use`` become ``"cpu"``. Handling it here, inside the load,
+    keeps the ``model_load`` event to one start and one end and builds the model once.
+    """
+    backend._device_in_use = device
+    try:
+        model.to(device)
+    except Exception as exc:
+        if not is_mps_oom(exc, device):
+            raise
+    else:
+        return device
+    # Outside the handler, so the failed move's tensors can be freed.
+    release_memory()
+    warn_cpu_fallback(backend.name, "loading")
+    model.to("cpu")
+    backend._device = backend._device_in_use = "cpu"
+    return "cpu"
+
+
 def move_backend_to_cpu(backend: Any, what: str) -> None:
     """Continue ``backend`` on the CPU with the same weights.
 

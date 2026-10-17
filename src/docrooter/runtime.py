@@ -92,6 +92,14 @@ def configure(
     ``set_per_process_memory_fraction``. Watermark variables you set yourself are never
     overridden, and then no fraction is applied. Call ``configure`` before anything imports
     torch to get the early cap.
+
+    This happens on the first docrooter model load whether or not ``configure`` was called
+    (with the default 8 GiB budget), and it is process-wide: the watermark variables go into
+    ``os.environ``, so subprocesses the host application starts inherit them, and the Metal
+    cap also applies to the host's own MPS models. To opt out, set
+    ``PYTORCH_MPS_HIGH_WATERMARK_RATIO`` or ``PYTORCH_MPS_LOW_WATERMARK_RATIO`` yourself before
+    the first model load (docrooter then writes neither variable and applies no fraction), or
+    raise ``memory_budget_gb``.
     """
     if threads is not None:
         _check_threads(threads, "threads")

@@ -314,8 +314,13 @@ def train(
                 seed=seed,
                 gradient_checkpointing=gradient_checkpointing,
             )
-            recipe = body.recipe  # a retry may have halved the batch
             body.name = f"embedding:{base_model} (fine-tuned)"
+            # Whoever closes the body (the model, or its as_zero_shot() backend), a reload
+            # would build the base weights under heads fitted on the fine-tuned ones.
+            body._unrecoverable = (
+                f"trained:{base_model} was fine-tuned in memory and closed before it was "
+                "saved; its fine-tuned weights are gone (save the model before closing it)"
+            )
         else:
             warnings.warn(
                 "finetune_body=True but the dataset yields no triplets (no node has two examples "
@@ -352,6 +357,8 @@ def train(
         "base_revision": recipe.revision,
         "taxonomy_hash": taxonomy.content_hash(),
         "instruction": instruction,
+        # The recipe as asked for: a half batch from an out-of-memory retry applied to this
+        # run on this device only (it is in train_metrics), not to inference elsewhere.
         "recipe": recipe.model_dump(),
         "heads": manifest_heads,
         "node_counts": node_counts,

@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import socket
 import tempfile
 import threading
 import time
@@ -14,6 +15,7 @@ import pytest
 
 pytest.importorskip("fastapi")
 pytest.importorskip("python_multipart")
+pytest.importorskip("httpx")  # Starlette's TestClient needs it; it is not in the `ui` extra
 pymupdf = pytest.importorskip("pymupdf")
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -145,10 +147,17 @@ def test_stream_replays_finished_runs_and_resumes_after_last_event_id(client):
 
 
 def test_failed_run_reports_error_then_job_end(client, temp_paths):
-    _, events = run(client, data=b"%PDF-1.7 this is not really a PDF")
+    run_id, events = run(client, data=b"%PDF-1.7 this is not really a PDF")
     assert [e["stage"] for e in events[-2:]] == ["error", "job"]
     assert events[-1]["data"]["status"] == "error"
     assert all(temp not in events[-1]["data"]["error"] for temp in temp_paths)
+    # the pipeline's own error event names the upload, never the server's temp file
+    stored = client.get(f"/api/runs/{run_id}").json()["events"][-2]
+    for message in (events[-2]["data"]["message"], stored["data"]["message"]):
+        assert "doc.pdf" in message
+        for temp in temp_paths:
+            assert temp not in message and os.path.realpath(temp) not in message
+            assert os.path.basename(temp) not in message
     assert temp_paths and not any(os.path.exists(p) for p in temp_paths)
 
 
@@ -591,16 +600,26 @@ def test_chunked_upload_without_content_length_is_411(client, temp_paths):
 
 @pytest.mark.parametrize(
     "content_length",
-    [b"12abc", b"-1", b"\xb2", b"1\xb9"],  # "\xb2" is latin-1 for "2" superscript: isdigit()
+    # "\xb2" is latin-1 for "2" superscript: isdigit(). Past 18 digits it is no byte count
+    # (and past 4,300 digits int() itself refuses it).
+    [b"12abc", b"-1", b"\xb2", b"1\xb9", b"9" * 19, b"1" * 4301],
+    ids=["letters", "negative", "superscript", "mixed", "19-digits", "4301-digits"],
 )
 def test_malformed_content_length_is_400(content_length):
     status = asyncio.run(drive_post([b"x"], content_length=content_length))
     assert status == 400
 
 
-def test_non_ascii_last_event_id_is_ignored(client):
+def test_an_18_digit_content_length_is_too_large_not_malformed():
+    assert asyncio.run(drive_post([b"x"], content_length=b"9" * 18)) == 413
+
+
+@pytest.mark.parametrize(
+    "last", [b"\xb2", b"1" * 19, b"1" * 4301], ids=["superscript", "19-digits", "4301-digits"]
+)
+def test_non_ascii_or_overlong_last_event_id_is_ignored(client, last):
     run_id, events = run(client)
-    again, ids = stream(client, run_id, headers={"Last-Event-ID": b"\xb2"})
+    again, ids = stream(client, run_id, headers={"Last-Event-ID": last})
     assert again == events and ids == list(range(len(events)))
 
 
@@ -751,3 +770,122 @@ def test_load_env_file_strips_inline_comments_and_is_silent(tmp_path, capsys, ca
     }
     assert capsys.readouterr() == ("", "")
     assert caplog.records == []
+
+
+# --- final review: shutdown, text uploads, TOC cap ----------------------------------------
+
+
+def free_port() -> int:
+    """A free local port in the range kept for test servers."""
+    for port in range(18900, 19000):
+        with socket.socket() as probe:
+            try:
+                probe.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+            return port
+    pytest.skip("no free port in 18900-18999")
+
+
+def test_serve_stops_while_a_page_follows_a_run(monkeypatch, temp_paths, capfd, caplog):
+    """A page following a live run keeps an SSE response open until the run ends; stopping
+    the server must not wait for that (Ctrl+C used to hang until every followed run ended).
+    The stream is ended, not cancelled, so uvicorn logs no ASGI exception."""
+    import httpx
+
+    started, release = blocking_load(monkeypatch)
+    monkeypatch.setattr(server, "STOP_TIMEOUT_SECONDS", 0.2)
+    port = free_port()
+    base = f"http://127.0.0.1:{port}"
+    app = server.create_app("keyword", port=port)
+    srv = cli._playground_server(app, "127.0.0.1", port)
+    serving = threading.Thread(target=srv.run, daemon=True)
+    serving.start()
+    try:
+        deadline = time.monotonic() + 10
+        while not srv.started:
+            assert time.monotonic() < deadline and serving.is_alive()
+            time.sleep(0.02)
+        with httpx.Client(base_url=base, timeout=5) as http:
+            run_id = http.post("/api/runs", files={"file": ("a.md", MARKDOWN)}).json()["run_id"]
+        assert started.wait(5)
+        following = threading.Event()
+
+        def follow():
+            try:
+                with httpx.stream("GET", f"{base}/api/runs/{run_id}/events", timeout=None) as r:
+                    following.set()
+                    for _ in r.iter_lines():
+                        pass
+            except httpx.HTTPError:
+                pass  # the server closed the stream
+
+        follower = threading.Thread(target=follow, daemon=True)
+        follower.start()
+        assert following.wait(5)
+        stopping = time.monotonic()
+        srv.should_exit = True
+        serving.join(5)
+        assert not serving.is_alive(), "the server waited for the followed run"
+        assert time.monotonic() - stopping < 3
+        follower.join(5)
+        assert not follower.is_alive()
+    finally:
+        with caplog.at_level(logging.CRITICAL):  # the abandoned job fails on its own
+            release.set()
+            serving.join(10)
+            app.state.playground._worker.join(5)
+    assert not any(os.path.exists(p) for p in temp_paths)
+    assert "Exception in ASGI application" not in capfd.readouterr().err
+
+
+def test_serve_configures_a_graceful_shutdown_timeout(monkeypatch):
+    import uvicorn
+
+    configs = []
+    monkeypatch.setattr(uvicorn.Server, "run", lambda self: configs.append(self.config))
+    result = CliRunner().invoke(cli.app, ["serve", "--port", "18999"])
+    assert result.exit_code == 0, result.output
+    (config,) = configs
+    assert config.timeout_graceful_shutdown == cli.SHUTDOWN_GRACE_SECONDS > 0
+
+
+def test_text_uploads_have_a_lower_size_cap(client, monkeypatch, temp_paths):
+    assert server.MAX_TEXT_UPLOAD_BYTES == 5 * 1024 * 1024
+    big = b"# Big\n\n" + b"x" * server.MAX_TEXT_UPLOAD_BYTES
+    response = post(client, "big.md", big)
+    assert response.status_code == 413
+    detail = response.json()["detail"]
+    assert "5 MB" in detail and ".md" in detail and ".txt" in detail
+    assert temp_paths and not any(os.path.exists(p) for p in temp_paths)
+    assert client.get("/api/runs").json() == []
+
+    monkeypatch.setattr(server, "MAX_TEXT_UPLOAD_BYTES", len(MARKDOWN))
+    assert client.get("/api/backends").json()["max_text_upload_bytes"] == len(MARKDOWN)
+    assert post(client, "fits.txt", MARKDOWN).status_code == 202
+    assert post(client, "over.txt", MARKDOWN + b"!").status_code == 413
+    assert len(pdf_bytes()) > len(MARKDOWN)
+    assert post(client, "doc.pdf").status_code == 202  # PDFs keep MAX_UPLOAD_BYTES
+
+
+def test_toc_entries_are_capped_with_a_truncated_flag(client, monkeypatch):
+    assert server.MAX_TOC_ENTRIES == 5000
+    monkeypatch.setattr(server, "MAX_TOC_ENTRIES", 2)
+    run_id, _ = run(client, "paper.md", MARKDOWN, normalize="true")
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert [e["title"] for e in detail["toc"]] == ["Abstract", "Methods"]
+    assert [e["title"] for e in detail["sections"]["entries"]] == ["Abstract", "Methods"]
+    assert detail["truncated"] is True and detail["toc_total"] == 3
+    assert detail["document"]["sections"] > 2  # the document itself is whole
+
+    monkeypatch.setattr(server, "MAX_TOC_ENTRIES", 3)
+    run_id, _ = run(client, "paper.md", MARKDOWN)
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert len(detail["toc"]) == 3 and detail["truncated"] is False
+    assert detail["toc_total"] == 3
+
+
+def test_page_shows_the_truncation_and_the_text_cap(client):
+    script = client.get("/static/app.js").text
+    assert "run.truncated" in script and "toc_total" in script
+    assert "max_text_upload_bytes" in script

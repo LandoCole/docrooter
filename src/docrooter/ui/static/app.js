@@ -164,9 +164,13 @@ function setBusy(busy) {
 async function submit(file) {
   if (state.busy) return;
   $("form-error").textContent = "";
-  const limit = state.backends?.max_upload_bytes ?? 50 * 1024 * 1024;
+  const isText = /\.(md|txt)$/i.test(file.name);
+  const limit = isText
+    ? state.backends?.max_text_upload_bytes ?? 5 * 1024 * 1024
+    : state.backends?.max_upload_bytes ?? 50 * 1024 * 1024;
   if (file.size > limit) {
-    $("form-error").textContent = `${file.name} is ${bytes(file.size)}; the limit is ${bytes(limit)}.`;
+    const kind = isText ? "for .md and .txt files " : "";
+    $("form-error").textContent = `${file.name} is ${bytes(file.size)}; the limit ${kind}is ${bytes(limit)}.`;
     return;
   }
   state.lastFile = file;
@@ -442,8 +446,17 @@ function follow(runId) {
     handle(JSON.parse(message.data));
   };
   source.onerror = () => {
-    if (state.source === source && source.readyState === EventSource.CONNECTING) {
+    if (state.source !== source) return;
+    if (source.readyState === EventSource.CONNECTING) {
       setStatus("Lost the connection to the server; reconnecting…", true);
+    } else if (source.readyState === EventSource.CLOSED) {
+      // The reconnect was refused (a restarted server no longer knows the run): stop waiting.
+      state.source = null;
+      cancelAnimationFrame(state.frame);
+      document.querySelector(".timeline").classList.remove("is-live");
+      setBusy(false);
+      setStatus("This run is no longer on the server (it may have restarted).", true);
+      refreshHistory();
     }
   };
   markHistory();
@@ -472,7 +485,7 @@ function renderFacts(run) {
   const meta = run.meta ?? {};
   const facts = [
     ["Pages", meta.n_pages !== undefined ? num(meta.n_pages) : null],
-    ["Headings", run.toc ? num(run.toc.length) : null],
+    ["Headings", run.toc ? num(run.toc_total ?? run.toc.length) : null],
     ["Engine", meta.engine ?? (run.kind === "pdf" ? null : "Markdown")],
     ["Model", run.options?.backend],
     ["Wall time", secs(run.seconds)],
@@ -521,6 +534,17 @@ function buildTree(entries) {
   return root;
 }
 
+// The playground keeps at most a fixed number of headings per run; say so when it cut some.
+function truncationNote(run) {
+  if (!run.truncated) return null;
+  return h(
+    "p",
+    { class: "note", style: { "margin-bottom": "0.75rem" } },
+    h("strong", {}, `Showing the first ${num(run.toc.length)} of ${num(run.toc_total)} headings.`),
+    " The playground keeps that many per run; use the library or the CLI for the full list.",
+  );
+}
+
 function renderToc(run) {
   const panel = $("panel-toc");
   const entries = run.toc ?? [];
@@ -531,13 +555,16 @@ function renderToc(run) {
   const tree = buildTree(entries);
   const setAll = (open) => tree.querySelectorAll("details").forEach((d) => (d.open = open));
   panel.replaceChildren(
-    h(
-      "div",
-      { class: "toolbar" },
-      h("button", { type: "button", class: "secondary", onclick: () => setAll(true) }, "Expand all"),
-      h("button", { type: "button", class: "secondary", onclick: () => setAll(false) }, "Collapse all"),
-    ),
-    tree,
+    ...[
+      truncationNote(run),
+      h(
+        "div",
+        { class: "toolbar" },
+        h("button", { type: "button", class: "secondary", onclick: () => setAll(true) }, "Expand all"),
+        h("button", { type: "button", class: "secondary", onclick: () => setAll(false) }, "Collapse all"),
+      ),
+      tree,
+    ].filter(Boolean),
   );
 }
 
@@ -590,6 +617,7 @@ function renderSections(run) {
     ),
   );
   panel.replaceChildren(
+    ...[truncationNote(run)].filter(Boolean),
     h("p", { class: "note", style: { "margin-bottom": "0.75rem" } }, `Labels from ${run.sections.taxonomy}.`),
     h(
       "div",

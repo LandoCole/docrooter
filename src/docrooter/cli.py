@@ -862,6 +862,33 @@ def _browser_url(host: str, port: int) -> str:
     return f"http://{shown}:{port}/"
 
 
+SHUTDOWN_GRACE_SECONDS = 2.0
+"""How long ``docrooter serve`` lets open connections finish once asked to stop. A page that
+follows a live run holds its event stream open until the run ends, so without this bound
+Ctrl+C would wait for every followed run."""
+
+
+def _playground_server(application: Any, host: str, port: int) -> Any:
+    """The uvicorn server for the playground ``application`` (from ``create_app``).
+
+    On shutdown it first ends the event streams that pages follow, so they close cleanly
+    instead of being cancelled when :data:`SHUTDOWN_GRACE_SECONDS` runs out; the grace period
+    still bounds any other connection, such as an upload in progress.
+    """
+    uvicorn = require("uvicorn", "ui")
+    base: Any = uvicorn.Server
+
+    class PlaygroundServer(base):
+        async def shutdown(self, sockets: Any = None) -> None:
+            application.state.playground.end_streams()
+            await super().shutdown(sockets=sockets)
+
+    config = uvicorn.Config(
+        application, host=host, port=port, timeout_graceful_shutdown=SHUTDOWN_GRACE_SECONDS
+    )
+    return PlaygroundServer(config)
+
+
 def _open_when_started(server: Any, url: str, timeout: float = 30.0) -> None:
     """Open ``url`` in the browser once the uvicorn ``server`` reports it has started."""
     import webbrowser
@@ -900,7 +927,7 @@ def serve(
     import threading
 
     with _errors_exit_1():
-        uvicorn = require("uvicorn", "ui")
+        require("uvicorn", "ui")  # fail early, with the install hint
         from docrooter.ui.server import check_backend_spec, create_app, load_env_file
 
         check_backend_spec(backend)
@@ -918,7 +945,7 @@ def serve(
             soft_wrap=True,
         )
     url = _browser_url(host, port)
-    server = uvicorn.Server(uvicorn.Config(application, host=host, port=port))
+    server = _playground_server(application, host, port)
     if open_browser:
         threading.Thread(target=_open_when_started, args=(server, url), daemon=True).start()
     err.print(Text(f"docrooter playground: {url}"))

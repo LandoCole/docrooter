@@ -65,12 +65,27 @@ from docrooter.pdf.load import ENGINES  # noqa: E402
 from docrooter.taxonomies import builtin_taxonomy  # noqa: E402
 from docrooter.taxonomy import Taxonomy  # noqa: E402
 
-__all__ = ["MAX_UPLOAD_BYTES", "check_backend_spec", "create_app", "load_env_file"]
+__all__ = [
+    "MAX_TEXT_UPLOAD_BYTES",
+    "MAX_TOC_ENTRIES",
+    "MAX_UPLOAD_BYTES",
+    "check_backend_spec",
+    "create_app",
+    "load_env_file",
+]
 
 logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 """Largest accepted upload; read on every request, so tests can patch it."""
+MAX_TEXT_UPLOAD_BYTES = 5 * 1024 * 1024
+"""Largest accepted ``.md`` or ``.txt`` upload. PDFs are bounded by :data:`MAX_PAGES`; text has
+no pages, and its work and memory grow with its headings (about 250x the file for a
+heading-dense one). 5 MB is about a million words, well beyond a real filing as text."""
+MAX_TOC_ENTRIES = 5000
+"""TOC (and section-label) entries a run keeps and returns; the rest are dropped and the
+result says ``truncated``. A long filing has a few hundred; 5,000 entries are about 0.6 MB
+of JSON per run, so :data:`HISTORY` runs stay small and the page builds a bounded tree."""
 MAX_PAGES = 2000
 HISTORY = 20
 """Runs kept in memory; the oldest is dropped when a new one arrives."""
@@ -83,6 +98,7 @@ TEMP_PREFIX = "docrooter-"
 _LOOPBACK_NAMES = frozenset({"127.0.0.1", "localhost", "::1"})
 _ANY_ADDRESS = frozenset({"", "0.0.0.0", "::"})
 _FORM_OVERHEAD = 64 * 1024  # multipart framing and option fields on top of the file
+_MAX_DIGITS = 18  # a longer header number is no byte count or event index (and int() may refuse it)
 _CHUNK = 1024 * 1024
 _ACCEPTED = (".pdf", ".md", ".txt")
 _TOP_DOC_TYPES = 5
@@ -276,6 +292,8 @@ class Run:
             "document": result.get("document"),
             "meta": result.get("meta"),
             "toc": result.get("toc"),
+            "toc_total": result.get("toc_total"),
+            "truncated": result.get("truncated", False),
             "doc_type": result.get("doc_type"),
             "sections": result.get("sections"),
         }
@@ -295,8 +313,19 @@ class Job:
             self.loop.call_soon_threadsafe(callback, *args)
 
     def push(self, event: events.Event) -> None:
-        """The pipeline sink: hand the event to the loop thread."""
-        self.loop.call_soon_threadsafe(self.run.publish, event.model_dump(mode="json"))
+        """The pipeline sink: hand the event to the loop thread. An error message names the
+        upload, never the server's temp file."""
+        data = event.model_dump(mode="json")
+        if event.status == "error" and isinstance(data["data"].get("message"), str):
+            data["data"]["message"] = self.redact(data["data"]["message"])
+        self.loop.call_soon_threadsafe(self.run.publish, data)
+
+    def redact(self, message: str) -> str:
+        """``message`` with the temp file's path (as given, and resolved: macOS reports
+        ``/private/var/...`` for ``/var/...``) replaced by the upload's name."""
+        for path in sorted({os.path.realpath(self.path), self.path}, key=len, reverse=True):
+            message = message.replace(path, self.run.filename)
+        return message
 
 
 def build_result(
@@ -311,8 +340,9 @@ def build_result(
     def label(node_id: str) -> str:
         return doc_types.node(node_id).label if node_id in doc_types else node_id
 
+    all_entries = doc.toc()
     toc: list[dict[str, Any]] = []
-    for entry in doc.toc():
+    for entry in all_entries[:MAX_TOC_ENTRIES]:
         section = doc.sections[entry.id]
         toc.append(
             {
@@ -361,6 +391,8 @@ def build_result(
         "document": {"title": doc.title, "source": filename, "sections": len(doc.sections)},
         "meta": meta,
         "toc": toc,
+        "toc_total": len(all_entries),
+        "truncated": len(all_entries) > len(toc),
         "doc_type": type_out,
         "sections": sections,
     }
@@ -377,6 +409,16 @@ class Playground:
         self.jobs: queue.Queue[Job | None] = queue.Queue(maxsize=MAX_PENDING)
         self._worker: threading.Thread | None = None
         self._current: Job | None = None  # the job the worker is running
+        self.streams_ended = False
+
+    def end_streams(self) -> None:
+        """End every open event stream (each closes without its ``job`` event) and any opened
+        later, so a server that is stopping need not wait for the runs pages follow. Call it
+        on the event loop thread."""
+        self.streams_ended = True
+        for run in self.runs.values():
+            for listener in run.listeners:
+                listener.put_nowait(_END_STREAM)
 
     # lifecycle
 
@@ -466,7 +508,7 @@ class Playground:
             result = build_result(doc, run.filename, doc_type, norm, self.doc_types)
             status = "done"
         except Exception as exc:
-            message = str(exc).replace(job.path, run.filename) or type(exc).__name__
+            message = job.redact(str(exc)) or type(exc).__name__
             error = f"{type(exc).__name__}: {message}"[:_ERROR_CHARS]
             logger.warning("run %s (%s) failed", run.id, run.filename, exc_info=True)
         finally:
@@ -493,17 +535,21 @@ def sweep_stale_temp_files(max_age: float = STALE_TEMP_SECONDS) -> None:
 # --- HTTP ---------------------------------------------------------------------------------
 
 
+_END_STREAM: dict[str, Any] = {"stage": "end_stream"}
+"""Put in a listener queue by :meth:`Playground.end_streams`; never sent to the client."""
+
+
 def _sse(index: int, event: dict[str, Any]) -> str:
     return f"id: {index}\ndata: {json.dumps(event, separators=(',', ':'))}\n\n"
 
 
-async def _stream(run: Run, skip: int) -> AsyncIterator[str]:
+async def _stream(run: Run, skip: int, playground: Playground) -> AsyncIterator[str]:
     """The run's events from ``skip`` on: the ones so far, then live ones until the closing
-    ``job`` event. Snapshot and subscription happen without an ``await`` in between, so no
-    event is lost or repeated."""
+    ``job`` event, or until :meth:`Playground.end_streams`. Snapshot and subscription happen
+    without an ``await`` in between, so no event is lost or repeated."""
     listener: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     backlog = run.events[skip:]
-    live = not run.finished
+    live = not run.finished and not playground.streams_ended
     if live:
         run.listeners.add(listener)
     try:
@@ -517,6 +563,8 @@ async def _stream(run: Run, skip: int) -> AsyncIterator[str]:
             except asyncio.TimeoutError:
                 yield ": keep-alive\n\n"
                 continue
+            if event is _END_STREAM:
+                break
             yield _sse(index, event)
             index += 1
             live = event["stage"] != "job"
@@ -610,8 +658,18 @@ def _options(form: Any, allowed: list[str], default_backend: str) -> dict[str, A
     }
 
 
+def _megabytes(limit: int) -> str:
+    return f"{limit / (1024 * 1024):g} MB"
+
+
 def _too_large(limit: int) -> HTTPException:
-    return HTTPException(413, f"The file is larger than {limit // (1024 * 1024)} MB.")
+    return HTTPException(413, f"The file is larger than {_megabytes(limit)}.")
+
+
+def _text_too_large(limit: int) -> HTTPException:
+    return HTTPException(
+        413, f"Text uploads (.md, .txt) are limited to {_megabytes(limit)}; this file is larger."
+    )
 
 
 def _counting(receive: Receive, cap: int, limit: int) -> Receive:
@@ -632,11 +690,12 @@ def _counting(receive: Receive, cap: int, limit: int) -> Receive:
 
 
 async def _receive(upload: UploadFile, suffix: str, limit: int) -> tuple[str, int]:
-    """Copy the upload to a new temp file and check it: ``(path, size)``. The file is deleted
-    again when a check fails."""
+    """Copy the upload to a new temp file and check it: ``(path, size)``. Text has the lower
+    :data:`MAX_TEXT_UPLOAD_BYTES` cap. The file is deleted again when a check fails."""
     fd, path = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=suffix)
     # Text is checked as it streams past (the decoder holds at most a partial character).
     decoder = None if suffix == ".pdf" else codecs.getincrementaldecoder("utf-8-sig")()
+    text_limit = MAX_TEXT_UPLOAD_BYTES if decoder is not None else None
     try:
         size, head = 0, b""
         with os.fdopen(fd, "wb") as out:
@@ -644,6 +703,8 @@ async def _receive(upload: UploadFile, suffix: str, limit: int) -> tuple[str, in
                 size += len(chunk)
                 if size > limit:
                     raise _too_large(limit)
+                if text_limit is not None and size > text_limit:
+                    raise _text_too_large(text_limit)
                 if len(head) < 4:
                     head += chunk[: 4 - len(head)]
                 if decoder is not None:
@@ -726,6 +787,7 @@ def create_app(
             "engines": list(ENGINES),
             "modes": list(MODES),
             "max_upload_bytes": MAX_UPLOAD_BYTES,
+            "max_text_upload_bytes": MAX_TEXT_UPLOAD_BYTES,
         }
 
     @app.post("/api/runs", status_code=202)
@@ -786,7 +848,7 @@ def create_app(
         last = request.headers.get("last-event-id", "")
         skip = int(last) + 1 if _is_decimal(last) else 0
         return StreamingResponse(
-            _stream(run, skip),
+            _stream(run, skip, playground),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
@@ -795,9 +857,10 @@ def create_app(
 
 
 def _is_decimal(value: str) -> bool:
-    """Whether ``value`` is a non-negative ASCII decimal. ``str.isdigit`` alone also accepts
-    superscript digits, which ``int()`` rejects."""
-    return value.isascii() and value.isdigit()
+    """Whether ``value`` is a non-negative ASCII decimal of at most 18 digits. ``str.isdigit``
+    alone also accepts superscript digits, which ``int()`` rejects, and ``int()`` refuses more
+    than 4,300 digits; no byte count or event index needs 19."""
+    return value.isascii() and value.isdigit() and len(value) <= _MAX_DIGITS
 
 
 _INLINE_COMMENT = re.compile(r"\s+#")

@@ -32,9 +32,13 @@ _ENUMERATOR = re.compile(
 )
 _EQUATION_NUMBER = re.compile(r"^\(\d{1,3}(?:\.\d{1,3})?[a-z]?\)$")
 _MATH_FONT = re.compile(r"math|cmmi|cmsy|symbol", re.IGNORECASE)
+_MONO_FONT = re.compile(
+    r"mono|courier|consol|menlo|inconsolata|sourcecode|typewriter|cmtt|code", re.IGNORECASE
+)
 _MATH_CHARS = frozenset(
     "=+−×÷±∓<>≤≥≠≈≡∼∝∞√∂∇∑∏∫∮∈∉∋⊂⊃⊆⊇∪∩∧∨¬∀∃→←↔⇒⇐⇔·∘′″^|⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎"
 )
+_NOTE_LABEL = re.compile(r"^(?:sources?|notes?)\b", re.IGNORECASE)  # a chart's own notes
 _TERMINAL = re.compile(r"[.!?:;][\"'”’»)\]]*$")  # closing quotes or brackets after punctuation
 
 
@@ -174,3 +178,119 @@ def symbol_share(text: str) -> float:
             after = text[k + 1] if k + 1 < len(text) else " "
             count += not (before.isalpha() or after.isalpha())
     return count / total
+
+
+# --- what the text inside a figure candidate is ------------------------------------------
+
+
+def _is_numeric(text: str) -> bool:
+    alnum = [c for c in text if c.isalnum()]
+    return bool(alnum) and sum(c.isdigit() for c in alnum) >= 0.5 * len(alnum)
+
+
+def _is_worded(text: str) -> bool:
+    return sum(c.isalpha() for c in text) >= 3
+
+
+def _is_labelled_row(row: Sequence[Line]) -> bool:
+    """A statement row: a word label first, then two or more numeric cells, as statements
+    compare periods ("Net income | 112,010 | 93,736"). A chart legend entry beside an axis
+    tick has one number; an axis row starts with a number."""
+    return _is_worded(row[0].text) and sum(_is_numeric(c.text) for c in row[1:]) >= 2
+
+
+def is_text_grid(
+    lines: Sequence[Line],
+    *,
+    min_rows: int,
+    min_columns: int,
+    tolerance: float,
+    min_labelled_rows: int,
+    line_share: float,
+) -> bool:
+    """Whether ``lines`` form a table. At least ``line_share`` of them must sit in rows of two
+    or more lines with a worded cell (a chart's lines are mostly lone ticks, axis rows and
+    legend entries). Then either ``min_labelled_rows`` statement rows (a word label, then two
+    or more numeric cells) or ``min_columns`` columns make a table: a column is a left or
+    right edge (within ``tolerance`` pt) shared by at least ``min_rows`` such rows, and cells
+    aligned on both edges count once."""
+    rows: list[list[Line]] = []
+    for line in sorted(lines, key=lambda ln: (ln.y0, ln.x0)):
+        if rows and same_row(rows[-1][0], line):
+            rows[-1].append(line)
+        else:
+            rows.append([line])
+    # rows of numbers alone are a chart's ticks (two y axes give "35 | 350"), not a table
+    multi = [
+        sorted(row, key=lambda ln: ln.x0)
+        for row in rows
+        if len(row) >= 2 and any(_is_worded(cell.text) for cell in row)
+    ]
+    if sum(len(row) for row in multi) < line_share * len(lines):
+        return False  # mostly lone ticks and axis labels, as charts are
+    if sum(_is_labelled_row(row) for row in multi) >= min_labelled_rows:
+        return True
+    if len(multi) < min_rows:
+        return False
+    clusters: list[set[tuple[int, int]]] = []  # (row, cell) members of each aligned edge
+    for edge in (0, 1):  # left edges, then right edges
+        points = sorted(
+            ((cell.x1 if edge else cell.x0), r, c)
+            for r, row in enumerate(multi)
+            for c, cell in enumerate(row)
+        )
+        start = None
+        for x, r, c in points:
+            if start is None or x - start > tolerance:
+                start = x
+                clusters.append(set())
+            clusters[-1].add((r, c))
+    columns: list[set[tuple[int, int]]] = []
+    for members in sorted(clusters, key=len, reverse=True):
+        if len({r for r, _ in members}) < min_rows:
+            continue
+        taken = sum(1 for m in members if any(m in col for col in columns))
+        if taken < len(members) / 2:  # a column both left and right aligned counts once
+            columns.append(members)
+    return len(columns) >= min_columns
+
+
+def is_code(lines: Sequence[Line], *, line_share: float) -> bool:
+    """Whether at least ``line_share`` of ``lines`` are set in a monospace font (a listing)."""
+    mono = sum(1 for line in lines if _MONO_FONT.search(line.font))
+    return bool(lines) and mono >= line_share * len(lines)
+
+
+def is_prose(
+    lines: Sequence[Line],
+    *,
+    min_words: int,
+    line_share: float,
+    min_sentences: int,
+    sentence_share: float,
+    run_lines: int,
+) -> bool:
+    """Whether ``lines`` hold running text: at least ``line_share`` of them have ``min_words``
+    words or more; or at least ``min_sentences`` such lines, and ``sentence_share`` of all
+    lines, end a sentence; or ``run_lines`` such lines are stacked as a paragraph. A chart's
+    "Source: …" or "Note: …" lines among its labels are not running text."""
+    if not lines:
+        return False
+    long = [line for line in lines if len(line.text.split()) >= min_words]
+    sentences = sum(1 for line in long if ends_sentence(line.text))
+    if len(long) >= line_share * len(lines) or (
+        sentences >= min_sentences and sentences >= sentence_share * len(lines)
+    ):
+        return True
+    run: list[Line] = []
+    for line in sorted(long, key=lambda ln: (ln.y0, ln.x0)):
+        prev = run[-1] if run else None
+        stacked = (
+            prev is not None
+            and 0 <= line.y0 - prev.y1 <= prev.y1 - prev.y0
+            and h_overlap(line_rect(prev), line_rect(line))
+        )
+        run = [*run, line] if stacked else [line]
+        if len(run) >= run_lines and not _NOTE_LABEL.match(run[0].text.strip()):
+            return True
+    return False

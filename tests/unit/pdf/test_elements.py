@@ -379,6 +379,114 @@ def degenerate_doc():
     )
 
 
+@fixture
+def statement_doc():
+    """Statements drawn with rules or shading (vector clusters the table search misses)."""
+    rows = []
+    for k in range(10):
+        y = 105 + 15 * k
+        rows += [row(1, f"Revenue line {k}", 80, y, x1=160), row(1, "12,345", 370, y, x1=400),
+                 row(1, "11,111", 490, y, x1=520)]  # fmt: skip
+    rows += [row(2, "Other assets", 80, 105, x1=150), row(2, "62,950", 370, 105, x1=400),
+             row(2, "55,335", 490, 105, x1=520), row(2, "Total other assets", 80, 120, x1=170),
+             row(2, "83,727", 370, 120, x1=400), row(2, "74,834", 490, 120, x1=520)]  # fmt: skip
+    names = ["Acme Asia LLC", "Acme Canada Inc.", "Acme Europe Ltd", "Acme Japan KK"]
+    places = ["Delaware, U.S.", "Canada", "Ireland", "Japan"]
+    for k, (name, place) in enumerate(zip(names, places, strict=True)):
+        rows += [row(3, name, 80, 105 + 15 * k, x1=170), row(3, place, 400, 105 + 15 * k, x1=460)]
+    return Doc(
+        rows,
+        n_pages=3,
+        drawings={1: [(72, 100, 540, 260)], 2: [(72, 100, 540, 135)], 3: [(72, 100, 540, 170)]},
+    )
+
+
+@fixture
+def prose_box_doc():
+    prose = [f"Running text line {k} of a paragraph set over a picture" for k in range(4)]
+    rows = [
+        *[row(1, t, 100, 150 + 14 * k, x1=400) for k, t in enumerate(prose)],
+        *[row(2, t, 100, 150 + 14 * k, x1=400) for k, t in enumerate(prose)],
+    ]
+    return Doc(
+        rows, n_pages=2, images={1: [(72, 100, 540, 400)]}, drawings={2: [(72, 100, 540, 400)]}
+    )
+
+
+@fixture
+def banner_doc():
+    rows = [
+        row(1, "Risk Factors", 50, 112, x1=150, size=14),
+        *column(1, ["The company faces several risks.", "They are described below."], 160),
+    ]
+    return Doc(rows, drawings={1: [(36, 100, 576, 140)]}, headings=[heading(rows, 0, level=1)])
+
+
+@fixture
+def shaded_code_and_list_doc():
+    code = ["x = 1", "y = x + 2", "print(y)", "return y"]
+    rows = [row(1, t, 90, 110 + 14 * k, x1=200, font="Courier") for k, t in enumerate(code)]
+    rows += [
+        row(1, t, 90, 410 + 14 * k, x1=250)
+        for k, t in enumerate(["• First point", "• Second point"])
+    ]
+    return Doc(rows, drawings={1: [(72, 100, 540, 200), (72, 400, 540, 480)]})
+
+
+@fixture
+def chart_doc():
+    """A chart whose legend entries share rows with both y axes' ticks, with its caption set
+    inside its region, under a paragraph that runs into the region's top edge."""
+    rows = [
+        row(1, "This paragraph runs on with a long first line", 72, 82, x1=540),
+        row(1, "and its last line ends inside the box", 72, 96, x1=540),
+    ]
+    for k, (left, right) in enumerate([("30", "300"), ("20", "200"), ("10", "100"), ("0", "0")]):
+        y = 120 + 40 * k
+        rows += [row(1, left, 105, y, x1=115), row(1, right, 470, y, x1=485)]
+        if k < 2:
+            rows.append(row(1, f"Series {'AB'[k]}", 300, y, x1=340))
+    rows += [row(1, str(2020 + k), 150 + 80 * k, 270, x1=170 + 80 * k) for k in range(4)]
+    rows += [
+        row(1, "Percent", 105, 104, x1=140),
+        row(1, "Figure 5: Rates over time", 150, 286, x1=300),
+    ]
+    return Doc(rows, drawings={1: [(100, 100, 500, 300)]})
+
+
+@fixture
+def long_caption_doc():
+    rest = [
+        "continues on a second line",
+        "and a third line",
+        "and a fourth line",
+        "and a fifth line",
+    ]
+    rows = [row(1, "Figure 4: A long caption", 100, 305, x1=400)]
+    rows += [row(1, t, 100, 319 + 14 * k, x1=400) for k, t in enumerate(rest)]
+    return Doc(rows, images={1: [(100, 100, 400, 300)]})
+
+
+@fixture
+def caption_sides_doc():
+    """A caption line halfway between two targets, on three pages."""
+    rows = [
+        row(1, "Figure 2: Between", 100, 214, x1=300),
+        row(2, "Table 3. Between", 100, 214, x1=300),
+        row(3, "Table 1. Mixed", 100, 214, x1=300),
+    ]
+    cells = [["a", "b"], ["c", "d"]]
+    return Doc(
+        rows,
+        n_pages=3,
+        images={1: [(100, 100, 400, 200), (100, 240, 400, 340)], 3: [(100, 100, 400, 200)]},
+        tables={
+            2: [((100, 100, 400, 200), cells), ((100, 240, 400, 340), cells)],
+            3: [((100, 240, 400, 340), cells)],
+        },
+    )
+
+
 # --- one test per rule ---------------------------------------------------------------------
 
 
@@ -425,15 +533,15 @@ def test_image_and_vector_figures_consume_label_text():
     elements = figures_doc().build()
     figures = of_kind(elements, "figure")
     assert [(f.figure.source, f.figure.text, f.text) for f in figures] == [
-        ("image", "Axis A", ""),
-        ("vector", "Q1\nQ2\nQ3", ""),
+        ("image", "Axis A", "Axis A"),  # spec §4: a figure's text is its label text
+        ("vector", "Q1\nQ2\nQ3", "Q1\nQ2\nQ3"),
     ]
     assert [(f.boxes[0].x0, f.boxes[0].y0) for f in figures] == [(100, 100), (100, 350)]
     # the tiny image, the table rulings and the dense text box are not figures
     assert len(of_kind(elements, "table")) == 1
     notes = " ".join(e.text for e in of_kind(elements, "paragraph"))
     assert "Note 0 text" in notes and "Note 7 text" in notes
-    assert not any("Axis A" in e.text or "Q2" in e.text for e in elements)
+    assert not any("Axis A" in e.text or "Q2" in e.text for e in elements if e.kind != "figure")
 
 
 def test_background_image_with_text_is_not_a_figure():
@@ -614,6 +722,82 @@ def test_ocr_lines_produce_source_ocr():
         ("A text layer page.", "text"),
         ("An OCR page line and its second line.", "ocr"),
     ]
+
+
+def test_rule_lined_statements_are_not_figures():
+    elements = statement_doc().build()
+    assert of_kind(elements, "figure") == []
+    text = " ".join(e.text for e in elements)
+    assert "Revenue line 3" in text and "83,727" in text and "Acme Japan KK" in text
+
+
+def test_prose_over_a_picture_or_shape_is_not_a_figure():
+    elements = prose_box_doc().build()
+    assert of_kind(elements, "figure") == []
+    assert [e.boxes[0].page for e in of_kind(elements, "paragraph")] == [1, 2]
+
+
+def test_heading_on_a_banner_is_kept_and_the_banner_is_not_a_figure():
+    elements = banner_doc().build()
+    assert [(e.kind, e.text) for e in elements][:1] == [("heading", "Risk Factors")]
+    assert of_kind(elements, "figure") == []
+
+
+def test_code_and_list_on_a_shape_are_not_figures():
+    elements = shaded_code_and_list_doc().build()
+    assert of_kind(elements, "figure") == []
+    assert [e.text for e in of_kind(elements, "list_item")] == ["First point", "Second point"]
+    assert any("print(y)" in e.text for e in of_kind(elements, "paragraph"))
+
+
+def test_chart_keeps_its_labels_caption_and_the_paragraph_above():
+    elements = chart_doc().build()
+    figures = of_kind(elements, "figure")
+    assert len(figures) == 1
+    labels = figures[0].figure.text.split("\n")
+    assert {"30", "300", "Series A", "2023", "Percent"} <= set(labels)
+    assert "Figure 5: Rates over time" not in labels
+    assert not any("last line" in t for t in labels)
+    caption = of_kind(elements, "caption")
+    assert [c.text for c in caption] == ["Figure 5: Rates over time"]
+    assert (caption[0].caption_for, figures[0].caption_id) == (figures[0].id, caption[0].id)
+    assert of_kind(elements, "paragraph")[0].text == (
+        "This paragraph runs on with a long first line and its last line ends inside the box"
+    )
+
+
+def test_caption_takes_at_most_four_lines():
+    assert el.CAPTION_MAX_LINES == 4
+    elements = long_caption_doc().build()
+    assert of_kind(elements, "caption")[0].text == (
+        "Figure 4: A long caption continues on a second line and a third line and a fourth line"
+    )
+    assert [e.text for e in of_kind(elements, "paragraph")] == ["and a fifth line"]
+
+
+def test_caption_side_and_kind_preferences():
+    assert el.CAPTION_FIRST_SIDE == {"table": "above", "figure": "below"}
+    elements = caption_sides_doc().build()
+    targets = {e.id: e for e in elements}
+    linked = {c.text: targets[c.caption_for] for c in of_kind(elements, "caption")}
+    # equal distances: a figure takes the caption below it, a table the caption above it
+    assert (linked["Figure 2: Between"].kind, linked["Figure 2: Between"].boxes[0].y0) == (
+        "figure",
+        100,
+    )
+    assert (linked["Table 3. Between"].kind, linked["Table 3. Between"].boxes[0].y0) == (
+        "table",
+        240,
+    )
+    # a "Table" caption prefers a table to a figure
+    assert linked["Table 1. Mixed"].kind == "table"
+
+
+def test_line_source_must_match_lines():
+    doc = paragraphs_doc()
+    doc.line_source = ["text"]
+    with pytest.raises(ValueError, match="line_source"):
+        doc.build()
 
 
 def test_order_must_be_a_permutation():

@@ -284,6 +284,38 @@
   - **If it is lower:** fix the rules on dev and re-run. If the gap remains after reasonable effort, report it with per-document deltas. Do not change `fast`.
 - [ ] **Step 5:** Commit `feat(pdf): element mode with routing, OCR and sections from elements`. Commit the toc comparison JSON under `benchmarks/results/<date>/toc-elements.json`.
 
+### Task E5c: Element-mode performance and routing precision (added during execution)
+
+Added by controller ruling after E5b. Element mode measured 7.7 s/doc against fast's 1.18 s/doc on the 51 dev PDFs, with about 97% of the time in the page-object pass. Routing also sent 37 born-digital doc_042 pages to OCR as "garbled" and 6 doc_048 pages as "scanned".
+
+**Files:**
+- Modify: `src/docrooter/pdf/objects.py`, `src/docrooter/pdf/routing.py`, `src/docrooter/pdf/element_mode.py`
+- Test: `tests/unit/pdf/test_objects.py`, `tests/unit/pdf/test_routing.py`, `tests/unit/pdf/test_element_mode.py`
+- Create: `benchmarks/results/2026-10-18/element-speed.json`, `benchmarks/results/2026-10-18/routing-dev.json`
+
+**Interfaces:**
+- Unchanged signatures.
+- `route_page` may return a new decision value `"text+ocr"`: merge OCR lines into the text layer.
+
+- [ ] **Step 1: Profile.** Profile element mode on the 10 Q5 profiling PDFs with pyinstrument and record the top costs in the report. Expected suspects: `find_tables` on every page, `get_drawings` or the clusterer, and a second text extraction.
+- [ ] **Step 2: Write the failing tests.**
+  - `test_find_tables_skipped_without_rulings`: a page with no horizontal or vertical line segments never calls the engine's table finder.
+  - `test_hex_and_identifier_tokens_are_word_like`: a datasheet register page full of tokens such as `0x4000_0000`, `GPIO_CTRL[3:0]` and `RW`, with normal English descriptions, routes to `text`.
+  - `test_scanned_rule_with_text_layer_merges`: a page with `image_cov ≥ 0.75`, `char_density < 2` and some text-layer lines routes to `text+ocr`. With a fake engine, the result keeps every text-layer line and adds only OCR lines whose boxes overlap no text-layer line (IoU < 0.3).
+  - `test_no_text_layer_page_still_replaced`: zero text-layer characters still routes to `ocr`.
+- [ ] **Step 3: Implement.**
+  - Skip table finding on pages without ruling segments.
+  - Extract text once and derive both the lines and the objects from that one pass.
+  - Avoid any repeated per-page work you find in the profile.
+  - Token rule: a token containing a digit, or matching `^[A-Za-z_][A-Za-z0-9_\[\]:.]*$` with an underscore or bracket, counts as word-like.
+  - Scanned rule: whole-page replacement only when the page has zero text-layer characters. Otherwise route to `text+ocr` and merge.
+- [ ] **Step 4: Run the unit suite.** Expected: PASS. Then run both measurements and commit the JSON:
+  - `routing-dev.json`: routing over the 51 dev PDFs. **Target:** 0 pages decided `ocr` (replace) for pages that have a usable text layer. Record every `text+ocr` page, with its reason.
+  - `element-speed.json`: element mode against fast on the 51 dev PDFs. **Target:** element mode ≤ 2.5× fast's total seconds.
+
+  Re-run `benchmarks.toc --elements` to confirm depth ≤ 2 micro F1 is still ≥ 0.703. Report misses as they are, with the profile.
+- [ ] **Step 5: Commit** `perf(pdf): faster element mode; precise OCR routing`.
+
 ### Task E6: Heron ONNX layout engine
 
 **Files:**

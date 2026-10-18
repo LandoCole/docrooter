@@ -8,11 +8,13 @@ import zlib
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from docrooter._extras import require
 from docrooter.elements.models import Box
 from docrooter.errors import DocrooterError
 
-__all__ = ["render_page"]
+__all__ = ["render_page", "render_page_rgb"]
 
 
 def render_page(
@@ -31,6 +33,47 @@ def render_page(
     except ImportError:
         return _render_pdfium(path, page, dpi, clip)
     return _render_pymupdf(pymupdf, path, page, dpi, clip)
+
+
+def render_page_rgb(
+    path: str | Path, page: int, *, dpi: int, extra: str = "ocr"
+) -> tuple[Any, float, float]:
+    """Render the whole ``page`` (1-based) of ``path`` at ``dpi`` as pixels for a model.
+
+    Returns ``(rgb, width_pt, height_pt)``: an ``uint8`` array of shape ``(height_px, width_px,
+    3)`` and the displayed page's size in points (``/Rotate`` applied). Uses ``pymupdf`` when
+    it is installed and ``pypdfium2`` otherwise; a missing ``pypdfium2`` names ``extra``.
+    """
+    if dpi <= 0:
+        raise DocrooterError(f"dpi must be positive, got {dpi}")
+    try:
+        pymupdf = importlib.import_module("pymupdf")
+    except ImportError:
+        pdfium = require("pypdfium2", extra)
+        pdf = pdfium.PdfDocument(str(path))
+        try:
+            if not 1 <= page <= len(pdf):
+                raise DocrooterError(f"page {page} is out of range (the PDF has {len(pdf)} pages)")
+            pg = pdf[page - 1]
+            width_pt, height_pt = (float(v) for v in pg.get_size())
+            pixels = pg.render(scale=dpi / 72.0).to_numpy()  # BGR(A)
+        finally:
+            pdf.close()
+        if (pixels.shape[1] > pixels.shape[0]) != (width_pt > height_pt):
+            width_pt, height_pt = height_pt, width_pt  # get_size before /Rotate
+        rgb = pixels[:, :, 2::-1] if pixels.shape[2] >= 3 else pixels.repeat(3, axis=2)
+        return np.ascontiguousarray(rgb, dtype=np.uint8), width_pt, height_pt
+    with pymupdf.open(str(path)) as doc:
+        if not 1 <= page <= len(doc):
+            raise DocrooterError(f"page {page} is out of range (the PDF has {len(doc)} pages)")
+        pg = doc[page - 1]
+        scale = dpi / 72.0
+        pix = pg.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False)
+        n = int(pix.n)
+        rgb = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, n)
+        if n == 1:
+            rgb = rgb.repeat(3, axis=2)
+        return np.ascontiguousarray(rgb[:, :, :3]), float(pg.rect.width), float(pg.rect.height)
 
 
 def _render_pymupdf(

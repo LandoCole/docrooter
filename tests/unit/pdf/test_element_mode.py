@@ -360,7 +360,8 @@ def test_element_events_order(tmp_path):
     load_pdf(GOLDEN / "scanned.pdf", elements=True, ocr=FakeOcr(pages={1: _ocr_page("T")}),
              on_event=seen.append)  # fmt: skip
     starts = [e.stage for e in seen if e.status == "start"]
-    assert starts == ["extract", "route", "ocr", "signals", "headings", "elements", "assemble"]
+    assert starts == ["extract", "route", "ocr", "layout", "signals", "headings", "elements",
+                      "assemble"]  # fmt: skip
     assert seen[-1].stage == "done"
     routes = [e for e in seen if e.stage == "route" and e.status == "progress"]
     assert [e.data["target"] for e in routes] == [1, 2] and routes[0].data["task"] == "ocr"
@@ -374,8 +375,9 @@ def test_element_events_order(tmp_path):
 
 def test_meta_timings_and_max_pages(tmp_path):
     doc = load_pdf(GOLDEN / "single_column.pdf", elements=True, max_pages=2)
-    assert set(doc.meta["timings"]) == {"extract", "route", "ocr", "signals", "headings",
-                                        "elements", "assemble"}  # fmt: skip
+    assert set(doc.meta["timings"]) == {"extract", "route", "ocr", "layout", "signals",
+                                        "headings", "elements", "assemble"}  # fmt: skip
+    assert doc.meta["layout"] == "heuristic" and doc.meta["layout_regions"] == 0
     assert doc.meta["n_pages"] == 3 and doc.meta["warnings"] == ["truncated_pages"]
     assert len(doc.meta["routes"]) == 2
     assert max(e.boxes[0].page for e in doc.elements) == 2
@@ -390,7 +392,11 @@ def test_arguments_are_checked():
     with pytest.raises(DocrooterError, match="no element mode"):
         load_pdf(path, elements=True, engine="both")
     with pytest.raises(DocrooterError, match="unknown layout engine"):
-        load_pdf(path, elements=True, layout="heron")
+        load_pdf(path, elements=True, layout="no-such-engine")
+    with pytest.raises(TypeError, match="only valid with elements=True"):
+        load_pdf(path, layout="heron")
+    with pytest.raises(TypeError, match="LayoutEngine"):
+        load_pdf(path, elements=True, layout=object())
     with pytest.raises(ValueError, match="ocr_dpi"):
         load_pdf(path, elements=True, ocr_dpi=0)
 

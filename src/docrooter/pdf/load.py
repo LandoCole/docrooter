@@ -24,6 +24,7 @@ from docrooter.pdf.lines import Line, extract_lines
 from docrooter.pdf.signals import DocSignals, compute_signals, is_fuzzy_match, read_bookmarks
 
 if TYPE_CHECKING:
+    from docrooter.layout.base import LayoutEngine
     from docrooter.ocr.base import OcrEngine
 
 __all__ = ["ENGINES", "load_pdf"]
@@ -70,7 +71,7 @@ def load_pdf(
     on_event: events.EventSink | None = None,
     elements: bool = False,
     ocr: str | OcrEngine | None = None,
-    layout: str = "heuristic",
+    layout: str | LayoutEngine = "heuristic",
     ocr_dpi: int = 200,
 ) -> Document:
     """Load a PDF into a :class:`Document` using native text extraction (no OCR).
@@ -108,14 +109,19 @@ def load_pdf(
     and gains the OCR lines it lacks (route ``"text+ocr"``). Without an engine pages keep their
     text layer, and ``meta["warnings"]`` gets ``"ocr_skipped"`` when a page needed whole-page
     OCR (to replace or to merge). ``meta["needs_ocr"]`` counts what routing asked OCR for:
-    ``pages`` to replace, ``merge_pages`` and image ``regions``. ``layout`` is ``"heuristic"``.
-    ``meta["element_mode"]`` is ``True``, the timings add ``route``, ``ocr`` and ``elements``,
-    and the events are ``extract``, ``route`` (progress per page), ``ocr``, ``signals``,
-    ``headings``, ``elements`` (with counts by kind) and ``assemble``. ``repair`` does not
-    apply. Without ``elements`` the result is exactly as before, and ``ocr``, ``layout`` and
-    ``ocr_dpi`` must keep their defaults.
+    ``pages`` to replace, ``merge_pages`` and image ``regions``. ``layout`` is ``"heuristic"``
+    (the rules only), a layout engine name (``"heron"``, extra ``layout``, or one registered
+    with :func:`docrooter.layout.register_layout_engine`; created, used and closed here) or a
+    :class:`~docrooter.layout.LayoutEngine` instance, which the caller keeps and closes; its
+    regions type the lines inside them (spec §6) and ``meta["layout"]`` and
+    ``meta["layout_regions"]`` say which engine ran and how many regions it gave.
+    ``meta["element_mode"]`` is ``True``, the timings add ``route``, ``ocr``, ``layout`` and
+    ``elements``, and the events are ``extract``, ``route`` (progress per page), ``ocr``,
+    ``layout``, ``signals``, ``headings``, ``elements`` (with counts by kind) and ``assemble``.
+    ``repair`` does not apply. Without ``elements`` the result is exactly as before, and
+    ``ocr``, ``layout`` and ``ocr_dpi`` must keep their defaults.
     """
-    if not elements and (ocr is not None or layout != "heuristic" or ocr_dpi != 200):
+    if not elements and (ocr is not None or not _is_heuristic(layout) or ocr_dpi != 200):
         raise TypeError("ocr, layout and ocr_dpi: only valid with elements=True")
     with events.pipeline_run(on_event):
         if elements:
@@ -141,6 +147,10 @@ def load_pdf(
             repair=repair,
             max_pages=max_pages,
         )
+
+
+def _is_heuristic(layout: object) -> bool:
+    return isinstance(layout, str) and layout == "heuristic"
 
 
 def _load_pdf(

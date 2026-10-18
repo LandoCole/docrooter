@@ -1016,6 +1016,7 @@ all = [
     { name = "datasets" },
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "huggingface-hub" },
     { name = "joblib" },
     { name = "ocrmac", marker = "sys_platform == 'darwin'" },
     { name = "onnxruntime", version = "1.24.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -1040,6 +1041,12 @@ bench = [
 ]
 jev = [
     { name = "typesafe-sdk" },
+]
+layout = [
+    { name = "huggingface-hub" },
+    { name = "onnxruntime", version = "1.24.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "onnxruntime", version = "1.31.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pypdfium2" },
 ]
 llm = [
     { name = "httpx" },
@@ -1096,12 +1103,15 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'ui'", specifier = ">=0.100" },
     { name = "httpx", marker = "extra == 'all'" },
     { name = "httpx", marker = "extra == 'llm'" },
+    { name = "huggingface-hub", marker = "extra == 'all'", specifier = ">=0.23" },
+    { name = "huggingface-hub", marker = "extra == 'layout'", specifier = ">=0.23" },
     { name = "joblib", marker = "extra == 'all'" },
     { name = "joblib", marker = "extra == 'models'" },
     { name = "numpy" },
     { name = "ocrmac", marker = "sys_platform == 'darwin' and extra == 'all'", specifier = ">=1.0" },
     { name = "ocrmac", marker = "sys_platform == 'darwin' and extra == 'ocr-mac'", specifier = ">=1.0" },
     { name = "onnxruntime", marker = "extra == 'all'", specifier = ">=1.18" },
+    { name = "onnxruntime", marker = "extra == 'layout'", specifier = ">=1.18" },
     { name = "onnxruntime", marker = "extra == 'ocr'", specifier = ">=1.18" },
     { name = "pandas", marker = "extra == 'bench'" },
     { name = "pdfplumber", marker = "extra == 'all'" },
@@ -1110,6 +1120,7 @@ requires-dist = [
     { name = "pymupdf4llm", marker = "extra == 'all'" },
     { name = "pymupdf4llm", marker = "extra == 'pdf'" },
     { name = "pypdfium2", marker = "extra == 'all'", specifier = ">=4.30" },
+    { name = "pypdfium2", marker = "extra == 'layout'", specifier = ">=4.30" },
     { name = "pypdfium2", marker = "extra == 'ocr'", specifier = ">=4.30" },
     { name = "python-multipart", marker = "extra == 'all'", specifier = ">=0.0.13" },
     { name = "python-multipart", marker = "extra == 'ui'", specifier = ">=0.0.13" },
@@ -1130,7 +1141,7 @@ requires-dist = [
     { name = "uvicorn", marker = "extra == 'all'", specifier = ">=0.22" },
     { name = "uvicorn", marker = "extra == 'ui'", specifier = ">=0.22" },
 ]
-provides-extras = ["all", "bench", "jev", "llm", "models", "ocr", "ocr-mac", "pdf", "pdf-mit", "ui"]
+provides-extras = ["all", "bench", "jev", "layout", "llm", "models", "ocr", "ocr-mac", "pdf", "pdf-mit", "ui"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -10,11 +10,16 @@ The pipeline:
    scan with some text layer) keeps every text-layer line and its tables, and gains the OCR
    lines that the text layer does not already cover (less than ``MERGE_MAX_COVERED`` of the
    OCR box under text-layer lines). Region OCR is kept aside for the figures;
-4. compute the signals on the combined lines, order them by XY-cut, and compute the signals
-   again on the ordered list when the order changed;
-5. find headings on the ordered lines;
-6. type the elements, and put the region OCR text into the figures it belongs to;
-7. build the section tree from the heading elements, with the heading detector's levels
+4. with a layout engine (spec §6), detect the regions of every page; a Table region that
+   overlaps no ruled table gets the engine's "text" table strategy inside it (text-layer pages);
+5. compute the signals on the combined lines, order them by XY-cut (the lines of each layout
+   region moving as one unit, ordered by the region's box), and compute the signals again on
+   the ordered list when the order changed;
+6. find headings on the ordered lines, plus a heading for each Section-header region that holds
+   no heading candidate (levelled by the candidates' typography);
+7. type the elements (layout regions first, after furniture and contents; the rules for the
+   lines outside them), and put the region OCR text into the figures it belongs to;
+8. build the section tree from the heading elements, with the heading detector's levels
    (typography, numbering, bookmark overrides) and gaps closed again if a heading candidate
    did not become a heading element.
 
@@ -47,6 +52,7 @@ from docrooter.document.headings import repair_levels
 from docrooter.document.models import Document, RawHeading
 from docrooter.elements.models import Box, Element
 from docrooter.errors import DocrooterError, MissingExtraError
+from docrooter.layout.base import MIN_CONFIDENCE, LayoutEngine, LayoutRegion, apply_regions
 from docrooter.ocr.base import OcrEngine, OcrLine, ocr_lines_to_lines
 from docrooter.pdf import lines as _lines_module
 from docrooter.pdf.elements import build_elements_with_lines, furniture_lines
@@ -63,11 +69,17 @@ from docrooter.pdf.objects import PageObjects, extract_page_objects
 from docrooter.pdf.reading_order import order_lines
 from docrooter.pdf.routing import Route, RouteDecision, _union_share, route_page
 from docrooter.pdf.signals import compute_signals, read_bookmarks
+from docrooter.pdf.text_tables import find_text_tables
 
 __all__ = ["LAYOUT_ENGINES", "load_elements", "section_text"]
 
-LAYOUT_ENGINES = ("heuristic",)
-TIMING_KEYS = ("extract", "route", "ocr", "signals", "headings", "elements", "assemble")
+LAYOUT_ENGINES = ("heuristic",)  # built into the rules; models: docrooter.layout registry
+LAYOUT_DPI = 72  # pages are rendered at scale 1 for the layout engine
+TIMING_KEYS = (
+    "extract", "route", "ocr", "layout", "signals", "headings", "elements", "assemble",
+)  # fmt: skip
+_MAX_HEADING_LEVEL = 6
+_STYLE_TOLERANCE = 0.5  # pt, as the heading detector's styles
 _FURNITURE = frozenset({"page_header", "page_footer", "page_number"})
 _SECTION_TEXT_KINDS = frozenset(
     {"paragraph", "list_item", "table", "caption", "footnote", "formula", "figure"}
@@ -95,7 +107,7 @@ def load_elements(
     *,
     engine: str = "auto",
     ocr: str | OcrEngine | None = None,
-    layout: str = "heuristic",
+    layout: str | LayoutEngine = "heuristic",
     ocr_dpi: int = 200,
     min_heading_score: float | None = None,
     use_bookmarks: bool = True,
@@ -110,6 +122,10 @@ def load_elements(
     :func:`docrooter.ocr.get_ocr_engine`) or an :class:`~docrooter.ocr.OcrEngine` instance,
     which the caller keeps and closes. An engine named here is created only if a page needs
     it, and closed before returning.
+
+    ``layout`` is ``"heuristic"``, a registered layout engine name (created before any page
+    work, so a missing extra fails fast, and closed after detection) or a
+    :class:`~docrooter.layout.LayoutEngine` instance, which the caller keeps and closes.
     """
     if engine in ("both", "pymupdf4llm"):
         raise DocrooterError(
@@ -120,10 +136,8 @@ def load_elements(
             f"unknown PDF engine {engine!r}; use one of auto, pymupdf, pdfplumber, both, "
             "pymupdf4llm"
         )
-    if layout not in LAYOUT_ENGINES:
-        raise DocrooterError(
-            f"unknown layout engine {layout!r}; use one of {', '.join(LAYOUT_ENGINES)}"
-        )
+    layout_engine = _layout_engine(layout)  # raises before any page work
+    owned_layout = isinstance(layout, str) and layout_engine is not None
     if ocr_dpi <= 0:
         raise ValueError(f"ocr_dpi must be positive, got {ocr_dpi}")
     if max_pages is not None and max_pages < 1:
@@ -176,6 +190,24 @@ def load_elements(
     found = _run_ocr(path, pages, routes, ocr, ocr_dpi)
     clock = _tick(timings, "ocr", clock)
 
+    layout_name = "heuristic" if layout_engine is None else _engine_name(layout_engine)
+    stage = events.start("layout", engine=layout_name, pages=n_read if layout_engine else 0)
+    regions: list[LayoutRegion] = []
+    if layout_engine is not None:
+        try:
+            regions = layout_engine.detect(path, [objs.page for objs in pages], dpi=LAYOUT_DPI)
+        finally:
+            if owned_layout:
+                layout_engine.close()
+        regions = [r for r in regions if r.confidence >= MIN_CONFIDENCE]
+    text_tables = _text_table_requests(pages, regions, found)
+    region_tables = find_text_tables(path, engine, text_tables)  # type: ignore[arg-type]
+    if stage.active:
+        labels = Counter(r.label for r in regions)
+        stage.end(regions=len(regions), labels=dict(sorted(labels.items())),
+                  text_tables=len(region_tables))  # fmt: skip
+    clock = _tick(timings, "layout", clock)
+
     lines: list[Line] = []
     source: list[Literal["text", "ocr"]] = []
     confidence: list[float | None] = []
@@ -199,13 +231,25 @@ def load_elements(
             source += ["text"] * len(objs.lines)
             confidence += [None] * len(objs.lines)
             build_pages.append(objs)
+        extra_tables = [
+            (box, region_tables[(objs.page, k)])
+            for k, box in enumerate(text_tables.get(objs.page, []))
+            if (objs.page, k) in region_tables
+        ]
+        if extra_tables:
+            last = build_pages[-1]
+            build_pages[-1] = last.model_copy(update={"tables": last.tables + extra_tables})
 
     stage = events.start("signals", engine=engine)
     bookmarks = read_bookmarks(path)
     if n_read < n_pages:
         bookmarks = [b for b in bookmarks if b[2] <= n_read]
     signals = compute_signals(lines, n_read, bookmarks=bookmarks)
-    order = order_lines(lines, furniture_lines(lines, signals.excluded))
+    groups: dict[int, tuple[float, float, float, float]] = {}
+    for region, idxs in apply_regions(lines, regions)[1] if regions else []:
+        groups.update(dict.fromkeys(idxs, (region.box.x0, region.box.y0, region.box.x1,
+                                           region.box.y1)))  # fmt: skip
+    order = order_lines(lines, furniture_lines(lines, signals.excluded), groups)
     if order != list(range(len(lines))):
         lines = [lines[i] for i in order]
         source = [source[i] for i in order]
@@ -223,12 +267,24 @@ def load_elements(
         use_bookmarks=use_bookmarks,
         use_printed_toc=use_printed_toc,
     )
+    if regions:
+        skip = furniture_lines(lines, signals.excluded) | signals.toc_body_lines
+        headings = _layout_headings(lines, headings, regions, skip)
     if stage.active:
         stage.end(**_heading_counts(headings))
     clock = _tick(timings, "headings", clock)
 
     stage = events.start("elements")
-    title = next((h for h in headings if h.level == 1 and not _LETTER_SPACED.search(h.text)), None)
+    title = next(
+        (
+            h
+            for h in headings
+            if h.level == 1
+            and not _LETTER_SPACED.search(h.text)
+            and "from_layout_model" not in h.flags  # the title is the heading detector's
+        ),
+        None,
+    )
     typed = build_elements_with_lines(
         build_pages,
         lines,
@@ -237,6 +293,7 @@ def load_elements(
         headings,
         title_index=title.line_index if title is not None and title.page == 1 else None,
         line_source=source,
+        regions=regions,
     )
     _set_confidence(typed, confidence)
     _fill_region_text([element for element, _ in typed], found.regions)
@@ -267,9 +324,108 @@ def load_elements(
         "warnings": warnings,
         "routes": [decision.model_dump() for _, _, decision in routes],
         "needs_ocr": needs_ocr,
+        "layout": layout_name,
+        "layout_regions": len(regions),
         "element_mode": True,
     }
     return doc
+
+
+# --- layout ----------------------------------------------------------------------------------
+
+
+def _layout_engine(layout: str | LayoutEngine) -> LayoutEngine | None:
+    """The engine for ``layout`` (``None`` for the heuristic rules)."""
+    if isinstance(layout, str):
+        if layout in LAYOUT_ENGINES:
+            return None
+        from docrooter.layout.registry import available_layout_engines, get_layout_engine
+
+        if layout not in available_layout_engines():
+            known = ", ".join([*LAYOUT_ENGINES, *available_layout_engines()])
+            raise DocrooterError(f"unknown layout engine {layout!r}; use one of {known}")
+        return get_layout_engine(layout)
+    if not isinstance(layout, LayoutEngine):
+        raise TypeError("layout must be 'heuristic', a layout engine name or a LayoutEngine")
+    return layout
+
+
+def _engine_name(engine: LayoutEngine) -> str:
+    return str(getattr(engine, "name", None) or type(engine).__name__)
+
+
+def _text_table_requests(
+    pages: Sequence[PageObjects], regions: Sequence[LayoutRegion], found: _Ocr
+) -> dict[int, list[Box]]:
+    """Table regions that overlap no ruled table by half of the smaller box, by page, on pages
+    that keep their text layer (whole-page OCR pages have no text for the "text" strategy)."""
+    by_page = {objs.page: objs for objs in pages}
+    out: dict[int, list[Box]] = {}
+    for region in regions:
+        objs = by_page.get(region.page)
+        if region.label != "table" or objs is None or region.page in found.pages:
+            continue
+        if not any(_box_overlap(region.box, box) >= 0.5 for box, _ in objs.tables):
+            out.setdefault(region.page, []).append(region.box)
+    return out
+
+
+def _box_overlap(a: Box, b: Box) -> float:
+    """The intersection of two boxes over the smaller one's area."""
+    w = min(a.x1, b.x1) - max(a.x0, b.x0)
+    h = min(a.y1, b.y1) - max(a.y0, b.y0)
+    smaller = min((a.x1 - a.x0) * (a.y1 - a.y0), (b.x1 - b.x0) * (b.y1 - b.y0))
+    return max(w, 0.0) * max(h, 0.0) / smaller if smaller > 0 else 0.0
+
+
+def _layout_headings(
+    lines: Sequence[Line],
+    headings: list[HeadingCandidate],
+    regions: Sequence[LayoutRegion],
+    skip: set[int],
+) -> list[HeadingCandidate]:
+    """``headings`` plus one candidate (flag ``from_layout_model``, score = the region's
+    confidence) for each Section-header region whose lines hold no candidate, so the region
+    becomes a heading element and a section (spec §5.3). Its level is the most common level of
+    the candidates in its style (size within 0.5 pt, same weight); without one, one below the
+    deepest candidate set larger than it, or 1. Lines in ``skip`` (furniture, contents pages)
+    are never headings."""
+    covered = {
+        k for h in headings for k in range(h.line_index, h.line_index + max(1, h.line_count))
+    }
+    added: list[HeadingCandidate] = []
+    for region, idxs in apply_regions(lines, regions, skip=skip)[1]:
+        if region.label != "section_header" or not idxs or covered.intersection(idxs):
+            continue
+        first = lines[idxs[0]]
+        size = max(lines[i].size for i in idxs)
+        same = Counter(
+            h.level
+            for h in headings
+            if h.level is not None
+            and abs(h.size - size) <= _STYLE_TOLERANCE
+            and h.bold == first.bold
+        )
+        if same:
+            level = same.most_common(1)[0][0]
+        else:
+            larger = [h.level for h in headings if h.level and h.size > size + _STYLE_TOLERANCE]
+            level = min(max(larger) + 1, _MAX_HEADING_LEVEL) if larger else 1
+        contiguous = idxs == list(range(idxs[0], idxs[-1] + 1))
+        added.append(
+            HeadingCandidate(
+                line_index=idxs[0],
+                line_count=len(idxs) if contiguous else 1,
+                text=" ".join(" ".join(lines[i].text for i in idxs).split()),
+                page=first.page,
+                size=size,
+                bold=first.bold,
+                score=round(region.confidence, 4),
+                level=level,
+                flags=["from_layout_model"],
+            )  # fmt: skip
+        )
+    return sorted(headings + added, key=lambda h: h.line_index) if added else headings
 
 
 def _needs_ocr(routes: Sequence[tuple[Route, list[Box], RouteDecision]]) -> dict[str, int]:

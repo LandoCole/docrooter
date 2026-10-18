@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import statistics
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from docrooter.pdf.lines import Line
 
@@ -167,12 +167,18 @@ def _row_cut(boxes: Sequence[Box], group: list[int], min_gap: float) -> list[lis
     return [sorted(part) for part in parts]
 
 
-def order_lines(lines: Sequence[Line], excluded: set[int]) -> list[int]:
+def order_lines(
+    lines: Sequence[Line], excluded: set[int], groups: Mapping[int, Box] | None = None
+) -> list[int]:
     """A document-wide permutation of ``range(len(lines))``, page by page.
 
     On each page the excluded lines (running headers, footers, page numbers) keep their
     original relative order at the page start (upper half of the page) or end (lower half),
     and the other lines follow :func:`xy_cut_order`.
+
+    ``groups`` maps lines to the box of a layout region holding them (spec §6): the lines of
+    one region move as one unit, ordered by the region's box, and keep their own order inside
+    it; the other lines are units of their own. Without ``groups`` nothing changes.
     """
     pages: defaultdict[int, list[int]] = defaultdict(list)
     for i, line in enumerate(lines):
@@ -184,7 +190,7 @@ def order_lines(lines: Sequence[Line], excluded: set[int]) -> list[int]:
         tail = [i for i in indexes if i in excluded and not _in_top_half(lines[i])]
         body = [i for i in indexes if i not in excluded]
         result.extend(head)
-        result.extend(_order_page(lines, body))
+        result.extend(_order_page(lines, body, groups or {}))
         result.extend(tail)
     return result
 
@@ -193,9 +199,11 @@ def _in_top_half(line: Line) -> bool:
     return (line.y0 + line.y1) / 2 < line.page_height / 2
 
 
-def _order_page(lines: Sequence[Line], indexes: list[int]) -> list[int]:
+def _order_page(lines: Sequence[Line], indexes: list[int], groups: Mapping[int, Box]) -> list[int]:
     if len(indexes) < 2:
         return indexes
+    if any(i in groups for i in indexes):
+        return _order_units(lines, indexes, groups)
     page = [lines[i] for i in indexes]
     widths = [ln.page_width for ln in page if ln.page_width > 0]
     char_widths = [(ln.x1 - ln.x0) / len(ln.text) for ln in page if ln.text and ln.x1 > ln.x0]
@@ -207,3 +215,29 @@ def _order_page(lines: Sequence[Line], indexes: list[int]) -> list[int]:
         median_line_gap=statistics.median(gaps) if gaps else 0.0,
     )
     return [indexes[k] for k in local]
+
+
+def _order_units(lines: Sequence[Line], indexes: list[int], groups: Mapping[int, Box]) -> list[int]:
+    """:func:`_order_page` over units: each region's lines (first seen where its first line
+    is) and each line outside the regions."""
+    units: dict[object, list[int]] = {}
+    boxes: list[Box] = []
+    for i in indexes:
+        key: object = ("region", groups[i]) if i in groups else ("line", i)
+        if key not in units:
+            units[key] = []
+            line = lines[i]
+            boxes.append(groups[i] if i in groups else (line.x0, line.y0, line.x1, line.y1))
+        units[key].append(i)
+    members = list(units.values())
+    page = [lines[i] for i in indexes]
+    widths = [ln.page_width for ln in page if ln.page_width > 0]
+    char_widths = [(ln.x1 - ln.x0) / len(ln.text) for ln in page if ln.text and ln.x1 > ln.x0]
+    gaps = [ln.gap_above for ln in page if 0 < ln.gap_above < float("inf")]
+    local = xy_cut_order(
+        boxes,
+        page_width=max(widths, default=0.0),
+        median_char_width=statistics.median(char_widths) if char_widths else 0.0,
+        median_line_gap=statistics.median(gaps) if gaps else 0.0,
+    )
+    return [i for k in local for i in members[k]]

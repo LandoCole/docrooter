@@ -25,6 +25,19 @@ Additions to the spec rules (task E5a rulings, tunable in E11a like the spec's t
 - a ruled table whose engine cells miss letters or digits of the lines it consumes keeps its
   cells in ``TableData`` but takes its lines' text as ``text`` and the flag
   ``cell_text_incomplete`` (task E5b: element mode never loses text-layer content).
+
+With layout-model ``regions`` (spec §6, task E6), rules 1 and 2 run first; then every region
+of at least 0.5 confidence takes the free lines whose centres fall inside it (see
+:func:`docrooter.layout.base.apply_regions`) as one element of its kind, flagged
+``from_layout_model`` with the region's confidence, and rules 3 to 10 type the lines left over.
+A Table region takes the ruled (or region "text"-strategy) table of ``pages`` it overlaps by at
+least half, else cells from its lines' rows; a Picture region is a figure
+(``source="layout_model"``) even without text; a Section-header region is a heading at the
+level of the heading candidate among its lines (the caller adds candidates for regions without
+one; with none it stays a paragraph, so its text is never lost); a Title region without a
+candidate is a ``title`` with no level; a Page-footer or Page-header region of bare page
+numbers is ``page_number``. Caption regions are linked to a figure or table as rule 5 links.
+Ruled tables and image or vector figures holding lines that a region took are left to the model.
 """
 
 from __future__ import annotations
@@ -36,6 +49,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from docrooter.elements.models import Box, Element, ElementKind, FigureData, TableData
+from docrooter.layout.base import LayoutRegion, apply_regions, region_kind
 from docrooter.pdf.element_rules import (
     CAPTION_RE,
     MIN_GAP,
@@ -155,6 +169,7 @@ class _Pending:
     caption_for: _Pending | None = None
     caption: _Pending | None = None
     flags: list[str] = field(default_factory=list)
+    confidence: float | None = None
 
 
 def build_elements(
@@ -166,16 +181,19 @@ def build_elements(
     *,
     title_index: int | None,
     line_source: Sequence[Literal["text", "ocr"]] | None = None,
+    regions: Sequence[LayoutRegion] = (),
 ) -> list[Element]:
     """Type ``lines`` and the page objects into elements, in reading order (spec §5.3).
 
     ``order`` is a permutation of ``range(len(lines))`` (``order_lines``); ``title_index`` is
     the document title's line, which becomes the ``title`` element when it is on page 1;
-    ``line_source`` marks OCR lines, whose elements get ``source="ocr"``.
+    ``line_source`` marks OCR lines, whose elements get ``source="ocr"``; ``regions`` are a
+    layout model's regions (see the module docstring).
     """
     pairs = build_elements_with_lines(
-        pages, lines, order, signals, headings, title_index=title_index, line_source=line_source
-    )
+        pages, lines, order, signals, headings, title_index=title_index, line_source=line_source,
+        regions=regions,
+    )  # fmt: skip
     return [element for element, _ in pairs]
 
 
@@ -188,6 +206,7 @@ def build_elements_with_lines(
     *,
     title_index: int | None,
     line_source: Sequence[Literal["text", "ocr"]] | None = None,
+    regions: Sequence[LayoutRegion] = (),
 ) -> list[tuple[Element, list[int]]]:
     """:func:`build_elements`, with the indexes of the lines each element consumed (in
     reading order). Every line with text is consumed by exactly one element."""
@@ -198,8 +217,11 @@ def build_elements_with_lines(
     builder = _Builder(pages, lines, order, signals, line_source)
     builder.furniture()
     builder.contents()
+    if regions:
+        builder.layout_regions(regions, headings)
     builder.tables()
     builder.figures(_protected(headings, title_index, len(lines)))
+    builder.link_layout_captions()
     builder.captions()
     builder.headings(headings, title_index)
     builder.footnotes()
@@ -269,6 +291,10 @@ class _Builder:
             if lines[i].text.strip():
                 self.on_page[lines[i].page].append(i)
         self.gap = {page: self._region_gap(idxs) for page, idxs in self.on_page.items()}
+        self.layout_lines: set[int] = set()  # lines a layout region took
+        self.layout_rects: defaultdict[int, list[Rect]] = defaultdict(list)  # figures, tables
+        self.layout_captions: list[_Pending] = []
+        self.used_tables: set[tuple[int, int]] = set()  # (page, index in PageObjects.tables)
 
     # -- helpers ----------------------------------------------------------------------------
     def free(self, i: int) -> bool:
@@ -390,31 +416,181 @@ class _Builder:
     # -- rule 3: ruled tables ---------------------------------------------------------------
     def tables(self) -> None:
         for obj in self.pages.values():
-            for box, rows in obj.tables:
+            for k, (box, rows) in enumerate(obj.tables):
+                if (obj.page, k) in self.used_tables:
+                    continue  # a layout Table region took it
                 r = self._clip(box)
-                text = "\n".join(
-                    " | ".join(" ".join(c.split()) for c in row)
-                    for row in rows
-                    if any(c.strip() for c in row)
-                )
-                if r is None or not text:
-                    continue
+                if r is None or self._holds_layout_lines(obj.page, r):
+                    continue  # the layout model typed its lines
                 idxs = self._inside(obj.page, r)
-                flags = []
-                held = Counter(ch for i in idxs for ch in self.lines[i].text if ch.isalnum())
-                if held - Counter(ch for ch in text if ch.isalnum()):
-                    # The engine's cells miss letters or digits of the table's own lines (text
-                    # clipped by a cell, prose in a ruled box). Compared by character, as cells
-                    # split tokens ("(13" and ")"). Keep the cells in TableData, but the text is
-                    # the lines', so no content is lost.
-                    ordered = sorted(idxs, key=self.pos.__getitem__)
-                    text = "\n".join(join_text([self.lines[i].text]) for i in ordered)
-                    flags = ["cell_text_incomplete"]
+                text, flags = self._table_text(rows, idxs)
+                if not text:
+                    continue
                 self.add("table", idxs, text=text, page=obj.page,
                          boxes=[self._box(obj.page, r)],
                          anchor=self._geometric_anchor(obj.page, r),
                          table=TableData(rows=[list(row) for row in rows]),
                          flags=flags)  # fmt: skip
+
+    def _table_text(self, rows: list[list[str]], idxs: Sequence[int]) -> tuple[str, list[str]]:
+        """A table's ``text`` (its cells, row by row) and flags."""
+        text = "\n".join(
+            " | ".join(" ".join(c.split()) for c in row)
+            for row in rows
+            if any(c.strip() for c in row)
+        )
+        held = Counter(ch for i in idxs for ch in self.lines[i].text if ch.isalnum())
+        if text and held - Counter(ch for ch in text if ch.isalnum()):
+            # The engine's cells miss letters or digits of the table's own lines (text clipped
+            # by a cell, prose in a ruled box). Compared by character, as cells split tokens
+            # ("(13" and ")"). Keep the cells in TableData, but the text is the lines', so no
+            # content is lost.
+            ordered = sorted(idxs, key=self.pos.__getitem__)
+            text = "\n".join(join_text([self.lines[i].text]) for i in ordered)
+            return text, ["cell_text_incomplete"]
+        return text, []
+
+    def _holds_layout_lines(self, page: int, r: Rect) -> bool:
+        """Whether a line a layout region took lies (half or more) inside ``r``."""
+        if not self.layout_lines:
+            return False
+        return any(
+            i in self.layout_lines and inside_share(line_rect(self.lines[i]), r) >= 0.5
+            for i in self.on_page.get(page, [])
+        )
+
+    # -- layout regions (spec §6) -----------------------------------------------------------
+    def layout_regions(
+        self, regions: Sequence[LayoutRegion], headings: Sequence[HeadingCandidate]
+    ) -> None:
+        """One element per region, from the free lines inside it (see the module docstring)."""
+        _, used = apply_regions(self.lines, regions, skip=set(self.owner))
+        level_of: dict[int, int] = {}
+        for h in headings:
+            for k in range(h.line_index, h.line_index + max(1, h.line_count)):
+                if h.level is not None:
+                    level_of.setdefault(k, h.level)
+        lists = [r for r, _ in used if r.label == "list_item"]
+        for region, idxs in used:
+            mapped = region_kind(region.label)
+            r = self._clip(region.box)
+            if mapped is None or r is None:
+                continue
+            idxs = [i for i in idxs if self.free(i)]  # a Table region may take more lines
+            kind, flags = mapped
+            flags.append("from_layout_model")
+            conf = round(region.confidence, 4)
+            page = region.page
+            self.layout_lines.update(idxs)
+            if kind == "table":
+                self._layout_table(page, r, idxs, flags, conf)
+                continue
+            if kind == "figure":
+                label = "\n".join(
+                    join_text([self.lines[i].text]) for i in sorted(idxs, key=self.pos.__getitem__)
+                )
+                self.layout_rects[page].append(r)
+                self.add("figure", idxs, text=label, page=page, boxes=[self._box(page, r)],
+                         anchor=self._geometric_anchor(page, r),
+                         figure=FigureData(source="layout_model", text=label), flags=flags,
+                         confidence=conf)  # fmt: skip
+                continue
+            if not idxs:
+                continue
+            ordered = sorted(idxs, key=self.pos.__getitem__)
+            first = self.lines[ordered[0]].text.strip()
+            if kind in ("heading", "title"):
+                level = next((level_of[i] for i in ordered if i in level_of), None)
+                if kind == "heading" and level is None:
+                    kind = "paragraph"  # no level to place it at: keep its text as text
+                self.add(kind, idxs, level=level, flags=flags, confidence=conf)
+            elif kind in ("page_header", "page_footer"):
+                if all(_is_page_number(self.lines[i].text) for i in idxs):
+                    kind = "page_number"
+                self.add(kind, idxs, flags=flags, confidence=conf)
+            elif kind == "list_item":
+                match = list_marker(first)
+                rest = first[match.end() :] if match else first
+                texts = [rest] + [self.lines[i].text for i in ordered[1:]]
+                base = min((o.box.x0 for o in lists if o.page == page and h_overlap(
+                    (o.box.x0, o.box.y0, o.box.x1, o.box.y1), r)), default=r[0])  # fmt: skip
+                self.add("list_item", idxs, text=join_text(texts),
+                         marker=match.group(0).strip() if match else None,
+                         list_depth=int(max(0.0, r[0] - base) // LIST_INDENT_STEP),
+                         flags=flags, confidence=conf)  # fmt: skip
+            elif kind == "footnote":
+                match = footnote_marker(first)
+                rest = first[match.end() :] if match else first
+                texts = [rest] + [self.lines[i].text for i in ordered[1:]]
+                self.add("footnote", idxs, text=join_text(texts),
+                         marker=match.group(1) if match else None, flags=flags,
+                         confidence=conf)  # fmt: skip
+            elif kind == "contents":
+                text = "\n".join(join_text([self.lines[i].text]) for i in ordered)
+                self.add("contents", idxs, text=text, flags=flags, confidence=conf)
+            else:
+                item = self.add(kind, idxs, flags=flags, confidence=conf)
+                if kind == "caption":
+                    self.layout_captions.append(item)
+
+    def _layout_table(
+        self, page: int, r: Rect, idxs: list[int], flags: list[str], conf: float
+    ) -> None:
+        """A Table region: the engine table it overlaps most (by at least half of the smaller
+        box), with that table's lines too; else cells from its lines' rows."""
+        obj = self.pages.get(page)
+        match: int | None = None
+        best = 0.5
+        for k, (box, _) in enumerate(obj.tables if obj is not None else []):
+            t = self._clip(box)
+            if t is None or (page, k) in self.used_tables:
+                continue
+            share = max(inside_share(t, r), inside_share(r, t))
+            if share >= best:
+                match, best = k, share
+        rect = r
+        rows: list[list[str]] = []
+        if obj is not None and match is not None:
+            self.used_tables.add((page, match))
+            box, rows = obj.tables[match]
+            t = self._clip(box) or r
+            rect = union([r, t])
+            extra = [i for i in self._inside(page, t) if i not in idxs]
+            self.layout_lines.update(extra)
+            idxs = idxs + extra
+        if not rows:
+            rows = self._rows_from_lines(idxs)
+        text, more = self._table_text(rows, idxs)
+        if not text:
+            return
+        self.layout_rects[page].append(rect)
+        self.add("table", idxs, text=text, page=page, boxes=[self._box(page, rect)],
+                 anchor=self._geometric_anchor(page, rect), table=TableData(rows=rows),
+                 flags=flags + more, confidence=conf)  # fmt: skip
+
+    def _rows_from_lines(self, idxs: Sequence[int]) -> list[list[str]]:
+        """Table rows from lines: lines on one row (``same_row`` with its first line) are its
+        cells, left to right."""
+        rows: list[list[Line]] = []
+        for i in sorted(idxs, key=lambda k: (self.lines[k].y0, self.lines[k].x0)):
+            line = self.lines[i]
+            if rows and same_row(rows[-1][0], line):
+                rows[-1].append(line)
+            else:
+                rows.append([line])
+        return [[" ".join(c.text.split()) for c in sorted(row, key=lambda c: c.x0)] for row in rows]
+
+    def link_layout_captions(self) -> None:
+        """Link each Caption region's element to a figure or table, as rule 5 does."""
+        for caption in self.layout_captions:
+            lines = [self.lines[i] for i in caption.lines]
+            r = union([line_rect(line) for line in lines])
+            height = lines[0].y1 - lines[0].y0
+            wanted = "table" if lines[0].text.strip().lower().startswith("table") else "figure"
+            target = self._caption_target(caption.page, r, height, wanted)
+            if target is not None:
+                caption.caption_for = target
+                target.caption = caption
 
     # -- rule 4: figures --------------------------------------------------------------------
     def figures(self, protected: set[int]) -> None:
@@ -436,13 +612,15 @@ class _Builder:
                 if (r := self._clip(box)) is not None
             ]
             candidates.sort(key=lambda c: -area(c[0]))  # stable: images first at equal size
-            accepted: list[Rect] = []
+            accepted: list[Rect] = list(self.layout_rects.get(obj.page, []))
             for r, source in candidates:
                 size = area(r)
                 if size < FIGURE_MIN_AREA * page_area:
                     continue
                 if any(inside_share(r, t) >= 0.5 for t in tables + accepted):
                     continue  # table rulings, a picture in a cell, or part of a larger figure
+                if self._holds_layout_lines(obj.page, r):
+                    continue  # the layout model typed the text on it
                 inside = self._without_captions(self._inside(obj.page, r))
                 if source == "vector" and len(inside) / (size / 1000) >= FIGURE_MAX_TEXT_DENSITY:
                     continue
@@ -519,27 +697,32 @@ class _Builder:
             r = union([line_rect(self.lines[k]) for k in block])
             height = self.lines[i].y1 - self.lines[i].y0
             wanted = "table" if self.lines[i].text.strip().lower().startswith("table") else "figure"
-            best: tuple[tuple[bool, bool, float], _Pending] | None = None
-            for target in self.objects.get(self.lines[i].page, []):
-                t = target.boxes[0]
-                if target.caption is not None:
-                    continue
-                if not h_overlap(r, (t.x0, t.y0, t.x1, t.y1)):
-                    continue
-                sides = [("below", r[1] - t.y1), ("above", t.y0 - r[3])]
-                box = (t.x0, t.y0, t.x1, t.y1)
-                if inside_share(r, box) >= 0.5:  # set within the figure's own region
-                    upper = (r[1] + r[3]) < (t.y0 + t.y1)
-                    sides = [("above" if upper else "below", 0.0)]
-                for side, distance in sides:
-                    if -height <= distance <= CAPTION_MAX_DISTANCE_LINES * height:
-                        key = (target.kind != wanted, side != CAPTION_FIRST_SIDE[target.kind],
-                               abs(distance))  # fmt: skip
-                        if best is None or key < best[0]:
-                            best = (key, target)
-            if best is not None:
-                caption = self.add("caption", block, caption_for=best[1])
-                best[1].caption = caption
+            target = self._caption_target(self.lines[i].page, r, height, wanted)
+            if target is not None:
+                caption = self.add("caption", block, caption_for=target)
+                target.caption = caption
+
+    def _caption_target(self, page: int, r: Rect, height: float, wanted: str) -> _Pending | None:
+        """The figure or table a caption at ``r`` belongs to, if any (rule 5)."""
+        best: tuple[tuple[bool, bool, float], _Pending] | None = None
+        for target in self.objects.get(page, []):
+            t = target.boxes[0]
+            if target.caption is not None:
+                continue
+            if not h_overlap(r, (t.x0, t.y0, t.x1, t.y1)):
+                continue
+            sides = [("below", r[1] - t.y1), ("above", t.y0 - r[3])]
+            box = (t.x0, t.y0, t.x1, t.y1)
+            if inside_share(r, box) >= 0.5:  # set within the figure's own region
+                upper = (r[1] + r[3]) < (t.y0 + t.y1)
+                sides = [("above" if upper else "below", 0.0)]
+            for side, distance in sides:
+                if -height <= distance <= CAPTION_MAX_DISTANCE_LINES * height:
+                    key = (target.kind != wanted, side != CAPTION_FIRST_SIDE[target.kind],
+                           abs(distance))  # fmt: skip
+                    if best is None or key < best[0]:
+                        best = (key, target)
+        return best[1] if best is not None else None
 
     def _caption_block(self, i: int) -> list[int]:
         """The caption line and the free lines continuing it as a short paragraph."""
@@ -813,6 +996,7 @@ class _Builder:
                 caption_for=ids[id(item.caption_for)] if item.caption_for else None,
                 caption_id=ids[id(item.caption)] if item.caption else None,
                 source="ocr" if ocr else "text", flags=list(item.flags),
+                confidence=item.confidence,
             )  # fmt: skip
             out.append((element, item.lines))
         return out

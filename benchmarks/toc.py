@@ -2,6 +2,11 @@
 
 ``uv run --extra pdf --extra pdf-mit python -m benchmarks.toc --engines pymupdf,pdfplumber,both``
 
+With ``--elements`` every engine runs twice, as ``fast`` (the default ``load_pdf``) and in
+element mode (``load_pdf(elements=True)``, keyed ``<engine>+elements``), and the result file is
+``toc-elements.json`` with a ``comparison`` block: per engine the depth <= 2 micro F1 of both
+modes and the per-document F1 deltas (spec §10.3). No OCR engine is used.
+
 Gold is the bookmark list of every corpus PDF with enough bookmarks (levels shifted so the minimum
 is 1). Extraction runs with ``use_bookmarks=False`` so the answer is never read from the file.
 Metrics are reported for all depths and for gold depth <= 2, pooled (micro) and averaged over
@@ -180,13 +185,26 @@ def predicted_headings(doc: Any) -> list[Heading]:
     return [(s.title, s.page_start or 0, s.level) for s in doc.walk() if s.level > 0]
 
 
-def run_engine(engine: str, docs: Sequence[dict[str, Any]], *, cache: Path | None = None) -> dict:
-    """Load every document with ``engine`` (bookmarks off), time it and score against gold."""
+ELEMENTS_SUFFIX = "+elements"
+
+
+def run_engine(
+    engine: str,
+    docs: Sequence[dict[str, Any]],
+    *,
+    cache: Path | None = None,
+    elements: bool = False,
+) -> dict:
+    """Load every document with ``engine`` (bookmarks off), time it and score against gold.
+    With ``elements`` the documents are loaded in element mode and the entry is named
+    ``<engine>+elements``."""
     from docrooter.pdf.load import load_pdf
 
+    name = f"{engine}{ELEMENTS_SUFFIX}" if elements else engine
+    options: dict[str, Any] = {"elements": True} if elements else {}
     if docs:  # warm-up: import the engine's libraries on the smallest document, untimed
         smallest = min(docs, key=lambda d: d["pages"])
-        load_pdf(smallest["path"], engine=engine, use_bookmarks=False)
+        load_pdf(smallest["path"], engine=engine, use_bookmarks=False, **options)
 
     rows = []
     for d in docs:
@@ -194,7 +212,7 @@ def run_engine(engine: str, docs: Sequence[dict[str, Any]], *, cache: Path | Non
         pred: list[Heading] = []
         start = time.perf_counter()
         try:
-            loaded = load_pdf(d["path"], engine=engine, use_bookmarks=False)
+            loaded = load_pdf(d["path"], engine=engine, use_bookmarks=False, **options)
             seconds = time.perf_counter() - start
             pred = predicted_headings(loaded)
         except Exception as exc:  # a failing document scores zero, it must not end the run
@@ -213,11 +231,11 @@ def run_engine(engine: str, docs: Sequence[dict[str, Any]], *, cache: Path | Non
         rows.append(row)
         if cache is not None:
             cache.mkdir(parents=True, exist_ok=True)
-            (cache / f"toc-{engine}-{d['id']}.json").write_text(
+            (cache / f"toc-{name}-{d['id']}.json").write_text(
                 json.dumps({"pred": pred, "gold": d["gold"]}), encoding="utf-8"
             )
         print(
-            f"{engine:12s} {d['id']} {d['pages']:4d}p {seconds:7.2f}s "
+            f"{name:12s} {d['id']} {d['pages']:4d}p {seconds:7.2f}s "
             f"d2 F1 {row[f'depth{HEADLINE_DEPTH}']['f1']:.3f}",
             flush=True,
         )
@@ -226,13 +244,51 @@ def run_engine(engine: str, docs: Sequence[dict[str, Any]], *, cache: Path | Non
         return [{**r[key], "seconds": r["seconds"]} for r in rows]
 
     return {
-        "engine": engine,
+        "engine": name,
         "n_docs": len(rows),
         "doc_ids": [r["id"] for r in rows],
         "all": aggregate(flat("all")),
         f"depth{HEADLINE_DEPTH}": aggregate(flat(f"depth{HEADLINE_DEPTH}")),
         "docs": rows,
     }
+
+
+def compare_modes(engines: dict[str, Any]) -> dict[str, Any]:
+    """For every engine run in both modes: the depth <= 2 micro F1 of ``fast`` and element
+    mode, their difference, and the per-document F1 deltas (element mode minus fast) of the
+    documents where they differ."""
+    depth = f"depth{HEADLINE_DEPTH}"
+    out: dict[str, Any] = {}
+    for name, fast in engines.items():
+        other = engines.get(f"{name}{ELEMENTS_SUFFIX}")
+        if name.endswith(ELEMENTS_SUFFIX) or other is None:
+            continue
+        by_id = {row["id"]: row for row in other["docs"]}
+        deltas = []
+        for row in fast["docs"]:
+            mate = by_id.get(row["id"])
+            if mate is None:
+                continue
+            delta = mate[depth]["f1"] - row[depth]["f1"]
+            if abs(delta) > 1e-9:
+                a, b = row[depth], mate[depth]
+                deltas.append(
+                    {"id": row["id"], "fast_f1": round(a["f1"], 4),
+                     "elements_f1": round(b["f1"], 4), "delta": round(delta, 4),
+                     "fast_n_match": a["n_match"], "elements_n_match": b["n_match"],
+                     "fast_n_pred": a["n_pred"], "elements_n_pred": b["n_pred"],
+                     "n_gold": a["n_gold"]}
+                )  # fmt: skip
+        deltas.sort(key=lambda d: d["delta"])
+        out[name] = {
+            f"fast_{depth}_micro_f1": fast[depth]["f1"],
+            f"elements_{depth}_micro_f1": other[depth]["f1"],
+            "delta": other[depth]["f1"] - fast[depth]["f1"],
+            "fast_seconds_per_doc": fast["all"]["seconds_per_doc"],
+            "elements_seconds_per_doc": other["all"]["seconds_per_doc"],
+            "per_doc_deltas": deltas,
+        }
+    return out
 
 
 def smallest(docs: Sequence[dict[str, Any]], n: int) -> list[dict[str, Any]]:
@@ -442,12 +498,18 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--llm-max-docs", type=int, default=LLM_MAX_DOCS)
     parser.add_argument("--docs", type=Path, default=None, help="also update this Markdown file")
     parser.add_argument("--report-only", action="store_true", help="render from existing toc.json")
+    parser.add_argument(
+        "--elements",
+        action="store_true",
+        help="run each engine in fast and element mode; write toc-elements.json with a comparison",
+    )
     args = parser.parse_args(argv)
     _guard.apply_env_caps()  # no models here, so no single-process check
 
     out_dir = args.out or RESULTS_ROOT / datetime.date.today().isoformat()
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / corpora.results_name(args.corpus, "toc.json")
+    filename = "toc-elements.json" if args.elements else "toc.json"
+    path = out_dir / corpora.results_name(args.corpus, filename)
     if args.report_only:
         saved = json.loads(path.read_text(encoding="utf-8"))
         update_docs(args.docs or DOCS_PATH, render_tables(saved))
@@ -462,23 +524,27 @@ def main(argv: Sequence[str] | None = None) -> None:
     result["env"] = collect_env()  # this invocation's; each engine keeps its own run metadata
     result["corpus"] = corpora.relative(args.corpus)
     result |= {"min_bookmarks": args.min_bookmarks, "match": {"ratio": 0.85, "page_tol": 1}}
+    modes = (False, True) if args.elements else (False,)
     for engine in [e.strip() for e in args.engines.split(",") if e.strip()]:
         subset = docs
         note = None
         if engine == LLM_ENGINE and len(docs) > args.llm_max_docs:
             subset = smallest(docs, args.llm_max_docs)
             note = f"limited to the {len(subset)} smallest bookmarked documents (by page count)"
-        loadavg_start = list(os.getloadavg())
-        entry = run_engine(engine, subset, cache=CACHE)
-        entry |= {
-            "note": note,
-            "date": datetime.date.today().isoformat(),
-            "commit": git_revision(),
-            "loadavg_start": loadavg_start,
-            "loadavg_end": list(os.getloadavg()),
-        }
-        result["engines"][engine] = entry
-        path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+        for elements in modes:
+            loadavg_start = list(os.getloadavg())
+            entry = run_engine(engine, subset, cache=CACHE, elements=elements)
+            entry |= {
+                "note": note,
+                "date": datetime.date.today().isoformat(),
+                "commit": git_revision(),
+                "loadavg_start": loadavg_start,
+                "loadavg_end": list(os.getloadavg()),
+            }
+            result["engines"][entry["engine"]] = entry
+            if args.elements:
+                result["comparison"] = compare_modes(result["engines"])
+            path.write_text(json.dumps(result, indent=2), encoding="utf-8")
     if args.docs:
         update_docs(args.docs, render_tables(result))
     print(f"wrote {path}", file=sys.stderr)

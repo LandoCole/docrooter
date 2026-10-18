@@ -21,13 +21,16 @@ Additions to the spec rules (task E5a rulings, tunable in E11a like the spec's t
 - a roman-numeral caption number must not run into a word ("Figure illustrates");
 - Greek letters count as math symbols only outside words, so Greek prose is not a formula;
 - ``Line`` has no superscript flag, so a footnote is recognised by its leading marker token
-  (digits, ``*``, ``†``, ``‡``, ``§``) with the size and position rules.
+  (digits, ``*``, ``†``, ``‡``, ``§``) with the size and position rules;
+- a ruled table whose engine cells miss letters or digits of the lines it consumes keeps its
+  cells in ``TableData`` but takes its lines' text as ``text`` and the flag
+  ``cell_text_incomplete`` (task E5b: element mode never loses text-layer content).
 """
 
 from __future__ import annotations
 
 import statistics
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Literal
@@ -94,6 +97,7 @@ __all__ = [
     "PARAGRAPH_SIZE_DELTA",
     "build_elements",
     "build_elements_with_lines",
+    "furniture_lines",
 ]
 
 # Spec §5.3 starting estimates, tuned on DocLayNet train pages in E11a.
@@ -203,6 +207,32 @@ def build_elements_with_lines(
     builder.formulas()
     builder.paragraphs()
     return builder.finish()
+
+
+def furniture_lines(lines: Sequence[Line], excluded: set[int]) -> set[int]:
+    """The lines of ``excluded`` (``DocSignals.excluded``) that are page furniture. A bare
+    number outside the edge band whose centre lies between the page's body lines is not: the
+    signals mark every bare-number line, table cells included. Reading order
+    (``order_lines``) and the furniture rule both use this set."""
+    extent: dict[int, tuple[float, float]] = {}
+    for i, line in enumerate(lines):
+        if i in excluded or not line.text.strip():
+            continue
+        centre = (line.y0 + line.y1) / 2
+        top, bottom = extent.get(line.page, (centre, centre))
+        extent[line.page] = (min(top, centre), max(bottom, centre))
+    out: set[int] = set()
+    for i in excluded:
+        if not 0 <= i < len(lines):
+            continue
+        line = lines[i]
+        if _is_page_number(line.text) and not _in_edge_zone(line):
+            centre = (line.y0 + line.y1) / 2
+            top, bottom = extent.get(line.page, (centre, centre))
+            if top < centre < bottom:
+                continue  # a bare number among body lines (a table cell), not furniture
+        out.add(i)
+    return out
 
 
 def _protected(headings: Sequence[HeadingCandidate], title_index: int | None, n: int) -> set[int]:
@@ -333,24 +363,16 @@ class _Builder:
 
     # -- rule 1: furniture ------------------------------------------------------------------
     def furniture(self) -> None:
-        excluded = self.signals.excluded
-        extent: dict[int, tuple[float, float]] = {}
-        for page, idxs in self.on_page.items():
-            centres = [(self.lines[i].y0 + self.lines[i].y1) / 2 for i in idxs if i not in excluded]
-            if centres:
-                extent[page] = (min(centres), max(centres))
+        furniture = furniture_lines(self.lines, self.signals.excluded)
         for i in self.order:
-            if i not in excluded or not self.free(i):
+            if i not in furniture or not self.free(i):
                 continue
             line = self.lines[i]
-            centre = (line.y0 + line.y1) / 2
             kind: ElementKind
             if _is_page_number(line.text):
-                top, bottom = extent.get(line.page, (centre, centre))
-                if not _in_edge_zone(line) and top < centre < bottom:
-                    continue  # a bare number among body lines (a table cell), not furniture
                 kind = "page_number"
             else:
+                centre = (line.y0 + line.y1) / 2
                 kind = "page_header" if centre < line.page_height / 2 else "page_footer"
             self.add(kind, [i])
 
@@ -377,10 +399,22 @@ class _Builder:
                 )
                 if r is None or not text:
                     continue
-                self.add("table", self._inside(obj.page, r), text=text, page=obj.page,
+                idxs = self._inside(obj.page, r)
+                flags = []
+                held = Counter(ch for i in idxs for ch in self.lines[i].text if ch.isalnum())
+                if held - Counter(ch for ch in text if ch.isalnum()):
+                    # The engine's cells miss letters or digits of the table's own lines (text
+                    # clipped by a cell, prose in a ruled box). Compared by character, as cells
+                    # split tokens ("(13" and ")"). Keep the cells in TableData, but the text is
+                    # the lines', so no content is lost.
+                    ordered = sorted(idxs, key=self.pos.__getitem__)
+                    text = "\n".join(join_text([self.lines[i].text]) for i in ordered)
+                    flags = ["cell_text_incomplete"]
+                self.add("table", idxs, text=text, page=obj.page,
                          boxes=[self._box(obj.page, r)],
                          anchor=self._geometric_anchor(obj.page, r),
-                         table=TableData(rows=[list(row) for row in rows]))  # fmt: skip
+                         table=TableData(rows=[list(row) for row in rows]),
+                         flags=flags)  # fmt: skip
 
     # -- rule 4: figures --------------------------------------------------------------------
     def figures(self, protected: set[int]) -> None:

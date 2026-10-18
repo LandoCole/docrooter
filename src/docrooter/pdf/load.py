@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from docrooter import events
 from docrooter.document.build import build_document
@@ -22,6 +22,9 @@ from docrooter.pdf import lines as _lines_module
 from docrooter.pdf.headings import HeadingCandidate, find_headings
 from docrooter.pdf.lines import Line, extract_lines
 from docrooter.pdf.signals import DocSignals, compute_signals, is_fuzzy_match, read_bookmarks
+
+if TYPE_CHECKING:
+    from docrooter.ocr.base import OcrEngine
 
 __all__ = ["ENGINES", "load_pdf"]
 
@@ -65,6 +68,10 @@ def load_pdf(
     repair: bool = True,
     max_pages: int | None = None,
     on_event: events.EventSink | None = None,
+    elements: bool = False,
+    ocr: str | OcrEngine | None = None,
+    layout: str = "heuristic",
+    ocr_dpi: int = 200,
 ) -> Document:
     """Load a PDF into a :class:`Document` using native text extraction (no OCR).
 
@@ -91,8 +98,36 @@ def load_pdf(
     an ``error`` before the exception is re-raised. With ``engine="both"`` each engine reports
     its own ``extract``/``signals``/``headings`` (``data["engine"]`` says which) and the merge
     is a last ``headings`` stage with ``engine="both"``.
+
+    **Element mode** (``elements=True``, engines ``auto``, ``pymupdf`` and ``pdfplumber``) also
+    types every block into ``Document.elements`` and builds the sections from them (see
+    :mod:`docrooter.pdf.element_mode`). Pages are routed (``meta["routes"]``, one
+    ``RouteDecision`` dump per page) and, with an ``ocr`` engine (a name, ``"auto"`` or an
+    :class:`~docrooter.ocr.OcrEngine`), scanned or garbled pages are read by OCR, rendered at
+    ``ocr_dpi``. Without one they keep their text layer and ``meta["warnings"]`` gets
+    ``"ocr_skipped"``. ``layout`` is ``"heuristic"``. ``meta["element_mode"]`` is ``True``,
+    the timings add ``route``, ``ocr`` and ``elements``, and the events are ``extract``,
+    ``route`` (progress per page), ``ocr``, ``signals``, ``headings``, ``elements`` (with counts
+    by kind) and ``assemble``. ``repair`` does not apply. Without ``elements`` the result is
+    exactly as before, and ``ocr``, ``layout`` and ``ocr_dpi`` must keep their defaults.
     """
+    if not elements and (ocr is not None or layout != "heuristic" or ocr_dpi != 200):
+        raise TypeError("ocr, layout and ocr_dpi: only valid with elements=True")
     with events.pipeline_run(on_event):
+        if elements:
+            from docrooter.pdf.element_mode import load_elements
+
+            return load_elements(
+                path,
+                engine=engine,
+                ocr=ocr,
+                layout=layout,
+                ocr_dpi=ocr_dpi,
+                min_heading_score=min_heading_score,
+                use_bookmarks=use_bookmarks,
+                use_printed_toc=use_printed_toc,
+                max_pages=max_pages,
+            )
         return _load_pdf(
             path,
             engine=engine,

@@ -1,0 +1,36 @@
+{
+  "source": "scanned.pdf",
+  "title": "scanned",
+  "sections": {
+    "s0": {
+      "id": "s0",
+      "title": "scanned",
+      "level": 0,
+      "text": "",
+      "parent_id": null,
+      "children": [],
+      "page_start": 1,
+      "heading_score": 1.0,
+      "flags": []
+    }
+  },
+  "root_ids": [
+    "s0"
+  ],
+  "meta": {
+    "engine": "pymupdf",
+    "n_pages": 2,
+    "timings": {
+      "extract": 0.0,
+      "signals": 0.0,
+      "headings": 0.0,
+      "assemble": 0.0
+    },
+    "bookmarks": 0,
+    "printed_toc_entries": 0,
+    "body_size": 0.0,
+    "warnings": [
+      "no_text_layer"
+    ]
+  }
+}

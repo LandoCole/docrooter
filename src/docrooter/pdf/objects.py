@@ -6,7 +6,9 @@ applied) and are clipped to the page, so downstream code never has to know the e
 page rotation. On an unrotated page ``lines`` equal :func:`docrooter.pdf.lines.extract_lines`
 for the same engine, in content and order; on a rotated page they are mapped into display
 space as well (``extract_lines`` leaves pymupdf lines in unrotated page space, and its output
-is frozen).
+is frozen). No text-layer line is lost to the rotation: text that runs vertically on screen
+because the page is rotated (horizontal on the unrotated page, which is what ``extract_lines``
+keeps) is kept as a tall display-space line, and the page gets the flag ``"vertical_text"``.
 
 Vector-heavy pages (maps, plots with tens of thousands of paths) are bounded: above
 ``MAX_DRAWING_PATHS`` paths the drawing area becomes a single region and no table search runs,
@@ -31,8 +33,12 @@ from docrooter.pdf.lines import (
     Line,
     Progress,
     _finalise,
+    _fragment_row,
     _import_pdfplumber,
     _import_pymupdf,
+    _is_horizontal,
+    _join_row_fragments,
+    _line_fragment,
     _pdfplumber_page_rows,
     _pymupdf_flags,
     _pymupdf_page_rows,
@@ -285,17 +291,17 @@ def _pymupdf_page(
     matrix = page.rotation_matrix if rotation else None  # unrotated space -> display space
 
     def display(raw: Iterable[float]) -> _RawBox:
-        x0, y0, x1, y1 = (float(v) for v in raw)
         if matrix is None:
+            x0, y0, x1, y1 = (float(v) for v in raw)
             return x0, y0, x1, y1
-        pts = [
-            (matrix.a * x + matrix.c * y + matrix.e, matrix.b * x + matrix.d * y + matrix.f)
-            for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1))
-        ]
-        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
-        return min(xs), min(ys), max(xs), max(ys)
+        return _transform(raw, matrix)
 
-    lines = _finalise(list(_pymupdf_page_rows(page, page_index, text_flags, matrix)))
+    if matrix is None:
+        text_rows = list(_pymupdf_page_rows(page, page_index, text_flags))
+        vertical = False
+    else:
+        text_rows, vertical = _pymupdf_display_rows(page, page_index, text_flags, matrix)
+    lines = _finalise(text_rows)
 
     char_count, garbled = _count_chars(page.get_text("text", flags=text_flags))
     invisible = sum(
@@ -333,11 +339,74 @@ def _pymupdf_page(
             flags.append("tables_failed")
     tables.sort(key=lambda t: (t[0].y0, t[0].x0))
 
+    if vertical:
+        flags.append("vertical_text")
     return PageObjects(
         page=number, width=width, height=height, rotation=rotation, lines=lines, images=images,
         drawings=drawings, tables=tables, char_count=char_count, invisible_chars=invisible,
         garbled_chars=garbled, n_drawing_paths=len(paths), flags=flags,
     )  # fmt: skip
+
+
+def _pymupdf_display_rows(
+    page: Any, page_index: int, text_flags: int, matrix: Any
+) -> tuple[list[dict[str, Any]], bool]:
+    """The rows of a rotated pymupdf page in display space, and whether any of them runs
+    vertically on screen.
+
+    Blocks are ordered by their displayed boxes (pymupdf's own sort key, bottom then left).
+    In each block, lines that read horizontally on screen are joined into rows in display
+    space. Lines that run vertically on screen but horizontally on the unrotated page (the
+    text of a portrait page turned by ``/Rotate``) are joined in unrotated space, exactly as
+    ``extract_lines`` joins them, and their boxes are then mapped to display space; so every
+    ``extract_lines`` line is kept with the same text. Lines vertical in both spaces are
+    skipped, as ``extract_lines`` skips them.
+    """
+    width, height = float(page.rect.width), float(page.rect.height)
+    blocks = [b for b in page.get_text("dict", flags=text_flags)["blocks"] if b.get("type") == 0]
+    keyed = sorted(
+        ((_transform(b["bbox"], matrix), b) for b in blocks), key=lambda kb: (kb[0][3], kb[0][0])
+    )
+    rows: list[dict[str, Any]] = []
+    any_vertical = False
+    for block_no, (_, block) in enumerate(keyed):
+        across: list[dict[str, Any]] = []
+        vertical: list[dict[str, Any]] = []
+        for raw in block["lines"]:
+            frag = _line_fragment(raw)
+            if frag is None:
+                continue
+            dx, dy = raw.get("dir", (1.0, 0.0))
+            if _is_horizontal((matrix.a * dx + matrix.c * dy, matrix.b * dx + matrix.d * dy)):
+                across.append(_moved(frag, matrix))
+            elif _is_horizontal((dx, dy)):
+                vertical.append(frag)
+        joined = _join_row_fragments(across)
+        joined += [_moved(frag, matrix) for frag in _join_row_fragments(vertical)]
+        any_vertical = any_vertical or bool(vertical)
+        for frag in joined:
+            row = _fragment_row(frag, page_index, width, height, block_no)
+            if row is not None:
+                rows.append(row)
+    return rows, any_vertical
+
+
+def _transform(raw: Iterable[float], matrix: Any) -> _RawBox:
+    """``raw`` (x0, y0, x1, y1) mapped through ``matrix`` (a rotation by a multiple of 90
+    degrees), normalised so that x0 <= x1 and y0 <= y1."""
+    x0, y0, x1, y1 = (float(v) for v in raw)
+    pts = [
+        (matrix.a * x + matrix.c * y + matrix.e, matrix.b * x + matrix.d * y + matrix.f)
+        for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1))
+    ]
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def _moved(frag: dict[str, Any], matrix: Any) -> dict[str, Any]:
+    """A copy of a line fragment with its box in display space."""
+    x0, y0, x1, y1 = _transform((frag["x0"], frag["y0"], frag["x1"], frag["y1"]), matrix)
+    return {**frag, "x0": x0, "y0": y0, "x1": x1, "y1": y1}
 
 
 # --- pdfplumber ----------------------------------------------------------------------------

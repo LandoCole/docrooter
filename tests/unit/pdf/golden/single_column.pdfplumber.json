@@ -1,0 +1,109 @@
+{
+  "source": "single_column.pdf",
+  "title": "1 Introduction",
+  "sections": {
+    "s0": {
+      "id": "s0",
+      "title": "Preamble",
+      "level": 0,
+      "text": "Preface words come first. Line 0.\nPreface words come first. Line 1.",
+      "parent_id": null,
+      "children": [],
+      "page_start": 1,
+      "heading_score": 1.0,
+      "flags": []
+    },
+    "s1": {
+      "id": "s1",
+      "title": "1 Introduction",
+      "level": 1,
+      "text": "This sentence is ordinary body text that stays small and keeps the body size at eleven. Line 0.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 1.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 2.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 3.",
+      "parent_id": null,
+      "children": [
+        "s1.1"
+      ],
+      "page_start": 1,
+      "heading_score": 0.93,
+      "flags": []
+    },
+    "s1.1": {
+      "id": "s1.1",
+      "title": "1.1 Background",
+      "level": 2,
+      "text": "This sentence is ordinary body text that stays small and keeps the body size at eleven. Line 0.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 1.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 2.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 3.",
+      "parent_id": "s1",
+      "children": [],
+      "page_start": 1,
+      "heading_score": 0.8694,
+      "flags": []
+    },
+    "s2": {
+      "id": "s2",
+      "title": "2 Methods",
+      "level": 1,
+      "text": "This sentence is ordinary body text that stays small and keeps the body size at eleven. Line 0.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 1.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 2.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 3.",
+      "parent_id": null,
+      "children": [
+        "s2.1"
+      ],
+      "page_start": 2,
+      "heading_score": 0.93,
+      "flags": []
+    },
+    "s2.1": {
+      "id": "s2.1",
+      "title": "2.1 Data Sources",
+      "level": 2,
+      "text": "This sentence is ordinary body text that stays small and keeps the body size at eleven. Line 0.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 1.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 2.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 3.",
+      "parent_id": "s2",
+      "children": [],
+      "page_start": 2,
+      "heading_score": 0.8694,
+      "flags": []
+    },
+    "s3": {
+      "id": "s3",
+      "title": "3 Results",
+      "level": 1,
+      "text": "This sentence is ordinary body text that stays small and keeps the body size at eleven. Line 0.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 1.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 2.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 3.",
+      "parent_id": null,
+      "children": [
+        "s3.1"
+      ],
+      "page_start": 3,
+      "heading_score": 0.93,
+      "flags": []
+    },
+    "s3.1": {
+      "id": "s3.1",
+      "title": "3.1 Discussion",
+      "level": 2,
+      "text": "This sentence is ordinary body text that stays small and keeps the body size at eleven. Line 0.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 1.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 2.\nThis sentence is ordinary body text that stays small and keeps the body size at eleven. Line 3.",
+      "parent_id": "s3",
+      "children": [],
+      "page_start": 3,
+      "heading_score": 0.8694,
+      "flags": []
+    }
+  },
+  "root_ids": [
+    "s0",
+    "s1",
+    "s2",
+    "s3"
+  ],
+  "meta": {
+    "engine": "pdfplumber",
+    "n_pages": 3,
+    "timings": {
+      "extract": 0.0,
+      "signals": 0.0,
+      "headings": 0.0,
+      "assemble": 0.0
+    },
+    "bookmarks": 0,
+    "printed_toc_entries": 0,
+    "body_size": 11.0,
+    "warnings": []
+  }
+}

@@ -151,3 +151,22 @@ def test_update_docs_appends_section_to_foreign_file(tmp_path):
     bench_toc.update_docs(path, "tables")
     out = path.read_text()
     assert "## Another\n\ntext" in out and out.count("## PDF TOC extraction") == 1
+
+
+def test_compare_modes_reports_micro_f1_and_per_doc_deltas():
+    def entry(f1s):
+        docs = [
+            {"id": f"d{k}", "depth2": {"f1": f, "n_match": 1, "n_pred": 2, "n_gold": 2}}
+            for k, f in enumerate(f1s)
+        ]
+        return {"depth2": {"f1": sum(f1s) / len(f1s)}, "all": {"seconds_per_doc": 1.0},
+                "docs": docs}  # fmt: skip
+
+    engines = {"pymupdf": entry([0.5, 0.8]), "pymupdf+elements": entry([0.6, 0.8])}
+    out = bench_toc.compare_modes(engines)
+    assert list(out) == ["pymupdf"]
+    row = out["pymupdf"]
+    assert row["fast_depth2_micro_f1"] == pytest.approx(0.65)
+    assert row["elements_depth2_micro_f1"] == pytest.approx(0.7)
+    assert row["delta"] == pytest.approx(0.05)
+    assert [(d["id"], d["delta"]) for d in row["per_doc_deltas"]] == [("d0", 0.1)]

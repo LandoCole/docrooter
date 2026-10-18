@@ -143,84 +143,66 @@ def _pymupdf_rows(
             progress(page_index + 1, total)
 
 
-def _pymupdf_page_rows(
-    page: Any, page_index: int, flags: int, matrix: Any = None
-) -> Iterator[dict[str, Any]]:
-    """The rows of one pymupdf page. With ``matrix`` (the page's ``rotation_matrix``) the text
-    is mapped into display space: line boxes and directions are transformed, so text that
-    reads horizontally on screen is kept and text running vertically on screen is skipped,
-    and blocks are sorted by their displayed boxes. Without it the output is exactly what
-    :func:`extract_lines` has always produced (unrotated page space)."""
+def _pymupdf_page_rows(page: Any, page_index: int, flags: int) -> Iterator[dict[str, Any]]:
+    """The rows of one pymupdf page, in unrotated page space (text running vertically in that
+    space is skipped). This is what :func:`extract_lines` has always produced; the display-space
+    variant for rotated pages is in :mod:`docrooter.pdf.objects`."""
     width, height = float(page.rect.width), float(page.rect.height)
-    if matrix is None:
-        blocks = page.get_text("dict", flags=flags, sort=True)["blocks"]
-    else:
-        blocks = [_display_block(b, matrix) for b in page.get_text("dict", flags=flags)["blocks"]]
-        blocks.sort(key=lambda b: (b["bbox"][3], b["bbox"][0]))  # pymupdf's own sort key
     block_no = -1
-    for block in blocks:
+    for block in page.get_text("dict", flags=flags, sort=True)["blocks"]:
         if block.get("type") != 0:
             continue
         block_no += 1
-        fragments: list[dict[str, Any]] = []
-        for raw in block["lines"]:
-            dx, dy = raw.get("dir", (1.0, 0.0))
-            if abs(dy) > abs(dx):  # rotated text (margin stamps, vertical labels)
-                continue
-            spans = [
-                (
-                    s["text"],
-                    float(s["size"]),
-                    s["font"],
-                    bool(s["flags"] & _BOLD_FLAG) or _has_bold_name(s["font"]),
-                )
-                for s in raw["spans"]
-                if s["text"].strip()
-            ]
-            text = "".join(s["text"] for s in raw["spans"]).strip()
-            if spans:
-                x0, y0, x1, y1 = (float(v) for v in raw["bbox"])
-                fragments.append(
-                    {"spans": spans, "text": text, "x0": x0, "y0": y0, "x1": x1, "y1": y1}
-                )
+        fragments = [
+            frag
+            for raw in block["lines"]
+            if _is_horizontal(raw.get("dir", (1.0, 0.0)))  # skip margin stamps, vertical labels
+            and (frag := _line_fragment(raw)) is not None
+        ]
         for frag in _join_row_fragments(fragments):
-            if not _has_alnum(frag["text"]):
-                continue
-            size, font, bold = _summarise(frag["spans"])
-            yield {
-                "page": page_index + 1, "text": frag["text"], "size": size, "bold": bold,
-                "font": font, "x0": frag["x0"], "y0": frag["y0"], "x1": frag["x1"],
-                "y1": frag["y1"], "page_height": height, "page_width": width,
-                "block": block_no,
-            }  # fmt: skip
+            row = _fragment_row(frag, page_index, width, height, block_no)
+            if row is not None:
+                yield row
 
 
-def _display_block(block: dict[str, Any], matrix: Any) -> dict[str, Any]:
-    """A copy of a text block of the ``dict`` output with its box, line boxes and line
-    directions mapped through ``matrix`` (a pymupdf ``Matrix``; rotations by multiples of 90)."""
-    if block.get("type") != 0:
-        return block
-    out = dict(block)
-    out["bbox"] = _transform_box(block["bbox"], matrix)
-    lines = []
-    for raw in block["lines"]:
-        line = dict(raw)
-        line["bbox"] = _transform_box(raw["bbox"], matrix)
-        dx, dy = raw.get("dir", (1.0, 0.0))
-        line["dir"] = (matrix.a * dx + matrix.c * dy, matrix.b * dx + matrix.d * dy)
-        lines.append(line)
-    out["lines"] = lines
-    return out
+def _is_horizontal(direction: Any) -> bool:
+    dx, dy = direction
+    return not abs(dy) > abs(dx)
 
 
-def _transform_box(box: Any, matrix: Any) -> tuple[float, float, float, float]:
-    """``box`` (x0, y0, x1, y1) mapped through ``matrix``, normalised so x0 <= x1, y0 <= y1."""
-    x0, y0, x1, y1 = (float(v) for v in box)
-    xs, ys = [], []
-    for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1)):
-        xs.append(matrix.a * x + matrix.c * y + matrix.e)
-        ys.append(matrix.b * x + matrix.d * y + matrix.f)
-    return min(xs), min(ys), max(xs), max(ys)
+def _line_fragment(raw: dict[str, Any]) -> dict[str, Any] | None:
+    """One line of pymupdf's ``dict`` output as a fragment (spans, text, box), or ``None`` when
+    it has no visible span."""
+    spans = [
+        (
+            s["text"],
+            float(s["size"]),
+            s["font"],
+            bool(s["flags"] & _BOLD_FLAG) or _has_bold_name(s["font"]),
+        )
+        for s in raw["spans"]
+        if s["text"].strip()
+    ]
+    if not spans:
+        return None
+    text = "".join(s["text"] for s in raw["spans"]).strip()
+    x0, y0, x1, y1 = (float(v) for v in raw["bbox"])
+    return {"spans": spans, "text": text, "x0": x0, "y0": y0, "x1": x1, "y1": y1}
+
+
+def _fragment_row(
+    frag: dict[str, Any], page_index: int, width: float, height: float, block_no: int
+) -> dict[str, Any] | None:
+    """A joined fragment as a row for :func:`_finalise`; ``None`` without a letter or digit."""
+    if not _has_alnum(frag["text"]):
+        return None
+    size, font, bold = _summarise(frag["spans"])
+    return {
+        "page": page_index + 1, "text": frag["text"], "size": size, "bold": bold,
+        "font": font, "x0": frag["x0"], "y0": frag["y0"], "x1": frag["x1"],
+        "y1": frag["y1"], "page_height": height, "page_width": width,
+        "block": block_no,
+    }  # fmt: skip
 
 
 def _join_row_fragments(fragments: list[dict[str, Any]]) -> list[dict[str, Any]]:

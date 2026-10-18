@@ -355,12 +355,13 @@ def _pymupdf_display_rows(
     vertically on screen.
 
     Blocks are ordered by their displayed boxes (pymupdf's own sort key, bottom then left).
-    In each block, lines that read horizontally on screen are joined into rows in display
-    space. Lines that run vertically on screen but horizontally on the unrotated page (the
-    text of a portrait page turned by ``/Rotate``) are joined in unrotated space, exactly as
-    ``extract_lines`` joins them, and their boxes are then mapped to display space; so every
-    ``extract_lines`` line is kept with the same text. Lines vertical in both spaces are
-    skipped, as ``extract_lines`` skips them.
+    In each block, every line that is horizontal on the unrotated page is joined into rows in
+    unrotated space, exactly as ``extract_lines`` joins it, and the row's box is then mapped to
+    display space; so every ``extract_lines`` line is kept with the same text, whether it reads
+    across the screen (0 and 180 degrees) or runs down it (90 and 270, the text of a portrait
+    page turned by ``/Rotate``). Lines vertical on the unrotated page that read across the
+    screen (upright text authored for the rotation, which ``extract_lines`` skips) are joined
+    in display space. Lines vertical in both spaces are skipped.
     """
     width, height = float(page.rect.width), float(page.rect.height)
     blocks = [b for b in page.get_text("dict", flags=text_flags)["blocks"] if b.get("type") == 0]
@@ -370,20 +371,23 @@ def _pymupdf_display_rows(
     rows: list[dict[str, Any]] = []
     any_vertical = False
     for block_no, (_, block) in enumerate(keyed):
-        across: list[dict[str, Any]] = []
-        vertical: list[dict[str, Any]] = []
+        unrotated: list[dict[str, Any]] = []  # horizontal on the unrotated page
+        upright: list[dict[str, Any]] = []  # vertical on the page, across the screen
         for raw in block["lines"]:
             frag = _line_fragment(raw)
             if frag is None:
                 continue
             dx, dy = raw.get("dir", (1.0, 0.0))
-            if _is_horizontal((matrix.a * dx + matrix.c * dy, matrix.b * dx + matrix.d * dy)):
-                across.append(_moved(frag, matrix))
-            elif _is_horizontal((dx, dy)):
-                vertical.append(frag)
-        joined = _join_row_fragments(across)
-        joined += [_moved(frag, matrix) for frag in _join_row_fragments(vertical)]
-        any_vertical = any_vertical or bool(vertical)
+            on_screen = _is_horizontal(
+                (matrix.a * dx + matrix.c * dy, matrix.b * dx + matrix.d * dy)
+            )
+            if _is_horizontal((dx, dy)):
+                unrotated.append(frag)
+                any_vertical = any_vertical or not on_screen
+            elif on_screen:
+                upright.append(_moved(frag, matrix))
+        joined = [_moved(frag, matrix) for frag in _join_row_fragments(unrotated)]
+        joined += _join_row_fragments(upright)
         for frag in joined:
             row = _fragment_row(frag, page_index, width, height, block_no)
             if row is not None:

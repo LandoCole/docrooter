@@ -32,9 +32,10 @@ class FakeOcr:
 
     name = "fake"
 
-    def __init__(self, pages=None, regions=None, fail=False):
+    def __init__(self, pages=None, regions=None, fail=False, region_conf=(0.8,)):
         self.pages = pages or {}
         self.regions = regions or {}
+        self.region_conf = list(region_conf)
         self.fail = fail
         self.calls = []
         self.closed = 0
@@ -48,7 +49,8 @@ class FakeOcr:
             text = self.regions.get(page.page)
             box = Box(page=page.page, x0=page.x0 + 5, y0=page.y0 + 5, x1=page.x1 - 5,
                       y1=page.y0 + 5 + BODY_PX)  # fmt: skip
-            return [OcrLine(text=text, box=box, confidence=0.8)] if text else []
+            conf = self.region_conf[min(len(self.calls), len(self.region_conf)) - 1]
+            return [OcrLine(text=text, box=box, confidence=conf)] if text else []
         out, y = [], 80.0
         for text, height in self.pages.get(page.page, []):
             box = Box(page=page.page, x0=72, y0=y, x1=72 + 5.5 * len(text), y1=y + height)
@@ -289,7 +291,7 @@ def test_region_ocr_fills_figure_text_only(tmp_path):
     (call,) = engine.calls
     assert call.x0 > 0 and call.y0 > 0  # only the image region was rendered
     (figure,) = [e for e in loaded.elements if e.kind == "figure"]
-    assert figure.text == figure.figure.text == "Chart label 42"
+    assert figure.figure.text == "Chart label 42" and figure.text == ""  # no text-layer labels
     assert figure.figure.source == "ocr_region" and figure.source == "ocr"
     assert figure.confidence == pytest.approx(0.8)
     others = [e for e in loaded.elements if e is not figure]
@@ -415,18 +417,27 @@ def test_pdfplumber_and_pymupdf_both_build_sections(engine):
 # --- rotated pages keep their text (E2 carry) ----------------------------------------------
 
 
+def _numbered_heading(page, number, title, y):
+    """A section number and its title as two lines of one block on one row (the title sits
+    1.5 pt lower, so pymupdf does not merge them itself); ``extract_lines`` joins them."""
+    page.insert_text((72, y), number, fontsize=14, fontname="hebo")
+    page.insert_text((100, y + 1.5), title, fontsize=14, fontname="hebo")
+
+
 def _rotated_pdf(tmp_path, name, rotations):
     """For each rotation: a page with text drawn before ``set_rotation``, one with text drawn
-    after it, and one with both."""
+    after it, and one with both; each has a numbered heading split into same-row lines."""
     doc = pymupdf.open()
     for rot in rotations:
         page = doc.new_page(width=612, height=792)
+        _numbered_heading(page, "3.", "Introduction", 60)
         for k in range(5):
             text = f"Before r{rot} line {k} of body text"
             page.insert_text((72, 100 + 20 * k), text, fontsize=11)
         page.set_rotation(rot)
         page = doc.new_page(width=612, height=792)
         page.set_rotation(rot)
+        _numbered_heading(page, "4.", "Methods", 60)
         for k in range(5):
             text = f"After r{rot} line {k} of body text"
             page.insert_text((72, 100 + 20 * k), text, fontsize=11)
@@ -435,12 +446,15 @@ def _rotated_pdf(tmp_path, name, rotations):
         page.insert_text((72, 140), f"Mixed before r{rot} and more words", fontsize=11)
         page.set_rotation(rot)
         page.insert_text((72, 400), f"Mixed after r{rot} and more words", fontsize=11)
+        _numbered_heading(page, "5.", "Results", 450)
     return _save(doc, tmp_path / name)
 
 
 @pytest.mark.parametrize("engine", ["pymupdf", "pdfplumber"])
 @pytest.mark.parametrize(
-    "rotations", [(0, 90, 180, 270), (90, 90), (270, 0, 180)], ids=["all", "r90", "r270"]
+    "rotations",
+    [(0, 90, 180, 270), (90, 90), (270, 0, 180), (180,)],
+    ids=["all", "r90", "r270", "r180"],
 )
 def test_rotated_pages_keep_every_extract_lines_text(tmp_path, engine, rotations):
     if engine == "pdfplumber":
@@ -452,7 +466,13 @@ def test_rotated_pages_keep_every_extract_lines_text(tmp_path, engine, rotations
     for objs in pages:
         want = Counter(ln.text for ln in expected if ln.page == objs.page)
         assert want, objs.page
-        assert Counter(ln.text for ln in objs.lines) == want, (objs.page, objs.rotation)
+        got = [ln.text for ln in objs.lines]
+        assert Counter(got) == want, (objs.page, objs.rotation)
+        assert sorted(got) == sorted(want.elements()), (objs.page, objs.rotation)
+        if engine == "pymupdf":  # pdfplumber's own lines on rotated pages are letter soup,
+            # mirrored at 180 degrees; element mode still equals them exactly (above)
+            heading = {1: "3. Introduction", 2: "4. Methods", 0: "5. Results"}[objs.page % 3]
+            assert heading in got and want[heading] == 1, (objs.page, objs.rotation, got)
         for ln in objs.lines:  # in display space, on the page
             assert 0 <= ln.x0 <= ln.x1 <= objs.width + 0.5
             assert 0 <= ln.y0 <= ln.y1 <= objs.height + 0.5
@@ -461,7 +481,8 @@ def test_rotated_pages_keep_every_extract_lines_text(tmp_path, engine, rotations
         assert vertical == {p.page for p in pages if p.rotation in (90, 270)}
 
     doc = load_pdf(path, elements=True, engine=engine)
-    everything = " ".join(e.text for e in doc.elements)
+    # a list or footnote marker is kept apart from the element's text
+    everything = " ".join(f"{e.marker} {e.text}" if e.marker else e.text for e in doc.elements)
     for line in expected:
         assert line.text in everything
 
@@ -506,3 +527,71 @@ def test_table_cells_that_lose_words_keep_the_lines_text(tmp_path):
     assert "a value that overflows the ruled cell edge" in table.text
     assert table.table.rows and "edge" not in str(table.table.rows)  # cells as the engine read
     assert "overflows the ruled cell edge" in loaded.section("Terms").text
+
+
+def test_region_ocr_keeps_the_figures_text_layer_labels(tmp_path):
+    doc = pymupdf.open()
+    page = _text_page(doc, "Overview", lines=3)
+    page.draw_rect(pymupdf.Rect(72, 250, 520, 560), color=(0, 0, 0), fill=(0.9, 0.9, 0.95))
+    pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 30), False)
+    pix.set_rect(pix.irect, (30, 120, 200))
+    for rect in ((90, 270, 290, 420), (310, 270, 500, 420)):  # each >= 5% of the page
+        page.insert_image(pymupdf.Rect(*rect), stream=pix.tobytes("png"), keep_proportion=False)
+    page.insert_text((100, 500), "Q1", fontsize=8)  # text-layer labels of the chart
+    page.insert_text((450, 540), "Q4", fontsize=8)
+    path = _save(doc, tmp_path / "labels.pdf")
+    engine = FakeOcr(regions={1: "Scanned axis"}, region_conf=(0.6, 0.9))
+
+    loaded = load_pdf(path, elements=True, ocr=engine)
+    assert len(engine.calls) == 2
+    (figure,) = [e for e in loaded.elements if e.kind == "figure"]
+    assert figure.text == "Q1\nQ4"  # the text-layer labels stay the element's text
+    assert figure.figure.text == "Q1\nQ4\nScanned axis\nScanned axis"
+    assert figure.figure.source == "ocr_region" and figure.source == "ocr"
+    assert figure.confidence == pytest.approx(0.75)  # the mean over both regions
+    overview = loaded.section("Overview").text
+    assert "Q1" in overview and "Q4" in overview  # labels are never lost from the section
+    assert "Scanned axis" not in overview  # region OCR is figure text only
+
+
+def test_unknown_ocr_engine_name_fails_before_any_page_work(monkeypatch):
+    import docrooter.pdf.element_mode as element_mode
+
+    def boom(*args, **kwargs):
+        raise AssertionError("pages were extracted")
+
+    monkeypatch.setattr(element_mode, "extract_page_objects", boom)
+    with pytest.raises(DocrooterError, match="unknown OCR engine 'no-such-engine'.*tesseract"):
+        load_pdf(GOLDEN / "single_column.pdf", elements=True, ocr="no-such-engine")
+
+
+def test_table_stays_after_the_title_on_a_single_column_page(monkeypatch):
+    """Bare numbers inside a table are excluded by the signals but are not furniture; reading
+    order must not move them (and with them the table) to the top of the page."""
+    import docrooter.pdf.element_mode as element_mode
+
+    path = GOLDEN / "tables.pdf"
+    kinds = [e.kind for e in load_pdf(path, elements=True).elements]
+    assert kinds == ["title", "paragraph", "caption", "table", "heading", "paragraph"]
+    doc = load_pdf(path, elements=True)
+    table = next(e for e in doc.elements if e.kind == "table")
+    assert table.section_id == "s1" and "s0" not in doc.sections
+
+    # the same order with every excluded line treated as furniture puts the table first
+    monkeypatch.setattr(element_mode, "furniture_lines", lambda lines, excluded: set(excluded))
+    broken = [e.kind for e in load_pdf(path, elements=True).elements]
+    assert broken.index("table") < broken.index("title")
+
+
+def test_furniture_lines_releases_interior_bare_numbers():
+    from docrooter.pdf.elements import furniture_lines
+    from docrooter.pdf.lines import Line
+
+    def line(text, y):
+        return Line(page=1, text=text, size=10, bold=False, font="helv", x0=72, y0=y,
+                    x1=300, y1=y + 10, page_height=792, page_width=612, gap_above=2,
+                    gap_below=2, block=0)  # fmt: skip
+
+    lines = [line("ACME Report", 30), line("Body text above", 100), line("2024", 200),
+             line("Body text below", 300), line("7", 760)]  # fmt: skip
+    assert furniture_lines(lines, {0, 2, 4}) == {0, 4}

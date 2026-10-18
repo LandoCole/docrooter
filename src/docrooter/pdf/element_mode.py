@@ -20,9 +20,10 @@ section of the latest heading element before it (the preamble ``s0`` before the 
 ``Section.element_ids`` lists every element of the section in order, furniture and contents
 included, and ``Section.text`` joins with blank lines the texts of its paragraphs, list items
 and footnotes (with their markers), tables (as Markdown), captions, formulas and figure label
-text from the text layer. Furniture, ``contents``, headings, and text read by region OCR are
-not section text. The preamble exists when a non-furniture element precedes the first heading,
-or when there is no heading at all (a PDF without text still yields one empty ``s0``).
+text from the text layer (``Element.text``; region OCR text is only in ``FigureData.text``).
+Furniture, ``contents``, headings, and text read by region OCR are not section text. The
+preamble exists when a non-furniture element precedes the first heading, or when there is no
+heading at all (a PDF without text still yields one empty ``s0``).
 """
 
 from __future__ import annotations
@@ -124,6 +125,12 @@ def load_elements(
         raise ValueError(f"max_pages must be >= 1, got {max_pages}")
     if ocr is not None and not isinstance(ocr, str) and not isinstance(ocr, OcrEngine):
         raise TypeError("ocr must be None, an engine name or an OcrEngine")
+    if isinstance(ocr, str) and ocr not in ("none", "auto"):
+        from docrooter.ocr.registry import available_ocr_engines
+
+        known = available_ocr_engines()
+        if ocr not in known:  # checked before any page work, needed or not
+            raise DocrooterError(f"unknown OCR engine {ocr!r}; available: {', '.join(known)}")
     path = Path(path)
     if engine == "auto":
         engine = _auto_engine()
@@ -378,8 +385,13 @@ def _set_confidence(
 def _fill_region_text(
     elements: list[Element], regions: list[tuple[Box, str, float | None]]
 ) -> None:
-    """Region OCR text becomes the label text of the figure holding most of the region (at
-    least half of it); it never becomes paragraph text. Text without a figure is dropped."""
+    """Region OCR text goes into ``FigureData.text`` of the figure holding most of the region
+    (at least half of it), after the figure's text-layer labels, with ``source="ocr_region"``.
+    ``Element.text`` keeps the text-layer labels only, so OCR text never becomes paragraph or
+    section text (spec §7.4) and no text-layer label leaves ``Section.text``. The element is
+    marked ``source="ocr"`` with the mean confidence of its regions. Text without a figure is
+    dropped."""
+    confidences: dict[int, list[float]] = {}
     for region, text, conf in regions:
         best: Element | None = None
         best_share = _MIN_REGION_OVERLAP
@@ -397,11 +409,13 @@ def _fill_region_text(
                     best, best_share = element, share
         if best is None or best.figure is None:
             continue
-        joined = f"{best.text}\n{text}" if best.text else text
-        best.text = joined
+        old = best.figure.text
+        joined = f"{old}\n{text}" if old else text
         best.figure = best.figure.model_copy(update={"text": joined, "source": "ocr_region"})
         best.source = "ocr"
-        best.confidence = None if conf is None else round(conf, 4)
+        if conf is not None:
+            confidences.setdefault(id(best), []).append(conf)
+            best.confidence = round(statistics.fmean(confidences[id(best)]), 4)
 
 
 # --- sections ------------------------------------------------------------------------------
@@ -415,9 +429,7 @@ def section_text(element: Element) -> str:
             return element.text  # the cells lost words; the text has them all
         return element.table.to_markdown()
     if kind == "figure":
-        if element.figure is not None and element.figure.source == "ocr_region":
-            return ""
-        return element.text
+        return element.text  # text-layer labels; region OCR text is only in FigureData.text
     if kind == "title" and element.level is None:
         return element.text  # a title line that is not a heading stays text
     if kind not in _SECTION_TEXT_KINDS:

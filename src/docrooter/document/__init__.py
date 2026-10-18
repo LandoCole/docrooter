@@ -1,7 +1,7 @@
 """Document model and loaders."""
 
 from docrooter.document.build import build_document
-from docrooter.document.markdown import extract_headings
+from docrooter.document.markdown import extract_headings, parse_markdown
 from docrooter.document.models import Document, RawHeading, Section, TocEntry
 
 __all__ = [
@@ -11,4 +11,5 @@ __all__ = [
     "TocEntry",
     "build_document",
     "extract_headings",
+    "parse_markdown",
 ]

@@ -15,6 +15,18 @@ docstrings.
 
 ::: docrooter.Section
 
+## Elements
+
+::: docrooter.Element
+
+::: docrooter.ElementKind
+
+::: docrooter.Box
+
+::: docrooter.TableData
+
+::: docrooter.FigureData
+
 ## Taxonomies
 
 ::: docrooter.Taxonomy

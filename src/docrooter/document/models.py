@@ -5,7 +5,9 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, model_serializer
+
+from docrooter.elements.models import Element
 
 
 class RawHeading(BaseModel):
@@ -34,6 +36,15 @@ class Section(BaseModel):
     page_start: int | None = None
     heading_score: float = 1.0
     flags: list[str] = Field(default_factory=list)
+    element_ids: list[str] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_element_ids(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # Keeps the JSON of documents loaded without elements identical to v0.3's.
+        data: dict[str, Any] = handler(self)
+        if not self.element_ids:
+            data.pop("element_ids", None)
+        return data
 
 
 class TocEntry(BaseModel):
@@ -49,6 +60,15 @@ class Document(BaseModel):
     sections: dict[str, Section] = Field(default_factory=dict)
     root_ids: list[str] = Field(default_factory=list)
     meta: dict[str, Any] = Field(default_factory=dict)
+    elements: list[Element] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_elements(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # Keeps the JSON of documents loaded without elements identical to v0.3's.
+        data: dict[str, Any] = handler(self)
+        if not self.elements:
+            data.pop("elements", None)
+        return data
 
     def walk(self) -> Iterator[Section]:
         """Yield every section in pre-order (reading order). Iterative, no recursion."""

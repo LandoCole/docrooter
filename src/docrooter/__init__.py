@@ -13,6 +13,7 @@ from docrooter.classify import (
 from docrooter.doc_view import DocumentView
 from docrooter.document import Document, Section
 from docrooter.document.load import load
+from docrooter.elements import Box, Element, ElementKind, FigureData, TableData
 from docrooter.errors import (
     BackendError,
     DatasetError,
@@ -37,6 +38,7 @@ __version__ = "0.2.0"
 __all__ = [
     "BackendError",
     "Beam",
+    "Box",
     "Classifier",
     "Dataset",
     "DatasetError",
@@ -44,6 +46,9 @@ __all__ = [
     "DocrooterError",
     "Document",
     "DocumentView",
+    "Element",
+    "ElementKind",
+    "FigureData",
     "Flat",
     "Greedy",
     "MissingExtraError",
@@ -52,6 +57,7 @@ __all__ = [
     "SectionView",
     "Taxonomy",
     "TaxonomyError",
+    "TableData",
     "TaxonomyNode",
     "TrainedModel",
     "UnknownTaxonomyError",

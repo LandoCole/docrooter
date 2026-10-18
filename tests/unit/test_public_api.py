@@ -41,6 +41,12 @@ PUBLIC_NAMES = [
     "NormalizationResult",
     # v0.3
     "configure",
+    # v0.4
+    "Element",
+    "ElementKind",
+    "Box",
+    "TableData",
+    "FigureData",
 ]
 
 

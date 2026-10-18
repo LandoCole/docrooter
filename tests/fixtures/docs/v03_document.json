@@ -1,0 +1,62 @@
+{
+  "source": "simple.md",
+  "title": "Intro",
+  "sections": {
+    "s1": {
+      "id": "s1",
+      "title": "Intro",
+      "level": 1,
+      "text": "Intro body line one.\nIntro body line two.",
+      "parent_id": null,
+      "children": [
+        "s1.1",
+        "s1.2"
+      ],
+      "page_start": null,
+      "heading_score": 0.7,
+      "flags": [
+        "low_heading_confidence"
+      ]
+    },
+    "s1.1": {
+      "id": "s1.1",
+      "title": "Background",
+      "level": 2,
+      "text": "Background body.",
+      "parent_id": "s1",
+      "children": [],
+      "page_start": null,
+      "heading_score": 0.7,
+      "flags": []
+    },
+    "s1.2": {
+      "id": "s1.2",
+      "title": "Scope",
+      "level": 2,
+      "text": "Scope body.",
+      "parent_id": "s1",
+      "children": [],
+      "page_start": null,
+      "heading_score": 0.7,
+      "flags": []
+    },
+    "s2": {
+      "id": "s2",
+      "title": "Results",
+      "level": 1,
+      "text": "Results body.",
+      "parent_id": null,
+      "children": [],
+      "page_start": null,
+      "heading_score": 0.7,
+      "flags": []
+    }
+  },
+  "root_ids": [
+    "s1",
+    "s2"
+  ],
+  "meta": {
+    "note": "v0.3"
+  }
+}

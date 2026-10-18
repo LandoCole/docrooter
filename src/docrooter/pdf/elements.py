@@ -36,7 +36,9 @@ least half, else cells from its lines' rows; a Picture region is a figure
 level of the heading candidate among its lines (the caller adds candidates for regions without
 one; with none it stays a paragraph, so its text is never lost); a Title region without a
 candidate is a ``title`` with no level; a Page-footer or Page-header region of bare page
-numbers is ``page_number``. Caption regions are linked to a figure or table as rule 5 links.
+numbers is ``page_number``. On page 1, the first Section-header region holding the detected
+title line (or, with no title detected, set in the largest type on page 1) is the ``title``.
+Caption regions are linked to a figure or table as rule 5 links.
 Ruled tables and image or vector figures holding lines that a region took are left to the model.
 """
 
@@ -49,7 +51,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from docrooter.elements.models import Box, Element, ElementKind, FigureData, TableData
-from docrooter.layout.base import LayoutRegion, apply_regions, region_kind
+from docrooter.layout.base import MIN_CONFIDENCE, LayoutRegion, apply_regions, region_kind
 from docrooter.pdf.element_rules import (
     CAPTION_RE,
     MIN_GAP,
@@ -182,6 +184,7 @@ def build_elements(
     title_index: int | None,
     line_source: Sequence[Literal["text", "ocr"]] | None = None,
     regions: Sequence[LayoutRegion] = (),
+    region_min_confidence: float = MIN_CONFIDENCE,
 ) -> list[Element]:
     """Type ``lines`` and the page objects into elements, in reading order (spec §5.3).
 
@@ -192,7 +195,7 @@ def build_elements(
     """
     pairs = build_elements_with_lines(
         pages, lines, order, signals, headings, title_index=title_index, line_source=line_source,
-        regions=regions,
+        regions=regions, region_min_confidence=region_min_confidence,
     )  # fmt: skip
     return [element for element, _ in pairs]
 
@@ -207,6 +210,7 @@ def build_elements_with_lines(
     title_index: int | None,
     line_source: Sequence[Literal["text", "ocr"]] | None = None,
     regions: Sequence[LayoutRegion] = (),
+    region_min_confidence: float = MIN_CONFIDENCE,
 ) -> list[tuple[Element, list[int]]]:
     """:func:`build_elements`, with the indexes of the lines each element consumed (in
     reading order). Every line with text is consumed by exactly one element."""
@@ -218,7 +222,7 @@ def build_elements_with_lines(
     builder.furniture()
     builder.contents()
     if regions:
-        builder.layout_regions(regions, headings)
+        builder.layout_regions(regions, headings, title_index, region_min_confidence)
     builder.tables()
     builder.figures(_protected(headings, title_index, len(lines)))
     builder.link_layout_captions()
@@ -461,10 +465,17 @@ class _Builder:
 
     # -- layout regions (spec §6) -----------------------------------------------------------
     def layout_regions(
-        self, regions: Sequence[LayoutRegion], headings: Sequence[HeadingCandidate]
+        self,
+        regions: Sequence[LayoutRegion],
+        headings: Sequence[HeadingCandidate],
+        title_index: int | None,
+        min_confidence: float = MIN_CONFIDENCE,
     ) -> None:
         """One element per region, from the free lines inside it (see the module docstring)."""
-        _, used = apply_regions(self.lines, regions, skip=set(self.owner))
+        _, used = apply_regions(
+            self.lines, regions, min_confidence=min_confidence, skip=set(self.owner)
+        )
+        title_region = self._title_region(used, headings, title_index)
         level_of: dict[int, int] = {}
         for h in headings:
             for k in range(h.line_index, h.line_index + max(1, h.line_count)):
@@ -499,6 +510,8 @@ class _Builder:
                 continue
             ordered = sorted(idxs, key=self.pos.__getitem__)
             first = self.lines[ordered[0]].text.strip()
+            if region is title_region:
+                kind = "title"
             if kind in ("heading", "title"):
                 level = next((level_of[i] for i in ordered if i in level_of), None)
                 if kind == "heading" and level is None:
@@ -532,6 +545,32 @@ class _Builder:
                 item = self.add(kind, idxs, flags=flags, confidence=conf)
                 if kind == "caption":
                     self.layout_captions.append(item)
+
+    def _title_region(
+        self,
+        used: Sequence[tuple[LayoutRegion, list[int]]],
+        headings: Sequence[HeadingCandidate],
+        title_index: int | None,
+    ) -> LayoutRegion | None:
+        """The Section-header region on page 1 that is the document title: the first (in
+        reading order) holding the detected title line; with no title detected, the first
+        set in the largest type on page 1, unless a heading candidate there is larger."""
+        first: list[tuple[LayoutRegion, list[int]]] = sorted(
+            ((r, [i for i in idxs if self.free(i)]) for r, idxs in used
+             if r.page == 1 and r.label == "section_header"),
+            key=lambda ri: min((self.pos[i] for i in ri[1]), default=len(self.pos)),
+        )  # fmt: skip
+        first = [(r, idxs) for r, idxs in first if idxs]
+        if not first:
+            return None
+        if title_index is not None:
+            return next((r for r, idxs in first if title_index in idxs), None)
+        sizes = [max(self.lines[i].size for i in idxs) for _, idxs in first]
+        largest = max(sizes)
+        detected = [h.size for h in headings if h.page == 1 and "from_layout_model" not in h.flags]
+        if detected and max(detected) > largest + PARAGRAPH_SIZE_DELTA:
+            return None  # the largest type on page 1 is a heading the detector found
+        return next(r for (r, _), size in zip(first, sizes, strict=True) if size >= largest)
 
     def _layout_table(
         self, page: int, r: Rect, idxs: list[int], flags: list[str], conf: float

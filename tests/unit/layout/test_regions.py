@@ -36,12 +36,14 @@ class FakeLayout:
 
     name = "fake-layout"
 
-    def __init__(self, regions):
+    def __init__(self, regions, min_confidence=None):
         self.regions = list(regions)
+        if min_confidence is not None:
+            self.min_confidence = min_confidence
         self.calls = []
         self.closed = 0
 
-    def detect(self, path, pages, *, dpi):
+    def detect(self, path, pages, *, dpi=None):
         self.calls.append((list(pages), dpi))
         return [r for r in self.regions if r.page in pages]
 
@@ -132,7 +134,7 @@ def test_region_kinds_override_heuristics(tmp_path):
     assert code.kind == "paragraph" and "code" in code.flags
     assert _by_text(doc, "- Bullet item number 1").kind == "page_footer"
     assert doc.meta["layout"] == "fake-layout" and doc.meta["layout_regions"] == 4
-    assert engine.calls == [([1], element_mode.LAYOUT_DPI)]
+    assert engine.calls == [([1], None)]  # the engine renders at its own resolution
     assert engine.closed == 0  # an instance stays the caller's
 
 
@@ -163,6 +165,51 @@ def test_low_confidence_regions_ignored(tmp_path):
     heading = _by_text(doc, "Introduction")
     assert heading.kind == "title" and heading.level == 1  # the heuristics' title heading
     assert "from_layout_model" not in heading.flags and doc.meta["layout_regions"] == 0
+
+
+def test_engine_min_confidence_sets_the_cut(tmp_path):
+    path = _pdf(tmp_path)
+    low = region("text", *around(path, "Introduction"), conf=0.4)
+    doc = load_pdf(path, elements=True, layout=FakeLayout([low]))  # default cut 0.5
+    assert _by_text(doc, "Introduction").kind == "title" and doc.meta["layout_regions"] == 0
+    doc = load_pdf(path, elements=True, layout=FakeLayout([low], min_confidence=0.3))
+    element = _by_text(doc, "Introduction")
+    assert element.kind == "paragraph" and element.confidence == pytest.approx(0.4)
+    assert doc.meta["layout_regions"] == 1
+    strict = FakeLayout([region("text", *around(path, "Introduction"), conf=0.6)], 0.7)
+    assert _by_text(load_pdf(path, elements=True, layout=strict), "Introduction").kind == "title"
+
+
+def test_section_header_on_the_detected_title_is_the_title(tmp_path):
+    path = _pdf(tmp_path)
+    engine = FakeLayout([region("section_header", *around(path, "Introduction")),
+                         region("section_header", *around(path, "Scope of work"))])  # fmt: skip
+    doc = load_pdf(path, elements=True, layout=engine)
+    title = _by_text(doc, "Introduction")
+    assert title.kind == "title" and title.level == 1 and "from_layout_model" in title.flags
+    assert _by_text(doc, "Scope of work").kind == "heading"
+    assert [s.title for s in doc.toc()][:2] == ["Introduction", "Scope of work"]
+
+
+def test_largest_section_header_on_page_one_is_the_title_without_a_detected_one(tmp_path):
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    y = 90
+    for text, size in [(f"{BODY} a", 11), ("Annual overview", 12), (f"{BODY} b", 11),
+                       ("Scope of work", 11), (f"{BODY} c", 11), (f"{BODY} d", 11)]:  # fmt: skip
+        page.insert_text((72, y), text, fontsize=size, fontname="helv")
+        y += 15
+    path = tmp_path / "plain.pdf"
+    doc.save(str(path))
+    doc.close()
+    plain = load_pdf(path, elements=True)
+    assert not [e for e in plain.elements if e.kind in ("title", "heading")]  # none detected
+    engine = FakeLayout([region("section_header", *around(path, "Scope of work")),
+                         region("section_header", *around(path, "Annual overview"))])  # fmt: skip
+    out = load_pdf(path, elements=True, layout=engine)
+    assert _by_text(out, "Annual overview").kind == "title"
+    assert _by_text(out, "Scope of work").kind == "heading"
+    assert {s.title for s in out.toc()} == {"Annual overview", "Scope of work"}
 
 
 def test_section_header_region_creates_section(tmp_path):
@@ -482,7 +529,11 @@ def test_heron_weights_unavailable_is_a_missing_extra_error(tmp_path, monkeypatc
     from docrooter.layout import HeronLayout
 
     _fake_runtime(monkeypatch, download=OSError("offline"))
-    with pytest.raises(MissingExtraError, match=r"heron layout weights .*offline"):
+    with pytest.raises(MissingExtraError, match=r"heron layout weights") as raised:
         HeronLayout().detect(_pdf(tmp_path), [1], dpi=72)
+    message = str(raised.value)
+    assert "docling-project/docling-layout-heron-onnx" in message and HERON_REVISION in message
+    assert "OSError: offline" in message and "network" in message
+    assert "pip install" not in message  # the extra is installed; installing is not the fix
     with pytest.raises(ValueError, match="min_confidence"):
         HeronLayout(min_confidence=1.5)

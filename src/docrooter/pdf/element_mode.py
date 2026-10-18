@@ -74,7 +74,6 @@ from docrooter.pdf.text_tables import find_text_tables
 __all__ = ["LAYOUT_ENGINES", "load_elements", "section_text"]
 
 LAYOUT_ENGINES = ("heuristic",)  # built into the rules; models: docrooter.layout registry
-LAYOUT_DPI = 72  # pages are rendered at scale 1 for the layout engine
 TIMING_KEYS = (
     "extract", "route", "ocr", "layout", "signals", "headings", "elements", "assemble",
 )  # fmt: skip
@@ -193,13 +192,14 @@ def load_elements(
     layout_name = "heuristic" if layout_engine is None else _engine_name(layout_engine)
     stage = events.start("layout", engine=layout_name, pages=n_read if layout_engine else 0)
     regions: list[LayoutRegion] = []
+    min_conf = _min_confidence(layout_engine)
     if layout_engine is not None:
         try:
-            regions = layout_engine.detect(path, [objs.page for objs in pages], dpi=LAYOUT_DPI)
+            regions = layout_engine.detect(path, [objs.page for objs in pages], dpi=None)
         finally:
             if owned_layout:
                 layout_engine.close()
-        regions = [r for r in regions if r.confidence >= MIN_CONFIDENCE]
+        regions = [r for r in regions if r.confidence >= min_conf]
     text_tables = _text_table_requests(pages, regions, found)
     region_tables = find_text_tables(path, engine, text_tables)  # type: ignore[arg-type]
     if stage.active:
@@ -246,7 +246,9 @@ def load_elements(
         bookmarks = [b for b in bookmarks if b[2] <= n_read]
     signals = compute_signals(lines, n_read, bookmarks=bookmarks)
     groups: dict[int, tuple[float, float, float, float]] = {}
-    for region, idxs in apply_regions(lines, regions)[1] if regions else []:
+    for region, idxs in (
+        apply_regions(lines, regions, min_confidence=min_conf)[1] if regions else []
+    ):
         groups.update(dict.fromkeys(idxs, (region.box.x0, region.box.y0, region.box.x1,
                                            region.box.y1)))  # fmt: skip
     order = order_lines(lines, furniture_lines(lines, signals.excluded), groups)
@@ -269,7 +271,7 @@ def load_elements(
     )
     if regions:
         skip = furniture_lines(lines, signals.excluded) | signals.toc_body_lines
-        headings = _layout_headings(lines, headings, regions, skip)
+        headings = _layout_headings(lines, headings, regions, skip, min_conf)
     if stage.active:
         stage.end(**_heading_counts(headings))
     clock = _tick(timings, "headings", clock)
@@ -294,6 +296,7 @@ def load_elements(
         title_index=title.line_index if title is not None and title.page == 1 else None,
         line_source=source,
         regions=regions,
+        region_min_confidence=min_conf,
     )
     _set_confidence(typed, confidence)
     _fill_region_text([element for element, _ in typed], found.regions)
@@ -339,15 +342,18 @@ def _layout_engine(layout: str | LayoutEngine) -> LayoutEngine | None:
     if isinstance(layout, str):
         if layout in LAYOUT_ENGINES:
             return None
-        from docrooter.layout.registry import available_layout_engines, get_layout_engine
+        from docrooter.layout.registry import get_layout_engine
 
-        if layout not in available_layout_engines():
-            known = ", ".join([*LAYOUT_ENGINES, *available_layout_engines()])
-            raise DocrooterError(f"unknown layout engine {layout!r}; use one of {known}")
-        return get_layout_engine(layout)
+        return get_layout_engine(layout)  # names the known engines for an unknown one
     if not isinstance(layout, LayoutEngine):
         raise TypeError("layout must be 'heuristic', a layout engine name or a LayoutEngine")
     return layout
+
+
+def _min_confidence(engine: LayoutEngine | None) -> float:
+    """The engine's own ``min_confidence`` if it has one, else ``MIN_CONFIDENCE`` (spec §6)."""
+    value = getattr(engine, "min_confidence", None)
+    return float(value) if isinstance(value, int | float) else MIN_CONFIDENCE
 
 
 def _engine_name(engine: LayoutEngine) -> str:
@@ -383,6 +389,7 @@ def _layout_headings(
     headings: list[HeadingCandidate],
     regions: Sequence[LayoutRegion],
     skip: set[int],
+    min_confidence: float = MIN_CONFIDENCE,
 ) -> list[HeadingCandidate]:
     """``headings`` plus one candidate (flag ``from_layout_model``, score = the region's
     confidence) for each Section-header region whose lines hold no candidate, so the region
@@ -394,7 +401,7 @@ def _layout_headings(
         k for h in headings for k in range(h.line_index, h.line_index + max(1, h.line_count))
     }
     added: list[HeadingCandidate] = []
-    for region, idxs in apply_regions(lines, regions, skip=skip)[1]:
+    for region, idxs in apply_regions(lines, regions, min_confidence=min_confidence, skip=skip)[1]:
         if region.label != "section_header" or not idxs or covered.intersection(idxs):
             continue
         first = lines[idxs[0]]

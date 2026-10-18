@@ -77,11 +77,15 @@ class LayoutRegion:
 @runtime_checkable
 class LayoutEngine(Protocol):
     """Finds layout regions on PDF pages. ``detect`` renders ``pages`` (1-based) of ``path`` at
-    ``dpi`` and returns their regions; ``close`` releases the model."""
+    ``dpi`` (``None``: the engine's own resolution) and returns their regions; ``close``
+    releases the model. An engine may set ``min_confidence``, the cut element mode then uses
+    for its regions (default ``MIN_CONFIDENCE``)."""
 
     name: str
 
-    def detect(self, path: str | Path, pages: Sequence[int], *, dpi: int) -> list[LayoutRegion]: ...
+    def detect(
+        self, path: str | Path, pages: Sequence[int], *, dpi: int | None = None
+    ) -> list[LayoutRegion]: ...
 
     def close(self) -> None: ...
 

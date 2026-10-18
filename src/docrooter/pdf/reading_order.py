@@ -200,26 +200,11 @@ def _in_top_half(line: Line) -> bool:
 
 
 def _order_page(lines: Sequence[Line], indexes: list[int], groups: Mapping[int, Box]) -> list[int]:
+    """The page's lines in reading order: :func:`xy_cut_order` over units, each layout
+    region's lines (``groups``; placed where its first line is, kept in their order) or a
+    single line. Without groups every line is its own unit."""
     if len(indexes) < 2:
         return indexes
-    if any(i in groups for i in indexes):
-        return _order_units(lines, indexes, groups)
-    page = [lines[i] for i in indexes]
-    widths = [ln.page_width for ln in page if ln.page_width > 0]
-    char_widths = [(ln.x1 - ln.x0) / len(ln.text) for ln in page if ln.text and ln.x1 > ln.x0]
-    gaps = [ln.gap_above for ln in page if 0 < ln.gap_above < float("inf")]
-    local = xy_cut_order(
-        [(ln.x0, ln.y0, ln.x1, ln.y1) for ln in page],
-        page_width=max(widths, default=0.0),
-        median_char_width=statistics.median(char_widths) if char_widths else 0.0,
-        median_line_gap=statistics.median(gaps) if gaps else 0.0,
-    )
-    return [indexes[k] for k in local]
-
-
-def _order_units(lines: Sequence[Line], indexes: list[int], groups: Mapping[int, Box]) -> list[int]:
-    """:func:`_order_page` over units: each region's lines (first seen where its first line
-    is) and each line outside the regions."""
     units: dict[object, list[int]] = {}
     boxes: list[Box] = []
     for i in indexes:

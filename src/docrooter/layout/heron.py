@@ -70,9 +70,10 @@ class HeronLayout:
                 weights = self._hub.hf_hub_download(HERON_REPO, HERON_FILE, revision=self.revision)
             except Exception as exc:
                 raise MissingExtraError(
-                    f"the heron layout weights ({HERON_REPO}@{self.revision}) could not be "
-                    f"fetched ({type(exc).__name__}: {exc}); they are downloaded on first use "
-                    f"with pip install 'docrooter[{_EXTRA}]'"
+                    f"the heron layout weights ({HERON_FILE} of {HERON_REPO} at revision "
+                    f"{self.revision}) could not be fetched: {type(exc).__name__}: {exc}. The "
+                    f"'{_EXTRA}' extra is installed; check network access to the Hugging Face "
+                    "Hub or the local Hugging Face cache (HF_HOME, HF_HUB_OFFLINE)"
                 ) from exc
             options = self._ort.SessionOptions()
             threads = runtime.settings().threads
@@ -84,13 +85,15 @@ class HeronLayout:
         return self._session
 
     def detect(
-        self, path: str | Path, pages: Sequence[int], *, dpi: int = HERON_RENDER_DPI
+        self, path: str | Path, pages: Sequence[int], *, dpi: int | None = None
     ) -> list[LayoutRegion]:
         """The regions of ``pages`` (1-based) of ``path`` with at least ``min_confidence``,
-        boxes in displayed-page points."""
+        boxes in displayed-page points; pages are rendered at ``dpi`` (default
+        ``HERON_RENDER_DPI``) before the resize to the model's input size."""
         from docrooter.ocr.render import render_page_rgb
 
         session = self._load()
+        dpi = HERON_RENDER_DPI if dpi is None else dpi
         out: list[LayoutRegion] = []
         for page in pages:
             rgb, width_pt, height_pt = render_page_rgb(path, page, dpi=dpi, extra=_EXTRA)

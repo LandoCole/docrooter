@@ -58,7 +58,11 @@ bench = ["datasets", "pandas"]
 # fastapi 0.100: the first with pydantic 2 (Starlette 0.27 has form(max_files, max_fields));
 # uvicorn 0.22: timeout_graceful_shutdown; python-multipart 0.0.13: the python_multipart name.
 ui = ["fastapi>=0.100", "uvicorn>=0.22", "python-multipart>=0.0.13"]
-all = ["docrooter[models,pdf,pdf-mit,llm,jev,ui]"]
+# OCR: RapidOCR on onnxruntime (pip-only), pages rendered by pypdfium2 when pymupdf is absent.
+# Tesseract needs no extra: docrooter calls the system binary.
+ocr = ["rapidocr>=3.0", "onnxruntime>=1.18", "pypdfium2>=4.30"]
+ocr-mac = ["ocrmac>=1.0; sys_platform == 'darwin'"]
+all = ["docrooter[models,pdf,pdf-mit,llm,jev,ui,ocr,ocr-mac]"]
 
 [project.urls]
 # Placeholder: replace with the real repository before the first release.
@@ -103,8 +107,11 @@ include = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
-markers = ["models: downloads and runs ML models"]
-addopts = "-m 'not models'"
+markers = [
+    "models: downloads and runs ML models",
+    "ocr: runs real OCR engines (rapidocr, ocrmac, tesseract)",
+]
+addopts = "-m 'not models and not ocr'"
 filterwarnings = [
     # PyMuPDF's SWIG bindings; nothing docrooter can fix.
     "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
@@ -167,5 +174,13 @@ module = [
     "uvicorn.*",
     "multipart",
     "multipart.*",
+    "onnxruntime",
+    "onnxruntime.*",
+    "rapidocr",
+    "rapidocr.*",
+    "ocrmac",
+    "ocrmac.*",
+    "pypdfium2",
+    "pypdfium2.*",
 ]
 ignore_missing_imports = true

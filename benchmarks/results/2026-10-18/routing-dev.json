@@ -1,0 +1,802 @@
+{
+  "date": "2026-10-18",
+  "corpus": "benchmarks/corpus",
+  "engine": "pymupdf",
+  "ocr": null,
+  "commit": "0e7c396",
+  "dirty": false,
+  "env": {
+    "python": "3.12.13",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 8,
+    "loadavg": [
+      2.79541015625,
+      2.27685546875,
+      2.380859375
+    ],
+    "versions": {
+      "pymupdf": "1.28.2",
+      "pdfplumber": "0.11.10",
+      "pymupdf4llm": "1.28.2",
+      "docrooter": "0.2.0"
+    }
+  },
+  "documents": 51,
+  "pages": 5069,
+  "decisions": {
+    "text": 4928,
+    "region": 127,
+    "text+ocr": 13,
+    "ocr": 1
+  },
+  "replaced_pages": 1,
+  "replaced_pages_with_text_layer": 0,
+  "merged_pages": 13,
+  "region_pages": 127,
+  "regions": 175,
+  "replaced": [
+    {
+      "id": "doc_051",
+      "page": 27,
+      "chars": 0,
+      "garbled_chars": 0,
+      "reason": "scanned page: image coverage 1.00, 0.00 chars per square inch",
+      "metrics": {
+        "char_density": 0.0,
+        "image_cov": 1.0,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 0.0,
+        "images_capped": 0.0
+      }
+    }
+  ],
+  "merged": [
+    {
+      "id": "doc_013",
+      "page": 2,
+      "chars": 115,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (115 chars): image coverage 0.85, 1.23 chars per square inch",
+      "metrics": {
+        "char_density": 1.2299,
+        "image_cov": 0.8468,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    },
+    {
+      "id": "doc_036",
+      "page": 1,
+      "chars": 42,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (42 chars): image coverage 1.00, 0.43 chars per square inch",
+      "metrics": {
+        "char_density": 0.4345,
+        "image_cov": 1.0,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    },
+    {
+      "id": "doc_048",
+      "page": 1,
+      "chars": 23,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (23 chars): image coverage 1.00, 0.12 chars per square inch",
+      "metrics": {
+        "char_density": 0.1164,
+        "image_cov": 1.0,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    },
+    {
+      "id": "doc_048",
+      "page": 3,
+      "chars": 181,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (181 chars): image coverage 0.83, 0.92 chars per square inch",
+      "metrics": {
+        "char_density": 0.9163,
+        "image_cov": 0.8268,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    },
+    {
+      "id": "doc_048",
+      "page": 10,
+      "chars": 191,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (191 chars): image coverage 0.83, 0.97 chars per square inch",
+      "metrics": {
+        "char_density": 0.9669,
+        "image_cov": 0.8277,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    },
+    {
+      "id": "doc_048",
+      "page": 15,
+      "chars": 120,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (120 chars): image coverage 0.83, 0.61 chars per square inch",
+      "metrics": {
+        "char_density": 0.6075,
+        "image_cov": 0.8268,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    },
+    {
+      "id": "doc_048",
+      "page": 28,
+      "chars": 155,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (155 chars): image coverage 0.83, 0.78 chars per square inch",
+      "metrics": {
+        "char_density": 0.7847,
+        "image_cov": 0.8267,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    },
+    {
+      "id": "doc_048",
+      "page": 61,
+      "chars": 254,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (254 chars): image coverage 0.83, 1.29 chars per square inch",
+      "metrics": {
+        "char_density": 1.2859,
+        "image_cov": 0.827,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    },
+    {
+      "id": "doc_049",
+      "page": 1,
+      "chars": 40,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (40 chars): image coverage 1.00, 0.34 chars per square inch",
+      "metrics": {
+        "char_density": 0.3361,
+        "image_cov": 1.0,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    },
+    {
+      "id": "doc_051",
+      "page": 1,
+      "chars": 41,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (41 chars): image coverage 1.00, 0.05 chars per square inch",
+      "metrics": {
+        "char_density": 0.0456,
+        "image_cov": 1.0,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    },
+    {
+      "id": "doc_051",
+      "page": 4,
+      "chars": 21,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (21 chars): image coverage 1.00, 0.02 chars per square inch",
+      "metrics": {
+        "char_density": 0.0233,
+        "image_cov": 1.0,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    },
+    {
+      "id": "doc_051",
+      "page": 13,
+      "chars": 27,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (27 chars): image coverage 1.00, 0.03 chars per square inch",
+      "metrics": {
+        "char_density": 0.03,
+        "image_cov": 1.0,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    },
+    {
+      "id": "doc_051",
+      "page": 23,
+      "chars": 47,
+      "garbled_chars": 0,
+      "reason": "scanned page with a text layer (47 chars): image coverage 1.00, 0.05 chars per square inch",
+      "metrics": {
+        "char_density": 0.0522,
+        "image_cov": 1.0,
+        "garbled": 0.0,
+        "invisible_text": 0.0,
+        "latin_share": 1.0,
+        "images_capped": 0.0
+      }
+    }
+  ],
+  "per_document": {
+    "doc_001": {
+      "text": 151,
+      "region": 1
+    },
+    "doc_002": {
+      "text": 129,
+      "region": 1
+    },
+    "doc_003": {
+      "text": 92
+    },
+    "doc_004": {
+      "text": 56
+    },
+    "doc_005": {
+      "text": 59
+    },
+    "doc_006": {
+      "text": 16
+    },
+    "doc_007": {
+      "text": 22
+    },
+    "doc_008": {
+      "region": 1,
+      "text": 9
+    },
+    "doc_009": {
+      "region": 1,
+      "text": 11
+    },
+    "doc_010": {
+      "region": 1,
+      "text": 11
+    },
+    "doc_011": {
+      "text": 113
+    },
+    "doc_012": {
+      "text": 222
+    },
+    "doc_013": {
+      "text": 62,
+      "text+ocr": 1
+    },
+    "doc_014": {
+      "text": 152,
+      "region": 9
+    },
+    "doc_015": {
+      "text": 4
+    },
+    "doc_016": {
+      "text": 10
+    },
+    "doc_017": {
+      "text": 1
+    },
+    "doc_018": {
+      "text": 19
+    },
+    "doc_019": {
+      "text": 8
+    },
+    "doc_020": {
+      "text": 213
+    },
+    "doc_021": {
+      "text": 20
+    },
+    "doc_022": {
+      "text": 6
+    },
+    "doc_023": {
+      "text": 13
+    },
+    "doc_024": {
+      "text": 394
+    },
+    "doc_025": {
+      "text": 41
+    },
+    "doc_026": {
+      "text": 6
+    },
+    "doc_027": {
+      "text": 14,
+      "region": 1
+    },
+    "doc_028": {
+      "text": 12
+    },
+    "doc_029": {
+      "text": 53,
+      "region": 22
+    },
+    "doc_030": {
+      "text": 188,
+      "region": 26
+    },
+    "doc_031": {
+      "text": 194
+    },
+    "doc_032": {
+      "text": 151
+    },
+    "doc_033": {
+      "text": 13
+    },
+    "doc_034": {
+      "text": 16
+    },
+    "doc_035": {
+      "region": 4,
+      "text": 33
+    },
+    "doc_036": {
+      "text+ocr": 1,
+      "text": 295
+    },
+    "doc_037": {
+      "text": 9
+    },
+    "doc_038": {
+      "text": 214
+    },
+    "doc_039": {
+      "text": 326
+    },
+    "doc_040": {
+      "text": 22,
+      "region": 14
+    },
+    "doc_041": {
+      "text": 38,
+      "region": 1
+    },
+    "doc_042": {
+      "text": 637,
+      "region": 5
+    },
+    "doc_043": {
+      "region": 1,
+      "text": 3
+    },
+    "doc_044": {
+      "text": 5
+    },
+    "doc_045": {
+      "region": 2,
+      "text": 77
+    },
+    "doc_046": {
+      "text": 69
+    },
+    "doc_047": {
+      "text": 577,
+      "region": 8
+    },
+    "doc_048": {
+      "text+ocr": 6,
+      "text": 68,
+      "region": 12
+    },
+    "doc_049": {
+      "text+ocr": 1,
+      "text": 34,
+      "region": 6
+    },
+    "doc_050": {
+      "text": 22,
+      "region": 7
+    },
+    "doc_051": {
+      "text+ocr": 4,
+      "text": 18,
+      "region": 4,
+      "ocr": 1
+    }
+  },
+  "baseline": {
+    "decisions": {
+      "text": 4890,
+      "region": 120,
+      "ocr": 59
+    },
+    "replaced_pages": 59,
+    "replaced_pages_with_text_layer": 58,
+    "merged_pages": 0,
+    "region_pages": 120,
+    "regions": 167,
+    "commit": "d01da5f",
+    "replaced": [
+      {
+        "id": "doc_013",
+        "page": 2,
+        "chars": 115,
+        "reason": "scanned page: image coverage 0.85, 1.23 chars per square inch"
+      },
+      {
+        "id": "doc_036",
+        "page": 1,
+        "chars": 42,
+        "reason": "scanned page: image coverage 1.00, 0.43 chars per square inch"
+      },
+      {
+        "id": "doc_042",
+        "page": 26,
+        "chars": 761,
+        "reason": "garbled text layer: only 0.41 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 213,
+        "chars": 727,
+        "reason": "garbled text layer: only 0.47 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 250,
+        "chars": 869,
+        "reason": "garbled text layer: only 0.49 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 251,
+        "chars": 831,
+        "reason": "garbled text layer: only 0.45 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 252,
+        "chars": 832,
+        "reason": "garbled text layer: only 0.45 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 253,
+        "chars": 822,
+        "reason": "garbled text layer: only 0.45 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 254,
+        "chars": 832,
+        "reason": "garbled text layer: only 0.36 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 255,
+        "chars": 852,
+        "reason": "garbled text layer: only 0.35 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 256,
+        "chars": 854,
+        "reason": "garbled text layer: only 0.35 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 257,
+        "chars": 845,
+        "reason": "garbled text layer: only 0.36 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 258,
+        "chars": 831,
+        "reason": "garbled text layer: only 0.35 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 259,
+        "chars": 852,
+        "reason": "garbled text layer: only 0.35 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 260,
+        "chars": 851,
+        "reason": "garbled text layer: only 0.35 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 261,
+        "chars": 844,
+        "reason": "garbled text layer: only 0.36 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 266,
+        "chars": 834,
+        "reason": "garbled text layer: only 0.38 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 267,
+        "chars": 852,
+        "reason": "garbled text layer: only 0.35 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 268,
+        "chars": 850,
+        "reason": "garbled text layer: only 0.35 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 269,
+        "chars": 845,
+        "reason": "garbled text layer: only 0.36 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 270,
+        "chars": 835,
+        "reason": "garbled text layer: only 0.35 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 271,
+        "chars": 849,
+        "reason": "garbled text layer: only 0.35 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 272,
+        "chars": 849,
+        "reason": "garbled text layer: only 0.35 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 273,
+        "chars": 846,
+        "reason": "garbled text layer: only 0.36 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 278,
+        "chars": 857,
+        "reason": "garbled text layer: only 0.41 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 279,
+        "chars": 869,
+        "reason": "garbled text layer: only 0.36 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 280,
+        "chars": 869,
+        "reason": "garbled text layer: only 0.36 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 281,
+        "chars": 871,
+        "reason": "garbled text layer: only 0.37 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 282,
+        "chars": 857,
+        "reason": "garbled text layer: only 0.36 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 283,
+        "chars": 866,
+        "reason": "garbled text layer: only 0.36 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 284,
+        "chars": 869,
+        "reason": "garbled text layer: only 0.36 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 285,
+        "chars": 869,
+        "reason": "garbled text layer: only 0.37 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 294,
+        "chars": 1049,
+        "reason": "garbled text layer: only 0.42 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 297,
+        "chars": 1025,
+        "reason": "garbled text layer: only 0.46 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 299,
+        "chars": 1070,
+        "reason": "garbled text layer: only 0.44 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 382,
+        "chars": 676,
+        "reason": "garbled text layer: only 0.45 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 408,
+        "chars": 611,
+        "reason": "garbled text layer: only 0.43 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 409,
+        "chars": 548,
+        "reason": "garbled text layer: only 0.33 of tokens look like words"
+      },
+      {
+        "id": "doc_042",
+        "page": 534,
+        "chars": 471,
+        "reason": "garbled text layer: only 0.48 of tokens look like words"
+      },
+      {
+        "id": "doc_046",
+        "page": 1,
+        "chars": 74,
+        "reason": "garbled text layer: only 0.46 of tokens look like words"
+      },
+      {
+        "id": "doc_048",
+        "page": 1,
+        "chars": 23,
+        "reason": "scanned page: image coverage 1.00, 0.12 chars per square inch"
+      },
+      {
+        "id": "doc_048",
+        "page": 3,
+        "chars": 181,
+        "reason": "scanned page: image coverage 0.83, 0.92 chars per square inch"
+      },
+      {
+        "id": "doc_048",
+        "page": 10,
+        "chars": 191,
+        "reason": "scanned page: image coverage 0.83, 0.97 chars per square inch"
+      },
+      {
+        "id": "doc_048",
+        "page": 15,
+        "chars": 120,
+        "reason": "scanned page: image coverage 0.83, 0.61 chars per square inch"
+      },
+      {
+        "id": "doc_048",
+        "page": 28,
+        "chars": 155,
+        "reason": "scanned page: image coverage 0.83, 0.78 chars per square inch"
+      },
+      {
+        "id": "doc_048",
+        "page": 61,
+        "chars": 254,
+        "reason": "scanned page: image coverage 0.83, 1.29 chars per square inch"
+      },
+      {
+        "id": "doc_049",
+        "page": 1,
+        "chars": 40,
+        "reason": "scanned page: image coverage 1.00, 0.34 chars per square inch"
+      },
+      {
+        "id": "doc_050",
+        "page": 13,
+        "chars": 43,
+        "reason": "garbled text layer: only 0.44 of tokens look like words"
+      },
+      {
+        "id": "doc_050",
+        "page": 14,
+        "chars": 54,
+        "reason": "garbled text layer: only 0.44 of tokens look like words"
+      },
+      {
+        "id": "doc_050",
+        "page": 15,
+        "chars": 25,
+        "reason": "garbled text layer: only 0.35 of tokens look like words"
+      },
+      {
+        "id": "doc_050",
+        "page": 16,
+        "chars": 80,
+        "reason": "garbled text layer: only 0.45 of tokens look like words"
+      },
+      {
+        "id": "doc_050",
+        "page": 17,
+        "chars": 44,
+        "reason": "garbled text layer: only 0.40 of tokens look like words"
+      },
+      {
+        "id": "doc_050",
+        "page": 18,
+        "chars": 44,
+        "reason": "garbled text layer: only 0.39 of tokens look like words"
+      },
+      {
+        "id": "doc_050",
+        "page": 19,
+        "chars": 42,
+        "reason": "garbled text layer: only 0.42 of tokens look like words"
+      },
+      {
+        "id": "doc_051",
+        "page": 1,
+        "chars": 41,
+        "reason": "scanned page: image coverage 1.00, 0.05 chars per square inch"
+      },
+      {
+        "id": "doc_051",
+        "page": 4,
+        "chars": 21,
+        "reason": "scanned page: image coverage 1.00, 0.02 chars per square inch"
+      },
+      {
+        "id": "doc_051",
+        "page": 13,
+        "chars": 27,
+        "reason": "scanned page: image coverage 1.00, 0.03 chars per square inch"
+      },
+      {
+        "id": "doc_051",
+        "page": 23,
+        "chars": 47,
+        "reason": "scanned page: image coverage 1.00, 0.05 chars per square inch"
+      },
+      {
+        "id": "doc_051",
+        "page": 27,
+        "chars": 0,
+        "reason": "scanned page: image coverage 1.00, 0.00 chars per square inch"
+      }
+    ]
+  }
+}

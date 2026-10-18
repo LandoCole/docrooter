@@ -1,0 +1,878 @@
+{
+  "date": "2026-10-18",
+  "corpus": "benchmarks/corpus",
+  "engine": "pymupdf",
+  "ocr": null,
+  "commit": "0e7c396",
+  "dirty": false,
+  "env": {
+    "python": "3.12.13",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 8,
+    "loadavg": [
+      2.79541015625,
+      2.27685546875,
+      2.380859375
+    ],
+    "versions": {
+      "pymupdf": "1.28.2",
+      "pdfplumber": "0.11.10",
+      "pymupdf4llm": "1.28.2",
+      "docrooter": "0.2.0"
+    }
+  },
+  "documents": 51,
+  "pages": 5069,
+  "fast_total_s": 56.63,
+  "elements_total_s": 195.0,
+  "fast_s_per_doc": 1.11,
+  "elements_s_per_doc": 3.823,
+  "ratio": 3.443,
+  "target_ratio": 2.5,
+  "meets_target": false,
+  "element_stage_totals_s": {
+    "extract": 182.36,
+    "route": 3.87,
+    "ocr": 0.0,
+    "signals": 3.2,
+    "headings": 1.05,
+    "elements": 4.12,
+    "assemble": 0.22
+  },
+  "per_document": [
+    {
+      "id": "doc_001",
+      "pages": 152,
+      "fast_s": 2.236,
+      "elements_s": 17.489,
+      "ratio": 7.82,
+      "element_timings": {
+        "extract": 17.0419,
+        "route": 0.1488,
+        "ocr": 0.0,
+        "signals": 0.1389,
+        "headings": 0.0249,
+        "elements": 0.1253,
+        "assemble": 0.0052
+      }
+    },
+    {
+      "id": "doc_002",
+      "pages": 130,
+      "fast_s": 1.554,
+      "elements_s": 5.883,
+      "ratio": 3.78,
+      "element_timings": {
+        "extract": 5.5507,
+        "route": 0.1125,
+        "ocr": 0.0,
+        "signals": 0.0803,
+        "headings": 0.0181,
+        "elements": 0.1152,
+        "assemble": 0.0023
+      }
+    },
+    {
+      "id": "doc_003",
+      "pages": 92,
+      "fast_s": 1.113,
+      "elements_s": 3.164,
+      "ratio": 2.84,
+      "element_timings": {
+        "extract": 2.9357,
+        "route": 0.0839,
+        "ocr": 0.0,
+        "signals": 0.058,
+        "headings": 0.0131,
+        "elements": 0.0697,
+        "assemble": 0.0011
+      }
+    },
+    {
+      "id": "doc_004",
+      "pages": 56,
+      "fast_s": 0.709,
+      "elements_s": 6.257,
+      "ratio": 8.83,
+      "element_timings": {
+        "extract": 6.0985,
+        "route": 0.0495,
+        "ocr": 0.0,
+        "signals": 0.0485,
+        "headings": 0.0095,
+        "elements": 0.046,
+        "assemble": 0.0028
+      }
+    },
+    {
+      "id": "doc_005",
+      "pages": 59,
+      "fast_s": 0.748,
+      "elements_s": 10.919,
+      "ratio": 14.6,
+      "element_timings": {
+        "extract": 10.7497,
+        "route": 0.0535,
+        "ocr": 0.0,
+        "signals": 0.0518,
+        "headings": 0.0096,
+        "elements": 0.0492,
+        "assemble": 0.0032
+      }
+    },
+    {
+      "id": "doc_006",
+      "pages": 16,
+      "fast_s": 0.174,
+      "elements_s": 0.26,
+      "ratio": 1.49,
+      "element_timings": {
+        "extract": 0.2246,
+        "route": 0.0125,
+        "ocr": 0.0,
+        "signals": 0.0119,
+        "headings": 0.0011,
+        "elements": 0.0094,
+        "assemble": 0.0001
+      }
+    },
+    {
+      "id": "doc_007",
+      "pages": 22,
+      "fast_s": 0.338,
+      "elements_s": 0.483,
+      "ratio": 1.43,
+      "element_timings": {
+        "extract": 0.4182,
+        "route": 0.0227,
+        "ocr": 0.0,
+        "signals": 0.0232,
+        "headings": 0.0018,
+        "elements": 0.0164,
+        "assemble": 0.0005
+      }
+    },
+    {
+      "id": "doc_008",
+      "pages": 10,
+      "fast_s": 0.121,
+      "elements_s": 0.178,
+      "ratio": 1.47,
+      "element_timings": {
+        "extract": 0.1588,
+        "route": 0.0093,
+        "ocr": 0.0,
+        "signals": 0.0026,
+        "headings": 0.0006,
+        "elements": 0.0059,
+        "assemble": 0.0001
+      }
+    },
+    {
+      "id": "doc_009",
+      "pages": 12,
+      "fast_s": 0.131,
+      "elements_s": 0.818,
+      "ratio": 6.27,
+      "element_timings": {
+        "extract": 0.782,
+        "route": 0.0079,
+        "ocr": 0.0,
+        "signals": 0.0143,
+        "headings": 0.0023,
+        "elements": 0.011,
+        "assemble": 0.0003
+      }
+    },
+    {
+      "id": "doc_010",
+      "pages": 12,
+      "fast_s": 0.133,
+      "elements_s": 0.836,
+      "ratio": 6.3,
+      "element_timings": {
+        "extract": 0.8001,
+        "route": 0.0081,
+        "ocr": 0.0,
+        "signals": 0.0142,
+        "headings": 0.0022,
+        "elements": 0.011,
+        "assemble": 0.0003
+      }
+    },
+    {
+      "id": "doc_011",
+      "pages": 113,
+      "fast_s": 1.853,
+      "elements_s": 2.997,
+      "ratio": 1.62,
+      "element_timings": {
+        "extract": 2.6346,
+        "route": 0.1341,
+        "ocr": 0.0,
+        "signals": 0.0865,
+        "headings": 0.0268,
+        "elements": 0.1108,
+        "assemble": 0.0013
+      }
+    },
+    {
+      "id": "doc_012",
+      "pages": 222,
+      "fast_s": 2.693,
+      "elements_s": 6.178,
+      "ratio": 2.29,
+      "element_timings": {
+        "extract": 5.6695,
+        "route": 0.1957,
+        "ocr": 0.0,
+        "signals": 0.1068,
+        "headings": 0.0351,
+        "elements": 0.1627,
+        "assemble": 0.0021
+      }
+    },
+    {
+      "id": "doc_013",
+      "pages": 63,
+      "fast_s": 0.776,
+      "elements_s": 2.42,
+      "ratio": 3.12,
+      "element_timings": {
+        "extract": 2.2511,
+        "route": 0.0544,
+        "ocr": 0.0,
+        "signals": 0.041,
+        "headings": 0.0081,
+        "elements": 0.0615,
+        "assemble": 0.0008
+      }
+    },
+    {
+      "id": "doc_014",
+      "pages": 161,
+      "fast_s": 2.045,
+      "elements_s": 6.901,
+      "ratio": 3.37,
+      "element_timings": {
+        "extract": 6.4911,
+        "route": 0.2011,
+        "ocr": 0.0,
+        "signals": 0.078,
+        "headings": 0.0289,
+        "elements": 0.0943,
+        "assemble": 0.0035
+      }
+    },
+    {
+      "id": "doc_015",
+      "pages": 4,
+      "fast_s": 0.039,
+      "elements_s": 0.053,
+      "ratio": 1.36,
+      "element_timings": {
+        "extract": 0.0459,
+        "route": 0.0025,
+        "ocr": 0.0,
+        "signals": 0.0013,
+        "headings": 0.0008,
+        "elements": 0.0014,
+        "assemble": 0.0001
+      }
+    },
+    {
+      "id": "doc_016",
+      "pages": 10,
+      "fast_s": 0.113,
+      "elements_s": 0.17,
+      "ratio": 1.5,
+      "element_timings": {
+        "extract": 0.1508,
+        "route": 0.008,
+        "ocr": 0.0,
+        "signals": 0.0031,
+        "headings": 0.0015,
+        "elements": 0.0062,
+        "assemble": 0.0002
+      }
+    },
+    {
+      "id": "doc_017",
+      "pages": 1,
+      "fast_s": 0.104,
+      "elements_s": 0.173,
+      "ratio": 1.67,
+      "element_timings": {
+        "extract": 0.1517,
+        "route": 0.0083,
+        "ocr": 0.0,
+        "signals": 0.0055,
+        "headings": 0.0013,
+        "elements": 0.0058,
+        "assemble": 0.0002
+      }
+    },
+    {
+      "id": "doc_018",
+      "pages": 19,
+      "fast_s": 0.162,
+      "elements_s": 0.255,
+      "ratio": 1.58,
+      "element_timings": {
+        "extract": 0.2243,
+        "route": 0.0122,
+        "ocr": 0.0,
+        "signals": 0.0051,
+        "headings": 0.0036,
+        "elements": 0.0095,
+        "assemble": 0.0002
+      }
+    },
+    {
+      "id": "doc_019",
+      "pages": 8,
+      "fast_s": 0.119,
+      "elements_s": 0.19,
+      "ratio": 1.6,
+      "element_timings": {
+        "extract": 0.1717,
+        "route": 0.0085,
+        "ocr": 0.0,
+        "signals": 0.0027,
+        "headings": 0.002,
+        "elements": 0.0049,
+        "assemble": 0.0001
+      }
+    },
+    {
+      "id": "doc_020",
+      "pages": 213,
+      "fast_s": 1.545,
+      "elements_s": 2.633,
+      "ratio": 1.7,
+      "element_timings": {
+        "extract": 2.3231,
+        "route": 0.1222,
+        "ocr": 0.0,
+        "signals": 0.0761,
+        "headings": 0.0118,
+        "elements": 0.0959,
+        "assemble": 0.001
+      }
+    },
+    {
+      "id": "doc_021",
+      "pages": 20,
+      "fast_s": 0.137,
+      "elements_s": 0.209,
+      "ratio": 1.52,
+      "element_timings": {
+        "extract": 0.1823,
+        "route": 0.0104,
+        "ocr": 0.0,
+        "signals": 0.0049,
+        "headings": 0.001,
+        "elements": 0.0086,
+        "assemble": 0.0004
+      }
+    },
+    {
+      "id": "doc_022",
+      "pages": 6,
+      "fast_s": 0.043,
+      "elements_s": 0.062,
+      "ratio": 1.45,
+      "element_timings": {
+        "extract": 0.0541,
+        "route": 0.0026,
+        "ocr": 0.0,
+        "signals": 0.0021,
+        "headings": 0.0007,
+        "elements": 0.0024,
+        "assemble": 0.0001
+      }
+    },
+    {
+      "id": "doc_023",
+      "pages": 13,
+      "fast_s": 0.091,
+      "elements_s": 0.139,
+      "ratio": 1.53,
+      "element_timings": {
+        "extract": 0.1214,
+        "route": 0.0062,
+        "ocr": 0.0,
+        "signals": 0.0042,
+        "headings": 0.0009,
+        "elements": 0.0058,
+        "assemble": 0.0001
+      }
+    },
+    {
+      "id": "doc_024",
+      "pages": 394,
+      "fast_s": 4.4,
+      "elements_s": 6.256,
+      "ratio": 1.42,
+      "element_timings": {
+        "extract": 5.4153,
+        "route": 0.298,
+        "ocr": 0.0,
+        "signals": 0.151,
+        "headings": 0.0447,
+        "elements": 0.3313,
+        "assemble": 0.0067
+      }
+    },
+    {
+      "id": "doc_025",
+      "pages": 41,
+      "fast_s": 0.427,
+      "elements_s": 0.62,
+      "ratio": 1.45,
+      "element_timings": {
+        "extract": 0.5353,
+        "route": 0.0303,
+        "ocr": 0.0,
+        "signals": 0.0144,
+        "headings": 0.0045,
+        "elements": 0.0285,
+        "assemble": 0.0007
+      }
+    },
+    {
+      "id": "doc_026",
+      "pages": 6,
+      "fast_s": 0.015,
+      "elements_s": 0.023,
+      "ratio": 1.55,
+      "element_timings": {
+        "extract": 0.0188,
+        "route": 0.0008,
+        "ocr": 0.0,
+        "signals": 0.0013,
+        "headings": 0.0002,
+        "elements": 0.0014,
+        "assemble": 0.0001
+      }
+    },
+    {
+      "id": "doc_027",
+      "pages": 15,
+      "fast_s": 0.187,
+      "elements_s": 0.73,
+      "ratio": 3.9,
+      "element_timings": {
+        "extract": 0.7027,
+        "route": 0.0101,
+        "ocr": 0.0,
+        "signals": 0.0057,
+        "headings": 0.0021,
+        "elements": 0.0091,
+        "assemble": 0.0004
+      }
+    },
+    {
+      "id": "doc_028",
+      "pages": 12,
+      "fast_s": 0.256,
+      "elements_s": 1.617,
+      "ratio": 6.32,
+      "element_timings": {
+        "extract": 1.5624,
+        "route": 0.0161,
+        "ocr": 0.0,
+        "signals": 0.0156,
+        "headings": 0.0028,
+        "elements": 0.0185,
+        "assemble": 0.0005
+      }
+    },
+    {
+      "id": "doc_029",
+      "pages": 75,
+      "fast_s": 0.867,
+      "elements_s": 1.335,
+      "ratio": 1.54,
+      "element_timings": {
+        "extract": 1.1419,
+        "route": 0.0627,
+        "ocr": 0.0,
+        "signals": 0.0474,
+        "headings": 0.0095,
+        "elements": 0.0703,
+        "assemble": 0.001
+      }
+    },
+    {
+      "id": "doc_030",
+      "pages": 214,
+      "fast_s": 2.918,
+      "elements_s": 4.431,
+      "ratio": 1.52,
+      "element_timings": {
+        "extract": 3.948,
+        "route": 0.2183,
+        "ocr": 0.0,
+        "signals": 0.0978,
+        "headings": 0.0182,
+        "elements": 0.1422,
+        "assemble": 0.0013
+      }
+    },
+    {
+      "id": "doc_031",
+      "pages": 194,
+      "fast_s": 1.683,
+      "elements_s": 2.734,
+      "ratio": 1.62,
+      "element_timings": {
+        "extract": 2.3254,
+        "route": 0.1188,
+        "ocr": 0.0,
+        "signals": 0.069,
+        "headings": 0.0585,
+        "elements": 0.1528,
+        "assemble": 0.004
+      }
+    },
+    {
+      "id": "doc_032",
+      "pages": 151,
+      "fast_s": 1.287,
+      "elements_s": 2.054,
+      "ratio": 1.6,
+      "element_timings": {
+        "extract": 1.7339,
+        "route": 0.0974,
+        "ocr": 0.0,
+        "signals": 0.0783,
+        "headings": 0.0318,
+        "elements": 0.104,
+        "assemble": 0.0026
+      }
+    },
+    {
+      "id": "doc_033",
+      "pages": 13,
+      "fast_s": 0.115,
+      "elements_s": 0.181,
+      "ratio": 1.57,
+      "element_timings": {
+        "extract": 0.1536,
+        "route": 0.0076,
+        "ocr": 0.0,
+        "signals": 0.0055,
+        "headings": 0.0033,
+        "elements": 0.0093,
+        "assemble": 0.0003
+      }
+    },
+    {
+      "id": "doc_034",
+      "pages": 16,
+      "fast_s": 0.119,
+      "elements_s": 0.191,
+      "ratio": 1.61,
+      "element_timings": {
+        "extract": 0.1628,
+        "route": 0.0081,
+        "ocr": 0.0,
+        "signals": 0.0064,
+        "headings": 0.0033,
+        "elements": 0.0097,
+        "assemble": 0.0003
+      }
+    },
+    {
+      "id": "doc_035",
+      "pages": 37,
+      "fast_s": 0.217,
+      "elements_s": 0.355,
+      "ratio": 1.64,
+      "element_timings": {
+        "extract": 0.3145,
+        "route": 0.0152,
+        "ocr": 0.0,
+        "signals": 0.009,
+        "headings": 0.0026,
+        "elements": 0.0129,
+        "assemble": 0.0003
+      }
+    },
+    {
+      "id": "doc_036",
+      "pages": 296,
+      "fast_s": 5.113,
+      "elements_s": 26.935,
+      "ratio": 5.27,
+      "element_timings": {
+        "extract": 25.5582,
+        "route": 0.2214,
+        "ocr": 0.0,
+        "signals": 0.4401,
+        "headings": 0.1023,
+        "elements": 0.5314,
+        "assemble": 0.0665
+      }
+    },
+    {
+      "id": "doc_037",
+      "pages": 9,
+      "fast_s": 0.077,
+      "elements_s": 0.244,
+      "ratio": 3.17,
+      "element_timings": {
+        "extract": 0.2196,
+        "route": 0.0059,
+        "ocr": 0.0,
+        "signals": 0.0042,
+        "headings": 0.0009,
+        "elements": 0.0056,
+        "assemble": 0.0002
+      }
+    },
+    {
+      "id": "doc_038",
+      "pages": 214,
+      "fast_s": 2.125,
+      "elements_s": 3.208,
+      "ratio": 1.51,
+      "element_timings": {
+        "extract": 2.8071,
+        "route": 0.1459,
+        "ocr": 0.0,
+        "signals": 0.1047,
+        "headings": 0.0313,
+        "elements": 0.1117,
+        "assemble": 0.0024
+      }
+    },
+    {
+      "id": "doc_039",
+      "pages": 326,
+      "fast_s": 3.215,
+      "elements_s": 4.821,
+      "ratio": 1.5,
+      "element_timings": {
+        "extract": 4.1318,
+        "route": 0.2052,
+        "ocr": 0.0,
+        "signals": 0.1922,
+        "headings": 0.0835,
+        "elements": 0.1953,
+        "assemble": 0.0043
+      }
+    },
+    {
+      "id": "doc_040",
+      "pages": 36,
+      "fast_s": 0.29,
+      "elements_s": 0.62,
+      "ratio": 2.13,
+      "element_timings": {
+        "extract": 0.5332,
+        "route": 0.0145,
+        "ocr": 0.0,
+        "signals": 0.0277,
+        "headings": 0.0081,
+        "elements": 0.0321,
+        "assemble": 0.0008
+      }
+    },
+    {
+      "id": "doc_041",
+      "pages": 39,
+      "fast_s": 0.321,
+      "elements_s": 3.144,
+      "ratio": 9.8,
+      "element_timings": {
+        "extract": 3.0601,
+        "route": 0.015,
+        "ocr": 0.0,
+        "signals": 0.0291,
+        "headings": 0.0129,
+        "elements": 0.0241,
+        "assemble": 0.0019
+      }
+    },
+    {
+      "id": "doc_042",
+      "pages": 642,
+      "fast_s": 5.205,
+      "elements_s": 36.771,
+      "ratio": 7.06,
+      "element_timings": {
+        "extract": 34.9647,
+        "route": 0.3465,
+        "ocr": 0.0,
+        "signals": 0.5012,
+        "headings": 0.2991,
+        "elements": 0.5522,
+        "assemble": 0.0852
+      }
+    },
+    {
+      "id": "doc_043",
+      "pages": 4,
+      "fast_s": 0.035,
+      "elements_s": 0.214,
+      "ratio": 6.18,
+      "element_timings": {
+        "extract": 0.1962,
+        "route": 0.0021,
+        "ocr": 0.0,
+        "signals": 0.0037,
+        "headings": 0.0006,
+        "elements": 0.0032,
+        "assemble": 0.0002
+      }
+    },
+    {
+      "id": "doc_044",
+      "pages": 5,
+      "fast_s": 0.048,
+      "elements_s": 0.372,
+      "ratio": 7.73,
+      "element_timings": {
+        "extract": 0.3613,
+        "route": 0.0026,
+        "ocr": 0.0,
+        "signals": 0.0035,
+        "headings": 0.0008,
+        "elements": 0.0032,
+        "assemble": 0.0002
+      }
+    },
+    {
+      "id": "doc_045",
+      "pages": 79,
+      "fast_s": 0.751,
+      "elements_s": 2.529,
+      "ratio": 3.37,
+      "element_timings": {
+        "extract": 2.3332,
+        "route": 0.0532,
+        "ocr": 0.0,
+        "signals": 0.0575,
+        "headings": 0.0123,
+        "elements": 0.0694,
+        "assemble": 0.001
+      }
+    },
+    {
+      "id": "doc_046",
+      "pages": 69,
+      "fast_s": 0.511,
+      "elements_s": 1.798,
+      "ratio": 3.52,
+      "element_timings": {
+        "extract": 1.68,
+        "route": 0.036,
+        "ocr": 0.0,
+        "signals": 0.0311,
+        "headings": 0.0078,
+        "elements": 0.0404,
+        "assemble": 0.0006
+      }
+    },
+    {
+      "id": "doc_047",
+      "pages": 585,
+      "fast_s": 6.362,
+      "elements_s": 9.92,
+      "ratio": 1.56,
+      "element_timings": {
+        "extract": 8.6633,
+        "route": 0.5042,
+        "ocr": 0.0,
+        "signals": 0.2724,
+        "headings": 0.0557,
+        "elements": 0.4088,
+        "assemble": 0.0037
+      }
+    },
+    {
+      "id": "doc_048",
+      "pages": 86,
+      "fast_s": 2.342,
+      "elements_s": 11.28,
+      "ratio": 4.82,
+      "element_timings": {
+        "extract": 10.8552,
+        "route": 0.0959,
+        "ocr": 0.0,
+        "signals": 0.1117,
+        "headings": 0.034,
+        "elements": 0.1715,
+        "assemble": 0.0032
+      }
+    },
+    {
+      "id": "doc_049",
+      "pages": 41,
+      "fast_s": 0.447,
+      "elements_s": 2.098,
+      "ratio": 4.69,
+      "element_timings": {
+        "extract": 1.9874,
+        "route": 0.028,
+        "ocr": 0.0,
+        "signals": 0.0356,
+        "headings": 0.0091,
+        "elements": 0.0341,
+        "assemble": 0.0013
+      }
+    },
+    {
+      "id": "doc_050",
+      "pages": 29,
+      "fast_s": 0.199,
+      "elements_s": 1.35,
+      "ratio": 6.79,
+      "element_timings": {
+        "extract": 1.2888,
+        "route": 0.0261,
+        "ocr": 0.0,
+        "signals": 0.0164,
+        "headings": 0.0026,
+        "elements": 0.0147,
+        "assemble": 0.0003
+      }
+    },
+    {
+      "id": "doc_051",
+      "pages": 27,
+      "fast_s": 0.119,
+      "elements_s": 0.497,
+      "ratio": 4.18,
+      "element_timings": {
+        "extract": 0.4707,
+        "route": 0.0069,
+        "ocr": 0.0,
+        "signals": 0.0076,
+        "headings": 0.0032,
+        "elements": 0.0079,
+        "assemble": 0.0003
+      }
+    }
+  ],
+  "baseline": {
+    "fast_total_s": 56.91,
+    "elements_total_s": 342.31,
+    "fast_s_per_doc": 1.116,
+    "elements_s_per_doc": 6.712,
+    "ratio": 6.015,
+    "element_stage_totals_s": {
+      "extract": 330.38,
+      "route": 2.91,
+      "ocr": 0.0,
+      "signals": 3.33,
+      "headings": 1.1,
+      "elements": 4.19,
+      "assemble": 0.2
+    },
+    "commit": "d01da5f"
+  }
+}

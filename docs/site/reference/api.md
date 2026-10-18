@@ -27,6 +27,20 @@ docstrings.
 
 ::: docrooter.FigureData
 
+## The rooter
+
+::: docrooter.process
+
+::: docrooter.process_many
+
+::: docrooter.RouterConfig
+
+::: docrooter.Analysis
+
+::: docrooter.register_ocr_engine
+
+::: docrooter.register_layout_engine
+
 ## Taxonomies
 
 ::: docrooter.Taxonomy

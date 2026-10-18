@@ -112,6 +112,7 @@ def load_elements(
     use_bookmarks: bool = True,
     use_printed_toc: bool = True,
     max_pages: int | None = None,
+    tables: Literal["lines", "none"] = "lines",
 ) -> Document:
     """Load a PDF with typed elements; see :func:`docrooter.pdf.load.load_pdf`.
 
@@ -125,6 +126,9 @@ def load_elements(
     ``layout`` is ``"heuristic"``, a registered layout engine name (created before any page
     work, so a missing extra fails fast, and closed after detection) or a
     :class:`~docrooter.layout.LayoutEngine` instance, which the caller keeps and closes.
+
+    ``tables="none"`` skips table finding, for speed: no ruled-table search in the object
+    pass and no "text" table strategy in layout Table regions.
     """
     if engine in ("both", "pymupdf4llm"):
         raise DocrooterError(
@@ -139,6 +143,8 @@ def load_elements(
     owned_layout = isinstance(layout, str) and layout_engine is not None
     if ocr_dpi <= 0:
         raise ValueError(f"ocr_dpi must be positive, got {ocr_dpi}")
+    if tables not in ("lines", "none"):
+        raise ValueError(f"tables must be 'lines' or 'none', got {tables!r}")
     if max_pages is not None and max_pages < 1:
         raise ValueError(f"max_pages must be >= 1, got {max_pages}")
     if ocr is not None and not isinstance(ocr, str) and not isinstance(ocr, OcrEngine):
@@ -164,6 +170,7 @@ def load_elements(
         progress=(lambda page, total: stage.progress(pages=total, page=page))
         if stage.active
         else None,
+        tables=tables,
     )
     n_read = len(pages)
     n_pages = _page_count(path, engine) if max_pages is not None and n_read >= max_pages else n_read
@@ -200,7 +207,7 @@ def load_elements(
             if owned_layout:
                 layout_engine.close()
         regions = [r for r in regions if r.confidence >= min_conf]
-    text_tables = _text_table_requests(pages, regions, found)
+    text_tables = _text_table_requests(pages, regions, found) if tables == "lines" else {}
     region_tables = find_text_tables(path, engine, text_tables)  # type: ignore[arg-type]
     if stage.active:
         labels = Counter(r.label for r in regions)

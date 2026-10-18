@@ -39,6 +39,7 @@ dependencies = [
     "numpy",
     "typer",
     "rich",
+    "tomli>=2; python_version < '3.11'",  # router config files (tomllib from 3.11)
 ]
 
 [project.optional-dependencies]
@@ -188,5 +189,6 @@ module = [
     "pypdfium2.*",
     "huggingface_hub",
     "huggingface_hub.*",
+    "tomli",
 ]
 ignore_missing_imports = true

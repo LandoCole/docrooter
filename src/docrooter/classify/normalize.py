@@ -11,7 +11,7 @@ from docrooter.backends.base import Backend, close_backend
 from docrooter.classify.classifier import DEFAULT_BACKEND, Classifier
 from docrooter.classify.documents import classify_document
 from docrooter.classify.strategies import Flat
-from docrooter.document import Document
+from docrooter.document import Document, Section
 from docrooter.taxonomies import DOC_TYPE_TO_SECTION_TAXONOMY, builtin_taxonomy
 from docrooter.taxonomy import Taxonomy
 from docrooter.views import SectionView
@@ -141,8 +141,7 @@ def _normalize(
         section_taxonomy = builtin_taxonomy(name)
 
     if view is None:
-        has_examples = any(node.examples for node in section_taxonomy.nodes.values())
-        view = NORMALIZE_VIEW if has_examples else NORMALIZE_VIEW_NO_EXAMPLES
+        view = default_view(section_taxonomy)
 
     if classifier is not None:
         if classifier.taxonomy.content_hash() != section_taxonomy.content_hash():
@@ -151,17 +150,7 @@ def _normalize(
                 "build the classifier on that taxonomy or omit it"
             )
     else:
-        if doc_type is not None and doc_types is None:
-            doc_types = builtin_taxonomy(DOC_TYPES)
-        label = _doc_type_label(doc_type, doc_types)
-        classifier = Classifier(
-            section_taxonomy,
-            backend,
-            strategy=Flat(),
-            view=view,
-            instruction=f"Which standard section of a {label} is this?",
-            threshold=0.0,
-        )
+        classifier = section_classifier(section_taxonomy, backend, doc_type, view, doc_types)
         owned.append(classifier)  # closes what it loads from a spec; instances stay open
 
     wanted = set(levels) - {0}
@@ -169,24 +158,7 @@ def _normalize(
     stage = events.start("normalize", taxonomy=name)
     # A section with neither title nor text has nothing to classify: it stays unlabelled.
     todo = [s for s in sections if s.title.strip() or s.text.strip()]
-    norms: dict[str, SectionNorm] = {}
-    if todo:
-        count = classifier._token_counter()
-        views = view.render_all(doc, [s.id for s in todo], count)
-        blank = [s.id for s in todo if not s.title.strip()]
-        if blank and not _BODY_FIELDS.intersection(view.fields):
-            with_lead = view.model_copy(update={"fields": (*view.fields, "lead")})
-            views |= with_lead.render_all(doc, blank, count)
-        results = classifier.classify_texts([views[s.id].text for s in todo])
-        for section, section_result in zip(todo, results, strict=True):
-            best = section_result.best
-            assigned = best if best is not None and best.node_ids else None
-            norms[section.id] = SectionNorm(
-                canonical=assigned.node_ids[-1] if assigned else None,
-                label=assigned.labels[-1] if assigned else None,
-                score=assigned.score if assigned else 0.0,
-                title=section.title,
-            )
+    norms = label_sections(doc, todo, classifier, view)
     out = {
         s.id: norms.get(s.id) or SectionNorm(canonical=None, label=None, title=s.title)
         for s in sections
@@ -195,6 +167,61 @@ def _normalize(
     return NormalizationResult(
         doc_type=doc_type, doc_type_confidence=confidence, taxonomy=name, sections=out
     )
+
+
+def default_view(section_taxonomy: Taxonomy) -> SectionView:
+    """:data:`NORMALIZE_VIEW` when any node of ``section_taxonomy`` has ``examples``, else
+    :data:`NORMALIZE_VIEW_NO_EXAMPLES`."""
+    has_examples = any(node.examples for node in section_taxonomy.nodes.values())
+    return NORMALIZE_VIEW if has_examples else NORMALIZE_VIEW_NO_EXAMPLES
+
+
+def section_classifier(
+    section_taxonomy: Taxonomy,
+    backend: str | Backend,
+    doc_type: str | None,
+    view: SectionView,
+    doc_types: Taxonomy | None = None,
+) -> Classifier:
+    """The ``Flat`` classifier that labels the sections of a ``doc_type`` document."""
+    if doc_type is not None and doc_types is None:
+        doc_types = builtin_taxonomy(DOC_TYPES)
+    label = _doc_type_label(doc_type, doc_types)
+    return Classifier(
+        section_taxonomy,
+        backend,
+        strategy=Flat(),
+        view=view,
+        instruction=f"Which standard section of a {label} is this?",
+        threshold=0.0,
+    )
+
+
+def label_sections(
+    doc: Document, sections: Sequence[Section], classifier: Classifier, view: SectionView
+) -> dict[str, SectionNorm]:
+    """Label ``sections`` (each with a title or text) in one batch, keyed by section id. Under
+    a view without body fields, a section with a blank title is rendered with its lead added."""
+    norms: dict[str, SectionNorm] = {}
+    if not sections:
+        return norms
+    count = classifier._token_counter()
+    views = view.render_all(doc, [s.id for s in sections], count)
+    blank = [s.id for s in sections if not s.title.strip()]
+    if blank and not _BODY_FIELDS.intersection(view.fields):
+        with_lead = view.model_copy(update={"fields": (*view.fields, "lead")})
+        views |= with_lead.render_all(doc, blank, count)
+    results = classifier.classify_texts([views[s.id].text for s in sections])
+    for section, section_result in zip(sections, results, strict=True):
+        best = section_result.best
+        assigned = best if best is not None and best.node_ids else None
+        norms[section.id] = SectionNorm(
+            canonical=assigned.node_ids[-1] if assigned else None,
+            label=assigned.labels[-1] if assigned else None,
+            score=assigned.score if assigned else 0.0,
+            title=section.title,
+        )
+    return norms
 
 
 def _builtin_name(name: str) -> str:

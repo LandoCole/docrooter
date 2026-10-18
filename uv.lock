@@ -1008,6 +1008,7 @@ dependencies = [
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pydantic" },
     { name = "rich" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typer" },
 ]
 
@@ -1131,6 +1132,7 @@ requires-dist = [
     { name = "scikit-learn", marker = "extra == 'models'" },
     { name = "sentence-transformers", marker = "extra == 'all'", specifier = ">=6" },
     { name = "sentence-transformers", marker = "extra == 'models'", specifier = ">=6" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2" },
     { name = "torch", marker = "extra == 'all'" },
     { name = "torch", marker = "extra == 'models'" },
     { name = "transformers", marker = "extra == 'all'", specifier = ">=5" },

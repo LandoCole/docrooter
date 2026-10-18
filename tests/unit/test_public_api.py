@@ -47,6 +47,12 @@ PUBLIC_NAMES = [
     "Box",
     "TableData",
     "FigureData",
+    "process",
+    "process_many",
+    "RouterConfig",
+    "Analysis",
+    "register_ocr_engine",
+    "register_layout_engine",
 ]
 
 

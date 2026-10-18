@@ -23,7 +23,10 @@ from docrooter.errors import (
     UnknownTaxonomyError,
 )
 from docrooter.evaluate import compare, evaluate
+from docrooter.layout.registry import register_layout_engine
+from docrooter.ocr.registry import register_ocr_engine
 from docrooter.pdf.load import load_pdf
+from docrooter.rooter import Analysis, RouterConfig, process, process_many
 from docrooter.runtime import configure
 from docrooter.taxonomies import builtin_taxonomy, list_builtin_taxonomies
 from docrooter.taxonomy import Taxonomy, TaxonomyNode
@@ -36,6 +39,7 @@ from docrooter.views import SectionView
 __version__ = "0.2.0"
 
 __all__ = [
+    "Analysis",
     "BackendError",
     "Beam",
     "Box",
@@ -53,6 +57,7 @@ __all__ = [
     "Greedy",
     "MissingExtraError",
     "NormalizationResult",
+    "RouterConfig",
     "Section",
     "SectionView",
     "Taxonomy",
@@ -72,5 +77,9 @@ __all__ = [
     "load",
     "load_pdf",
     "normalize_sections",
+    "process",
+    "process_many",
+    "register_layout_engine",
+    "register_ocr_engine",
     "train",
 ]

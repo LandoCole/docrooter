@@ -40,8 +40,8 @@ def load(
     ``.markdown``, ``.txt``, ``.pdf``), and Markdown text in every other case.
     ``.pdf`` files go to :func:`docrooter.pdf.load.load_pdf`, which also takes ``pdf_options``
     (``engine``, ``use_bookmarks``, ``use_printed_toc``, ``max_pages``, and with
-    ``elements=True`` the element-mode options ``ocr``, ``layout`` and ``ocr_dpi``); other files
-    are read as UTF-8 Markdown. Headings are extracted, validated (scores below
+    ``elements=True`` the element-mode options ``ocr``, ``layout``, ``ocr_dpi`` and ``tables``);
+    other files are read as UTF-8 Markdown. Headings are extracted, validated (scores below
     ``min_heading_score`` are merged into the preceding text), and, if ``repair`` is true, have
     their levels repaired.
     With ``elements=True`` the document also carries typed block elements

@@ -21,7 +21,7 @@ import logging
 import re
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from pydantic import BaseModel, Field
@@ -96,18 +96,24 @@ def extract_page_objects(
     engine: Engine,
     max_pages: int | None = None,
     progress: Progress | None = None,
+    tables: Literal["lines", "none"] = "lines",
 ) -> list[PageObjects]:
     """Extract the :class:`PageObjects` of every page (of the first ``max_pages``) of ``path``.
 
     ``progress(done, total)`` is called after every 10th page, as in ``extract_lines``.
+    ``tables="none"`` skips the ruled-table search (the slowest part of the pass): every page
+    then has no ``tables``.
 
     Raises ``DocrooterError`` for encrypted, corrupt or non-PDF files and ``MissingExtraError``
     when the engine's package is not installed.
     """
+    if tables not in ("lines", "none"):
+        raise ValueError(f"tables must be 'lines' or 'none', got {tables!r}")
+    find = tables == "lines"
     if engine == "pymupdf":
-        return _extract_pymupdf(path, max_pages, progress)
+        return _extract_pymupdf(path, max_pages, progress, find)
     if engine == "pdfplumber":
-        return _extract_pdfplumber(path, max_pages, progress)
+        return _extract_pdfplumber(path, max_pages, progress, find)
     raise DocrooterError(f"unknown PDF engine {engine!r}; use 'pymupdf' or 'pdfplumber'")
 
 
@@ -472,7 +478,7 @@ def _pdfplumber_rulings(page: Any) -> tuple[list[_Rule], list[_Rule]]:
 
 
 def _extract_pymupdf(
-    path: str | Path, max_pages: int | None, progress: Progress | None
+    path: str | Path, max_pages: int | None, progress: Progress | None, find_tables: bool = True
 ) -> list[PageObjects]:
     pymupdf = _import_pymupdf()
     try:
@@ -490,7 +496,9 @@ def _extract_pymupdf(
             for page_index, page in enumerate(doc):
                 if max_pages is not None and page_index >= max_pages:
                     break
-                out.append(_pymupdf_page(page, page_index, pymupdf, flags, table_kwargs))
+                out.append(
+                    _pymupdf_page(page, page_index, pymupdf, flags, table_kwargs, find_tables)
+                )
                 if progress is not None and (page_index + 1) % PROGRESS_EVERY == 0:
                     progress(page_index + 1, total)
         except Exception as exc:
@@ -514,7 +522,12 @@ def _table_kwargs(pymupdf: Any) -> dict[str, Any]:
 
 
 def _pymupdf_page(
-    page: Any, page_index: int, pymupdf: Any, text_flags: int, table_kwargs: dict[str, Any]
+    page: Any,
+    page_index: int,
+    pymupdf: Any,
+    text_flags: int,
+    table_kwargs: dict[str, Any],
+    find_tables: bool = True,
 ) -> PageObjects:
     number = page_index + 1
     width, height = float(page.rect.width), float(page.rect.height)
@@ -554,7 +567,9 @@ def _pymupdf_page(
         number, [display(p["rect"]) for p in paths], _PYMUPDF_GAP, width, height
     )
     tables: list[tuple[Box, list[list[str]]]] = []
-    if len(paths) > MAX_TABLE_PATHS:
+    if not find_tables:
+        pass
+    elif len(paths) > MAX_TABLE_PATHS:
         flags.append("tables_skipped")
     elif _may_hold_ruled_table(*_pymupdf_rulings(paths), bounds=_unrotated_size(page)):
         try:
@@ -682,7 +697,7 @@ def _moved(frag: dict[str, Any], matrix: Any) -> dict[str, Any]:
 
 
 def _extract_pdfplumber(
-    path: str | Path, max_pages: int | None, progress: Progress | None
+    path: str | Path, max_pages: int | None, progress: Progress | None, find_tables: bool = True
 ) -> list[PageObjects]:
     pdfplumber = _import_pdfplumber()
     try:
@@ -694,7 +709,7 @@ def _extract_pdfplumber(
         pages = pdf.pages[:max_pages]
         for page_index, page in enumerate(pages):
             try:
-                out.append(_pdfplumber_page(page, page_index))
+                out.append(_pdfplumber_page(page, page_index, find_tables))
             finally:
                 # Free the page's parsed objects and layout caches (see ``extract_lines``).
                 close = getattr(page, "close", None) or getattr(page, "flush_cache", None)
@@ -711,7 +726,7 @@ def _extract_pdfplumber(
     return out
 
 
-def _pdfplumber_page(page: Any, page_index: int) -> PageObjects:
+def _pdfplumber_page(page: Any, page_index: int, find_tables: bool = True) -> PageObjects:
     number = page_index + 1
     width, height = float(page.width), float(page.height)  # displayed size; /Rotate applied
     lines = _finalise(_pdfplumber_page_rows(page, page_index))
@@ -730,7 +745,9 @@ def _pdfplumber_page(page: Any, page_index: int) -> PageObjects:
         _PDFPLUMBER_GAP, width, height,
     )  # fmt: skip
     tables: list[tuple[Box, list[list[str]]]] = []
-    if len(shapes) > MAX_TABLE_PATHS:
+    if not find_tables:
+        pass
+    elif len(shapes) > MAX_TABLE_PATHS:
         flags.append("tables_skipped")
     elif shapes and _may_hold_ruled_table(*_pdfplumber_rulings(page)):
         try:

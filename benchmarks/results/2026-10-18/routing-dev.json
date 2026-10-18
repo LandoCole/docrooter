@@ -3,7 +3,7 @@
   "corpus": "benchmarks/corpus",
   "engine": "pymupdf",
   "ocr": null,
-  "commit": "0e7c396",
+  "commit": "8913b7a",
   "dirty": false,
   "env": {
     "python": "3.12.13",
@@ -11,9 +11,9 @@
     "machine": "arm64",
     "cpu_count": 8,
     "loadavg": [
-      2.79541015625,
-      2.27685546875,
-      2.380859375
+      4.9501953125,
+      2.61572265625,
+      2.173828125
     ],
     "versions": {
       "pymupdf": "1.28.2",

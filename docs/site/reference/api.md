@@ -41,6 +41,16 @@ docstrings.
 
 ::: docrooter.register_layout_engine
 
+## Chunks and embeddings
+
+::: docrooter.chunk
+
+::: docrooter.Chunk
+
+::: docrooter.embed
+
+::: docrooter.EmbeddingSet
+
 ## Taxonomies
 
 ::: docrooter.Taxonomy

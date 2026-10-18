@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 from docrooter.classify.normalize import NormalizationResult
 from docrooter.classify.results import DocTypeResult
 from docrooter.document.models import Document
+from docrooter.embed import EmbeddingSet
 from docrooter.rooter.config import RouterConfig
 from docrooter.summarize import Summary
 
@@ -21,17 +20,17 @@ class Analysis(BaseModel):
     ``document`` carries the elements (except under ``layout="none"``, the ``fast`` path) and
     the route log in ``meta["routes"]``. ``doc_type`` and ``sections`` are ``None`` when their
     task is ``"none"``. ``summaries`` is keyed by section id and by element id. ``embeddings``
-    is set only when the ``embeddings`` task is. ``config`` is the resolved configuration that
-    ran (a backend or engine the caller passed in appears by its name), and ``timings`` holds
-    seconds per stage (``load``, ``doc_type``, ``escalate``, ``sections``, ``summaries``, and
-    ``total``) for the stages that ran.
+    (one vector per element) is set only when the ``embeddings`` task is. ``config`` is the
+    resolved configuration that ran (a backend or engine the caller passed in appears by its
+    name), and ``timings`` holds seconds per stage (``load``, ``doc_type``, ``escalate``,
+    ``sections``, ``summaries``, ``embeddings``, and ``total``) for the stages that ran.
     """
 
     document: Document
     doc_type: DocTypeResult | None = None
     sections: NormalizationResult | None = None
     summaries: dict[str, Summary] = Field(default_factory=dict)
-    embeddings: Any = None  # an EmbeddingSet once docrooter.embed exists (E9)
+    embeddings: EmbeddingSet | None = None
     config: RouterConfig
     timings: dict[str, float] = Field(default_factory=dict)
 

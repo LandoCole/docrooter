@@ -53,6 +53,10 @@ PUBLIC_NAMES = [
     "Analysis",
     "register_ocr_engine",
     "register_layout_engine",
+    "Chunk",
+    "chunk",
+    "EmbeddingSet",
+    "embed",
 ]
 
 

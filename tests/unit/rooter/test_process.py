@@ -4,7 +4,9 @@ OCR and layout engines; no model is ever loaded."""
 
 import contextlib
 import json
+import zlib
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -15,7 +17,8 @@ from docrooter import classify_document, load, normalize_sections
 from docrooter.backends import Scores
 from docrooter.backends import registry as backend_registry
 from docrooter.classify.normalize import GENERIC_TAXONOMY
-from docrooter.errors import DocrooterError, MissingExtraError
+from docrooter.embed import EmbeddingSet
+from docrooter.errors import BackendError, DocrooterError, MissingExtraError
 from docrooter.layout import registry as layout_registry
 from docrooter.ocr import registry as ocr_registry
 from docrooter.rooter import Analysis, RouterConfig, process, process_many
@@ -114,6 +117,42 @@ class FakeLayout:
 
     def close(self):
         self.closed += 1
+
+
+class FakeEmbedding:
+    """An embedding backend: deterministic unit vectors, every ``encode`` call recorded."""
+
+    name = "embedding:fake/embed"
+    model_id = "fake/embed"
+    recipe = SimpleNamespace(revision="0123abcd", query_prompt="Q: {instruction}\n")
+
+    def __init__(self, dim=4):
+        self.dim = dim
+        self.calls = []
+        self.closed = 0
+
+    def encode(self, texts, *, prompt):
+        self.calls.append((list(texts), prompt))
+        rows = []
+        for text in texts:
+            vec = np.random.default_rng(zlib.crc32(text.encode())).normal(size=self.dim)
+            rows.append((vec / np.linalg.norm(vec)).astype(np.float32))
+        return np.stack(rows) if rows else np.zeros((0, 0), dtype=np.float32)
+
+    def close(self):
+        self.closed += 1
+
+
+class FailingBackend(PreferBackend):
+    """A backend whose ``score`` raises ``error``."""
+
+    def __init__(self, error, name="failing"):
+        super().__init__(name)
+        self.error = error
+
+    def score(self, texts, candidates, *, instruction=None, multi_label=False):
+        self.calls.append((len(texts), [c.node_id for c in candidates]))
+        raise self.error
 
 
 def _paper(tmp_path, name="paper.pdf"):
@@ -367,6 +406,89 @@ def test_empty_document_is_not_escalated():
     assert strong.calls == []
 
 
+SECRET = "sk-test-0123456789"
+
+
+def _assert_no_secret(analysis, seen):
+    """Neither the route log, the events nor the JSON may carry the error's message."""
+    assert SECRET not in analysis.to_json()
+    assert SECRET not in json.dumps([e.model_dump() for e in seen])
+
+
+def test_failing_escalation_keeps_the_primary_doc_type(tmp_path):
+    primary = PreferBackend("primary", {"legal.contract": 0.3})
+    broken = FailingBackend(RuntimeError(f"401 for key {SECRET}"))
+    seen = []
+    analysis = process(
+        _paper(tmp_path), profile="fast", doc_type=primary, sections="none", escalate=broken,
+        on_event=seen.append,
+    )  # fmt: skip
+    assert analysis.doc_type.best.node_ids[-1] == "legal.contract"
+    assert analysis.doc_type.confidence == pytest.approx(0.3)
+    assert len(broken.calls) == 1
+    (warning,) = _routes(analysis, "doc_type")
+    assert warning["engine"] == "failing"
+    assert warning["reason"].startswith("warning:")
+    assert "failing" in warning["reason"] and "RuntimeError" in warning["reason"]
+    assert "primary result kept" in warning["reason"]
+    assert "escalate" in analysis.timings
+    _assert_no_secret(analysis, seen)
+    stage = [e for e in seen if e.stage == "escalate" and e.status == "end"]
+    assert stage and stage[0].data.get("error") == "RuntimeError"
+    assert [e.stage for e in seen].count("done") == 1  # the run itself did not fail
+
+
+def test_failing_escalation_keeps_the_primary_section_labels(tmp_path):
+    primary = PreferBackend("primary", {"research.research_paper": 0.9})  # sections: uniform
+    broken = FailingBackend(ValueError(f"bad key {SECRET}"))
+    ok = process(
+        _paper(tmp_path), profile="fast", doc_type=primary, sections=primary,
+        escalate=PreferBackend("strong", {"results": 0.95}),
+    )  # fmt: skip
+    seen = []
+    analysis = process(
+        _paper(tmp_path), profile="fast", doc_type=primary, sections=primary, escalate=broken,
+        on_event=seen.append,
+    )  # fmt: skip
+    assert broken.calls and analysis.sections.sections
+    assert {sid: n.canonical for sid, n in analysis.sections.sections.items()} != {
+        sid: n.canonical for sid, n in ok.sections.sections.items()
+    }
+    assert all(n.score < 0.5 for n in analysis.sections.sections.values())
+    (warning,) = _routes(analysis, "sections")
+    assert warning["engine"] == "failing" and "ValueError" in warning["reason"]
+    assert warning["reason"].startswith("warning:")
+    _assert_no_secret(analysis, seen)
+
+
+def test_escalation_backend_that_cannot_be_built_is_a_warning_too(tmp_path, registries):
+    def broken(*args, **kwargs):
+        raise BackendError(f"missing key {SECRET}")
+
+    backend_registry.register_backend_kind("broken", broken)
+    primary = PreferBackend("primary", {"legal.contract": 0.3})
+    seen = []
+    analysis = process(
+        _paper(tmp_path), profile="fast", doc_type=primary, sections="none", escalate="broken",
+        on_event=seen.append,
+    )  # fmt: skip
+    assert analysis.doc_type.best.node_ids[-1] == "legal.contract"
+    (warning,) = _routes(analysis, "doc_type")
+    assert warning["engine"] == "broken" and "BackendError" in warning["reason"]
+    _assert_no_secret(analysis, seen)
+
+
+def test_process_many_continues_after_a_failed_escalation(tmp_path):
+    primary = PreferBackend("primary", {"legal.contract": 0.3})
+    broken = FailingBackend(RuntimeError("boom"))
+    sources = [_paper(tmp_path, "a.pdf"), _paper(tmp_path, "b.pdf")]
+    results = list(
+        process_many(sources, profile="fast", doc_type=primary, sections="none", escalate=broken)
+    )
+    assert len(results) == 2 and len(broken.calls) == 2
+    assert all(len(_routes(a, "doc_type")) == 1 for a in results)
+
+
 def test_accurate_without_jev_key_has_no_escalation(tmp_path, monkeypatch):
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
     primary = PreferBackend("primary", {"legal.contract": 0.3})
@@ -467,6 +589,17 @@ def test_process_many_checks_the_config_upfront():
         process_many([GOLDEN / "scanned.pdf"], bogus=1)
 
 
+def test_process_many_rejects_a_single_source(tmp_path):
+    for single in ("paper.pdf", MARKDOWN, tmp_path / "paper.pdf", Path("paper.pdf")):
+        with pytest.raises(TypeError, match="pass a list"):
+            process_many(single, profile="fast")  # raised by the call, not by the first next()
+    # a list of one, and any other iterable, are fine
+    assert len(list(process_many([_paper(tmp_path)], profile="fast", doc_type="none",
+                                 sections="none"))) == 1  # fmt: skip
+    assert len(list(process_many((p for p in [_paper(tmp_path, "b.pdf")]), profile="fast",
+                                 doc_type="none", sections="none"))) == 1  # fmt: skip
+
+
 def test_caller_owned_backend_not_closed(tmp_path):
     backend = PreferBackend("mine", {"research.research_paper": 0.9})
     ocr, layout = FakeOcr(), FakeLayout()
@@ -518,9 +651,85 @@ def test_config_file_and_object(tmp_path):
         process(paper, profile="fast", bogus=True)
 
 
-def test_embeddings_task_not_available_yet(tmp_path):
-    with pytest.raises(NotImplementedError, match="embeddings"):
-        process(_paper(tmp_path), embeddings="embedding:some/model")
+def _fake_embedding_kind(registries):
+    made = []
+
+    def factory(model="", *, revision=None, **kwargs):
+        made.append(FakeEmbedding())
+        return made[-1]
+
+    backend_registry.register_backend_kind("fake-embed", factory)
+    return made
+
+
+def test_embeddings_task_embeds_every_element(registries):
+    made = _fake_embedding_kind(registries)
+    seen = []
+    analysis = process(MARKDOWN, doc_type="none", sections="none", embeddings="fake-embed",
+                       on_event=seen.append)  # fmt: skip
+    doc = analysis.document
+    result = analysis.embeddings
+    assert isinstance(result, EmbeddingSet)
+    assert result.ids == [
+        e.id
+        for e in doc.elements
+        if e.kind not in ("page_header", "page_footer", "page_number", "contents")
+    ]
+    assert (result.model, result.revision, result.dim, result.dtype) == (
+        "fake/embed", "0123abcd", 4, "float16",
+    )  # fmt: skip
+    assert result.vectors.shape == (len(result.ids), 4)
+    assert analysis.config.embeddings == "fake-embed" and "embeddings" in analysis.timings
+    assert analysis.timings["total"] >= analysis.timings["embeddings"]
+    assert len(made) == 1 and made[0].closed == 1  # created from its name, closed afterwards
+    assert made[0].calls[0][1] == ""
+    (route,) = _routes(analysis, "embeddings")
+    assert route["engine"] == "fake-embed" and route["reason"] == "embeddings=fake-embed"
+    assert any(e.stage == "embed" and e.status == "end" for e in seen)
+    # the vectors are in the JSON only when asked for
+    assert "embeddings" not in json.loads(analysis.to_json())
+    asked = Analysis.model_validate_json(analysis.to_json(include_embeddings=True))
+    assert asked.embeddings == result
+
+
+def test_embeddings_of_a_pdf_follow_its_elements(tmp_path, registries):
+    made = _fake_embedding_kind(registries)
+    analysis = process(_paper(tmp_path), doc_type="none", sections="none", embeddings="fake-embed")
+    doc = analysis.document
+    assert analysis.embeddings.ids == [e.id for e in doc.elements]
+    texts = made[0].calls[0][0]
+    assert len(texts) == len(doc.elements)
+    paragraph = next(t for e, t in zip(doc.elements, texts, strict=True) if e.kind == "paragraph")
+    path, _, body = paragraph.partition("\n\n")
+    assert path.endswith((" > Introduction", " > Methods", " > Results")) and "sentence" in body
+
+
+def test_process_many_builds_the_embedding_backend_once(tmp_path, registries):
+    made = _fake_embedding_kind(registries)
+    sources = [MARKDOWN, MARKDOWN + "\n## Outlook\n\nThings may improve. Or not.\n"]
+    results = process_many(sources, doc_type="none", sections="none", embeddings="fake-embed")
+    first = next(results)
+    assert len(made) == 1 and made[0].closed == 0
+    rest = list(results)
+    assert len(rest) == 1 and len(made) == 1 and made[0].closed == 1
+    assert len(made[0].calls) == 2
+    assert first.embeddings.ids != rest[0].embeddings.ids
+    with contextlib.closing(process_many(sources, doc_type="none", sections="none",
+                                         embeddings="fake-embed")) as early:  # fmt: skip
+        next(early)
+    assert len(made) == 2 and made[1].closed == 1
+
+
+def test_embeddings_need_a_backend_that_encodes(registries):
+    with pytest.raises(BackendError, match="cannot embed"):
+        process(MARKDOWN, doc_type="none", sections="none", embeddings="keyword")
+
+
+def test_embeddings_need_element_mode():
+    with pytest.raises(ValueError, match="element mode.*layout"):
+        process(MARKDOWN, profile="fast", embeddings="embedding:some/model")
+    with pytest.raises(ValueError, match="element mode"):
+        process_many([MARKDOWN], profile="fast", embeddings="embedding:some/model")
 
 
 def test_analysis_json(tmp_path):

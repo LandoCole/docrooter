@@ -42,7 +42,9 @@ class RouterConfig(BaseModel):
     - ``doc_type``, ``sections``: a backend spec (``keyword``, ``embedding:…``, ``nli:…``,
       ``openai:…``, ``jev:…``, ``trained:<bundle>``) or ``none``.
     - ``summaries``: ``none``, ``lead`` or ``centroid``.
-    - ``embeddings``: ``none`` (embedding backends arrive with ``docrooter.embed``).
+    - ``embeddings``: ``none`` or an embedding backend spec (``embedding:…``) whose vectors for
+      every element go in ``Analysis.embeddings``; needs element mode (a ``layout`` other than
+      ``none``).
     - ``escalate``: ``none`` or a backend spec that re-labels results whose confidence is below
       ``escalate_below`` (spec §7.5).
     - ``max_pages``, ``ocr_lang``, ``ocr_dpi``: page cap, OCR language and OCR render DPI.

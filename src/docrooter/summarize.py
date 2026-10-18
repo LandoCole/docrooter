@@ -152,8 +152,8 @@ def summarize(
     return out
 
 
-def _heading_path(doc: Document, section_id: str | None) -> str:
-    """Titles from the root down to the section, joined with " > " (iterative; no preamble)."""
+def heading_titles(doc: Document, section_id: str | None) -> list[str]:
+    """Titles from the root down to the section (iterative; the level-0 preamble has none)."""
     titles: list[str] = []
     seen: set[str] = set()
     while section_id is not None and section_id in doc.sections and section_id not in seen:
@@ -162,7 +162,12 @@ def _heading_path(doc: Document, section_id: str | None) -> str:
         if section.level > 0:
             titles.append(section.title)
         section_id = section.parent_id
-    return " > ".join(reversed(titles))
+    titles.reverse()
+    return titles
+
+
+def _heading_path(doc: Document, section_id: str | None) -> str:
+    return " > ".join(heading_titles(doc, section_id))
 
 
 def _centroid_pick(

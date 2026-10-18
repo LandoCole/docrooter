@@ -3,12 +3,17 @@ them on documents, and return :class:`~docrooter.rooter.analysis.Analysis` objec
 
 The order of a run: the configuration decisions (``route`` events), loading (element mode
 unless ``layout="none"``), document type, its escalation, sections (with the taxonomy of the
-final document type), their escalation, then summaries.
+final document type), their escalation, then summaries and, last, the element embeddings.
 
 Ruling (spec §7.5): document-type escalation runs before the sections are normalised, so when it
 changes the type, the sections are normalised once, with the new type's taxonomy, by the primary
 ``sections`` backend. That is the spec's "re-normalised with the new taxonomy", without the
 discarded first pass.
+
+Ruling (E9): an escalation backend that raises (a network error, a rejected key, a missing
+extra) never aborts the analysis. The primary result is kept and the route log gets a
+``warning`` decision that names the backend and the error's type, never its message (which may
+carry a key or the request body).
 """
 
 from __future__ import annotations
@@ -40,6 +45,7 @@ from docrooter.classify.strategies import Greedy
 from docrooter.document.load import load
 from docrooter.document.models import Document
 from docrooter.elements.models import Box
+from docrooter.embed import embed, require_encoder
 from docrooter.errors import DocrooterError
 from docrooter.layout import registry as layout_registry
 from docrooter.layout.base import LayoutEngine
@@ -90,9 +96,14 @@ def process(
     every mode (spec §7.5). ``ocr="auto"`` with no engine installed records a warning decision
     and adds ``"ocr_unavailable"`` to ``meta["warnings"]`` of a PDF.
 
+    ``embeddings`` (a backend spec such as ``embedding:BAAI/bge-small-en-v1.5``, needs element
+    mode) puts one vector per element in ``Analysis.embeddings``; see :func:`~docrooter.embed`.
+    An ``escalate`` backend that raises leaves the primary result in place and adds a warning
+    to the route log (E9 ruling above).
+
     ``on_event`` receives the stages of :func:`~docrooter.load`,
     :func:`~docrooter.classify_document` and :func:`~docrooter.normalize_sections`, plus
-    ``route``, ``escalate`` and ``summarize``, then one ``done``.
+    ``route``, ``escalate``, ``summarize`` and ``embed``, then one ``done``.
     """
     cfg, given = _resolve(config, profile, overrides)
     with events.pipeline_run(on_event):
@@ -116,8 +127,15 @@ def process_many(
     One OCR engine, one layout engine and one set of backends serve every document; they are
     created on first use and closed when the iterator is exhausted or closed (use
     ``contextlib.closing`` when stopping early). Each document is its own event run. The
-    configuration is checked when this is called, before any document is read.
+    configuration is checked when this is called, before any document is read. ``sources`` is
+    an iterable of paths or Markdown texts; a single path or text is a ``TypeError`` (a ``str``
+    would be read as one source per character).
     """
+    if isinstance(sources, (str, os.PathLike)):
+        raise TypeError(
+            "process_many takes an iterable of sources, not a single path or text: pass a list, "
+            "e.g. process_many([path]), or call process(path) for one document"
+        )
     cfg, given = _resolve(config, profile, overrides)
     return _many(sources, cfg, given, on_event)
 
@@ -161,11 +179,10 @@ def _resolve(
         cfg = RouterConfig.model_validate({**config.model_dump(), **plain}) if plain else config
     else:
         cfg = RouterConfig.resolve(profile=profile, file=config, **plain)
-    if cfg.embeddings != "none":
-        # Ruling (E8): the embeddings task arrives with docrooter.embed (E9).
-        raise NotImplementedError(
-            f"embeddings={cfg.embeddings!r}: element embeddings are not available yet; "
-            "use embeddings='none'"
+    if cfg.embeddings != "none" and cfg.layout == "none":
+        raise ValueError(
+            f"embeddings={cfg.embeddings!r} needs element mode, and layout='none' (the fast "
+            "profile) produces no elements: set layout='heuristic' or a layout engine name"
         )
     return cfg, given
 
@@ -361,11 +378,13 @@ def _run(source: str | os.PathLike[str], cfg: RouterConfig, engines: _Engines) -
             layout, layout_decision = engines.layout()
             decisions += [_text_decision(cfg.text), ocr_decision, layout_decision]
             options.update(ocr=ocr, layout=layout, ocr_dpi=cfg.ocr_dpi, tables=cfg.tables)
-    for task in ("doc_type", "sections", "escalate"):
+    for task in ("doc_type", "sections", "escalate", "embeddings"):
         spec = getattr(cfg, task)
         if spec != "none":
             how = "passed by the caller" if task in engines.given else f"{task}={spec}"
             decisions.append(_decision(task, spec, how))
+    if cfg.embeddings != "none":
+        require_encoder(engines.backend("embeddings"))  # before the document is read
     _emit(decisions)
 
     clock = time.perf_counter()
@@ -386,10 +405,15 @@ def _run(source: str | os.PathLike[str], cfg: RouterConfig, engines: _Engines) -
         if _escalates(cfg, doc_type.confidence) and doc_type.best.stopped_reason != "empty_text":
             clock = time.perf_counter()
             stage = events.start("escalate", task="doc_type", engine=cfg.escalate)
-            escalated = _classify(doc, engines.backend("escalate"), engines.doc_types())
-            stage.end(type=_leaf(escalated), confidence=round(escalated.confidence, 4))
-            escalations += _doc_type_escalation(cfg, doc_type, escalated)
-            doc_type = escalated  # kept whenever escalation fires (spec §7.5)
+            try:
+                escalated = _classify(doc, engines.backend("escalate"), engines.doc_types())
+            except Exception as exc:  # the primary result stands (E9 ruling)
+                stage.end(error=type(exc).__name__)
+                escalations.append(_escalation_failed(cfg, "doc_type", exc))
+            else:
+                stage.end(type=_leaf(escalated), confidence=round(escalated.confidence, 4))
+                escalations += _doc_type_escalation(cfg, doc_type, escalated)
+                doc_type = escalated  # kept whenever escalation fires (spec §7.5)
             timings["escalate"] = time.perf_counter() - clock
 
     sections: NormalizationResult | None = None
@@ -428,16 +452,19 @@ def _run(source: str | os.PathLike[str], cfg: RouterConfig, engines: _Engines) -
         stage.end(summaries=len(summaries))
         timings["summaries"] = time.perf_counter() - clock
 
-    timings["total"] = time.perf_counter() - started
-    return Analysis(
-        document=doc,
-        doc_type=doc_type,
-        sections=sections,
-        summaries=summaries,
-        embeddings=None,
-        config=cfg,
-        timings={key: round(value, 4) for key, value in timings.items()},
+    analysis = Analysis(
+        document=doc, doc_type=doc_type, sections=sections, summaries=summaries, config=cfg
     )
+    if cfg.embeddings != "none":
+        clock = time.perf_counter()
+        stage = events.start("embed", unit="element", engine=cfg.embeddings)
+        encoder = cast("Backend", engines.backend("embeddings"))  # checked to encode
+        analysis.embeddings = embed(analysis, encoder, unit="element")
+        stage.end(vectors=len(analysis.embeddings.ids), dim=analysis.embeddings.dim)
+        timings["embeddings"] = time.perf_counter() - clock
+    timings["total"] = time.perf_counter() - started
+    analysis.timings = {key: round(value, 4) for key, value in timings.items()}
+    return analysis
 
 
 def _text_decision(text: str) -> RouteDecision:
@@ -503,6 +530,17 @@ def _doc_type_escalation(
     ]
 
 
+def _escalation_failed(cfg: RouterConfig, task: str, error: Exception) -> RouteDecision:
+    """The warning for an escalation backend that raised: its name and the error's type only.
+    The message is left out on purpose, since it can hold a key or the body of the request."""
+    return _decision(
+        task,
+        cfg.escalate,
+        f"warning: escalation backend {cfg.escalate} raised {type(error).__name__}: "
+        "primary result kept",
+    )
+
+
 def _escalate_sections(
     doc: Document, result: NormalizationResult, cfg: RouterConfig, engines: _Engines
 ) -> tuple[NormalizationResult, RouteDecision | None]:
@@ -516,14 +554,18 @@ def _escalate_sections(
     if not low:
         return result, None
     stage = events.start("escalate", task="sections", engine=cfg.escalate, sections=len(low))
-    backend = engines.backend("escalate")
-    assert not isinstance(backend, Classifier)  # escalate takes a backend only
-    taxonomy = builtin_taxonomy(result.taxonomy)  # the rooter only uses built-in taxonomies
-    view = default_view(taxonomy)
-    with section_classifier(
-        taxonomy, backend, result.doc_type, view, engines.doc_types()
-    ) as classifier:
-        relabelled = label_sections(doc, [doc.sections[sid] for sid in low], classifier, view)
+    try:
+        backend = engines.backend("escalate")
+        assert not isinstance(backend, Classifier)  # escalate takes a backend only
+        taxonomy = builtin_taxonomy(result.taxonomy)  # the rooter only uses built-in taxonomies
+        view = default_view(taxonomy)
+        with section_classifier(
+            taxonomy, backend, result.doc_type, view, engines.doc_types()
+        ) as classifier:
+            relabelled = label_sections(doc, [doc.sections[sid] for sid in low], classifier, view)
+    except Exception as exc:  # the primary labels stand (E9 ruling)
+        stage.end(error=type(exc).__name__)
+        return result, _escalation_failed(cfg, "sections", exc)
     changed = sum(
         1 for sid, norm in relabelled.items() if norm.canonical != result.sections[sid].canonical
     )

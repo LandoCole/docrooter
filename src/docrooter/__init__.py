@@ -1,5 +1,6 @@
 """docrooter: document TOC extraction and taxonomy-based section classification."""
 
+from docrooter.chunking import Chunk, chunk
 from docrooter.classify import (
     Beam,
     Classifier,
@@ -14,6 +15,7 @@ from docrooter.doc_view import DocumentView
 from docrooter.document import Document, Section
 from docrooter.document.load import load
 from docrooter.elements import Box, Element, ElementKind, FigureData, TableData
+from docrooter.embed import EmbeddingSet, embed
 from docrooter.errors import (
     BackendError,
     DatasetError,
@@ -43,6 +45,7 @@ __all__ = [
     "BackendError",
     "Beam",
     "Box",
+    "Chunk",
     "Classifier",
     "Dataset",
     "DatasetError",
@@ -52,6 +55,7 @@ __all__ = [
     "DocumentView",
     "Element",
     "ElementKind",
+    "EmbeddingSet",
     "FigureData",
     "Flat",
     "Greedy",
@@ -69,9 +73,11 @@ __all__ = [
     "__version__",
     "builtin_taxonomy",
     "calibrate",
+    "chunk",
     "classify_document",
     "compare",
     "configure",
+    "embed",
     "evaluate",
     "list_builtin_taxonomies",
     "load",

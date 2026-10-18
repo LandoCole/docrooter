@@ -15,6 +15,7 @@ and the page gets the flag ``"drawings_capped"``.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -48,6 +49,8 @@ _PDFPLUMBER_GAP = 6.0  # pt; the same for pdfplumber rects, lines and curves
 _MIN_SIDE = 0.5  # pt; a box thinner than this (after clipping) is degenerate and dropped
 _MIN_TABLE_ROWS = 2
 _MIN_TABLE_COLS = 2
+
+_log = logging.getLogger(__name__)
 
 _CID = re.compile(r"\(cid:\d+\)")  # pdfminer's rendering of a glyph without a Unicode mapping
 _PLAIN_SPACE = "\t\n\r\x0b\x0c"
@@ -321,10 +324,12 @@ def _pymupdf_page(
             found = page.find_tables(strategy="lines", **table_kwargs).tables
             for table in found:
                 rows = _table_rows(table.extract())
-                box = _to_box(number, display(table.bbox), width, height)
+                # pymupdf already reports table boxes in display space (unlike text and paths)
+                box = _to_box(number, table.bbox, width, height)
                 if box is not None and _is_table(rows):
                     tables.append((box, rows))
         except Exception:  # one odd page must not fail the document
+            _log.debug("table search failed on page %d", number, exc_info=True)
             flags.append("tables_failed")
     tables.sort(key=lambda t: (t[0].y0, t[0].x0))
 
@@ -398,6 +403,7 @@ def _pdfplumber_page(page: Any, page_index: int) -> PageObjects:
                 if box is not None and _is_table(rows):
                     tables.append((box, rows))
         except Exception:  # one odd page must not fail the document
+            _log.debug("table search failed on page %d", number, exc_info=True)
             flags.append("tables_failed")
     tables.sort(key=lambda t: (t[0].y0, t[0].x0))
 

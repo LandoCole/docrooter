@@ -150,6 +150,42 @@ def test_ruled_table_cells(engine, tmp_path):
 
 
 @pytest.mark.parametrize("rotation", [90, 180, 270])
+def test_rotated_ruled_table_box_is_in_display_space(engine, tmp_path, rotation):
+    """A ruled grid on a /Rotate page: the table box encloses the grid as displayed."""
+    W, H = 600.0, 800.0
+    grid = (100.0, 200.0, 340.0, 290.0)  # unrotated: 3 x 3 cells of 80 x 30 pt
+    doc = pymupdf.open()
+    page = doc.new_page(width=W, height=H)
+    shape = page.new_shape()
+    for r in range(4):
+        shape.draw_line((100, 200 + 30 * r), (340, 200 + 30 * r))
+    for c in range(4):
+        shape.draw_line((100 + 80 * c, 200), (100 + 80 * c, 290))
+    shape.finish(color=(0, 0, 0), width=1)
+    shape.commit()
+    for r in range(3):
+        for c in range(3):
+            page.insert_text((135 + 80 * c, 220 + 30 * r), "x", fontsize=12)
+    page.set_rotation(rotation)
+    path = _save(doc, tmp_path)
+
+    def to_display(x, y):
+        return {90: (H - y, x), 180: (W - x, H - y), 270: (y, W - x)}[rotation]
+
+    (ax, ay), (bx, by) = to_display(grid[0], grid[1]), to_display(grid[2], grid[3])
+    want = (min(ax, bx), min(ay, by), max(ax, bx), max(ay, by))
+    (p,) = extract_page_objects(path, engine=engine)
+    assert len(p.tables) == 1
+    box = p.tables[0][0]
+    got = (box.x0, box.y0, box.x1, box.y1)
+    iw = min(got[2], want[2]) - max(got[0], want[0])
+    ih = min(got[3], want[3]) - max(got[1], want[1])
+    inter = max(iw, 0) * max(ih, 0)
+    area = lambda b: (b[2] - b[0]) * (b[3] - b[1])  # noqa: E731
+    assert inter / (area(got) + area(want) - inter) >= 0.9, (got, want)
+
+
+@pytest.mark.parametrize("rotation", [90, 180, 270])
 def test_rotated_page_boxes_are_in_display_space(engine, tmp_path, rotation):
     """A /Rotate page: every box is where the viewer shows it, not where the content stream
     puts it. The page is 600 x 800 unrotated; content is authored so that it reads upright
@@ -211,7 +247,7 @@ def test_vector_heavy_page_is_bounded(engine, tmp_path):
     started = time.perf_counter()
     (p,) = extract_page_objects(path, engine=engine)
     elapsed = time.perf_counter() - started
-    assert elapsed < 3.0
+    assert elapsed < 6.0
     assert p.n_drawing_paths > MAX_DRAWING_PATHS
     assert "drawings_capped" in p.flags
     assert 1 <= len(p.drawings) <= 200

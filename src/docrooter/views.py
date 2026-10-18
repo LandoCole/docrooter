@@ -20,9 +20,14 @@ _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 _WORDS_PER_TOKEN = 4
 
 
+def tokens_for_words(n_words: int) -> int:
+    """The :func:`estimate_tokens` of a text of ``n_words`` whitespace-separated words."""
+    return math.ceil(n_words * 1.3)
+
+
 def estimate_tokens(text: str) -> int:
     """Cheap token estimate: 1.3 tokens per whitespace-separated word."""
-    return math.ceil(len(text.split()) * 1.3)
+    return tokens_for_words(len(text.split()))
 
 
 class RenderedView(NamedTuple):

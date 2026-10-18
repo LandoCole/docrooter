@@ -461,6 +461,19 @@ def test_failing_escalation_keeps_the_primary_section_labels(tmp_path):
     _assert_no_secret(analysis, seen)
 
 
+def test_failed_doc_type_escalation_is_not_retried_for_the_sections(tmp_path):
+    # the primary labels sections with low scores, so the sections would be escalated too
+    primary = PreferBackend("primary", {"legal.contract": 0.3})
+    broken = FailingBackend(RuntimeError("boom"))
+    analysis = process(
+        _paper(tmp_path), profile="fast", doc_type=primary, sections=primary, escalate=broken
+    )  # fmt: skip
+    assert len(broken.calls) == 1  # the doc-type attempt only
+    (warning,) = _routes(analysis)  # one warning in the whole route log
+    assert warning["task"] == "doc_type" and "RuntimeError" in warning["reason"]
+    assert analysis.sections is not None and analysis.doc_type.confidence == pytest.approx(0.3)
+
+
 def test_escalation_backend_that_cannot_be_built_is_a_warning_too(tmp_path, registries):
     def broken(*args, **kwargs):
         raise BackendError(f"missing key {SECRET}")
@@ -590,7 +603,8 @@ def test_process_many_checks_the_config_upfront():
 
 
 def test_process_many_rejects_a_single_source(tmp_path):
-    for single in ("paper.pdf", MARKDOWN, tmp_path / "paper.pdf", Path("paper.pdf")):
+    for single in ("paper.pdf", MARKDOWN, tmp_path / "paper.pdf", Path("paper.pdf"),
+                   b"paper.pdf", bytearray(b"paper.pdf")):  # fmt: skip
         with pytest.raises(TypeError, match="pass a list"):
             process_many(single, profile="fast")  # raised by the call, not by the first next()
     # a list of one, and any other iterable, are fine

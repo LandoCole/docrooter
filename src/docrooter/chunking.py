@@ -9,7 +9,13 @@ The text of a chunk is its heading path joined with `` > ``, a blank line, and t
 elements joined with blank lines. A heading or title element that opens its section is the last
 item of the heading path, so it is not repeated in the body: it is listed in ``element_ids`` of
 the section's first chunk. A section with no body (a heading followed at once by its first
-subsection) has no chunk, and neither does an element with no text.
+subsection, or a leaf heading such as "Item 6. [Reserved]") gets one chunk of its own whose text
+is just the heading path, flagged ``"heading_only"``, so that every heading is in exactly one
+chunk. An element with no text at all is in no chunk.
+
+Packing is linear: word counts are taken once per element and summed as the chunk grows. If the
+heading path alone is longer than ``max_tokens``, every chunk of that section is flagged
+``"oversize"``.
 """
 
 from __future__ import annotations
@@ -24,7 +30,7 @@ from docrooter.document.models import Document
 from docrooter.elements.models import Element
 from docrooter.errors import DocrooterError
 from docrooter.summarize import heading_titles, table_description
-from docrooter.views import estimate_tokens
+from docrooter.views import estimate_tokens, tokens_for_words
 
 if TYPE_CHECKING:
     from docrooter.rooter.analysis import Analysis
@@ -34,6 +40,7 @@ __all__ = ["Chunk", "chunk"]
 FURNITURE_KINDS = frozenset({"page_header", "page_footer", "page_number"})
 SKIPPED_KINDS = FURNITURE_KINDS | {"contents"}
 OVERSIZE = "oversize"
+HEADING_ONLY = "heading_only"
 PATH_SEPARATOR = " > "
 
 
@@ -43,7 +50,8 @@ class Chunk(BaseModel):
     ``element_ids`` are the elements whose text is in ``text`` (plus the section's opening
     heading in its first chunk); with ``overlap_elements`` an element can be in two chunks.
     ``tokens`` is ``estimate_tokens(text)``. ``flags`` holds ``"oversize"`` for a chunk of one
-    element that is longer than ``max_tokens`` on its own.
+    element that is longer than ``max_tokens`` on its own, and ``"heading_only"`` for the
+    path-only chunk of a section with no body (its ``element_ids`` are its heading).
     """
 
     id: str  # "c0", "c1", … in reading order
@@ -123,6 +131,7 @@ class Part:
     body: str
     opener: bool = False
     table: bool = False
+    words: int = 0  # whitespace-separated words of ``body``
 
 
 def compose(path: Iterable[str], body: str) -> str:
@@ -145,7 +154,7 @@ def element_parts(doc: Document, keep: Callable[[Element], bool]) -> list[Part]:
             continue
         body = _body(el, captions)
         if body.strip():
-            parts.append(Part(el, body, table=el.kind == "table"))
+            parts.append(Part(el, body, table=el.kind == "table", words=len(body.split())))
     return parts
 
 
@@ -194,19 +203,18 @@ class _Packer:
 
     def __init__(self, path: list[str], max_tokens: int, overlap: int) -> None:
         self.path = path
+        self.path_words = len(PATH_SEPARATOR.join(path).split())
         self.max_tokens = max_tokens
         self.overlap = overlap
         self.out: list[tuple[list[str], str, int, list[str]]] = []
         self.openers: list[Part] = []  # openers waiting for the first chunk with a body
         self.current: list[Part] = []  # overlap parts first, then the new ones
+        self.words = 0  # the words of ``current``
         self.n_overlap = 0
         self.tail: list[Part] = []  # what the next chunk may repeat
 
-    def _text(self, parts: list[Part]) -> str:
-        return compose(self.path, "\n\n".join(p.body for p in parts if p.body))
-
-    def _fits(self, parts: list[Part]) -> bool:
-        return estimate_tokens(self._text(parts)) <= self.max_tokens
+    def _fits(self, words: int) -> bool:
+        return tokens_for_words(self.path_words + words) <= self.max_tokens
 
     def add(self, part: Part) -> None:
         if part.opener:
@@ -215,27 +223,36 @@ class _Packer:
             self._flush()
             self._emit([*self.openers, part])
             self.openers, self.tail = [], []
-        elif len(self.current) > self.n_overlap and self._fits([*self.current, part]):
+        elif len(self.current) > self.n_overlap and self._fits(self.words + part.words):
             self.current.append(part)
+            self.words += part.words
         else:
             self._flush()
             repeated = self.tail[-self.overlap :] if self.overlap else []
-            while repeated and not self._fits([*repeated, part]):
-                repeated = repeated[1:]  # drop the oldest until the new element fits
+            words = sum(p.words for p in repeated)
+            while repeated and not self._fits(words + part.words):
+                words -= repeated[0].words  # drop the oldest until the new element fits
+                repeated = repeated[1:]
             self.current, self.n_overlap = [*repeated, part], len(repeated)
+            self.words = words + part.words
 
     def finish(self) -> None:
         self._flush()
+        if self.openers:  # a section with no body: its heading is a chunk of the path alone
+            self._emit(self.openers, heading_only=True)
+            self.openers = []
 
     def _flush(self) -> None:
         if len(self.current) > self.n_overlap:  # it has a new element, not only overlap
             self._emit([*self.openers, *self.current])
             self.tail = self.current[-self.overlap :] if self.overlap else []
             self.openers = []
-        self.current, self.n_overlap = [], 0
+        self.current, self.n_overlap, self.words = [], 0, 0
 
-    def _emit(self, parts: list[Part]) -> None:
-        text = self._text(parts)
+    def _emit(self, parts: list[Part], *, heading_only: bool = False) -> None:
+        text = compose(self.path, "\n\n".join(p.body for p in parts if p.body))
         tokens = estimate_tokens(text)
-        flags = [OVERSIZE] if tokens > self.max_tokens else []
+        flags = [HEADING_ONLY] if heading_only else []
+        if tokens > self.max_tokens:
+            flags.append(OVERSIZE)
         self.out.append(([p.element.id for p in parts], text, tokens, flags))

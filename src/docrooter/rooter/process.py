@@ -129,9 +129,9 @@ def process_many(
     ``contextlib.closing`` when stopping early). Each document is its own event run. The
     configuration is checked when this is called, before any document is read. ``sources`` is
     an iterable of paths or Markdown texts; a single path or text is a ``TypeError`` (a ``str``
-    would be read as one source per character).
+    would be read as one source per character, and ``bytes`` as ints).
     """
-    if isinstance(sources, (str, os.PathLike)):
+    if isinstance(sources, (str, bytes, bytearray, os.PathLike)):
         raise TypeError(
             "process_many takes an iterable of sources, not a single path or text: pass a list, "
             "e.g. process_many([path]), or call process(path) for one document"
@@ -396,6 +396,7 @@ def _run(source: str | os.PathLike[str], cfg: RouterConfig, engines: _Engines) -
             doc.meta.setdefault("warnings", []).append(OCR_UNAVAILABLE)
 
     escalations: list[RouteDecision] = []
+    escalation_failed = False  # a backend that raised is not asked again for this document
     doc_type: DocTypeResult | None = None
     primary_type: DocTypeResult | None = None
     if cfg.doc_type != "none":
@@ -410,6 +411,7 @@ def _run(source: str | os.PathLike[str], cfg: RouterConfig, engines: _Engines) -
             except Exception as exc:  # the primary result stands (E9 ruling)
                 stage.end(error=type(exc).__name__)
                 escalations.append(_escalation_failed(cfg, "doc_type", exc))
+                escalation_failed = True
             else:
                 stage.end(type=_leaf(escalated), confidence=round(escalated.confidence, 4))
                 escalations += _doc_type_escalation(cfg, doc_type, escalated)
@@ -432,7 +434,7 @@ def _run(source: str | os.PathLike[str], cfg: RouterConfig, engines: _Engines) -
                         f"(the primary type's was {before}): every section normalised with it",
                     )
                 )
-        if cfg.escalate != "none":
+        if cfg.escalate != "none" and not escalation_failed:
             clock = time.perf_counter()
             sections, relabelled = _escalate_sections(doc, sections, cfg, engines)
             if relabelled:

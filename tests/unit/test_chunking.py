@@ -1,9 +1,11 @@
 """``chunk()``: section-aware chunks of an element list (spec §9). Documents are built by hand, so
 no PDF, no backend and no model is involved."""
 
+import time
+
 import pytest
 
-from docrooter import Document, RouterConfig
+from docrooter import Document, RouterConfig, chunking
 from docrooter.chunking import Chunk, chunk
 from docrooter.elements.models import Element, TableData
 from docrooter.errors import DocrooterError
@@ -143,14 +145,41 @@ def test_oversize_element_flagged():
     assert chunks[1].tokens > 20 and all(c.tokens <= 20 for c in (chunks[0], chunks[2]))
 
 
+def rich_doc() -> Document:
+    """Headings with a body, leaf headings with none (C, D) and a table, in five sections:
+    A (s1) > B (s1.1), C (s1.2); D (s2); E (s3)."""
+    table = TableData(rows=[["x", "y"], ["1", "2"]], header_rows=1)
+    return make_doc(
+        [
+            ("heading", "A", "s1"),  # e0
+            ("paragraph", "Intro of A.", "s1"),  # e1
+            ("heading", "B", "s1.1", {"level": 2}),  # e2
+            ("paragraph", "First of B.", "s1.1"),  # e3
+            ("table", "x y 1 2", "s1.1", {"table": table}),  # e4
+            ("heading", "C", "s1.2", {"level": 2}),  # e5: no body
+            ("heading", "D", "s2"),  # e6: no body
+            ("heading", "E", "s3"),  # e7
+            ("paragraph", "Body of E.", "s3"),  # e8
+            ("page_footer", "Page 3", "s3"),  # e9
+        ],
+        sections=[
+            {"title": "A", "level": 1},
+            {"title": "B", "level": 2},
+            {"title": "C", "level": 2},
+            {"title": "D", "level": 1},
+            {"title": "E", "level": 1},
+        ],
+    )
+
+
 def test_every_content_element_in_exactly_one_chunk():
-    doc = standard_doc()
-    for max_tokens in (512, 16, 4):
-        ids = [eid for c in chunk(doc, max_tokens=max_tokens) for eid in c.element_ids]
-        assert sorted(ids) == sorted(e.id for e in doc.elements if e.kind != "page_footer")
-    with_furniture = [eid for c in chunk(doc, include_furniture=True) for eid in c.element_ids]
-    assert sorted(with_furniture) == sorted(e.id for e in doc.elements)
-    assert chunk(doc, include_furniture=True)[-1].text == "C\n\nBody of C.\n\nPage 3"
+    for doc in (standard_doc(), rich_doc()):
+        for max_tokens in (512, 16, 4, 1):
+            ids = [eid for c in chunk(doc, max_tokens=max_tokens) for eid in c.element_ids]
+            assert sorted(ids) == sorted(e.id for e in doc.elements if e.kind != "page_footer")
+        with_furniture = [eid for c in chunk(doc, include_furniture=True) for eid in c.element_ids]
+        assert sorted(with_furniture) == sorted(e.id for e in doc.elements)
+    assert chunk(standard_doc(), include_furniture=True)[-1].text == "C\n\nBody of C.\n\nPage 3"
 
 
 def test_furniture_and_contents_are_skipped_by_default():
@@ -183,17 +212,44 @@ def test_the_opening_heading_is_in_element_ids_but_not_repeated_in_the_text():
     assert first.element_ids == ["e0", "e1"] and first.text == "A\n\nIntro of A."
 
 
-def test_a_heading_only_section_has_no_chunk():
+def test_a_section_with_no_body_gets_a_path_only_chunk():
+    chunks = chunk(rich_doc())
+    assert [(c.section_id, c.element_ids, c.flags) for c in chunks] == [
+        ("s1", ["e0", "e1"], []),
+        ("s1.1", ["e2", "e3"], []),
+        ("s1.1", ["e4"], []),  # the table
+        ("s1.2", ["e5"], ["heading_only"]),
+        ("s2", ["e6"], ["heading_only"]),
+        ("s3", ["e7", "e8"], []),
+    ]
+    c, d = chunks[3], chunks[4]
+    assert (c.text, c.heading_path, c.tokens) == ("A > C", ["A", "C"], 4)
+    assert (d.text, d.heading_path) == ("D", ["D"])
+    # a heading that opens a section with a body stays in that section's first chunk
+    assert chunks[1].text == "A > B\n\nFirst of B."
+
+
+def test_heading_only_chunk_stands_for_a_heading_before_a_table():
+    # the table chunk takes the pending heading, so nothing else is emitted for it
     doc = make_doc(
-        [
-            ("heading", "A", "s1"),
-            ("heading", "B", "s1.1", {"level": 2}),
-            ("paragraph", "Only B has text.", "s1.1"),
-        ]
+        [("heading", "A", "s1"), ("table", "a b", "s1")],
     )
     (c,) = chunk(doc)
-    assert c.section_id == "s1.1" and c.element_ids == ["e1", "e2"]
-    assert c.text == "A > B\n\nOnly B has text."
+    assert c.element_ids == ["e0", "e1"] and c.flags == []
+
+
+def test_packing_is_linear(monkeypatch):
+    doc = make_doc([("paragraph", words(20), "s1") for _ in range(4000)])
+    calls = []
+    real = chunking.estimate_tokens
+    monkeypatch.setattr(chunking, "estimate_tokens", lambda text: calls.append(1) or real(text))
+    started = time.perf_counter()
+    chunks = chunk(doc, max_tokens=100_000, overlap_elements=2)
+    elapsed = time.perf_counter() - started
+    assert len(chunks) == 2 and chunks[0].element_ids[0] == "e0"
+    assert len(calls) == len(chunks)  # one estimate per emitted chunk, none per append
+    assert elapsed < 1.0
+    assert all(c.tokens <= 100 for c in chunk(doc, max_tokens=100, overlap_elements=2))
 
 
 def test_preamble_has_no_path():

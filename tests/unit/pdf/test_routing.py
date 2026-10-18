@@ -332,18 +332,89 @@ def test_identifier_rule_does_not_rescue_consonant_soup():
     assert route_page(_page(fields))[0] == "text"
 
 
+_SPACED_TITLES = [
+    "B O A R D O F G O V E R N O R S O F T H E F E D E R A L R E S E R V E S Y S T E M",
+    "G I G A F A C T O R Y   T E X A S   -   S O U T H   E X P A N S I O N",
+    "C Y B E R T R U C K   -   C O A T I N G S   S H O P",
+    "D A T A   C E N T E R   C O N S T R U C T I O N   U P D A T E",
+    "M O N T H S   O F   G R O W T H   I N   C H A R T S",
+    "Financial Stability Report",
+    "Q2 2024 Update",
+]
+
+
 def test_letter_spaced_text_is_word_like():
-    # slide titles and cover lines set with letter spacing ("B O A R D  O F ...") are words,
-    # not single-consonant tokens (dev corpus: a report cover and a slide deck)
-    rows = [
-        _line("B O A R D O F G O V E R N O R S O F T H E F E D E R A L R E S E R V E", y0=60.0),
-        _line("G I G A F A C T O R Y   T E X A S   -   D A T A   C E N T E R", y0=80.0),
-        _line("Financial Stability Report", y0=100.0),
-        _line("13", y0=120.0),
-    ]
+    # slide titles and cover lines set with letter spacing are the words they spell (dev
+    # corpus: a report cover, doc_046 p1, and slide titles, doc_050 pp13-19)
+    from docrooter.pdf.routing import (
+        _LETTER_SPACED,
+        WORD_MIN_TOKENS,
+        _core,
+        _dictionary_like,
+        _garble_heuristic,
+    )
+
+    text = "\n".join(_SPACED_TITLES)
+    tokens = [(t, _core(t)) for t in text.split() if _core(t)]
+    plain = sum(1 for t, c in tokens if _dictionary_like(t, c))
+    assert plain / len(tokens) < 0.5  # letter by letter the page would be garbled
+    rows = [_line(t, y0=60.0 + 20 * k) for k, t in enumerate(_SPACED_TITLES * 2)]
     page = _page(rows)
     assert page_metrics(page).garbled == 0.0
     assert route_page(page)[0] == "text"
-    # spaced-out single consonants that are not a letter-spaced run still count as soup
+    # the collapsed page still has enough tokens to be judged, not waved through the gate
+    text = "\n".join(_SPACED_TITLES * 2)
+    collapsed = _LETTER_SPACED.sub(lambda m: m.group(0).replace(" ", ""), text)
+    assert len([t for t in collapsed.split() if _core(t)]) >= WORD_MIN_TOKENS
+    assert _garble_heuristic(text, 1.0) == ""
+
+
+_PROSE = (
+    "The Board of Governors of the Federal Reserve System publishes this report twice a year "
+    "to summarize its assessment of the resilience of the financial system and the risks "
+    "that could affect households businesses and markets in the coming months"
+).split()
+
+
+def _shift29(word):
+    """A word as a font with glyph codes shifted by 29 reads: a Caesar shift of 3."""
+    return "".join(chr((ord(c.lower()) - 97 + 3) % 26 + 97).upper() for c in word)
+
+
+def _wrapped(text, width=90):
+    return [_line(text[i : i + width], y0=60.0 + 14 * k) for k, i in
+            enumerate(range(0, len(text), width))]  # fmt: skip
+
+
+@pytest.mark.parametrize("gap", [" ", "  "], ids=["single", "double"])
+def test_shift29_garbage_spaced_per_glyph_routes_to_ocr(gap):
+    # broken-font text extracted one glyph at a time ("W K H  E R D U G"): the letter-spaced
+    # collapse must not turn it into a few long "words" that skip the token rule
+    text = gap.join(" ".join(_shift29(w)) for w in _PROSE)
+    route, _, decision = route_page(_page(_wrapped(text)))
+    assert route == "ocr"
+    assert "tokens look like words" in decision.reason
+
+
+def test_single_letter_junk_routes_to_ocr():
+    import random
+
+    rng = random.Random(1)
+    text = " ".join(rng.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(200))
+    route, _, decision = route_page(_page(_wrapped(text)))
+    assert route == "ocr"
+    assert "tokens look like words" in decision.reason
+    # spaced-out 2-letter consonant pairs are not a letter-spaced run and stay soup too
     junk = [_line("xk qz bv  tr pl  mn ws", y0=60.0 + 14 * k) for k in range(5)]
     assert route_page(_page(junk))[0] == "ocr"
+
+
+def test_spells_words_bounds():
+    from docrooter.pdf.routing import SPACED_MAX_LETTERS, _spells_words
+
+    assert _spells_words("C H A R T S")  # the lowest vowel share on the dev corpus, 0.17
+    assert _spells_words("B O A R D O F G O V E R N O R S")
+    assert not _spells_words("S T R N G T H S A")  # 7 consonants in a row
+    assert not _spells_words("X K Q Z")  # no vowel
+    long = " ".join("BOARD" * 10)
+    assert len(long.replace(" ", "")) > SPACED_MAX_LETTERS and not _spells_words(long)

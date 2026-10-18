@@ -10,7 +10,8 @@ All thresholds are the spec's starting values, tuned only on train-split pages.
 E5c amendments to spec §7.4 (controller ruling): the scanned-page rule replaces the text layer
 only when the page has no text-layer characters at all; a scanned page with some text is
 routed ``"text+ocr"`` (its text layer kept, OCR lines merged in). Tokens with a digit and
-identifiers such as ``GPIO_CTRL[3:0]`` count as dictionary-like.
+identifiers such as ``GPIO_CTRL[3:0]`` count as dictionary-like, and letter-spaced runs that
+look like words (bounded by length, vowel share and consonant runs) are read as words.
 """
 
 from __future__ import annotations
@@ -206,6 +207,13 @@ _LEADERS = re.compile(r"[.·…_\-\s]{3,}")
 # Four or more single letters separated by single spaces: letter-spaced type (the same
 # pattern the heading code uses to recognise letter-spaced titles).
 _LETTER_SPACED = re.compile(r"(?<![A-Za-z])(?:[A-Za-z] ){3,}[A-Za-z](?![A-Za-z])")
+# A letter-spaced run is read as the word(s) it spells only when it looks like words, so that
+# text extracted one glyph at a time from a broken font (``W K H  E R D U G``) stays single
+# letters. Tuned on the 173 letter-spaced runs of the dev corpus (4 to 41 letters, vowel
+# share 0.17 to 0.60, at most 5 consonants in a row; "C H A R T S" is the lowest share).
+SPACED_MAX_LETTERS = 48
+SPACED_MIN_VOWELS = 0.15
+SPACED_MAX_CONSONANTS = 5  # consonants in a row
 
 
 def _garble_heuristic(text: str, latin_share: float) -> str:
@@ -216,9 +224,11 @@ def _garble_heuristic(text: str, latin_share: float) -> str:
        Arabic letters are alphanumeric, so non-Latin pages pass.
     2. Fewer than half of >= 20 tokens are dictionary-like (alphabetic with a vowel, or
        containing a digit, or an identifier such as ``GPIO_CTRL[3:0]``; see
-       :func:`_dictionary_like`). Letter-spaced runs (``B O A R D``) are read as the words
-       they spell first. No word list is used, and the rule applies only when at least half
-       of the letters are Latin: scripts without vowels or spaces would always fail it.
+       :func:`_dictionary_like`). The 20 are counted on the text as extracted; then
+       letter-spaced runs that look like words (``B O A R D``; see :func:`_spells_words`)
+       are read as the words they spell. No word list is used, and the rule applies only
+       when at least half of the letters are Latin: scripts without vowels or spaces would
+       always fail it.
     """
     # Leader runs (dots, middle dots, underscores, hyphens, spaced) fill contents pages; they are
     # layout, not garbage, so they leave the symbol test.
@@ -228,13 +238,36 @@ def _garble_heuristic(text: str, latin_share: float) -> str:
         if symbols / len(chars) > SYMBOL_MAX_SHARE:
             return f"{symbols / len(chars):.2f} of characters are symbols"
     if latin_share >= LATIN_MIN_SHARE:
-        unspaced = _LETTER_SPACED.sub(lambda m: m.group(0).replace(" ", ""), text)
-        tokens = [(tok, core) for tok in unspaced.split() if (core := _core(tok))]
-        if len(tokens) >= WORD_MIN_TOKENS:
+        if sum(1 for tok in text.split() if _core(tok)) >= WORD_MIN_TOKENS:
+            unspaced = _LETTER_SPACED.sub(_unspace, text)
+            tokens = [(tok, core) for tok in unspaced.split() if (core := _core(tok))]
             good = sum(1 for tok, core in tokens if _dictionary_like(tok, core))
             if good / len(tokens) < WORD_MIN_SHARE:
                 return f"only {good / len(tokens):.2f} of tokens look like words"
     return ""
+
+
+def _unspace(match: re.Match[str]) -> str:
+    run = match.group(0)
+    return run.replace(" ", "") if _spells_words(run) else run
+
+
+def _spells_words(run: str) -> bool:
+    """Whether a letter-spaced run (``B O A R D O F``) looks like words: at most
+    ``SPACED_MAX_LETTERS`` letters, a vowel share (``y`` included) of at least
+    ``SPACED_MIN_VOWELS`` and no more than ``SPACED_MAX_CONSONANTS`` consonants in a row."""
+    letters = run.replace(" ", "").lower()
+    if len(letters) > SPACED_MAX_LETTERS:
+        return False
+    vowels = sum(1 for ch in letters if ch in _VOWELS)
+    if vowels < SPACED_MIN_VOWELS * len(letters):
+        return False
+    streak = 0
+    for ch in letters:
+        streak = 0 if ch in _VOWELS else streak + 1
+        if streak > SPACED_MAX_CONSONANTS:
+            return False
+    return True
 
 
 _PUNCT = re.compile(r"[\W_]+")

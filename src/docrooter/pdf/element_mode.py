@@ -8,8 +8,8 @@ The pipeline:
 3. OCR what needs it. A whole-page OCR page loses its text-layer lines (garbled text is
    never kept) and its ruled tables, and gets the OCR lines instead. A ``text+ocr`` page (a
    scan with some text layer) keeps every text-layer line and its tables, and gains the OCR
-   lines whose boxes overlap no text-layer line (IoU below ``MERGE_MAX_IOU``). Region OCR is
-   kept aside for the figures;
+   lines that the text layer does not already cover (less than ``MERGE_MAX_COVERED`` of the
+   OCR box under text-layer lines). Region OCR is kept aside for the figures;
 4. compute the signals on the combined lines, order them by XY-cut, and compute the signals
    again on the ordered list when the order changed;
 5. find headings on the ordered lines;
@@ -61,7 +61,7 @@ from docrooter.pdf.load import (
 )
 from docrooter.pdf.objects import PageObjects, extract_page_objects
 from docrooter.pdf.reading_order import order_lines
-from docrooter.pdf.routing import Route, RouteDecision, route_page
+from docrooter.pdf.routing import Route, RouteDecision, _union_share, route_page
 from docrooter.pdf.signals import compute_signals, read_bookmarks
 
 __all__ = ["LAYOUT_ENGINES", "load_elements", "section_text"]
@@ -73,7 +73,7 @@ _SECTION_TEXT_KINDS = frozenset(
     {"paragraph", "list_item", "table", "caption", "footnote", "formula", "figure"}
 )
 _MIN_REGION_OVERLAP = 0.5  # share of an OCR region that must lie inside its figure
-MERGE_MAX_IOU = 0.3  # text+ocr: an OCR line overlapping a text-layer line this much is a duplicate
+MERGE_MAX_COVERED = 0.5  # text+ocr: an OCR line this much under text-layer lines is a duplicate
 
 _log = logging.getLogger(__name__)
 
@@ -339,9 +339,9 @@ def _run_ocr(
             task, regions, decision = routes[k]
             objs = pages[k]
             if engine is None:
-                # Only a page that needed whole-page OCR flags the document (spec §7.4); a
-                # text-free image without OCR is just a figure without label text.
-                out.skipped = out.skipped or task == "ocr"
+                # A page that needed whole-page OCR (to replace or to merge) flags the document
+                # (spec §7.4); a text-free image without OCR is just a figure without label text.
+                out.skipped = out.skipped or task != "text"
                 decision.engine = "none"
                 decision.reason = f"needs_ocr: {decision.reason}; no OCR engine, text layer kept"
                 continue
@@ -411,10 +411,13 @@ def _to_lines(found: list[OcrLine], objs: PageObjects) -> tuple[list[Line], list
 
 
 def _new_lines(found: list[OcrLine], objs: PageObjects) -> tuple[list[Line], list[float | None]]:
-    """The OCR lines of a ``text+ocr`` page that the text layer lacks: those whose boxes
-    overlap no text-layer line by ``MERGE_MAX_IOU`` or more. Their blocks are numbered after
-    the text layer's, so a paragraph never spans both sources."""
-    fresh = [o for o in found if all(_iou(o.box, line) < MERGE_MAX_IOU for line in objs.lines)]
+    """The OCR lines of a ``text+ocr`` page that the text layer lacks: those with less than
+    ``MERGE_MAX_COVERED`` of their box under the union of the text-layer line boxes. A union,
+    so a row the text layer splits into short lines (words, cells) still covers the OCR line
+    that reads the whole row; a share of the OCR box, so an OCR line that runs on past a short
+    text-layer line keeps its extra words. Their blocks are numbered after the text layer's,
+    so a paragraph never spans both sources."""
+    fresh = [o for o in found if _covered(o.box, objs.lines) < MERGE_MAX_COVERED]
     extra, conf = _to_lines(fresh, objs)
     if extra and objs.lines:
         offset = max(line.block for line in objs.lines) + 1
@@ -422,13 +425,18 @@ def _new_lines(found: list[OcrLine], objs: PageObjects) -> tuple[list[Line], lis
     return extra, conf
 
 
-def _iou(box: Box, line: Line) -> float:
-    w = min(box.x1, line.x1) - max(box.x0, line.x0)
-    h = min(box.y1, line.y1) - max(box.y0, line.y0)
-    inter = max(w, 0.0) * max(h, 0.0)
-    union = (box.x1 - box.x0) * (box.y1 - box.y0) + (line.x1 - line.x0) * (line.y1 - line.y0)
-    union -= inter
-    return inter / union if union > 0 else 0.0
+def _covered(box: Box, lines: Sequence[Line]) -> float:
+    """The share of ``box`` under the union of the ``lines``' boxes (0 for an empty box)."""
+    width, height = box.x1 - box.x0, box.y1 - box.y0
+    if width <= 0 or height <= 0:
+        return 0.0
+    inside = [
+        Box(page=box.page, x0=line.x0 - box.x0, y0=line.y0 - box.y0,
+            x1=line.x1 - box.x0, y1=line.y1 - box.y0)
+        for line in lines
+        if line.x1 > box.x0 and line.x0 < box.x1 and line.y1 > box.y0 and line.y0 < box.y1
+    ]  # fmt: skip
+    return _union_share(inside, width, height)
 
 
 def _set_confidence(

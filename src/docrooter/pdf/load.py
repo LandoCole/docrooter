@@ -107,8 +107,8 @@ def load_pdf(
     are read by OCR, rendered at ``ocr_dpi``; a scanned page that has some text layer keeps it
     and gains the OCR lines it lacks (route ``"text+ocr"``). Without an engine pages keep their
     text layer, and ``meta["warnings"]`` gets ``"ocr_skipped"`` when a page needed whole-page
-    OCR. ``meta["needs_ocr"]`` counts what routing asked OCR for: ``pages`` to replace,
-    ``merge_pages`` and image ``regions``. ``layout`` is ``"heuristic"``.
+    OCR (to replace or to merge). ``meta["needs_ocr"]`` counts what routing asked OCR for:
+    ``pages`` to replace, ``merge_pages`` and image ``regions``. ``layout`` is ``"heuristic"``.
     ``meta["element_mode"]`` is ``True``, the timings add ``route``, ``ocr`` and ``elements``,
     and the events are ``extract``, ``route`` (progress per page), ``ocr``, ``signals``,
     ``headings``, ``elements`` (with counts by kind) and ``assemble``. ``repair`` does not

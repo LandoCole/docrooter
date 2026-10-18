@@ -609,12 +609,17 @@ def _scan_with_text_layer(tmp_path):
     return _save(doc, tmp_path / "scan_text.pdf")
 
 
-def _iou(a, b):
-    w = min(a.x1, b.x1) - max(a.x0, b.x0)
-    h = min(a.y1, b.y1) - max(a.y0, b.y0)
-    inter = max(w, 0.0) * max(h, 0.0)
-    union = (a.x1 - a.x0) * (a.y1 - a.y0) + (b.x1 - b.x0) * (b.y1 - b.y0) - inter
-    return inter / union if union > 0 else 0.0
+def _covered(box, lines):
+    """Share of ``box`` under the union of the lines' boxes, on a 0.5 pt grid (independent of
+    the implementation's sweep)."""
+    step = 0.5
+    nx, ny = int((box.x1 - box.x0) / step), int((box.y1 - box.y0) / step)
+    hit = 0
+    for i in range(nx):
+        for j in range(ny):
+            x, y = box.x0 + (i + 0.5) * step, box.y0 + (j + 0.5) * step
+            hit += any(ln.x0 <= x <= ln.x1 and ln.y0 <= y <= ln.y1 for ln in lines)
+    return hit / (nx * ny)
 
 
 def test_scanned_rule_with_text_layer_merges(tmp_path):
@@ -626,11 +631,8 @@ def test_scanned_rule_with_text_layer_merges(tmp_path):
     read = engine.recognize(b"\x89PNG", width_px=1, height_px=1, page=Box(page=1, x0=0, y0=0,
                             x1=objs.width, y1=objs.height))  # fmt: skip
     engine.calls.clear()
-    overlapping = [
-        o.text for o in read if any(_iou(o.box, Box(page=1, x0=ln.x0, y0=ln.y0, x1=ln.x1,
-                                                      y1=ln.y1)) >= 0.3 for ln in objs.lines)
-    ]  # fmt: skip
-    assert overlapping == ["Plant Survey"]  # the fixture really has one duplicate line
+    covered = [o.text for o in read if _covered(o.box, objs.lines) >= 0.5]
+    assert covered == ["Plant Survey"]  # the fixture really has one duplicate line
 
     doc = load_pdf(path, elements=True, ocr=engine)
     (route,) = doc.meta["routes"]
@@ -653,12 +655,13 @@ def test_scanned_rule_with_text_layer_merges(tmp_path):
     assert doc.meta["warnings"] == []
     assert doc.meta["needs_ocr"] == {"pages": 0, "merge_pages": 1, "regions": 0}
 
-    # Without an engine the page behaves as a text page; the route log says what it needed.
+    # Without an engine the page keeps its text layer; the route log says what it needed and
+    # the document is flagged ocr_skipped (spec §7.4: the page needed OCR).
     plain = load_pdf(path, elements=True)
     (route,) = plain.meta["routes"]
     assert route["engine"] == "none" and route["task"] == "text+ocr"
     assert route["reason"].startswith("needs_ocr: scanned page with a text layer")
-    assert plain.meta["warnings"] == []
+    assert plain.meta["warnings"] == ["ocr_skipped"]
     assert plain.meta["needs_ocr"] == {"pages": 0, "merge_pages": 1, "regions": 0}
     assert [e.text for e in plain.elements if e.text] == [
         e.text for e in doc.elements if e.source == "text" and e.text
@@ -679,3 +682,55 @@ def test_needs_ocr_counts_separate_pages_from_regions(tmp_path):
     assert photo.meta["warnings"] == []
     plain = load_pdf(GOLDEN / "single_column.pdf", elements=True)
     assert plain.meta["needs_ocr"] == {"pages": 0, "merge_pages": 0, "regions": 0}
+
+
+def _merge_page(*texts_and_boxes):
+    """A page whose text layer is the given (text, x0, y0, x1, y1) lines."""
+    from docrooter.pdf.lines import Line
+    from docrooter.pdf.objects import PageObjects
+
+    lines = [
+        Line(page=1, text=t, size=11.0, bold=False, font="helv", x0=x0, y0=y0, x1=x1, y1=y1,
+             page_height=792.0, page_width=612.0, gap_above=4.0, gap_below=4.0, block=k)
+        for k, (t, x0, y0, x1, y1) in enumerate(texts_and_boxes)
+    ]  # fmt: skip
+    return PageObjects(page=1, width=612.0, height=792.0, rotation=0, lines=lines, images=[],
+                       drawings=[], tables=[], char_count=sum(len(t) for t, *_ in texts_and_boxes),
+                       invisible_chars=0, garbled_chars=0, n_drawing_paths=0)  # fmt: skip
+
+
+def _ocr(text, x0, y0, x1, y1):
+    return OcrLine(text=text, box=Box(page=1, x0=x0, y0=y0, x1=x1, y1=y1), confidence=0.9)
+
+
+def test_merge_drops_an_ocr_row_the_text_layer_splits_into_short_lines():
+    from docrooter.pdf.element_mode import _new_lines
+
+    # the text layer has a table row as four cells; OCR reads the row as one line. Each cell
+    # alone overlaps the OCR line little (IoU < 0.3), but together they cover all of it.
+    row = _ocr("Revenue 1,204 1,317 +9%", 72, 99, 480, 113)
+    cells = _merge_page(("Revenue", 72, 99, 180, 113), ("1,204", 180, 99, 290, 113),
+                        ("1,317", 290, 99, 400, 113), ("+9%", 400, 99, 480, 113))  # fmt: skip
+    assert _covered(row.box, cells.lines) == pytest.approx(1.0, abs=0.01)
+    extra, _ = _new_lines([row], cells)
+    assert extra == []  # a row tiled by short text-layer lines is a duplicate
+    new = _ocr("Handwritten note in the margin", 72, 300, 300, 314)
+    extra, conf = _new_lines([row, new], cells)
+    assert [ln.text for ln in extra] == ["Handwritten note in the margin"] and conf == [0.9]
+    assert extra[0].block == 4  # numbered after the text layer's blocks
+
+
+def test_merge_keeps_an_ocr_line_that_runs_past_a_short_text_line():
+    from docrooter.pdf.element_mode import _new_lines
+
+    # the text layer has only the first words of a title; OCR reads the whole title. The text
+    # line is mostly inside the OCR line (IoU ~0.34 under the old rule) but covers well under
+    # half of it, so the OCR line and its extra words are kept.
+    page = _merge_page(("Plant Survey", 72, 80, 202, 108))
+    title = _ocr("Plant Survey 2024 Annual Report", 72, 80, 452, 108)
+    assert _covered(title.box, page.lines) < 0.5
+    extra, _ = _new_lines([title], page)
+    assert [ln.text for ln in extra] == ["Plant Survey 2024 Annual Report"]
+    # the same line, read only as far as the text layer goes, is a duplicate
+    extra, _ = _new_lines([_ocr("Plant Survey", 72, 81, 200, 107)], page)
+    assert extra == []

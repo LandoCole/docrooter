@@ -103,13 +103,17 @@ def load_pdf(
     types every block into ``Document.elements`` and builds the sections from them (see
     :mod:`docrooter.pdf.element_mode`). Pages are routed (``meta["routes"]``, one
     ``RouteDecision`` dump per page) and, with an ``ocr`` engine (a name, ``"auto"`` or an
-    :class:`~docrooter.ocr.OcrEngine`), scanned or garbled pages are read by OCR, rendered at
-    ``ocr_dpi``. Without one they keep their text layer and ``meta["warnings"]`` gets
-    ``"ocr_skipped"``. ``layout`` is ``"heuristic"``. ``meta["element_mode"]`` is ``True``,
-    the timings add ``route``, ``ocr`` and ``elements``, and the events are ``extract``,
-    ``route`` (progress per page), ``ocr``, ``signals``, ``headings``, ``elements`` (with counts
-    by kind) and ``assemble``. ``repair`` does not apply. Without ``elements`` the result is
-    exactly as before, and ``ocr``, ``layout`` and ``ocr_dpi`` must keep their defaults.
+    :class:`~docrooter.ocr.OcrEngine`), scanned pages without a text layer and garbled pages
+    are read by OCR, rendered at ``ocr_dpi``; a scanned page that has some text layer keeps it
+    and gains the OCR lines it lacks (route ``"text+ocr"``). Without an engine pages keep their
+    text layer, and ``meta["warnings"]`` gets ``"ocr_skipped"`` when a page needed whole-page
+    OCR. ``meta["needs_ocr"]`` counts what routing asked OCR for: ``pages`` to replace,
+    ``merge_pages`` and image ``regions``. ``layout`` is ``"heuristic"``.
+    ``meta["element_mode"]`` is ``True``, the timings add ``route``, ``ocr`` and ``elements``,
+    and the events are ``extract``, ``route`` (progress per page), ``ocr``, ``signals``,
+    ``headings``, ``elements`` (with counts by kind) and ``assemble``. ``repair`` does not
+    apply. Without ``elements`` the result is exactly as before, and ``ocr``, ``layout`` and
+    ``ocr_dpi`` must keep their defaults.
     """
     if not elements and (ocr is not None or layout != "heuristic" or ocr_dpi != 200):
         raise TypeError("ocr, layout and ocr_dpi: only valid with elements=True")

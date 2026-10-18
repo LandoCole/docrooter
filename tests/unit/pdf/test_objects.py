@@ -393,3 +393,63 @@ def test_max_pages_progress_and_errors(engine, tmp_path):
         extract_page_objects(bad, engine=engine)
     with pytest.raises(DocrooterError):
         extract_page_objects(path, engine="nope")  # type: ignore[arg-type]
+
+
+def _spy_table_finder(monkeypatch, engine):
+    """Record every call of the engine's table finder (pymupdf ``Page.find_tables`` or
+    pdfplumber ``Page.find_tables``) and still run it."""
+    calls = []
+    if engine == "pymupdf":
+        cls = pymupdf.Page
+    else:
+        import pdfplumber.page
+
+        cls = pdfplumber.page.Page
+    original = cls.find_tables
+
+    def spy(self, *args, **kwargs):
+        calls.append(self)
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(cls, "find_tables", spy)
+    return calls
+
+
+def test_find_tables_skipped_without_rulings(engine, tmp_path, monkeypatch):
+    # Curves, diagonal strokes and a filled blob: many drawing items, but no horizontal or
+    # vertical segment, so no ruled table can exist and the table finder must not run.
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((72, 100), "A page with curves and diagonals only", fontsize=12)
+    shape = page.new_shape()
+    shape.draw_circle((300, 300), 60)
+    shape.draw_bezier((100, 500), (200, 400), (300, 600), (400, 500))
+    for k in range(5):
+        shape.draw_line((100 + 20 * k, 600), (160 + 20 * k, 700))  # diagonals
+    shape.draw_polyline([(400, 600), (450, 650), (500, 600), (450, 550)])
+    shape.finish(color=(0, 0, 0), fill=(0.8, 0.8, 0.8), width=1, closePath=False)
+    shape.commit()
+    path = _save(doc, tmp_path, "curves.pdf")
+
+    calls = _spy_table_finder(monkeypatch, engine)
+    (p,) = extract_page_objects(path, engine=engine)
+    assert p.n_drawing_paths >= 1 and p.drawings  # the graphics were seen
+    assert calls == []
+    assert p.tables == []
+
+    # A ruled grid still reaches the finder, which still finds the table.
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    shape = page.new_shape()
+    for r in range(4):
+        shape.draw_line((100, 200 + 30 * r), (340, 200 + 30 * r))
+    for c in range(4):
+        shape.draw_line((100 + 80 * c, 200), (100 + 80 * c, 290))
+    shape.finish(color=(0, 0, 0), width=1)
+    shape.commit()
+    for r in range(3):
+        for c in range(3):
+            page.insert_text((135 + 80 * c, 220 + 30 * r), f"{r}{c}", fontsize=12)
+    (p,) = extract_page_objects(_save(doc, tmp_path, "grid.pdf"), engine=engine)
+    assert len(calls) == 1
+    assert len(p.tables) == 1

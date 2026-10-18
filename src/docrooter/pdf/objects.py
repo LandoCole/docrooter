@@ -23,6 +23,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from pydantic import BaseModel, Field
 
 from docrooter.elements.models import Box
@@ -49,7 +50,15 @@ __all__ = ["MAX_DRAWING_PATHS", "PageObjects", "extract_page_objects"]
 MAX_DRAWING_PATHS = 5000  # per page; above it the whole drawing area becomes one cluster
 MAX_DRAWING_CLUSTERS = 200  # per page; the largest are kept
 MAX_TABLE_PATHS = 1500  # per page; the table search is skipped on pages with more paths
-_MIN_TABLE_ITEMS = 3  # fewer drawing items than this (lines, rectangles) cannot form a grid
+# The ruled-table pre-check (``_may_hold_ruled_table``) uses the table finders' own settings
+# (pymupdf and pdfplumber share them): edges shorter than 1 pt are dropped first, positions
+# within 3 pt snap together, collinear segments within 3 pt join, and edges within 3 pt
+# intersect.
+_RULE_MIN_LENGTH = 1.0
+_RULE_SNAP = 3.0
+_RULE_JOIN = 3.0
+_RULE_INTERSECT = 3.0
+_MAX_RULE_VERTICES = 3000  # more edge crossings than this: let the finder decide
 _PYMUPDF_GAP = 3.0  # pt; drawing items this close join one cluster (``cluster_drawings`` default)
 _PDFPLUMBER_GAP = 6.0  # pt; the same for pdfplumber rects, lines and curves
 _MIN_SIDE = 0.5  # pt; a box thinner than this (after clipping) is degenerate and dropped
@@ -59,7 +68,6 @@ _MIN_TABLE_COLS = 2
 _log = logging.getLogger(__name__)
 
 _CID = re.compile(r"\(cid:\d+\)")  # pdfminer's rendering of a glyph without a Unicode mapping
-_PLAIN_SPACE = "\t\n\r\x0b\x0c"
 
 _RawBox = tuple[float, float, float, float]
 
@@ -106,17 +114,6 @@ def extract_page_objects(
 # --- shared helpers ------------------------------------------------------------------------
 
 
-def _is_garbled(ch: str) -> bool:
-    o = ord(ch)
-    return (
-        o == 0xFFFD
-        or 0xE000 <= o <= 0xF8FF  # Private Use Area
-        or (o >= 0xF0000 and (o & 0xFFFF) <= 0xFFFD)  # private use planes 15 and 16
-        or (o < 0x20 and ch not in _PLAIN_SPACE)  # C0 controls (tab, newline, … are spacing)
-        or 0x7F <= o <= 0x9F  # DEL and the C1 controls
-    )
-
-
 def _count_chars(text: str) -> tuple[int, int]:
     """``(characters, garbled characters)`` of ``text``, whitespace not counted. A pdfminer
     ``(cid:N)`` token counts as one garbled character."""
@@ -130,15 +127,22 @@ def _count_chars(text: str) -> tuple[int, int]:
     return total + t, garbled + g
 
 
+# Garbled characters: U+FFFD, the Private Use Area and private use planes 15 and 16, C0
+# controls other than tab, newline, vertical tab, form feed and carriage return, DEL and the
+# C1 controls. ``_GARBLED_SPACE`` are those of them that ``str.isspace`` also accepts (the
+# file separators and NEL); they still count as characters.
+_GARBLED = re.compile(
+    "[\ufffd\ue000-\uf8ff\U000f0000-\U000ffffd\U00100000-\U0010fffd\x00-\x08\x0e-\x1f\x7f-\x9f]"
+)
+_GARBLED_SPACE = re.compile("[\x1c-\x1f\x85]")
+
+
 def _count_plain(text: str) -> tuple[int, int]:
-    total = garbled = 0
-    for ch in text:
-        if _is_garbled(ch):
-            total += 1
-            garbled += 1
-        elif not ch.isspace():
-            total += 1
-    return total, garbled
+    """``_count_chars`` without ``(cid:N)`` tokens: garbled characters count even when
+    ``str.isspace`` accepts them, other whitespace does not."""
+    garbled = len(_GARBLED.findall(text))
+    visible = len("".join(text.split()))
+    return visible + len(_GARBLED_SPACE.findall(text)), garbled
 
 
 def _to_box(page: int, raw: Iterable[float], width: float, height: float) -> Box | None:
@@ -237,6 +241,233 @@ def _is_table(rows: list[list[str]]) -> bool:
     )
 
 
+# --- ruled-table pre-check -----------------------------------------------------------------
+#
+# The table finders (``find_tables`` with the "lines" strategy, in pymupdf and pdfplumber alike)
+# cost far more than everything else on a page: they rebuild the page's characters in Python
+# before looking at a single line. A ruled table needs cells, and cells need crossing rules, so
+# a page whose rules cannot form one table of at least two rows and two columns never reaches
+# the finder. The check below runs the finder's own grid search (snap, join, intersect, cells,
+# tables of cells sharing a corner) on the rules alone, without the text.
+
+_Rule = tuple[float, float, float]  # (position, start, end): y, x0, x1 or x, y0, y1
+
+
+def _snap_rules(rules: list[_Rule]) -> list[list[float]]:
+    """Positions within ``_RULE_SNAP`` of their neighbour (chained) moved to their mean."""
+    ordered = sorted(rules)
+    out: list[list[float]] = []
+    group: list[_Rule] = []
+    for rule in ordered:
+        if group and rule[0] > group[-1][0] + _RULE_SNAP:
+            mean = sum(r[0] for r in group) / len(group)
+            out += [[mean, r[1], r[2]] for r in group]
+            group = []
+        group.append(rule)
+    if group:
+        mean = sum(r[0] for r in group) / len(group)
+        out += [[mean, r[1], r[2]] for r in group]
+    return out
+
+
+def _join_rules(rules: list[list[float]]) -> list[list[float]]:
+    """Collinear rules that touch or nearly touch (``_RULE_JOIN``) merged into one."""
+    out: list[list[float]] = []
+    for rule in sorted(rules):
+        last = out[-1] if out else None
+        if last is not None and last[0] == rule[0] and rule[1] <= last[2] + _RULE_JOIN:
+            last[2] = max(last[2], rule[2])
+        else:
+            out.append(list(rule))
+    return out
+
+
+def _clip_rules(rules: list[_Rule], along: float, across: float) -> list[_Rule]:
+    """Rules clipped to the page, as the pymupdf finder clips its lines; ``along`` is the page
+    extent in the rules' direction, ``across`` the other one."""
+    out = []
+    for pos, start, end in rules:
+        if start > along or end < 0 or pos > across or pos < 0:
+            continue
+        out.append((pos, max(start, 0.0), min(end, along)))
+    return out
+
+
+def _may_hold_ruled_table(
+    horizontal: list[_Rule], vertical: list[_Rule], bounds: tuple[float, float] | None = None
+) -> bool:
+    """Whether the rules of a page (``horizontal`` as (y, x0, x1), ``vertical`` as
+    (x, y0, y1)) can form a ruled table of at least two rows and two columns; ``bounds`` is
+    the (width, height) the finder clips to, if it clips.
+
+    It errs towards ``True``: after merging it keeps the edges the finder drops as shorter
+    than 3 pt, and above ``_MAX_RULE_VERTICES`` crossings it does not look further."""
+    if bounds is not None:
+        horizontal = _clip_rules(horizontal, bounds[0], bounds[1])
+        vertical = _clip_rules(vertical, bounds[1], bounds[0])
+    # the finder drops edges under 1 pt before snapping; they would drag the snap positions
+    horizontal = [r for r in horizontal if r[2] - r[1] >= _RULE_MIN_LENGTH]
+    vertical = [r for r in vertical if r[2] - r[1] >= _RULE_MIN_LENGTH]
+    if len(horizontal) < 2 or len(vertical) < 2:
+        return False
+    hs = _join_rules(_snap_rules(horizontal))
+    vs = _join_rules(_snap_rules(vertical))
+    h = np.array(hs)
+    v = np.array(vs)
+    tol = _RULE_INTERSECT
+    crossing = (
+        (v[None, :, 1] <= h[:, None, 0] + tol)
+        & (v[None, :, 2] >= h[:, None, 0] - tol)
+        & (v[None, :, 0] >= h[:, None, 1] - tol)
+        & (v[None, :, 0] <= h[:, None, 2] + tol)
+    )
+    rows, cols = np.nonzero(crossing)
+    if len(rows) < 4:  # one cell needs four corners
+        return False
+    if len(rows) > _MAX_RULE_VERTICES:
+        return True
+    # vertex (x, y) -> the vertical and the horizontal rules through it
+    vertices: dict[tuple[float, float], tuple[set[int], set[int]]] = {}
+    for i, j in zip(rows.tolist(), cols.tolist(), strict=True):
+        through = vertices.setdefault((vs[j][0], hs[i][0]), (set(), set()))
+        through[0].add(j)
+        through[1].add(i)
+    return _has_grid(vertices)
+
+
+def _has_grid(vertices: dict[tuple[float, float], tuple[set[int], set[int]]]) -> bool:
+    """The finder's cell search on the rule crossings: each vertex opens the smallest cell
+    whose four corners are joined by rules; cells sharing a corner form a table. True when a
+    table has two distinct cell tops and two distinct cell lefts."""
+
+    def joined(a: tuple[float, float], b: tuple[float, float]) -> bool:
+        if a[0] == b[0] and vertices[a][0] & vertices[b][0]:
+            return True
+        return a[1] == b[1] and bool(vertices[a][1] & vertices[b][1])
+
+    points = sorted(vertices)
+    by_x: dict[float, list[tuple[float, float]]] = {}
+    by_y: dict[float, list[tuple[float, float]]] = {}
+    for point in points:
+        by_x.setdefault(point[0], []).append(point)
+        by_y.setdefault(point[1], []).append(point)
+    cells: list[tuple[float, float, float, float]] = []
+    for point in points:
+        cell = None
+        below = [q for q in by_x[point[0]] if q > point]
+        right = [q for q in by_y[point[1]] if q > point]
+        for down in below:
+            if not joined(point, down):
+                continue
+            for across in right:
+                corner = (across[0], down[1])
+                if (
+                    joined(point, across)
+                    and corner in vertices
+                    and joined(corner, across)
+                    and joined(corner, down)
+                ):
+                    cell = (point[0], point[1], corner[0], corner[1])
+                    break
+            if cell is not None:
+                break
+        if cell is not None:
+            cells.append(cell)
+    if len(cells) < 2:
+        return False
+    parent = list(range(len(cells)))
+
+    def root(k: int) -> int:
+        while parent[k] != k:
+            parent[k] = parent[parent[k]]
+            k = parent[k]
+        return k
+
+    owner: dict[tuple[float, float], int] = {}
+    for k, (x0, y0, x1, y1) in enumerate(cells):
+        for corner in ((x0, y0), (x0, y1), (x1, y0), (x1, y1)):
+            if corner in owner:
+                parent[root(k)] = root(owner[corner])
+            else:
+                owner[corner] = k
+    tables: dict[int, list[tuple[float, float, float, float]]] = {}
+    for k, cell in enumerate(cells):
+        tables.setdefault(root(k), []).append(cell)
+    return any(
+        len({c[1] for c in group}) >= _MIN_TABLE_ROWS
+        and len({c[0] for c in group}) >= _MIN_TABLE_COLS
+        for group in tables.values()
+    )
+
+
+def _pymupdf_rulings(paths: list[dict[str, Any]]) -> tuple[list[_Rule], list[_Rule]]:
+    """The rules pymupdf's table finder builds from a page's vector paths, in unrotated page
+    space: axis-parallel lines (within the snap tolerance), the sides of rectangles and quads
+    (a rectangle thinner than 3 pt is one line), and the box of every cluster of touching
+    paths, which the finder adds when the cluster holds text (here always, so nothing is
+    missed). A line counts as horizontal only when exactly level, as in the finder."""
+    horizontal: list[_Rule] = []
+    vertical: list[_Rule] = []
+
+    def line(x0: float, y0: float, x1: float, y1: float) -> None:
+        if abs(x0 - x1) > _RULE_SNAP and abs(y0 - y1) > _RULE_SNAP:
+            return  # not axis-parallel
+        if y0 == y1:
+            horizontal.append((y0, min(x0, x1), max(x0, x1)))
+        else:
+            vertical.append((min(x0, x1), min(y0, y1), max(y0, y1)))
+
+    def rect(x0: float, y0: float, x1: float, y1: float) -> None:
+        x0, x1 = min(x0, x1), max(x0, x1)
+        y0, y1 = min(y0, y1), max(y0, y1)
+        if x1 - x0 <= _RULE_SNAP and x1 - x0 < y1 - y0:  # a vertical line drawn as a box
+            line((x0 + x1) / 2, y0, (x0 + x1) / 2, y1)
+        elif y1 - y0 <= _RULE_SNAP and y1 - y0 < x1 - x0:  # a horizontal line
+            line(x0, (y0 + y1) / 2, x1, (y0 + y1) / 2)
+        else:
+            line(x0, y0, x0, y1)
+            line(x0, y1, x1, y1)
+            line(x1, y1, x1, y0)
+            line(x1, y0, x0, y0)
+
+    for path in paths:
+        items = path["items"]
+        if path.get("closePath") and items and items[0][0] == "l" and items[-1][0] == "l":
+            items = [*items, ("l", items[-1][2], items[0][1])]
+        for item in items:
+            kind = item[0]
+            if kind == "l":
+                (x0, y0), (x1, y1) = item[1], item[2]
+                line(x0, y0, x1, y1)
+            elif kind == "re":
+                rect(*item[1][:4])
+            elif kind == "qu":
+                ul, ur, ll, lr = item[1]
+                for (x0, y0), (x1, y1) in ((ul, ll), (ll, lr), (lr, ur), (ur, ul)):
+                    line(x0, y0, x1, y1)
+    for x0, y0, x1, y1 in _cluster((tuple(p["rect"]) for p in paths), _PYMUPDF_GAP):
+        rect(x0, y0, x1, y1)
+    return horizontal, vertical
+
+
+def _unrotated_size(page: Any) -> tuple[float, float]:
+    """The page size in its unrotated space, where pymupdf's finder works."""
+    width, height = float(page.rect.width), float(page.rect.height)
+    return (height, width) if int(page.rotation) in (90, 270) else (width, height)
+
+
+def _pdfplumber_rulings(page: Any) -> tuple[list[_Rule], list[_Rule]]:
+    """The horizontal and vertical edges pdfplumber's table finder starts from."""
+    horizontal: list[_Rule] = []
+    vertical: list[_Rule] = []
+    for edge in page.edges:
+        if edge.get("orientation") == "h":
+            horizontal.append((float(edge["top"]), float(edge["x0"]), float(edge["x1"])))
+        elif edge.get("orientation") == "v":
+            vertical.append((float(edge["x0"]), float(edge["top"]), float(edge["bottom"])))
+    return horizontal, vertical
+
+
 # --- pymupdf -------------------------------------------------------------------------------
 
 
@@ -296,26 +527,26 @@ def _pymupdf_page(
             return x0, y0, x1, y1
         return _transform(raw, matrix)
 
+    # One text extraction serves the image blocks, the lines and the character statistics.
+    # It keeps images too; an image block splits the text blocks around it, so a page that has
+    # one is read again without images for its lines (``extract_lines`` reads them that way).
+    textpage = page.get_textpage(flags=text_flags | pymupdf.TEXT_PRESERVE_IMAGES)
+    image_blocks = [b[:4] for b in textpage.extractBLOCKS() if b[6] == 1]
+    if image_blocks:
+        textpage = page.get_textpage(flags=text_flags)
+    # ``extract_lines`` reads the blocks sorted; the rotated path sorts them by their displayed
+    # boxes itself.
+    blocks = page.get_text("dict", textpage=textpage, sort=matrix is None)["blocks"]
     if matrix is None:
-        text_rows = list(_pymupdf_page_rows(page, page_index, text_flags))
+        text_rows = list(_pymupdf_page_rows(page, page_index, text_flags, blocks))
         vertical = False
     else:
-        text_rows, vertical = _pymupdf_display_rows(page, page_index, text_flags, matrix)
+        text_rows, vertical = _pymupdf_display_rows(page, page_index, matrix, blocks)
     lines = _finalise(text_rows)
+    char_count, garbled, invisible = _pymupdf_char_stats(page, blocks)
 
-    char_count, garbled = _count_chars(page.get_text("text", flags=text_flags))
-    invisible = sum(
-        1
-        for span in page.get_texttrace()
-        if span.get("type") == 3  # text render mode 3: neither filled nor stroked (an OCR layer)
-        for ch in span["chars"]
-        if not chr(ch[0]).isspace()
-    )
-
-    image_flags = pymupdf.TEXT_PRESERVE_IMAGES | pymupdf.TEXT_MEDIABOX_CLIP
-    image_raws = [
-        display(b[:4]) for b in page.get_text("blocks", flags=image_flags) if b[6] == 1
-    ] + [display(info["bbox"]) for info in page.get_image_info()]
+    image_raws = [display(b) for b in image_blocks]
+    image_raws += [display(info["bbox"]) for info in page.get_image_info()]
     images = _boxes(number, image_raws, width, height)
 
     paths = page.get_cdrawings()
@@ -325,7 +556,7 @@ def _pymupdf_page(
     tables: list[tuple[Box, list[list[str]]]] = []
     if len(paths) > MAX_TABLE_PATHS:
         flags.append("tables_skipped")
-    elif sum(len(p["items"]) for p in paths) >= _MIN_TABLE_ITEMS:  # no rules, no ruled table
+    elif _may_hold_ruled_table(*_pymupdf_rulings(paths), bounds=_unrotated_size(page)):
         try:
             found = page.find_tables(strategy="lines", **table_kwargs).tables
             for table in found:
@@ -348,8 +579,42 @@ def _pymupdf_page(
     )  # fmt: skip
 
 
+_FILLED_OR_STROKED = 16 | 32  # span ``char_flags``: FZ_STEXT_FILLED, FZ_STEXT_STROKED
+
+
+def _pymupdf_char_stats(page: Any, blocks: list[dict[str, Any]]) -> tuple[int, int, int]:
+    """``(characters, garbled, invisible)`` of a page from its ``dict`` text blocks, whitespace
+    not counted: the same characters as ``get_text("text")`` with the same flags. A span is
+    invisible (text render mode 3, an OCR layer) when its ``char_flags`` say it is neither
+    filled nor stroked; spans split where those flags change. Older pymupdf without
+    ``char_flags`` falls back to the page's text trace."""
+    total = garbled = invisible = 0
+    traced = False
+    for block in blocks:
+        if block.get("type") != 0:
+            continue
+        for line in block["lines"]:
+            t, g = _count_chars("".join(span["text"] for span in line["spans"]))
+            total, garbled = total + t, garbled + g
+            for span in line["spans"]:
+                flags = span.get("char_flags")
+                if flags is None:
+                    traced = True
+                elif not flags & _FILLED_OR_STROKED:
+                    invisible += sum(1 for ch in span["text"] if not ch.isspace())
+    if traced:
+        invisible = sum(
+            1
+            for span in page.get_texttrace()
+            if span.get("type") == 3  # render mode 3: neither filled nor stroked
+            for ch in span["chars"]
+            if not chr(ch[0]).isspace()
+        )
+    return total, garbled, invisible
+
+
 def _pymupdf_display_rows(
-    page: Any, page_index: int, text_flags: int, matrix: Any
+    page: Any, page_index: int, matrix: Any, blocks: list[dict[str, Any]]
 ) -> tuple[list[dict[str, Any]], bool]:
     """The rows of a rotated pymupdf page in display space, and whether any of them runs
     vertically on screen.
@@ -364,9 +629,9 @@ def _pymupdf_display_rows(
     in display space. Lines vertical in both spaces are skipped.
     """
     width, height = float(page.rect.width), float(page.rect.height)
-    blocks = [b for b in page.get_text("dict", flags=text_flags)["blocks"] if b.get("type") == 0]
     keyed = sorted(
-        ((_transform(b["bbox"], matrix), b) for b in blocks), key=lambda kb: (kb[0][3], kb[0][0])
+        ((_transform(b["bbox"], matrix), b) for b in blocks if b.get("type") == 0),
+        key=lambda kb: (kb[0][3], kb[0][0]),
     )
     rows: list[dict[str, Any]] = []
     any_vertical = False
@@ -467,7 +732,7 @@ def _pdfplumber_page(page: Any, page_index: int) -> PageObjects:
     tables: list[tuple[Box, list[list[str]]]] = []
     if len(shapes) > MAX_TABLE_PATHS:
         flags.append("tables_skipped")
-    elif len(shapes) >= _MIN_TABLE_ITEMS:  # no rules, no ruled table
+    elif shapes and _may_hold_ruled_table(*_pdfplumber_rulings(page)):
         try:
             settings = {"vertical_strategy": "lines", "horizontal_strategy": "lines"}
             for table in page.find_tables(table_settings=settings):

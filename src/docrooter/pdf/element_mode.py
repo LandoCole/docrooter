@@ -3,10 +3,13 @@
 The pipeline:
 
 1. extract the engine-neutral page objects;
-2. route every page (text layer, whole-page OCR, or region OCR for text-free images);
+2. route every page (text layer, whole-page OCR, text layer plus OCR, or region OCR for
+   text-free images);
 3. OCR what needs it. A whole-page OCR page loses its text-layer lines (garbled text is
-   never kept) and its ruled tables, and gets the OCR lines instead. Region OCR is kept aside
-   for the figures;
+   never kept) and its ruled tables, and gets the OCR lines instead. A ``text+ocr`` page (a
+   scan with some text layer) keeps every text-layer line and its tables, and gains the OCR
+   lines whose boxes overlap no text-layer line (IoU below ``MERGE_MAX_IOU``). Region OCR is
+   kept aside for the figures;
 4. compute the signals on the combined lines, order them by XY-cut, and compute the signals
    again on the ordered list when the order changed;
 5. find headings on the ordered lines;
@@ -58,7 +61,7 @@ from docrooter.pdf.load import (
 )
 from docrooter.pdf.objects import PageObjects, extract_page_objects
 from docrooter.pdf.reading_order import order_lines
-from docrooter.pdf.routing import RouteDecision, route_page
+from docrooter.pdf.routing import Route, RouteDecision, route_page
 from docrooter.pdf.signals import compute_signals, read_bookmarks
 
 __all__ = ["LAYOUT_ENGINES", "load_elements", "section_text"]
@@ -70,16 +73,18 @@ _SECTION_TEXT_KINDS = frozenset(
     {"paragraph", "list_item", "table", "caption", "footnote", "formula", "figure"}
 )
 _MIN_REGION_OVERLAP = 0.5  # share of an OCR region that must lie inside its figure
+MERGE_MAX_IOU = 0.3  # text+ocr: an OCR line overlapping a text-layer line this much is a duplicate
 
 _log = logging.getLogger(__name__)
 
 
 @dataclass
 class _Ocr:
-    """What the OCR stage produced: replacement lines per page (with their confidences) and
-    the text of OCR'd image regions."""
+    """What the OCR stage produced: replacement lines per page (with their confidences), lines
+    to add to ``text+ocr`` pages, and the text of OCR'd image regions."""
 
     pages: dict[int, tuple[list[Line], list[float | None]]] = field(default_factory=dict)
+    added: dict[int, tuple[list[Line], list[float | None]]] = field(default_factory=dict)
     regions: list[tuple[Box, str, float | None]] = field(default_factory=list)
     skipped: bool = False  # a page needed whole-page OCR and there was no engine
     failed: bool = False  # an engine call raised
@@ -153,16 +158,18 @@ def load_elements(
     clock = _tick(timings, "extract", clock)
 
     stage = events.start("route")
-    routes: list[tuple[Literal["text", "ocr"], list[Box], RouteDecision]] = []
+    routes: list[tuple[Route, list[Box], RouteDecision]] = []
     for objs in pages:
         routes.append(route_page(objs))
         if stage.active:
             stage.progress(**routes[-1][2].model_dump())
+    needs_ocr = _needs_ocr(routes)
     if stage.active:
         stage.end(
             pages=n_read,
-            ocr=sum(1 for task, _, _ in routes if task == "ocr"),
-            regions=sum(len(regions) for _, regions, _ in routes),
+            ocr=needs_ocr["pages"],
+            merge=needs_ocr["merge_pages"],
+            regions=needs_ocr["regions"],
         )
     clock = _tick(timings, "route", clock)
 
@@ -180,6 +187,13 @@ def load_elements(
             source += ["ocr"] * len(page_lines)
             confidence += page_conf
             build_pages.append(objs.model_copy(update={"lines": page_lines, "tables": []}))
+        elif objs.page in found.added:
+            extra, extra_conf = found.added[objs.page]
+            lines += objs.lines + extra
+            source += ["text"] * len(objs.lines)
+            source += ["ocr"] * len(extra)
+            confidence += [None] * len(objs.lines) + extra_conf
+            build_pages.append(objs.model_copy(update={"lines": objs.lines + extra}))
         else:
             lines += objs.lines
             source += ["text"] * len(objs.lines)
@@ -252,9 +266,21 @@ def load_elements(
         "body_size": signals.body_size,
         "warnings": warnings,
         "routes": [decision.model_dump() for _, _, decision in routes],
+        "needs_ocr": needs_ocr,
         "element_mode": True,
     }
     return doc
+
+
+def _needs_ocr(routes: Sequence[tuple[Route, list[Box], RouteDecision]]) -> dict[str, int]:
+    """What routing asked OCR for, page level apart from region level: pages to replace
+    (``pages``), pages to merge (``merge_pages``, ``text+ocr``) and text-free image regions
+    (``regions``). Whether an engine did it is in each decision's ``engine``."""
+    return {
+        "pages": sum(1 for task, _, _ in routes if task == "ocr"),
+        "merge_pages": sum(1 for task, _, _ in routes if task == "text+ocr"),
+        "regions": sum(len(regions) for _, regions, _ in routes),
+    }
 
 
 def _tick(timings: dict[str, float], key: str, since: float) -> float:
@@ -278,15 +304,15 @@ def _page_count(path: Path, engine: str) -> int:
 def _run_ocr(
     path: Path,
     pages: Sequence[PageObjects],
-    routes: list[tuple[Literal["text", "ocr"], list[Box], RouteDecision]],
+    routes: list[tuple[Route, list[Box], RouteDecision]],
     ocr: str | OcrEngine | None,
     dpi: int,
 ) -> _Ocr:
     """OCR the routed pages and regions with ``ocr``; update each decision's engine and reason
     in place. Emits the ``ocr`` stage (always, so the event order is fixed)."""
     out = _Ocr()
-    todo = [k for k, (task, regions, _) in enumerate(routes) if task == "ocr" or regions]
-    n_pages = sum(1 for k in todo if routes[k][0] == "ocr")
+    todo = [k for k, (task, regions, _) in enumerate(routes) if task != "text" or regions]
+    n_pages = sum(1 for k in todo if routes[k][0] != "text")
     n_regions = sum(len(routes[k][1]) for k in todo)
     owned = isinstance(ocr, str)
     engine: OcrEngine | None = None
@@ -321,16 +347,22 @@ def _run_ocr(
                 continue
             decision.engine = name or "ocr"
             try:
-                if task == "ocr":
+                if task != "text":
                     whole = Box(page=objs.page, x0=0.0, y0=0.0, x1=objs.width, y1=objs.height)
                     found = _recognize(engine, path, whole, dpi, clip=False)
                     page_lines, page_conf = _to_lines(found, objs)
-                    out.pages[objs.page] = (page_lines, page_conf)
-                    n_lines += len(page_lines)
                     decision.metrics["ocr_lines"] = float(len(page_lines))
                     known = [c for c in page_conf if c is not None]
                     if known:
                         decision.metrics["ocr_confidence"] = round(statistics.fmean(known), 4)
+                    if task == "ocr":
+                        out.pages[objs.page] = (page_lines, page_conf)
+                        n_lines += len(page_lines)
+                    else:
+                        extra, extra_conf = _new_lines(found, objs)
+                        out.added[objs.page] = (extra, extra_conf)
+                        n_lines += len(extra)
+                        decision.metrics["ocr_added"] = float(len(extra))
                 else:
                     for region in regions:
                         found = _recognize(engine, path, region, dpi, clip=True)
@@ -345,6 +377,7 @@ def _run_ocr(
                 _log.warning("OCR failed on page %d", objs.page, exc_info=True)
                 out.failed = True
                 out.pages.pop(objs.page, None)
+                out.added.pop(objs.page, None)
                 failure = f"OCR failed ({type(exc).__name__}), text layer kept"
                 decision.reason = f"{decision.reason}; {failure}"
             if stage.active:
@@ -352,7 +385,12 @@ def _run_ocr(
     finally:
         if owned and engine is not None:
             engine.close()
-    stage.end(pages=len(out.pages), regions=len(out.regions), lines=n_lines, skipped=out.skipped)
+    stage.end(
+        pages=len(out.pages) + len(out.added),
+        regions=len(out.regions),
+        lines=n_lines,
+        skipped=out.skipped,
+    )
     return out
 
 
@@ -370,6 +408,27 @@ def _to_lines(found: list[OcrLine], objs: PageObjects) -> tuple[list[Line], list
     page_lines = ocr_lines_to_lines(found, objs.page, objs.width, objs.height)
     kept: list[float | None] = [o.confidence for o in found if _has_alnum(" ".join(o.text.split()))]
     return page_lines, kept if len(kept) == len(page_lines) else [None] * len(page_lines)
+
+
+def _new_lines(found: list[OcrLine], objs: PageObjects) -> tuple[list[Line], list[float | None]]:
+    """The OCR lines of a ``text+ocr`` page that the text layer lacks: those whose boxes
+    overlap no text-layer line by ``MERGE_MAX_IOU`` or more. Their blocks are numbered after
+    the text layer's, so a paragraph never spans both sources."""
+    fresh = [o for o in found if all(_iou(o.box, line) < MERGE_MAX_IOU for line in objs.lines)]
+    extra, conf = _to_lines(fresh, objs)
+    if extra and objs.lines:
+        offset = max(line.block for line in objs.lines) + 1
+        extra = [line.model_copy(update={"block": line.block + offset}) for line in extra]
+    return extra, conf
+
+
+def _iou(box: Box, line: Line) -> float:
+    w = min(box.x1, line.x1) - max(box.x0, line.x0)
+    h = min(box.y1, line.y1) - max(box.y0, line.y0)
+    inter = max(w, 0.0) * max(h, 0.0)
+    union = (box.x1 - box.x0) * (box.y1 - box.y0) + (line.x1 - line.x0) * (line.y1 - line.y0)
+    union -= inter
+    return inter / union if union > 0 else 0.0
 
 
 def _set_confidence(

@@ -143,13 +143,18 @@ def _pymupdf_rows(
             progress(page_index + 1, total)
 
 
-def _pymupdf_page_rows(page: Any, page_index: int, flags: int) -> Iterator[dict[str, Any]]:
+def _pymupdf_page_rows(
+    page: Any, page_index: int, flags: int, blocks: list[dict[str, Any]] | None = None
+) -> Iterator[dict[str, Any]]:
     """The rows of one pymupdf page, in unrotated page space (text running vertically in that
     space is skipped). This is what :func:`extract_lines` has always produced; the display-space
-    variant for rotated pages is in :mod:`docrooter.pdf.objects`."""
+    variant for rotated pages is in :mod:`docrooter.pdf.objects`. ``blocks`` is the page's
+    ``get_text("dict", flags=flags, sort=True)["blocks"]`` when the caller already has it."""
     width, height = float(page.rect.width), float(page.rect.height)
+    if blocks is None:
+        blocks = page.get_text("dict", flags=flags, sort=True)["blocks"]
     block_no = -1
-    for block in page.get_text("dict", flags=flags, sort=True)["blocks"]:
+    for block in blocks:
         if block.get("type") != 0:
             continue
         block_no += 1

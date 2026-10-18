@@ -595,3 +595,87 @@ def test_furniture_lines_releases_interior_bare_numbers():
     lines = [line("ACME Report", 30), line("Body text above", 100), line("2024", 200),
              line("Body text below", 300), line("7", 760)]  # fmt: skip
     assert furniture_lines(lines, {0, 2, 4}) == {0, 4}
+
+
+def _scan_with_text_layer(tmp_path):
+    """A scanned page (full-page image) that also carries a few text-layer lines: a heading
+    the OCR engine reads again, a caption and a page number. 31 characters over the page is
+    well under 2 per square inch."""
+    doc = pymupdf.open()
+    page = _scan_page(doc)
+    page.insert_text((72, 102), "Plant Survey", fontsize=22, fontname="hebo")
+    page.insert_text((72, 700), "Figure 3 plant layout", fontsize=11, fontname="helv")
+    page.insert_text((300, 770), "12", fontsize=9, fontname="helv")
+    return _save(doc, tmp_path / "scan_text.pdf")
+
+
+def _iou(a, b):
+    w = min(a.x1, b.x1) - max(a.x0, b.x0)
+    h = min(a.y1, b.y1) - max(a.y0, b.y0)
+    inter = max(w, 0.0) * max(h, 0.0)
+    union = (a.x1 - a.x0) * (a.y1 - a.y0) + (b.x1 - b.x0) * (b.y1 - b.y0) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def test_scanned_rule_with_text_layer_merges(tmp_path):
+    path = _scan_with_text_layer(tmp_path)
+    (objs,) = extract_page_objects(path, engine="pymupdf")
+    text_layer = [ln.text for ln in objs.lines]
+    assert text_layer == ["Plant Survey", "Figure 3 plant layout", "12"]
+    engine = FakeOcr(pages={1: _ocr_page("Plant Survey")})  # heading again, then 4 body lines
+    read = engine.recognize(b"\x89PNG", width_px=1, height_px=1, page=Box(page=1, x0=0, y0=0,
+                            x1=objs.width, y1=objs.height))  # fmt: skip
+    engine.calls.clear()
+    overlapping = [
+        o.text for o in read if any(_iou(o.box, Box(page=1, x0=ln.x0, y0=ln.y0, x1=ln.x1,
+                                                      y1=ln.y1)) >= 0.3 for ln in objs.lines)
+    ]  # fmt: skip
+    assert overlapping == ["Plant Survey"]  # the fixture really has one duplicate line
+
+    doc = load_pdf(path, elements=True, ocr=engine)
+    (route,) = doc.meta["routes"]
+    assert (route["scope"], route["task"], route["engine"]) == ("page", "text+ocr", "fake")
+    assert route["reason"].startswith("scanned page with a text layer")
+    assert route["metrics"]["ocr_lines"] == 5.0 and route["metrics"]["ocr_added"] == 4.0
+    assert len(engine.calls) == 1
+    texts = [e.text for e in doc.elements]
+    joined = "\n".join(texts)
+    for line in text_layer:  # every text-layer line is kept
+        assert line in joined
+    assert joined.count("Plant Survey") == 1  # the overlapping OCR line was not added
+    for o in read[1:]:  # the OCR lines that overlap nothing were added
+        assert o.text in joined
+    by_text = {e.text: e for e in doc.elements}
+    assert by_text["Plant Survey"].source == "text"
+    ocr = [e for e in doc.elements if e.source == "ocr"]
+    assert ocr and all("Scanned body text" in e.text for e in ocr)
+    assert all(e.confidence == pytest.approx(0.9) for e in ocr)
+    assert doc.meta["warnings"] == []
+    assert doc.meta["needs_ocr"] == {"pages": 0, "merge_pages": 1, "regions": 0}
+
+    # Without an engine the page behaves as a text page; the route log says what it needed.
+    plain = load_pdf(path, elements=True)
+    (route,) = plain.meta["routes"]
+    assert route["engine"] == "none" and route["task"] == "text+ocr"
+    assert route["reason"].startswith("needs_ocr: scanned page with a text layer")
+    assert plain.meta["warnings"] == []
+    assert plain.meta["needs_ocr"] == {"pages": 0, "merge_pages": 1, "regions": 0}
+    assert [e.text for e in plain.elements if e.text] == [
+        e.text for e in doc.elements if e.source == "text" and e.text
+    ]
+
+
+def test_needs_ocr_counts_separate_pages_from_regions(tmp_path):
+    # Review minor (E5b): page-level and region-level OCR needs are counted apart
+    scanned = load_pdf(GOLDEN / "scanned.pdf", elements=True)
+    assert scanned.meta["needs_ocr"] == {"pages": 2, "merge_pages": 0, "regions": 0}
+    doc = pymupdf.open()
+    page = _text_page(doc, "Overview", lines=4)
+    pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 30), False)
+    pix.set_rect(pix.irect, (30, 120, 200))
+    page.insert_image(pymupdf.Rect(100, 300, 500, 600), stream=pix.tobytes("png"))
+    photo = load_pdf(_save(doc, tmp_path / "photo.pdf"), elements=True)
+    assert photo.meta["needs_ocr"] == {"pages": 0, "merge_pages": 0, "regions": 1}
+    assert photo.meta["warnings"] == []
+    plain = load_pdf(GOLDEN / "single_column.pdf", elements=True)
+    assert plain.meta["needs_ocr"] == {"pages": 0, "merge_pages": 0, "regions": 0}

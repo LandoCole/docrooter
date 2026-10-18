@@ -6,6 +6,11 @@ OCR engine. Engine selection and profiles live in ``docrooter.rooter``; the rout
 (``Document.meta["routes"]``) is a list of :class:`RouteDecision` dumps.
 
 All thresholds are the spec's starting values, tuned only on train-split pages.
+
+E5c amendments to spec §7.4 (controller ruling): the scanned-page rule replaces the text layer
+only when the page has no text-layer characters at all; a scanned page with some text is
+routed ``"text+ocr"`` (its text layer kept, OCR lines merged in). Tokens with a digit and
+identifiers such as ``GPIO_CTRL[3:0]`` count as dictionary-like.
 """
 
 from __future__ import annotations
@@ -19,7 +24,11 @@ from docrooter.elements.models import Box
 from docrooter.pdf.lines import Line
 from docrooter.pdf.objects import PageObjects
 
-__all__ = ["PageMetrics", "RouteDecision", "page_metrics", "route_page"]
+__all__ = ["PageMetrics", "Route", "RouteDecision", "page_metrics", "route_page"]
+
+Route = Literal["text", "ocr", "text+ocr"]
+"""How a page is read: its text layer, whole-page OCR replacing it, or the text layer with the
+OCR lines that overlap none of its lines added (a scan that carries some text)."""
 
 _PT2_PER_IN2 = 72.0 * 72.0
 
@@ -53,7 +62,7 @@ class PageMetrics(BaseModel):
 class RouteDecision(BaseModel):
     scope: Literal["document", "page", "region"]
     target: int | list[float] | None  # a page number, or a region box [x0, y0, x1, y1]
-    task: str  # "text" or "ocr"
+    task: str  # "text", "ocr" or "text+ocr"
     engine: str  # "text" for the text layer; "auto" for OCR until the rooter resolves it
     reason: str
     metrics: dict[str, float] = Field(default_factory=dict)
@@ -64,24 +73,34 @@ def page_metrics(objs: PageObjects) -> PageMetrics:
     return _measure(objs)[0]
 
 
-def route_page(objs: PageObjects) -> tuple[Literal["text", "ocr"], list[Box], RouteDecision]:
+def route_page(objs: PageObjects) -> tuple[Route, list[Box], RouteDecision]:
     """Decide how to read one page.
 
-    Returns ``("ocr", [], decision)`` for whole-page OCR and ``("text", regions, decision)``
-    otherwise, where ``regions`` are the image placements to OCR for figure text (empty if
-    none). A region decision has ``scope="region"`` and the union box of the regions as its
-    target; its ``reason`` gives their number.
+    Returns ``("ocr", [], decision)`` for whole-page OCR, ``("text+ocr", [], decision)`` for a
+    scanned page that has a text layer (keep it and add the OCR lines it lacks), and
+    ``("text", regions, decision)`` otherwise, where ``regions`` are the image placements to
+    OCR for figure text (empty if none). A region decision has ``scope="region"`` and the
+    union box of the regions as its target; its ``reason`` gives their number.
+
+    Whole-page replacement is for pages whose text layer is unusable: none at all (a scan
+    with zero text-layer characters), garbled, or a hidden layer that is junk. A scanned page
+    with some text-layer characters keeps them (``text+ocr``).
     """
     metrics, garble_reason, images, dropped = _measure(objs)
     log = metrics.model_dump()
     log["images_capped"] = float(dropped)  # image placements ignored beyond MAX_IMAGES
-    whole = _whole_page_reason(metrics, garble_reason)
-    if whole is not None:
+    route, reason = _page_route(objs, metrics, garble_reason)
+    if route != "text":
         return (
-            "ocr",
+            route,
             [],
             RouteDecision(
-                scope="page", target=objs.page, task="ocr", engine="auto", reason=whole, metrics=log
+                scope="page",
+                target=objs.page,
+                task=route,
+                engine="auto",
+                reason=reason,
+                metrics=log,
             ),
         )
     regions = _text_free_images(objs, images)
@@ -114,12 +133,24 @@ def route_page(objs: PageObjects) -> tuple[Literal["text", "ocr"], list[Box], Ro
     )
 
 
+def _page_route(objs: PageObjects, metrics: PageMetrics, garble_reason: str) -> tuple[Route, str]:
+    """The page-level route and its reason (``"text"`` and ``""`` when no rule fires)."""
+    scanned = metrics.image_cov >= SCAN_IMAGE_COV and metrics.char_density < SCAN_CHAR_DENSITY
+    coverage = (
+        f"image coverage {metrics.image_cov:.2f}, {metrics.char_density:.2f} chars per square inch"
+    )
+    if scanned and objs.char_count == 0:
+        return "ocr", f"scanned page: {coverage}"
+    whole = _whole_page_reason(metrics, garble_reason)
+    if whole is not None:  # garbled text is never kept, scan or not
+        return "ocr", whole
+    if scanned:
+        return "text+ocr", f"scanned page with a text layer ({objs.char_count} chars): {coverage}"
+    return "text", ""
+
+
 def _whole_page_reason(metrics: PageMetrics, garble_reason: str) -> str | None:
-    if metrics.image_cov >= SCAN_IMAGE_COV and metrics.char_density < SCAN_CHAR_DENSITY:
-        return (
-            f"scanned page: image coverage {metrics.image_cov:.2f}, "
-            f"{metrics.char_density:.2f} chars per square inch"
-        )
+    """The reason to replace a page's text layer that has characters, or ``None``."""
     if metrics.garbled > GARBLED_MAX:
         return f"garbled text layer: {garble_reason or f'{metrics.garbled:.2f} of characters'}"
     # A hidden text layer is an old OCR pass. The spec leaves "the invisible text is garbled"
@@ -172,6 +203,9 @@ def _latin_share(text: str) -> float:
 
 
 _LEADERS = re.compile(r"[.·…_\-\s]{3,}")
+# Four or more single letters separated by single spaces: letter-spaced type (the same
+# pattern the heading code uses to recognise letter-spaced titles).
+_LETTER_SPACED = re.compile(r"(?<![A-Za-z])(?:[A-Za-z] ){3,}[A-Za-z](?![A-Za-z])")
 
 
 def _garble_heuristic(text: str, latin_share: float) -> str:
@@ -181,8 +215,10 @@ def _garble_heuristic(text: str, latin_share: float) -> str:
        three or more leader characters (``[.·…_-]`` and spaces) are removed. CJK, Cyrillic and
        Arabic letters are alphanumeric, so non-Latin pages pass.
     2. Fewer than half of >= 20 tokens are dictionary-like (alphabetic with a vowel, or
-       numeric). No word list is used, and the rule applies only when at least half of the
-       letters are Latin: scripts without vowels or spaces would always fail it.
+       containing a digit, or an identifier such as ``GPIO_CTRL[3:0]``; see
+       :func:`_dictionary_like`). Letter-spaced runs (``B O A R D``) are read as the words
+       they spell first. No word list is used, and the rule applies only when at least half
+       of the letters are Latin: scripts without vowels or spaces would always fail it.
     """
     # Leader runs (dots, middle dots, underscores, hyphens, spaced) fill contents pages; they are
     # layout, not garbage, so they leave the symbol test.
@@ -192,9 +228,10 @@ def _garble_heuristic(text: str, latin_share: float) -> str:
         if symbols / len(chars) > SYMBOL_MAX_SHARE:
             return f"{symbols / len(chars):.2f} of characters are symbols"
     if latin_share >= LATIN_MIN_SHARE:
-        tokens = [core for core in (_core(tok) for tok in text.split()) if core]
+        unspaced = _LETTER_SPACED.sub(lambda m: m.group(0).replace(" ", ""), text)
+        tokens = [(tok, core) for tok in unspaced.split() if (core := _core(tok))]
         if len(tokens) >= WORD_MIN_TOKENS:
-            good = sum(1 for core in tokens if _dictionary_like(core))
+            good = sum(1 for tok, core in tokens if _dictionary_like(tok, core))
             if good / len(tokens) < WORD_MIN_SHARE:
                 return f"only {good / len(tokens):.2f} of tokens look like words"
     return ""
@@ -208,10 +245,25 @@ def _core(token: str) -> str:
     return _PUNCT.sub("", token)
 
 
-def _dictionary_like(core: str) -> bool:
-    if core.isdigit():
+# A register or signal name: ``GPIO_CTRL[3:0]``, ``SPI_CR1.CPHA``, ``PLL_CFG`` (word-like
+# when it has an underscore or a bracket; see ``_dictionary_like``).
+_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_\[\]:.]*$")
+_TOKEN_EDGE = "()[]{},;:'\"!?"  # punctuation around a token in running text
+
+
+def _dictionary_like(token: str, core: str) -> bool:
+    """Whether a token looks like a word: ``core`` (the token without punctuation) is
+    alphabetic with a vowel or contains a digit (numbers, ``0x4000_0000``, ``(1,204.5)``,
+    ``TIM2``), or the token is an identifier with an underscore or a bracket. Datasheets and
+    register maps are full of the last two."""
+    if any(ch.isdigit() for ch in core):
         return True
-    return core.isalpha() and any(ch in _VOWELS for ch in core.lower())
+    if core.isalpha() and any(ch in _VOWELS for ch in core.lower()):
+        return True
+    for candidate in (token, token.strip(_TOKEN_EDGE)):
+        if ("_" in candidate or "[" in candidate) and _IDENTIFIER.match(candidate):
+            return True
+    return False
 
 
 # --- geometry ------------------------------------------------------------------------------

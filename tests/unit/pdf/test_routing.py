@@ -79,16 +79,52 @@ def test_empty_page_routes_to_text():
 
 
 def test_scanned_page_routes_to_ocr():
-    # a 90% image over 47 characters: char_density 0.5 per square inch is below 2
+    # a 90% image over 47 characters: char_density 0.5 per square inch is below 2. The page
+    # has a text layer, so it is merged with OCR, not replaced (E5c; see the tests below)
     page = _page([_line("scan note")], [_box(0, 0, W, 0.9 * H)], char_count=47)
     metrics = page_metrics(page)
     assert metrics.image_cov == pytest.approx(0.9)
     assert metrics.char_density == pytest.approx(0.5, abs=0.01)
     route, regions, decision = route_page(page)
+    assert route == "text+ocr"
+    assert regions == []
+    assert (decision.scope, decision.target, decision.task) == ("page", 1, "text+ocr")
+    assert "image" in decision.reason
+
+
+def test_scanned_rule_with_text_layer_merges():
+    # image_cov >= 0.75, char_density < 2 and some text-layer lines: keep them, add OCR
+    lines = [_line("Figure 3: plant layout", y0=700.0), _line("Page 12", y0=760.0)]
+    page = _page(lines, [_box(0, 0, W, 0.85 * H)])
+    metrics = page_metrics(page)
+    assert metrics.image_cov >= 0.75 and metrics.char_density < 2.0
+    route, regions, decision = route_page(page)
+    assert route == "text+ocr"
+    assert regions == []
+    assert (decision.scope, decision.target, decision.task, decision.engine) == (
+        "page", 1, "text+ocr", "auto",
+    )  # fmt: skip
+    assert decision.reason.startswith("scanned page with a text layer")
+
+
+def test_no_text_layer_page_still_replaced():
+    # zero text-layer characters: whole-page OCR replaces the (empty) text layer
+    page = _page([], [_box(0, 0, W, H)], char_count=0)
+    route, regions, decision = route_page(page)
     assert route == "ocr"
     assert regions == []
     assert (decision.scope, decision.target, decision.task) == ("page", 1, "ocr")
-    assert "image" in decision.reason
+    assert decision.reason.startswith("scanned page")
+    # characters without a single line (punctuation only) are still a text layer
+    assert route_page(_page([], [_box(0, 0, W, H)], char_count=3))[0] == "text+ocr"
+
+
+def test_scanned_page_with_a_garbled_text_layer_is_replaced():
+    # garbled text is never kept, so the garbled rule wins over the merge
+    page = _page(_text_lines(2), [_box(0, 0, W, H)], char_count=300, garbled=60)
+    route, _, decision = route_page(page)
+    assert route == "ocr"
+    assert "garbled" in decision.reason
 
 
 def test_dense_text_over_a_full_page_image_stays_text():
@@ -257,3 +293,57 @@ def test_many_image_placements_are_capped_and_bounded():
 def test_few_images_are_not_capped():
     _, _, decision = route_page(_page(_text_lines(), [_box(0, 0, 10, 10)]))
     assert decision.metrics["images_capped"] == 0.0
+
+
+_REGISTER_ROWS = [  # address, field, access, reset value, then a short description
+    "0x4000_0000 GPIO_CTRL[3:0] RW 0x0000 Pin function select",
+    "0x4000_0004 GPIO_DATA[7:0] RW 0x00FF Output data value",
+    "0x4000_0008 PLL_CFG[1:0] RO 0x0001 Clock lock state",
+    "0x4000_000C UART_BRR[15:0] RW 0x0000 Baud rate divider",
+    "0x4000_0010 SPI_CR1[2] RW 0x0000 Clock phase bit",
+    "0x4000_0014 TIM2_ARR[31:0] WO 0xFFFF Timer reload value",
+]
+
+
+def test_hex_and_identifier_tokens_are_word_like():
+    # a datasheet register page: addresses, register fields and access codes between plain
+    # English descriptions; the tokens containing digits, underscores or brackets are words
+    rows = [_line(text, y0=60.0 + 14 * k) for k, text in enumerate(_REGISTER_ROWS * 4)]
+    page = _page(rows)
+    # under the old rule (alphabetic with a vowel, or all digits) this page was garbled
+    from docrooter.pdf.routing import _core
+
+    tokens = [_core(tok) for row in _REGISTER_ROWS for tok in row.split()]
+    plain = [
+        t for t in tokens if t.isdigit() or (t.isalpha() and any(c in "aeiouAEIOU" for c in t))
+    ]
+    assert len(plain) / len(tokens) < 0.5
+    assert page_metrics(page).garbled == 0.0
+    route, _, decision = route_page(page)
+    assert route == "text", decision.reason
+
+
+def test_identifier_rule_does_not_rescue_consonant_soup():
+    # the identifier rule needs an underscore or a bracket (or a digit): plain consonant
+    # tokens are still not word-like
+    junk = [_line("xkcd qwrt zzzz bcdf ghjk lmnp tvwx", y0=60.0 + 14 * k) for k in range(5)]
+    assert route_page(_page(junk))[0] == "ocr"
+    fields = [_line("PLL_CFG RW_EN CLK_SRC[1] TX_FIFO", y0=60.0 + 14 * k) for k in range(8)]
+    assert route_page(_page(fields))[0] == "text"
+
+
+def test_letter_spaced_text_is_word_like():
+    # slide titles and cover lines set with letter spacing ("B O A R D  O F ...") are words,
+    # not single-consonant tokens (dev corpus: a report cover and a slide deck)
+    rows = [
+        _line("B O A R D O F G O V E R N O R S O F T H E F E D E R A L R E S E R V E", y0=60.0),
+        _line("G I G A F A C T O R Y   T E X A S   -   D A T A   C E N T E R", y0=80.0),
+        _line("Financial Stability Report", y0=100.0),
+        _line("13", y0=120.0),
+    ]
+    page = _page(rows)
+    assert page_metrics(page).garbled == 0.0
+    assert route_page(page)[0] == "text"
+    # spaced-out single consonants that are not a letter-spaced run still count as soup
+    junk = [_line("xk qz bv  tr pl  mn ws", y0=60.0 + 14 * k) for k in range(5)]
+    assert route_page(_page(junk))[0] == "ocr"

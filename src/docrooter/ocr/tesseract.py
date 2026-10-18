@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from collections import defaultdict
@@ -18,6 +19,7 @@ _LANG = {
     "ru": "rus", "zh": "chi_sim", "ja": "jpn", "ko": "kor", "ar": "ara",
 }  # fmt: skip
 _TIMEOUT = 300  # seconds per image
+_LANG_OK = re.compile(r"[A-Za-z0-9_]+(\+[A-Za-z0-9_]+)*")  # "eng", "deu+eng", "chi_sim"
 
 
 class TesseractEngine:
@@ -27,6 +29,11 @@ class TesseractEngine:
     name = "tesseract"
 
     def __init__(self, *, lang: str = "en") -> None:
+        language = _LANG.get(lang, lang)
+        if not _LANG_OK.fullmatch(language):
+            raise ValueError(
+                f"invalid tesseract language {lang!r}: use codes such as 'eng' or 'deu+eng'"
+            )
         binary = shutil.which("tesseract")
         if binary is None:
             raise DocrooterError(
@@ -34,16 +41,19 @@ class TesseractEngine:
                 "(macOS: brew install tesseract; Debian/Ubuntu: apt install tesseract-ocr)"
             )
         self._binary = binary
-        self._lang = _LANG.get(lang, lang)
+        self._lang = language
 
     def recognize(self, image: bytes, *, width_px: int, height_px: int, page: Box) -> list[OcrLine]:
-        proc = subprocess.run(
-            [self._binary, "stdin", "stdout", "-l", self._lang, "--psm", "3", "tsv"],
-            input=image,
-            capture_output=True,
-            timeout=_TIMEOUT,
-            check=False,
-        )
+        try:
+            proc = subprocess.run(
+                [self._binary, "stdin", "stdout", "-l", self._lang, "--psm", "3", "tsv"],
+                input=image,
+                capture_output=True,
+                timeout=_TIMEOUT,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            raise DocrooterError(f"tesseract timed out after {_TIMEOUT} s") from None
         if proc.returncode != 0:
             detail = proc.stderr.decode("utf-8", "replace").strip()
             raise DocrooterError(f"tesseract failed (exit {proc.returncode}): {detail}")

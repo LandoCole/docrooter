@@ -31,6 +31,7 @@ INVISIBLE_MAX = 0.5  # invisible_text > this ...
 INVISIBLE_GARBLED = 0.02  # ... and garbled > this: a hidden layer that is junk (see below)
 # Region OCR (rule 2).
 REGION_MIN_AREA = 0.05  # an image of at least this share of the page
+MAX_IMAGES = 500  # image placements considered per page, largest first (the checks are quadratic)
 # Page-level garble heuristics (a page also counts as garbled when one of them fires).
 SYMBOL_MIN_CHARS = 50
 SYMBOL_MAX_SHARE = 0.5  # more than this share of >= 50 chars non-alphanumeric
@@ -71,8 +72,9 @@ def route_page(objs: PageObjects) -> tuple[Literal["text", "ocr"], list[Box], Ro
     none). A region decision has ``scope="region"`` and the union box of the regions as its
     target; its ``reason`` gives their number.
     """
-    metrics, garble_reason = _measure(objs)
+    metrics, garble_reason, images, dropped = _measure(objs)
     log = metrics.model_dump()
+    log["images_capped"] = float(dropped)  # image placements ignored beyond MAX_IMAGES
     whole = _whole_page_reason(metrics, garble_reason)
     if whole is not None:
         return (
@@ -82,7 +84,7 @@ def route_page(objs: PageObjects) -> tuple[Literal["text", "ocr"], list[Box], Ro
                 scope="page", target=objs.page, task="ocr", engine="auto", reason=whole, metrics=log
             ),
         )
-    regions = _text_free_images(objs)
+    regions = _text_free_images(objs, images)
     if regions:
         union = [
             min(b.x0 for b in regions),
@@ -131,8 +133,9 @@ def _whole_page_reason(metrics: PageMetrics, garble_reason: str) -> str | None:
     return None
 
 
-def _measure(objs: PageObjects) -> tuple[PageMetrics, str]:
-    """The metrics, and the reason for a page-level garble heuristic that fired (else "")."""
+def _measure(objs: PageObjects) -> tuple[PageMetrics, str, list[Box], int]:
+    """The metrics, the reason for a page-level garble heuristic that fired (else ""), the
+    image placements considered and the number dropped by the ``MAX_IMAGES`` cap."""
     area = max(objs.width * objs.height, 0.0)
     chars = objs.char_count
     density = chars / (area / _PT2_PER_IN2) if area > 0 else 0.0
@@ -142,14 +145,17 @@ def _measure(objs: PageObjects) -> tuple[PageMetrics, str]:
     reason = _garble_heuristic(text, latin_share)
     if reason:
         garbled = 1.0
+    images = sorted(objs.images, key=lambda b: (b.x1 - b.x0) * (b.y1 - b.y0), reverse=True)
+    dropped = max(len(images) - MAX_IMAGES, 0)
+    images = images[:MAX_IMAGES]
     metrics = PageMetrics(
         char_density=density,
-        image_cov=_union_share(objs.images, objs.width, objs.height),
+        image_cov=_union_share(images, objs.width, objs.height),
         garbled=min(garbled, 1.0),
         invisible_text=min(objs.invisible_chars / chars, 1.0) if chars else 0.0,
         latin_share=latin_share,
     )
-    return metrics, reason
+    return metrics, reason, images, dropped
 
 
 # --- garble heuristics ---------------------------------------------------------------------
@@ -165,16 +171,22 @@ def _latin_share(text: str) -> float:
     return latin / letters if letters else 0.0
 
 
+_LEADERS = re.compile(r"[.·…_\-\s]{3,}")
+
+
 def _garble_heuristic(text: str, latin_share: float) -> str:
     """The reason a page's text counts as garbled beyond bad characters, or ``""``.
 
-    1. More than half of >= 50 characters are neither alphanumeric nor space. CJK, Cyrillic
-       and Arabic letters are alphanumeric, so non-Latin pages pass.
+    1. More than half of >= 50 characters are neither alphanumeric nor space, after runs of
+       three or more leader characters (``[.·…_-]`` and spaces) are removed. CJK, Cyrillic and
+       Arabic letters are alphanumeric, so non-Latin pages pass.
     2. Fewer than half of >= 20 tokens are dictionary-like (alphabetic with a vowel, or
        numeric). No word list is used, and the rule applies only when at least half of the
        letters are Latin: scripts without vowels or spaces would always fail it.
     """
-    chars = [ch for ch in text if not ch.isspace()]
+    # Leader runs (dots, middle dots, underscores, hyphens, spaced) fill contents pages; they are
+    # layout, not garbage, so they leave the symbol test.
+    chars = [ch for ch in _LEADERS.sub("", text) if not ch.isspace()]
     if len(chars) >= SYMBOL_MIN_CHARS:
         symbols = sum(1 for ch in chars if not ch.isalnum())
         if symbols / len(chars) > SYMBOL_MAX_SHARE:
@@ -232,14 +244,14 @@ def _union_share(boxes: list[Box], width: float, height: float) -> float:
     return min(total / (width * height), 1.0)
 
 
-def _text_free_images(objs: PageObjects) -> list[Box]:
+def _text_free_images(objs: PageObjects, images: list[Box]) -> list[Box]:
     """Image placements of >= 5% of the page that contain no text-layer line. A line is
     inside when its centre is."""
     page_area = objs.width * objs.height
     if page_area <= 0:
         return []
     regions: list[Box] = []
-    for image in objs.images:
+    for image in images:
         rect = _clip(image, objs.width, objs.height)
         if rect is None or (rect[2] - rect[0]) * (rect[3] - rect[1]) < REGION_MIN_AREA * page_area:
             continue

@@ -185,6 +185,8 @@ def test_tesseract_tsv_parsing(monkeypatch):
     cmd, kwargs = calls[0]
     assert cmd == ["/opt/tess", "stdin", "stdout", "-l", "eng", "--psm", "3", "tsv"]
     assert kwargs["input"] == b"PNG"
+    assert kwargs["timeout"] == 300
+    assert not kwargs.get("shell")
     assert [ln.text for ln in lines] == ["Hello world", "second line", "other-block"]
     first = lines[0]
     assert first.confidence == pytest.approx((96 + 90) / 2 / 100)
@@ -345,3 +347,29 @@ def test_render_page_and_clip(tmp_path, monkeypatch, backend, rotation):
         render.render_page(path, 2)
     with pytest.raises(DocrooterError, match="dpi"):
         render.render_page(path, 1, dpi=0)
+
+
+@pytest.mark.parametrize("lang", ["-l", "--version", "eng;rm", "eng deu", "", "eng+", "../eng"])
+def test_tesseract_rejects_invalid_language(monkeypatch, lang):
+    monkeypatch.setattr("docrooter.ocr.tesseract.shutil.which", lambda name: "/opt/tess")
+    with pytest.raises(ValueError, match="invalid tesseract language"):
+        TesseractEngine(lang=lang)
+
+
+@pytest.mark.parametrize(
+    ("lang", "code"), [("deu+eng", "deu+eng"), ("chi_sim", "chi_sim"), ("fr", "fra")]
+)
+def test_tesseract_accepts_valid_languages(monkeypatch, lang, code):
+    monkeypatch.setattr("docrooter.ocr.tesseract.shutil.which", lambda name: "/opt/tess")
+    assert TesseractEngine(lang=lang)._lang == code
+
+
+def test_tesseract_timeout_is_a_docrooter_error(monkeypatch):
+    def hang(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+    monkeypatch.setattr("docrooter.ocr.tesseract.shutil.which", lambda name: "/opt/tess")
+    monkeypatch.setattr("docrooter.ocr.tesseract.subprocess.run", hang)
+    engine = TesseractEngine()
+    with pytest.raises(DocrooterError, match="timed out after 300 s"):
+        engine.recognize(b"x", width_px=10, height_px=10, page=Box(page=1, x0=0, y0=0, x1=1, y1=1))

@@ -68,6 +68,7 @@ def test_text_page_routes_to_text():
         "garbled",
         "invisible_text",
         "latin_share",
+        "images_capped",
     }
 
 
@@ -196,3 +197,63 @@ def test_dictionary_rule_needs_latin_majority():
     cyrillic = [_line("бвг " * 10, y0=60.0 + 14 * k) for k in range(3)]
     assert page_metrics(_page(latin)).garbled > 0.10
     assert page_metrics(_page(cyrillic)).garbled == 0.0
+
+
+def _contents_page(leader):
+    rows = [
+        _line(f"Item {k}. Business and properties {leader * 60} {k + 2}", y0=60.0 + 14 * k)
+        for k in range(10)
+    ]
+    return _page(rows)
+
+
+@pytest.mark.parametrize(
+    "leader",
+    [".", "·", "…", "_", "-", ". ", "- ", "._"],
+    ids=[
+        "dot",
+        "middle-dot",
+        "ellipsis",
+        "underscore",
+        "hyphen",
+        "spaced-dot",
+        "spaced-hyphen",
+        "mixed",
+    ],
+)
+def test_contents_page_with_leaders_routes_to_text(leader):
+    page = _contents_page(leader)
+    route, _, decision = route_page(page)
+    assert route == "text", decision.reason
+    assert page_metrics(page).garbled == 0.0
+
+
+def test_symbol_garbled_page_with_leaders_still_routes_to_ocr():
+    junk = [_line("#@%^&*~|<>{}[]=+ ..... ~|<>{}[]=+#@%^&*", y0=60.0 + 14 * k) for k in range(5)]
+    route, _, decision = route_page(_page(junk))
+    assert route == "ocr"
+    assert "symbols" in decision.reason
+
+
+def test_many_image_placements_are_capped_and_bounded():
+    import time
+
+    from docrooter.pdf.routing import MAX_IMAGES
+
+    images = [
+        _box(10 + (k % 50) * 11, 10 + (k // 50) * 7, 20 + (k % 50) * 11, 15 + (k // 50) * 7)
+        for k in range(5000)
+    ]
+    big = _box(0, 0, 612, 400)  # the largest placement must survive the cap
+    page = _page(_text_lines(), [*images, big])
+    started = time.perf_counter()
+    route, regions, decision = route_page(page)
+    assert time.perf_counter() - started < 0.5
+    assert decision.metrics["images_capped"] == 5001 - MAX_IMAGES
+    assert page_metrics(page).image_cov >= 400 / 792  # the big image was kept
+    assert route == "text" and regions == []  # text lines sit inside the big image
+
+
+def test_few_images_are_not_capped():
+    _, _, decision = route_page(_page(_text_lines(), [_box(0, 0, 10, 10)]))
+    assert decision.metrics["images_capped"] == 0.0

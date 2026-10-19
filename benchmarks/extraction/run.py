@@ -232,6 +232,7 @@ def run(args: argparse.Namespace, model: Any) -> int:
         _out_dir,
         _write_json,
         load_selector,
+        provenance_overrides,
         reading_settings,
     )
     from docrooter.backends.base import close_backend
@@ -239,7 +240,7 @@ def run(args: argparse.Namespace, model: Any) -> int:
     from docrooter.chunking import document_of
     from docrooter.rooter.profiles import profile_defaults
     from docrooter.select.selection import need_features, prepare, select, select_scored
-    from docrooter.tagger.element_tags import resolve_tagger
+    from docrooter.tagger.element_tags import resolve_tagger, tagger_fingerprint
 
     started = time.perf_counter()
     dataset, _ = qa.load_cached(qa.CACHE)
@@ -261,7 +262,7 @@ def run(args: argparse.Namespace, model: Any) -> int:
         selected, whole_acc = _accuracy(rows, "selected"), _accuracy(rows, "whole")
         return {
             "date": datetime.date.today().isoformat(),
-            "partial": len(failures) + len({r["doc_id"] for r in rows}) < len(by_doc),
+            "partial": qa.is_partial(counts, len(by_doc)),
             "dataset": dataset.name,
             "licence": dataset.licence,
             "evaluation_only": True,
@@ -284,11 +285,15 @@ def run(args: argparse.Namespace, model: Any) -> int:
                 "whole": _mean_tokens(rows, "whole"),
             },
             "questions": rows,
+            "overrides": overrides,
             "commit": _commit(),
             "seconds": round(time.perf_counter() - started, 1),
         }
 
     tagger = resolve_tagger(args.tagger)
+    overrides = provenance_overrides(selector, tagger=tagger_fingerprint(tagger), embedder=embedder)
+    for warning in overrides:
+        print(f"WARNING: {warning}")
     encoder = resolve_backend(embedder)
     same = embedder == profile_defaults(profile)["sections"]
     reader = qa.make_reader(
@@ -301,7 +306,9 @@ def run(args: argparse.Namespace, model: Any) -> int:
     def evaluate(doc_id: str, questions: list[Any]) -> tuple[list[dict[str, Any]], Counter[str]]:
         counts: Counter[str] = Counter()
         analysis = reader(qa.record_for(doc_id, dataset.pdf_dir))
-        ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=qa.FAMILY)
+        ctx = prepare(
+            analysis, tagger=tagger, encoder=encoder, family=qa.FAMILY, encoder_spec=embedder
+        )
         doc = document_of(analysis)
         whole = select(analysis, questions[0].question, completeness=1.0)
         if whole.tokens > args.max_context_tokens:

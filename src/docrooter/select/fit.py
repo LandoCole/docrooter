@@ -157,27 +157,32 @@ class CorpusPdfReader:
                 f"{record.id}: the store read {len(pages)} of its {n_pages} pages, which a page "
                 f"cap of {self.max_pages} cannot give; pass the build's --max-pages"
             )
-        layout, _ = self._engines.layout()
-        ocr, _ = self._engines.ocr()
-        analysis = process(
-            path,
-            config=self.cfg,
-            pages=pages,
-            layout=layout,
-            ocr="none" if ocr is None else ocr,
-        )
-        if self._sections is None:
-            from docrooter.backends.registry import resolve_backend
-
-            self._sections = resolve_backend(self.sections_spec)
+        layout, ocr = self.engines()
+        analysis = process(path, config=self.cfg, pages=pages, layout=layout, ocr=ocr)
         family = doc_family(record)
         sections = normalize_sections(
             analysis.document,
             doc_type=section_doc_type(record, family),
             taxonomy=f"section_types/{family}",
-            backend=self._sections,
+            backend=self.sections_backend(),
         )
         return analysis.model_copy(update={"sections": sections})
+
+    def engines(self) -> tuple[Any, Any]:
+        """``(layout, ocr)`` as ``process()`` takes them: the profile's engines, created once
+        (the layout engine's name for the heuristic rules; ``"none"`` without OCR). Another
+        reading of the same documents (the selection benchmark's runtime path) shares them."""
+        layout, _ = self._engines.layout()
+        ocr, _ = self._engines.ocr()
+        return layout, "none" if ocr is None else ocr
+
+    def sections_backend(self) -> Any:
+        """The backend of :attr:`sections_spec` (the caller's, or created once here)."""
+        if self._sections is None:
+            from docrooter.backends.registry import resolve_backend
+
+            self._sections = resolve_backend(self.sections_spec)
+        return self._sections
 
     def close(self) -> None:
         try:

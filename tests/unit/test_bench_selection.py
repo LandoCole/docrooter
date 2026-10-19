@@ -138,8 +138,8 @@ def test_program_target_shows_capped_units_and_exclusions():
         "read": 8,
         "evaluated": 6,
         "read_without_units": ["d7", "d8"],
+        "without_teacher_labels": ["d9"],
         "skipped": {
-            "no_teacher_labels": ["d9"],
             "no_fields": [],
             "read_failed": [{"doc_id": "d10", "error": "DocrooterError: x"}],
             "label_check_failed": [{"doc_id": "d6", "error": "DocrooterError: y"}],
@@ -149,7 +149,8 @@ def test_program_target_shows_capped_units_and_exclusions():
     line = bench.target_line(verdict, documents, gold_elements)
     assert "headline PASS" in line and "uncapped only FAIL" in line
     assert "50% of units capped" in line and "mean 0.850" in line
-    assert "no_teacher_labels 1" in line and "read_failed 1" in line
+    assert "1 without teacher labels (gold subset only)" in line and "read_failed 1" in line
+    assert "no_teacher_labels" not in line
     assert "label_check_failed 1" in line and "2 read without units" in line
     assert "15 hash mismatch" in line and "5 missing" in line
 
@@ -515,7 +516,9 @@ def test_run_gold_counts_every_document():
     assert docs["evaluated"] == 3  # with any unit, main or gold subset
     assert docs["read_without_units"] == ["nounits"]
     skipped = docs["skipped"]
-    assert skipped["no_teacher_labels"] == ["nolabels", "broken", "nothing"]
+    # a document without teacher labels is not skipped: its gold subset is still evaluated
+    assert docs["without_teacher_labels"] == ["nolabels", "broken", "nothing"]
+    assert "no_teacher_labels" not in skipped
     assert [f["doc_id"] for f in skipped["read_failed"]] == ["broken"]
     assert skipped["read_failed"][0]["error"].startswith("DocrooterError")
     assert [f["doc_id"] for f in skipped["label_check_failed"]] == ["badcheck"]
@@ -543,12 +546,12 @@ def test_selection_bench_and_evidence_qa_are_model_processes():
 
 def test_evidence_alignment_char_overlap():
     evidence_text = (
-        "Total revenue was $1,577 million in 2018, up 4%.   Net income was $300 million."
+        "Total revenue was $2,468 million in 2031, up 4%.   Net income was $300 million."
     )
     elements = [
-        qa.PageText("e1", frozenset({5}), "Total revenue was\n$1,577 million in 2018, up 4%."),
-        qa.PageText("e2", frozenset({5}), "The weather in Minnesota was cold that winter."),
-        qa.PageText("e3", frozenset({6}), "Total revenue was $1,577 million in 2018, up 4%."),
+        qa.PageText("e1", frozenset({5}), "Total revenue was\n$2,468 million in 2031, up 4%."),
+        qa.PageText("e2", frozenset({5}), "The weather in Ruritania was cold that winter."),
+        qa.PageText("e3", frozenset({6}), "Total revenue was $2,468 million in 2031, up 4%."),
         qa.PageText("e4", frozenset({5}), ""),
         qa.PageText(
             "e5",
@@ -572,13 +575,13 @@ def test_evidence_alignment_char_overlap():
     # FinanceBench rows: 0-based evidence pages by default, ids and evidence kept.
     row = {
         "financebench_id": "financebench_id_00001",
-        "doc_name": "ACME_2018_10K",
+        "doc_name": "ACME_2031_10K",
         "question": "What was revenue?",
-        "answer": "$1,577 million",
+        "answer": "$2,468 million",
         "evidence": [{"evidence_text": evidence_text, "evidence_page_num": 4}],
     }
     question = qa.parse_financebench([json.dumps(row)])[0]
-    assert question.id == "financebench_id_00001" and question.doc_id == "ACME_2018_10K"
+    assert question.id == "financebench_id_00001" and question.doc_id == "ACME_2031_10K"
     assert question.evidence == (qa.Evidence(5, evidence_text),)
     assert qa.parse_financebench([json.dumps(row)], page_base=1)[0].evidence[0].page == 4
 
@@ -619,6 +622,42 @@ def test_field_texts_are_embedded_once():
     assert encoder.batches == [2, 1, 1]  # the fields once, then one question at a time
 
 
+def test_field_matcher_scores_as_similarities_does():
+    """The matcher splits similarities() in two halves; it must give the same numbers."""
+    from docrooter.select.selection import _need_sims, need_texts, similarities
+
+    encoder = FakeEmbedder()
+    fields = [LEGAL, RISK]
+    matcher = qa.FieldMatcher(fields, encoder)
+    for question in ("Which risks matter?", "Who sued whom?"):
+        split = _need_sims(matcher.vectors, question, encoder)
+        whole = similarities([need_texts(f)[0] for f in fields], question, encoder)
+        assert np.allclose(split, whole)
+
+
+def test_a_partial_flag_says_whether_every_document_was_processed():
+    """A document with no aligned question has no rows but was processed: not partial."""
+    assert qa.is_partial(Counter({"documents_processed": 3}), 3) is False
+    assert qa.is_partial(Counter({"documents_processed": 2}), 3) is True
+    assert qa.is_partial(Counter(), 1) is True
+
+
+def test_a_financebench_schema_failure_falls_back_to_tat_dqa(tmp_path, monkeypatch):
+    def misread(cache, **kwargs):
+        qa.check_questions([], qa.FINANCEBENCH)  # a schema the loader does not match
+
+    fallback = qa.Dataset(qa.TAT_DQA, qa.LICENCES[qa.TAT_DQA], [], tmp_path, {"documents": 0})
+    monkeypatch.setattr(qa, "fetch_financebench", misread)
+    monkeypatch.setattr(qa, "load_tat_dqa", lambda cache, **kwargs: fallback)
+    cache = tmp_path / "evidence_qa"
+    assert qa.fetch(cache) is fallback
+    record = json.loads((cache / "dataset.json").read_text())
+    assert record["dataset"] == qa.TAT_DQA and "schema" in record["fallback_reason"]
+    # on its own, a schema failure still exits loudly
+    with pytest.raises(SystemExit, match="schema"):
+        qa.check_questions([], qa.TAT_DQA)
+
+
 def test_run_documents_survives_a_crash_and_writes_as_it_goes():
     written = []
 
@@ -634,6 +673,7 @@ def test_run_documents_survives_a_crash_and_writes_as_it_goes():
     )
     assert [r["id"] for r in rows] == ["a-q", "c-q"]
     assert counts["aligned"] == 2 and counts["documents_failed"] == 1
+    assert counts["documents_processed"] == 3  # failed or not, every one was processed
     assert failures == [{"doc_id": "bad", "error": "RuntimeError"}]
     assert written == [1, 1, 2]  # after every document, the failed one included
     with pytest.raises(KeyboardInterrupt):
@@ -778,9 +818,9 @@ def test_nc_dataset_never_written_outside_cache(tmp_path, monkeypatch):
 
 
 def test_extraction_scoring_exact_or_numeric_tolerance():
-    assert extraction.score("$1,577.00", "1577") is True  # numeric, same value
-    assert extraction.score("The answer is 1,590 million.", "$1,577 million") is True  # 0.8%
-    assert extraction.score("1,600", "$1,577") is False  # 1.5% off
+    assert extraction.score("$2,468.00", "2468") is True  # numeric, same value
+    assert extraction.score("The answer is 2,488 million.", "$2,468 million") is True  # 0.8%
+    assert extraction.score("2,505", "$2,468") is False  # 1.5% off
     assert extraction.score("(12.5)", "-12.5") is True  # accounting negative
     assert extraction.score("  Yes. ", "yes") is True  # exact match, normalised
     assert extraction.score("No", "yes") is False
@@ -788,15 +828,15 @@ def test_extraction_scoring_exact_or_numeric_tolerance():
 
 
 def test_extraction_scoring_ignores_years_and_keys_on_the_main_number():
-    gold = "The FY2019 fixed asset turnover ratio for Activision Blizzard is 24.26."
-    assert extraction.score("2019", gold) is False  # the year is not the answer
-    assert extraction.score("FY2019 was strong", gold) is False
-    assert extraction.score("24.3", gold) is True  # 0.16% off
-    assert extraction.score("In fiscal 2019 it was 24.26", gold) is True
+    gold = "The FY2031 fixed asset turnover ratio for Example Games is 31.47."
+    assert extraction.score("2031", gold) is False  # the year is not the answer
+    assert extraction.score("FY2031 was strong", gold) is False
+    assert extraction.score("31.5", gold) is True  # 0.1% off
+    assert extraction.score("In fiscal 2031 it was 31.47", gold) is True
     # Several non-year numbers: the prediction must match the last one.
-    several = "Revenue rose from $1,200 million in 2018 to $1,577 million in 2019."
+    several = "Revenue rose from $1,200 million in 2030 to $2,468 million in 2031."
     assert extraction.score("1,200", several) is False
-    assert extraction.score("$1,577 million", several) is True
+    assert extraction.score("$2,468 million", several) is True
     # A list answer: any of its items.
     assert extraction.score("12", ["10", "12"]) is True
     assert extraction.score("11", ["10", "12"]) is False
@@ -824,3 +864,149 @@ def test_extraction_refuses_jev_and_typesafe(monkeypatch, capsys):
     endpoint = extraction.endpoint_from_env()
     assert endpoint is not None and endpoint.model == "qwen"
     assert "never-read" not in repr(endpoint)
+
+
+# --- the runtime path (G3) -----------------------------------------------------------------------
+
+
+def _runtime_labels(doc, wrong=("e2",), missing=("e4",)):
+    """Teacher-full labels of the fake document: ``wrong`` labelled for another text, ``missing``
+    unlabelled, the rest by keyword."""
+    out = {}
+    for e in doc.elements:
+        if e.kind == "heading" or e.id in missing:
+            continue
+        leaf = "annual_report.risk_factors" if "risk" in e.text.lower() else "annual_report.other"
+        sha = "0" * 40 if e.id in wrong else text_sha1(e.text)
+        out[e.id] = {sha: leaf}
+    return out
+
+
+def test_runtime_units_match_labels_by_id_and_hash():
+    analysis, ctx, selector = _fake_document()
+    labels = _runtime_labels(analysis.document)
+    units, counts = bench.runtime_units(
+        analysis, ctx, labels, [RISK, LEGAL], selector, doc_id="d", family="annual_report"
+    )
+    # e1 and e3 match; e2 is labelled for another text and e4 not at all: both excluded, counted
+    assert counts == {"content": 4, "with_text": 4, "matched": 2, "unmatched": 2}
+    assert [u["field_id"] for u in units] == [RISK.id]  # LEGAL: no relevant matched element
+    unit = units[0]
+    assert unit["n_relevant"] == 1 and unit["fit_mismatch"] == []
+    assert unit["doc_type_mismatch"] is False
+    at_90 = unit["by_c"]["0.90"]
+    assert at_90["recall"] == 1.0 and at_90["guarantee"] is True
+
+    # a runtime reading other than the fit's (here the balanced layout) is an estimate
+    balanced = analysis.model_copy(update={"config": RouterConfig(profile="balanced")})
+    units, _ = bench.runtime_units(
+        balanced, ctx, labels, [RISK], selector, doc_id="d", family="annual_report"
+    )
+    assert units[0]["fit_mismatch"] == ["layout"]
+    assert units[0]["by_c"]["0.90"]["guarantee"] is False
+
+
+def test_run_gold_measures_the_runtime_path_beside_the_fit_reading():
+    from docrooter.corpus.store import ManifestRecord
+    from docrooter.errors import DocrooterError
+
+    analysis, ctx, selector = _fake_document()
+    labels = {d: _runtime_labels(analysis.document, wrong=(), missing=()) for d in ("a", "b")}
+    runtime_analysis = analysis.model_copy(update={"config": RouterConfig(profile="balanced")})
+
+    def record(doc_id):
+        return ManifestRecord(id=doc_id, sha256="0" * 64, family_hint="annual_report", split="gold")
+
+    def read_runtime(rec):
+        if rec.id == "b":
+            raise DocrooterError("cannot open PDF")
+        return runtime_analysis, ctx
+
+    run = bench.run_gold(
+        [record("a"), record("b")],
+        lambda rec: (analysis, ctx),
+        labels,
+        {"annual_report": [RISK, LEGAL]},
+        {},
+        selector,
+        read_runtime=read_runtime,
+    )
+    runtime = run["runtime"]
+    assert runtime["documents"]["read"] == 1
+    assert [f["doc_id"] for f in runtime["documents"]["read_failed"]] == ["b"]
+    assert [u["doc_id"] for u in runtime["units"]] == ["a"]
+    assert runtime["labels"]["matched"] == 4 and runtime["labels"]["unmatched"] == 0
+    assert runtime["labels"]["match_rate"] == pytest.approx(
+        runtime["labels"]["matched"] / runtime["labels"]["with_text"]
+    )
+    assert runtime["fit_mismatch"] == {"layout": 1}
+
+
+def test_markdown_shows_the_runtime_row_and_the_dials():
+    units = [unit("annual_report", "a", (0.9, 0.95), (0.2, 0.3))]
+    agg = bench.aggregate(units, (0.8, 0.9))
+    verdict = bench.program_target(agg)
+    runtime_units = [unit("annual_report", "a", (0.7, 0.8), (0.2, 0.3), guarantee=False)]
+    runtime_agg = bench.aggregate(runtime_units, (0.8, 0.9))
+    documents = {"gold_split": 1, "read": 1, "evaluated": 1, "read_without_units": []}
+    results = {
+        "date": "2026-10-19",
+        "disclosure": bench.DISCLOSURE,
+        "provenance": {
+            "commit": "abc",
+            "selector_meta": {"dials": {"annual_report": {"n": 99, "n_docs": 40}}},
+            "overrides": ["--embedder x differs from the selector's fit (y)"],
+        },
+        "documents": documents,
+        "gold_elements": {},
+        "label_checks": {"totals": {}},
+        "main": agg,
+        "program_target": verdict,
+        "gold_subset": agg,
+        "disagreement": bench.teacher_gold_disagreement([], {}),
+        "baselines": bench.aggregate_baselines([], (0.9,)),
+        "curve": {},
+        "dial_tokens_to_95": {},
+        "runtime": {
+            "main": runtime_agg,
+            "program_target": bench.program_target(runtime_agg),
+            "labels": {"content": 10, "with_text": 9, "matched": 8, "unmatched": 1,
+                       "match_rate": 8 / 9},
+            "documents": {"read": 1, "evaluated": 1, "read_failed": []},
+            "fit_mismatch": {"layout": 1},
+            "doc_type_mismatch": 0,
+        },
+    }  # fmt: skip
+    text = bench.markdown(results)
+    assert "### Fit-identical reading and runtime path" in text
+    assert "| 0.90 | 0.950 | 0.300 | 1.00 | 0.800 | 0.300 | 0.00 |" in text
+    assert "label match rate 0.889 (8 of 9" in text and "layout 1" in text
+    assert "### Dials" in text and "| annual_report | 99 | 40 | 0.010 |" in text
+    assert "--embedder x differs" in text
+
+
+def test_overrides_of_the_fit_are_named():
+    _, _, selector = _fake_document()
+    assert bench.provenance_overrides(selector, tagger=TAGGER_FP, embedder=EMBEDDER_SPEC) == []
+    both = bench.provenance_overrides(selector, tagger="fp-other", embedder="embedding:other")
+    assert len(both) == 2 and "--tagger" in both[0] and "--embedder" in both[1]
+    assert "guarantee" in both[0]
+    unknown = bench.provenance_overrides(selector, tagger=None, embedder=EMBEDDER_SPEC)
+    assert len(unknown) == 1 and "--tagger" in unknown[0]
+    bare = Selector(
+        field=selector.field,
+        field_fallback=selector.field_fallback,
+        query=selector.query,
+        query_fallback=selector.query_fallback,
+        dials=selector.dials,
+    )
+    none = bench.provenance_overrides(bare, tagger=TAGGER_FP, embedder=EMBEDDER_SPEC)
+    assert len(none) == 1 and "provenance" in none[0]
+
+
+def test_paths_in_results_are_relative_to_the_repository():
+    inside = str(bench.REPO_ROOT / "benchmarks" / ".cache.nosync" / "x.pdf")
+    assert bench.relative(f"no PDF for d at {inside}") == (
+        "no PDF for d at benchmarks/.cache.nosync/x.pdf"
+    )
+    assert bench.relative("/elsewhere/x.pdf") == "/elsewhere/x.pdf"

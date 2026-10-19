@@ -39,10 +39,14 @@ built-in annual-report field whose text (its ``query``, else its description) is
 to the question (:func:`~docrooter.select.selection.similarities`: the field text embedded as a
 passage once per run, each question with the query prompt: :class:`FieldMatcher`); evidence
 recall and token share at c in :data:`FIELD_GRID`. Results are descriptive: no query-side
-guarantee exists.
+guarantee exists, and a closest-field row's ``guarantee`` flag is about teacher relevance on
+calibration-like readings, not about evidence recall on these whole filings.
 
 **Failing loudly.** A loaded dataset with no question, or with more than half its questions
-without evidence, stops with a message naming the schema (:func:`check_questions`); a run where
+without evidence, stops with a message naming the schema (:func:`check_questions`); during the
+fetch, such a FinanceBench file falls back to TAT-DQA like a failed download. ``--tagger`` and
+``--embedder`` that differ from the selector's fit provenance are logged as WARNINGs and recorded
+under ``provenance.overrides``. ``partial`` is false once every document was processed. A run where
 no question aligns stops naming the page base or the schema, after writing its results
 (:func:`check_alignment`). A document that fails to read, for any reason, is recorded with the
 exception's type and the run goes on; the results file is rewritten after every document
@@ -319,6 +323,8 @@ def fetch(
             reason = "no FinanceBench PDF could be fetched"
     except (FetchError, Rejected, OSError, ValueError) as exc:
         reason = f"FinanceBench fetch failed: {type(exc).__name__}: {exc}"
+    except SchemaError as exc:  # misread, not missing: TAT-DQA is still worth a try
+        reason = f"FinanceBench schema check failed: {exc}"
     if reason is not None:
         log(f"{reason}; falling back to TAT-DQA")
         try:
@@ -464,17 +470,22 @@ class FieldMatcher:
         return self.fields[int(np.argmax(sims))]
 
 
+class SchemaError(SystemExit):
+    """The loaded questions look like a misread dataset. A ``SystemExit``, so a run stops with
+    its message; :func:`fetch` catches it from FinanceBench to fall back to TAT-DQA."""
+
+
 def check_questions(questions: Sequence[Question], name: str) -> None:
-    """Exit when the loaded questions look like a misread dataset: none at all, or more than
-    half without evidence (a schema the loader does not match)."""
+    """Exit (:class:`SchemaError`) when the loaded questions look like a misread dataset: none
+    at all, or more than half without evidence (a schema the loader does not match)."""
     if not questions:
-        raise SystemExit(
+        raise SchemaError(
             f"{name}: no question loaded; the dataset schema likely differs from what the "
             "loader expects (or no document was fetched)"
         )
     bare = sum(1 for q in questions if not q.evidence)
     if bare * 2 > len(questions):
-        raise SystemExit(
+        raise SchemaError(
             f"{name}: {bare} of {len(questions)} questions have no evidence; the dataset schema "
             "likely differs from what the loader expects (its evidence fields)"
         )
@@ -513,12 +524,19 @@ Evaluate = Callable[[str, T], tuple[list[dict[str, Any]], Counter[str]]]
 Progress = Callable[[list[dict[str, Any]], Counter[str], list[dict[str, str]]], None]
 
 
+def is_partial(counts: Mapping[str, int], total: int) -> bool:
+    """Whether a results file covers fewer than ``total`` documents: :func:`run_documents`
+    counts every document it processed (with rows, without, or failed)."""
+    return counts.get("documents_processed", 0) < total
+
+
 def run_documents(
     items: Sequence[tuple[str, T]], evaluate: Evaluate[T], on_progress: Progress
 ) -> tuple[list[dict[str, Any]], Counter[str], list[dict[str, str]]]:
     """``evaluate(doc_id, payload)`` for each item, so that one document's failure (any
     exception) is recorded with its type and the run goes on; ``on_progress(rows, counts,
-    failures)`` after every document, for partial results. Interrupts still stop the run."""
+    failures)`` after every document, for partial results (``counts["documents_processed"]``
+    says how far it got). Interrupts still stop the run."""
     rows: list[dict[str, Any]] = []
     counts: Counter[str] = Counter()
     failures: list[dict[str, str]] = []
@@ -533,6 +551,7 @@ def run_documents(
             rows += doc_rows
             counts.update(doc_counts)
             log(f"[{done}/{len(items)}] {len(doc_rows)} questions evaluated")
+        counts["documents_processed"] += 1
         on_progress(rows, counts, failures)
     return rows, counts, failures
 
@@ -638,14 +657,16 @@ def cmd_run(args: argparse.Namespace) -> int:
         _out_dir,
         _write_json,
         load_selector,
+        provenance_overrides,
         reading_settings,
+        relative,
     )
     from docrooter.backends.base import close_backend
     from docrooter.backends.registry import resolve_backend
     from docrooter.rooter.profiles import profile_defaults
     from docrooter.select.fields import builtin_fields
     from docrooter.select.selection import prepare
-    from docrooter.tagger.element_tags import resolve_tagger
+    from docrooter.tagger.element_tags import resolve_tagger, tagger_fingerprint
 
     started = time.perf_counter()
     dataset, record = load_cached(CACHE)
@@ -671,11 +692,15 @@ def cmd_run(args: argparse.Namespace) -> int:
     ) -> dict[str, Any]:
         return {
             "date": datetime.date.today().isoformat(),
-            "partial": len(failures) + len({r["doc_id"] for r in rows}) < len(by_doc),
+            "partial": is_partial(counts, len(by_doc)),
             "dataset": dataset.name,
             "licence": dataset.licence,
             "evaluation_only": True,
-            "descriptive_only": "queries are never guaranteed (spec §0.4)",
+            "descriptive_only": (
+                "queries are never guaranteed (spec §0.4); a closest-field row's guarantee flag "
+                "is about teacher relevance on calibration-like readings, and says nothing "
+                "about evidence recall on these whole filings"
+            ),
             "fallback_reason": record.get("fallback_reason"),
             "page_base": record.get("page_base"),
             "alignment": {"min_overlap": MIN_OVERLAP, "min_block_chars": MIN_BLOCK_CHARS},
@@ -685,9 +710,10 @@ def cmd_run(args: argparse.Namespace) -> int:
             "questions": rows,
             "provenance": {
                 "commit": _commit(),
-                "tagger": args.tagger,
-                "selector": str(args.selector) if args.selector else None,
+                "tagger": relative(args.tagger),
+                "selector": relative(str(args.selector)) if args.selector else None,
                 "embedder": embedder,
+                "overrides": overrides,
                 "profile": profile,
                 "max_pages": args.max_pages,
                 "reading_warnings": warnings,
@@ -697,6 +723,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         }
 
     tagger = resolve_tagger(args.tagger)
+    overrides = provenance_overrides(selector, tagger=tagger_fingerprint(tagger), embedder=embedder)
+    for warning in overrides:
+        log(f"WARNING: {warning}")
     encoder = resolve_backend(embedder)
     same = embedder == profile_defaults(profile)["sections"]
     reader = make_reader(
@@ -713,7 +742,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         doc = record_for(doc_id, dataset.pdf_dir)
         analysis = reader(doc)
         pages_read = set(reader.corpus.pages_read(doc.id))
-        ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=FAMILY)
+        ctx = prepare(
+            analysis, tagger=tagger, encoder=encoder, family=FAMILY, encoder_spec=embedder
+        )
         doc_rows, doc_counts = evaluate_document(
             analysis, ctx, questions, matcher, selector, pages_read, other_base_shift=shift
         )

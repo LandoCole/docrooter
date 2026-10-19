@@ -4,13 +4,28 @@ of relevant content, at what token cost, and how do simple baselines do with the
 **Documents.** Every gold-split document of the corpus store that has ``teacher-full`` labels or
 gold rows, read again with :class:`~docrooter.select.fit.CorpusPdfReader` (the profile and page
 cap the selector was fitted with, from its ``meta``, unless given; the pages the build read;
-sections normalised in the document's family), tagged by the trained tagger and embedded once
-(:func:`~docrooter.select.selection.prepare`). Teacher relevance comes from
+sections normalised in the document's family, whose doc type comes from the manifest, so no
+classifier error can drop the guarantee here), tagged by the trained tagger and embedded once
+(:func:`~docrooter.select.selection.prepare`): the **fit-identical reading**. Teacher relevance
+comes from
 :func:`~docrooter.select.fit.labels_by_document` and :func:`~docrooter.select.fit.label_leaves`,
 the reading and labels the selector was fitted on, whose per-document check counts are kept. A
 document whose labels do not fit its reading (an incomplete labelling run, a diverged reading)
 gives no main units, but its gold subset is still evaluated. Every document is accounted for:
-read, with units, read without units, or skipped with its reason (:func:`run_gold`).
+read, with units, read without units, or skipped with its reason (:func:`run_gold`). A document
+without teacher labels is not skipped: its gold subset is evaluated (``without_teacher_labels``).
+
+**The runtime path** (:class:`RuntimeReader`, :func:`runtime_units`). The same gold documents
+read the way a user reads them: ``process(pdf, profile=<the fit's profile>, pages=<the pages the
+build read>, element_tags=<the bundle>)`` with the profile's own doc-type classification and
+section labelling, then ``select()`` on that analysis with the selector and no tagger, as the
+README does. (The scoring is :func:`~docrooter.select.selection.select_scored` on
+:func:`~docrooter.select.selection.prepare` once per document, which is ``select()``'s own
+computation, pinned equal by a test, without re-embedding the document for every field and c.)
+Its elements are matched to the teacher-full labels by element id and text hash; unmatched ones
+are excluded and counted, with the match rate. It is reported beside the fit-identical row, with
+its own program-target verdict, the shares of guaranteed units and the ``fit_mismatch`` and
+``doc_type_mismatch`` counts.
 
 **Units.** A unit is a (document, built-in field of the document's family) pair with at least
 one teacher-relevant content element (an element whose teacher-full topic is one of the field's
@@ -54,8 +69,13 @@ The fills are greedy: an element that does not fit is skipped and smaller ones a
 (slightly generous to the baselines). The whole document (recall 1, share 1) is the reference
 row.
 
+**Overrides.** ``--tagger`` and ``--embedder`` are compared with the selector's
+:class:`~docrooter.select.selection.FitProvenance`; each difference is logged as a WARNING and
+recorded under ``provenance.overrides`` (the guarantee does not apply to such a run).
+
 **Results** go to ``benchmarks/results/<date>/selection.json`` (ids and numbers only, never
-element text) and ``selection.md``. One model set per process, under :mod:`benchmarks._guard`::
+element text; paths relative to the repository) and ``selection.md``. One model set per process,
+under :mod:`benchmarks._guard`::
 
     PYTHONPATH=src .venv/bin/python -m benchmarks.selection_bench gold \\
         --tagger <bundle> --selector <selector.json> \\
@@ -87,6 +107,7 @@ from docrooter.select.relevance import FEATURE_NAMES
 from docrooter.select.selection import Selection
 
 BENCHMARKS = Path(__file__).resolve().parent
+REPO_ROOT = BENCHMARKS.parent
 CACHE = BENCHMARKS / ".cache.nosync"
 STORE = CACHE / "corpus_store"
 PDF_DIR = CACHE / "training_corpus" / "pdfs"
@@ -129,6 +150,36 @@ def log(message: str) -> None:
 def c_key(c: float) -> str:
     """The results key of a completeness: ``"0.90"``."""
     return f"{c:.2f}"
+
+
+def relative(text: str) -> str:
+    """``text`` with the repository's absolute path removed, so no home directory reaches a
+    committed results file."""
+    return str(text).replace(f"{REPO_ROOT}/", "").replace(str(REPO_ROOT), ".")
+
+
+def provenance_overrides(selector: Any, *, tagger: str | None, embedder: str | None) -> list[str]:
+    """A warning for each of ``tagger`` (the bundle fingerprint used) and ``embedder`` (the spec
+    used) that differs from the selector's fit provenance, or one when it records none: such a
+    run measures a selector on features it was not calibrated on."""
+    provenance = getattr(selector, "provenance", None)
+    if provenance is None:
+        return [
+            "the selector records no fit provenance: select() guarantees nothing with it, and "
+            "--tagger and --embedder cannot be checked against its fit"
+        ]
+    out: list[str] = []
+    if tagger is None or tagger != provenance.tagger:
+        out.append(
+            f"--tagger (fingerprint {str(tagger)[:12]}) is not the bundle the selector was "
+            f"fitted with ({str(provenance.tagger)[:12]}): no guarantee applies to this run"
+        )
+    if embedder != provenance.embedder:
+        out.append(
+            f"--embedder {embedder} differs from the selector's fit ({provenance.embedder}): no "
+            "guarantee applies to this run"
+        )
+    return out
 
 
 # --- recall and token share -----------------------------------------------------------------------
@@ -232,7 +283,6 @@ def program_target(agg: Mapping[str, Any], c: float = TARGET_C) -> dict[str, Any
 
 
 SKIP_REASONS = (
-    "no_teacher_labels",
     "no_fields",
     "nothing_to_evaluate",
     "read_failed",
@@ -269,7 +319,9 @@ def target_line(
         f"{_pct(target['guarantee_share'])} guaranteed; n = {target['n']}), {uncapped}; "
         f"documents: {documents.get('gold_split', 0)} gold, {documents.get('read', 0)} read, "
         f"{documents.get('evaluated', 0)} with units, "
-        f"{len(documents.get('read_without_units', []))} read without units; "
+        f"{len(documents.get('read_without_units', []))} read without units, "
+        f"{len(documents.get('without_teacher_labels', []))} without teacher labels (gold "
+        "subset only); "
         f"skipped: {', '.join(reasons) or 'none'}; gold elements: "
         f"{gold_elements.get('matched', 0)} matched, {gold_elements.get('hash_mismatch', 0)} "
         f"hash mismatch, {gold_elements.get('missing', 0)} missing"
@@ -665,6 +717,71 @@ def evaluate_document(
     return units, gold_units, gold_counts, curves
 
 
+def runtime_units(
+    analysis: Any,
+    ctx: Any,
+    labels: Mapping[str, Mapping[str, str]],
+    fields: Sequence[Any],
+    selector: Any,
+    *,
+    doc_id: str,
+    family: str,
+    c_grid: Sequence[float] = C_GRID,
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """The units of one document read on the runtime path: ``(units, label counts)``.
+
+    Each content element gets its teacher-full leaf when ``labels`` (``element id -> text sha1
+    -> leaf``) has one for its id and text; the others are unmatched and excluded (counted, with
+    the elements with text). A unit is a field with at least one relevant matched element; per c
+    it is :func:`~docrooter.select.selection.select_scored` on ``ctx`` (what ``select()``
+    computes), with the selection's ``fit_mismatch`` and ``doc_type_mismatch``."""
+    from docrooter.corpus.store import text_sha1
+    from docrooter.select.selection import need_features, select_scored
+
+    index = ctx.index
+    elements = index.doc.elements
+    leaves: dict[str, str] = {}
+    with_text = 0
+    for pos in index.content:
+        element = elements[pos]
+        with_text += bool(element.text.strip())
+        leaf = labels.get(element.id, {}).get(text_sha1(element.text))
+        if leaf is not None:
+            leaves[element.id] = leaf
+    counts = {
+        "content": len(index.content),
+        "with_text": with_text,
+        "matched": len(leaves),
+        "unmatched": with_text - len(leaves),
+    }
+    units: list[dict[str, Any]] = []
+    for field in fields:
+        topics = set(field.topics)
+        relevant = {element_id for element_id, leaf in leaves.items() if leaf in topics}
+        if not relevant:
+            continue
+        _, X = need_features(ctx, field)
+        selections = {
+            c: select_scored(analysis, ctx, X, field, completeness=c, selector=selector)
+            for c in c_grid
+        }
+        below = [sel for c, sel in selections.items() if c < 1.0]
+        units.append(
+            {
+                "doc_id": doc_id,
+                "family": family,
+                "field_id": field.id,
+                "n_relevant": len(relevant),
+                "fit_mismatch": list(below[0].fit_mismatch) if below else [],
+                "doc_type_mismatch": bool(below[0].doc_type_mismatch) if below else False,
+                "by_c": {
+                    c_key(c): evaluate_selection(sel, relevant) for c, sel in selections.items()
+                },
+            }
+        )
+    return units, counts
+
+
 def summarise_curves(
     curves: Sequence[Sequence[Any]], thresholds: Sequence[float] = THRESHOLDS
 ) -> dict[str, Any]:
@@ -735,7 +852,9 @@ def _coverage(results: Mapping[str, Any]) -> list[str]:
         "",
         f"{documents.get('gold_split', 0)} gold-split documents, {documents.get('read', 0)} "
         f"read, {documents.get('evaluated', 0)} with units, "
-        f"{len(documents.get('read_without_units', []))} read without units.",
+        f"{len(documents.get('read_without_units', []))} read without units, "
+        f"{len(documents.get('without_teacher_labels', []))} without teacher labels (gold subset "
+        "only).",
         "",
         "| skipped because | documents |",
         "|---|---|",
@@ -752,6 +871,51 @@ def _coverage(results: Mapping[str, Any]) -> list[str]:
         + " (unlabelled elements count as not relevant).",
         "",
     ]
+
+
+def _dials(selector_meta: Mapping[str, Any]) -> list[str]:
+    """The dial of each family: n units, the documents they come from and the slack 1/(n+1)."""
+    dials = selector_meta.get("dials") or {}
+    if not dials:
+        return []
+    lines = ["### Dials", "", "| family | n | n_docs | 1/(n+1) |", "|---|---|---|---|"]
+    for family, dial in sorted(dials.items()):
+        n = int(dial["n"])
+        lines.append(f"| {family} | {n} | {dial.get('n_docs', '–')} | {1 / (n + 1):.3f} |")
+    return [*lines, ""]
+
+
+def _runtime_section(main: Mapping[str, Any], runtime: Mapping[str, Any]) -> list[str]:
+    """The fit-identical row beside the runtime path's, per c, and the runtime's coverage."""
+    labels = runtime["labels"]
+    documents = runtime["documents"]
+    mismatch = ", ".join(f"{k} {v}" for k, v in runtime["fit_mismatch"].items()) or "none"
+    lines = [
+        "### Fit-identical reading and runtime path",
+        "",
+        "Fit-identical: read as the selector was fitted. Runtime: `process()` with the fit's "
+        "profile and the bundle, the profile's doc type and sections, then `select()`.",
+        "",
+        f"Runtime path: {documents['read']} documents read, {documents['evaluated']} with units, "
+        f"{len(documents['read_failed'])} failed; label match rate "
+        f"{_fmt(labels['match_rate'])} ({labels['matched']} of {labels['with_text']} elements "
+        f"with text; {labels['unmatched']} unmatched, excluded); units with a fit mismatch: "
+        f"{mismatch}; with a doc-type mismatch: {runtime['doc_type_mismatch']}.",
+        "",
+        target_line(runtime["program_target"], {}, {}).split("; documents:")[0] + ".",
+        "",
+        "| c | fit recall | fit share | fit guarantee | runtime recall | runtime share | "
+        "runtime guarantee |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for key, fit in main["overall"].items():
+        run = runtime["main"]["overall"].get(key, {})
+        lines.append(
+            f"| {key} | {_fmt(fit['recall_mean'])} | {_fmt(fit['token_share_mean'])} | "
+            f"{_fmt(fit['guarantee_share'], 2)} | {_fmt(run.get('recall_mean'))} | "
+            f"{_fmt(run.get('token_share_mean'))} | {_fmt(run.get('guarantee_share'), 2)} |"
+        )
+    return [*lines, ""]
 
 
 def markdown(results: Mapping[str, Any]) -> str:
@@ -779,10 +943,18 @@ def markdown(results: Mapping[str, Any]) -> str:
             f"n = {v['n_uncapped']})"
         )
     lines.append("")
+    overrides = results["provenance"].get("overrides") or []
+    if overrides:
+        lines += ["**Overrides of the selector's fit (no guarantee applies):**", ""]
+        lines += [f"- {warning}" for warning in overrides]
+        lines.append("")
     lines += _coverage(results)
+    lines += _dials(results["provenance"].get("selector_meta") or {})
     lines += _main_table(
         {"overall": main["overall"], **main["families"]}, "Main: teacher relevance"
     )
+    if results.get("runtime"):
+        lines += _runtime_section(main, results["runtime"])
     lines += _main_table(
         {"overall": gold["overall"], **gold["families"]},
         "Secondary: gold-annotated subset (recall over gold elements, tokens over the document)",
@@ -859,6 +1031,65 @@ def _environment() -> dict[str, Any]:
     }
 
 
+class RuntimeReader:
+    """Reads a gold document the way a user does (module docstring, the runtime path):
+    ``process()`` on its PDF with the fit's ``profile``, the pages the build read and the tagger
+    bundle as ``element_tags``, with the profile's doc type and sections (summaries, embeddings
+    and escalation off), then :func:`~docrooter.select.selection.prepare` with no tagger, as
+    ``select()`` does for the document's family. The engines and the sections backend are the
+    fit-identical reader's (one model each); ``encoder`` gives ``sim``."""
+
+    def __init__(
+        self,
+        corpus: Any,
+        pdf_dir: Path,
+        fit_reader: Any,
+        *,
+        profile: str,
+        tagger: Any,
+        encoder: Any,
+        embedder: str,
+    ) -> None:
+        from docrooter.rooter.profiles import profile_defaults
+
+        self.corpus = corpus
+        self.folder = Path(pdf_dir)
+        self.fit_reader = fit_reader
+        self.profile = profile
+        self.defaults = profile_defaults(profile)
+        self.tagger = tagger
+        self.encoder = encoder
+        self.embedder = embedder
+
+    def __call__(self, record: Any) -> tuple[Any, Any]:
+        from docrooter.rooter import process
+        from docrooter.select.selection import prepare
+        from docrooter.teach.shortlist import doc_family
+
+        path = self.folder / f"{record.id}.pdf"
+        layout, ocr = self.fit_reader.engines()
+        shared: dict[str, Any] = {}
+        for task in ("doc_type", "sections"):  # one embedding model, not two
+            if self.defaults[task] == self.fit_reader.sections_spec:
+                shared[task] = self.fit_reader.sections_backend()
+        analysis = process(
+            path,
+            profile=self.profile,
+            pages=self.corpus.pages_read(record.id),
+            element_tags=self.tagger,
+            layout=layout,
+            ocr=ocr,
+            summaries="none",
+            embeddings="none",
+            escalate="none",
+            **shared,
+        )
+        ctx = prepare(
+            analysis, encoder=self.encoder, family=doc_family(record), encoder_spec=self.embedder
+        )
+        return analysis, ctx
+
+
 def load_selector(selector: Path | None, tagger: str) -> Any:
     """The selector: ``selector``, else the tagger bundle's ``selector.json``."""
     from docrooter.select.selection import SELECTOR_FILE, Selector
@@ -877,6 +1108,8 @@ def run_gold(
     fields: Mapping[str, Sequence[Any]],
     gold_by_doc: Mapping[str, Sequence[Mapping[str, Any]]],
     selector: Any,
+    *,
+    read_runtime: Callable[[Any], tuple[Any, Any]] | None = None,
 ) -> dict[str, Any]:
     """Every gold-split record: read it (``read(record) -> (analysis, prepared context)``) when it
     has teacher labels or gold rows, evaluate its units, and account for every document.
@@ -884,7 +1117,9 @@ def run_gold(
     The gold subset is evaluated whenever the reading succeeds, whatever the teacher labels
     say; the main units need the labels to pass :func:`~docrooter.select.fit.label_leaves`'s
     checks, whose counts are kept per document. A reading that fails, for any reason, is
-    recorded with the exception's type."""
+    recorded with the exception's type. With ``read_runtime``, every document with teacher
+    labels is also read on the runtime path and evaluated with :func:`runtime_units`
+    (``runtime`` in the result)."""
     from docrooter.errors import DocrooterError
     from docrooter.select.fit import label_leaves
     from docrooter.teach.shortlist import doc_family
@@ -898,12 +1133,19 @@ def run_gold(
     read_ok: list[str] = []
     without_units: list[str] = []
     evaluated: list[str] = []
+    without_labels: list[str] = []
+    runtime: dict[str, Any] = {
+        "units": [],
+        "labels": Counter(),
+        "read": [],
+        "read_failed": [],
+    }
     for done, record in enumerate(records, 1):
         family = doc_family(record)
         has_labels = record.id in labels
         gold_rows = gold_by_doc.get(record.id, [])
         if not has_labels:
-            skipped["no_teacher_labels"].append(record.id)
+            without_labels.append(record.id)
         if not fields.get(family):
             skipped["no_fields"].append(record.id)
             continue
@@ -913,7 +1155,7 @@ def run_gold(
         try:
             analysis, ctx = read(record)
         except Exception as exc:  # one bad PDF never takes the run down
-            error = f"{type(exc).__name__}: {exc}"[:300]
+            error = relative(f"{type(exc).__name__}: {exc}")[:300]
             skipped["read_failed"].append({"doc_id": record.id, "error": error})
             log(f"[{done}/{len(records)}] {record.id}: read failed ({type(exc).__name__})")
             continue
@@ -923,7 +1165,7 @@ def run_gold(
             try:
                 leaves, checks[record.id] = label_leaves(ctx, labels[record.id], record.id)
             except DocrooterError as exc:
-                error = f"{type(exc).__name__}: {exc}"[:300]
+                error = relative(f"{type(exc).__name__}: {exc}")[:300]
                 skipped["label_check_failed"].append({"doc_id": record.id, "error": error})
         doc_units, doc_gold, counts, doc_curves = evaluate_document(
             analysis,
@@ -944,6 +1186,10 @@ def run_gold(
             f"[{done}/{len(records)}] {record.id}: {len(doc_units)} units, "
             f"{len(doc_gold)} gold-subset units"
         )
+        if read_runtime is not None and has_labels:
+            _runtime_document(
+                record, read_runtime, labels[record.id], fields[family], selector, family, runtime
+            )
     totals: Counter[str] = Counter()
     for check in checks.values():
         totals.update({k: v for k, v in check.items() if k != "rate"})
@@ -963,8 +1209,59 @@ def run_gold(
             "read": len(read_ok),
             "evaluated": len(evaluated),
             "read_without_units": without_units,
+            "without_teacher_labels": without_labels,
             "skipped": skipped,
         },
+        "runtime": _runtime_summary(runtime) if read_runtime is not None else None,
+    }
+
+
+def _runtime_document(
+    record: Any,
+    read_runtime: Callable[[Any], tuple[Any, Any]],
+    labels: Mapping[str, Mapping[str, str]],
+    fields: Sequence[Any],
+    selector: Any,
+    family: str,
+    runtime: dict[str, Any],
+) -> None:
+    """Read one document on the runtime path and add its units and label counts to
+    ``runtime``; a failure is recorded, never raised."""
+    try:
+        analysis, ctx = read_runtime(record)
+        units, counts = runtime_units(
+            analysis, ctx, labels, fields, selector, doc_id=record.id, family=family
+        )
+    except Exception as exc:  # one bad PDF never takes the run down
+        error = relative(f"{type(exc).__name__}: {exc}")[:300]
+        runtime["read_failed"].append({"doc_id": record.id, "error": error})
+        log(f"{record.id}: runtime path failed ({type(exc).__name__})")
+        return
+    runtime["read"].append(record.id)
+    runtime["units"] += units
+    runtime["labels"].update(counts)
+
+
+def _runtime_summary(runtime: Mapping[str, Any]) -> dict[str, Any]:
+    labels = dict(runtime["labels"])
+    for key in ("content", "with_text", "matched", "unmatched"):
+        labels.setdefault(key, 0)
+    labels["match_rate"] = labels["matched"] / labels["with_text"] if labels["with_text"] else None
+    units = runtime["units"]
+    mismatch: Counter[str] = Counter(kind for u in units for kind in u["fit_mismatch"])
+    main = aggregate(units, C_GRID)
+    return {
+        "units": units,
+        "labels": labels,
+        "documents": {
+            "read": len(runtime["read"]),
+            "evaluated": len({u["doc_id"] for u in units}),
+            "read_failed": runtime["read_failed"],
+        },
+        "fit_mismatch": dict(sorted(mismatch.items())),
+        "doc_type_mismatch": sum(bool(u["doc_type_mismatch"]) for u in units),
+        "main": main,
+        "program_target": program_target(main),
     }
 
 
@@ -976,7 +1273,7 @@ def cmd_gold(args: argparse.Namespace) -> int:
     from docrooter.select.fields import builtin_fields, list_builtin_field_sets
     from docrooter.select.fit import CorpusPdfReader, labels_by_document
     from docrooter.select.selection import prepare
-    from docrooter.tagger.element_tags import resolve_tagger
+    from docrooter.tagger.element_tags import resolve_tagger, tagger_fingerprint
     from docrooter.teach.shortlist import doc_family
 
     started = time.perf_counter()
@@ -999,6 +1296,9 @@ def cmd_gold(args: argparse.Namespace) -> int:
     log(f"{len(records)} gold-split documents, {sum(r.id in labels for r in records)} labelled")
 
     tagger = resolve_tagger(args.tagger)
+    overrides = provenance_overrides(selector, tagger=tagger_fingerprint(tagger), embedder=embedder)
+    for warning in overrides:
+        log(f"WARNING: {warning}")
     encoder = resolve_backend(embedder)
     same = embedder == profile_defaults(profile)["sections"]
     reader = CorpusPdfReader(
@@ -1012,10 +1312,28 @@ def cmd_gold(args: argparse.Namespace) -> int:
     def read(record: Any) -> tuple[Any, Any]:
         analysis = reader(record)
         family = doc_family(record)
-        return analysis, prepare(analysis, tagger=tagger, encoder=encoder, family=family)
+        ctx = prepare(
+            analysis, tagger=tagger, encoder=encoder, family=family, encoder_spec=embedder
+        )
+        return analysis, ctx
 
+    runtime_reader = (
+        None
+        if args.no_runtime
+        else RuntimeReader(
+            corpus,
+            args.pdf_dir,
+            reader,
+            profile=profile,
+            tagger=tagger,
+            encoder=encoder,
+            embedder=embedder,
+        )
+    )
     try:
-        run = run_gold(records, read, labels, fields, gold_by_doc, selector)
+        run = run_gold(
+            records, read, labels, fields, gold_by_doc, selector, read_runtime=runtime_reader
+        )
     finally:
         reader.close()
         close_backend(tagger)
@@ -1040,12 +1358,17 @@ def cmd_gold(args: argparse.Namespace) -> int:
         "dial_tokens_to_95": dial_tokens_to_95(main),
         "units": units,
         "gold_units": run["gold_units"],
+        "runtime": run["runtime"],
         "provenance": {
             "commit": _commit(),
-            "tagger": args.tagger,
-            "selector": str(args.selector) if args.selector else None,
+            "tagger": relative(args.tagger),
+            "selector": relative(str(args.selector)) if args.selector else None,
             "selector_meta": {k: selector.meta.get(k) for k in ("profile", "max_pages", "dials")},
+            "selector_provenance": (
+                None if selector.provenance is None else selector.provenance.model_dump()
+            ),
             "embedder": embedder,
+            "overrides": overrides,
             "profile": profile,
             "max_pages": max_pages,
             "reading_warnings": warnings,
@@ -1058,6 +1381,15 @@ def cmd_gold(args: argparse.Namespace) -> int:
     _write_json(out / RESULTS_FILE, results)
     (out / MARKDOWN_FILE).write_text(markdown(results), encoding="utf-8")
     log(f"{target_line(target, run['documents'], run['gold_elements'])} -> {out / RESULTS_FILE}")
+    if run["runtime"] is not None:
+        runtime = run["runtime"]
+        log(
+            "runtime path: "
+            + target_line(runtime["program_target"], {}, {}).split("; documents:")[0]
+            + f"; label match rate {_fmt(runtime['labels']['match_rate'])}"
+        )
+    for warning in overrides:
+        log(f"WARNING: {warning}")
     return 0
 
 
@@ -1082,6 +1414,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-pages", type=int, default=None, help="page cap (default: the selector fit's)"
     )
     p.add_argument("--out", type=Path, default=None, help="results dir (default: dated)")
+    p.add_argument(
+        "--no-runtime",
+        action="store_true",
+        help="skip the runtime-path row (process() + select() as a user runs them)",
+    )
     _guard.add_guard_argument(p)
     p = sub.add_parser("markdown", help="print a results file as Markdown (no models)")
     p.add_argument("results", type=Path)

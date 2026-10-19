@@ -19,7 +19,12 @@
   - the mean, 10th percentile and minimum recall;
   - the mean token share;
   - the shares of units with `guarantee=True` and `capped=True`.
-- **Program target** (spec §0.5): mean teacher-relevance recall ≥ c at c = 0.9, reported as PASS or FAIL.
+- **Program target** (spec §0.5): mean teacher-relevance recall ≥ c at c = 0.9. It is judged twice, each verdict reported as PASS or FAIL:
+  - the headline counts a capped unit (the whole document) at recall 1, since that is what the reader gets;
+  - the uncapped-only verdict leaves capped units out and judges the dial itself.
+
+  Both verdicts are shown with the share of capped units, the skipped documents and their reasons, and the gold elements whose text changed.
+- **Coverage.** Every gold-split document is accounted for: read, with units, read without units, or skipped with its reason. The gold subset is evaluated whenever a document reads, whatever its teacher labels say.
 
 ## Main evaluation: teacher relevance
 
@@ -41,6 +46,8 @@
 *Results pending.*
 
 Every baseline gets the same tokens as the selector: for each unit and each c < 1, its budget is the selector's token count at that c.
+
+The fills of BM25, similarity only and structure only are greedy: an element that does not fit is skipped, and smaller ones after it are still tried. This is slightly generous to the baselines, so it errs in their favour. Lead-k stops at the first element that does not fit.
 
 | baseline | how it picks |
 | - | - |
@@ -73,6 +80,8 @@ The curve plots mean recall against mean token share. It is computed over a fine
 `benchmarks/extraction/run.py` is optional and is not part of the package. It runs only when an OpenAI-compatible endpoint or a local MLX model is configured, and it never uses Jev. It asks each question twice: once with the context selected at c = 0.9, and once with the whole document. Answers are scored by exact match or 1% numeric tolerance. The report gives the accuracy, the tokens, and the difference between the two.
 
 ## Caveats
+
+*Results pending:* the per-family n, the capped shares and the measured teacher–gold disagreement go here once the runs are made.
 
 - **Pairs from one document are correlated.** The fields of one document share its reading, tags and section structure, so units are not independent. CRC's exchangeability holds at best across documents, not across the pairs of one document.
 - **The gold set is Claude-annotated.** The 900 gold labels were written by Claude subagents from the taxonomy definitions, not by domain experts. The teacher–gold disagreement shows how far the two label sources differ.

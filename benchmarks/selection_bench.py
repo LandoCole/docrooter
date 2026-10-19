@@ -1,13 +1,16 @@
 """Selection benchmark (spec §8, §0.2, §0.5; task S7): does ``select()`` keep the promised share
 of relevant content, at what token cost, and how do simple baselines do with the same tokens?
 
-**Documents.** Every gold-split document of the corpus store with ``teacher-full`` labels, read
-again with :class:`~docrooter.select.fit.CorpusPdfReader` (the corpus build's profile, page cap
-and pages, sections normalised in the document's family), tagged by the trained tagger and
-embedded once (:func:`~docrooter.select.selection.prepare`). Relevance comes from
+**Documents.** Every gold-split document of the corpus store that has ``teacher-full`` labels or
+gold rows, read again with :class:`~docrooter.select.fit.CorpusPdfReader` (the profile and page
+cap the selector was fitted with, from its ``meta``, unless given; the pages the build read;
+sections normalised in the document's family), tagged by the trained tagger and embedded once
+(:func:`~docrooter.select.selection.prepare`). Teacher relevance comes from
 :func:`~docrooter.select.fit.labels_by_document` and :func:`~docrooter.select.fit.label_leaves`,
-the reading and labels the selector was fitted on. A document whose labels do not fit its
-reading (an incomplete labelling run, a diverged reading) is skipped and listed.
+the reading and labels the selector was fitted on, whose per-document check counts are kept. A
+document whose labels do not fit its reading (an incomplete labelling run, a diverged reading)
+gives no main units, but its gold subset is still evaluated. Every document is accounted for:
+read, with units, read without units, or skipped with its reason (:func:`run_gold`).
 
 **Units.** A unit is a (document, built-in field of the document's family) pair with at least
 one teacher-relevant content element (an element whose teacher-full topic is one of the field's
@@ -19,7 +22,10 @@ topics).
 c). Recall is ``|selected ∩ relevant| / |relevant|`` over content elements AFTER expansion (what
 the user gets); per c, per family and overall: mean, 10th percentile and min recall, mean token
 share, and the shares of units with ``guarantee`` and with ``capped``. The program target
-(spec §0.5) is mean recall >= c at c = 0.9; it is printed as PASS or FAIL.
+(spec §0.5) is mean recall >= c at c = 0.9, judged twice (:func:`program_target`): the headline
+counts a capped unit (the whole document) at recall 1, as the user gets it, and the
+uncapped-only verdict judges the dial without them. Both, the capped share, the skipped
+documents and the gold hash mismatches are printed together (:func:`target_line`).
 
 **The curve.** For each unit, the selector's probabilities (the field combiner select() uses)
 are cut at every threshold of :data:`THRESHOLDS` and expanded; the mean recall and mean token
@@ -44,7 +50,9 @@ the budget is the selector's tokens at that c. Each picks content elements only:
 - ``structure``: the elements whose section matches the field (``section_hit``), in reading
   order, each one that still fits, then nothing.
 
-The whole document (recall 1, share 1) is the reference row.
+The fills are greedy: an element that does not fit is skipped and smaller ones are still tried
+(slightly generous to the baselines). The whole document (recall 1, share 1) is the reference
+row.
 
 **Results** go to ``benchmarks/results/<date>/selection.json`` (ids and numbers only, never
 element text) and ``selection.md``. One model set per process, under :mod:`benchmarks._guard`::
@@ -67,7 +75,7 @@ import re
 import sys
 import time
 from collections import Counter, defaultdict
-from collections.abc import Collection, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -108,6 +116,8 @@ DISCLOSURE = (
     "teacher relevance (the CRC target) is the main number; gold is Claude-annotated; "
     "pairs from one document are correlated"
 )
+DEFAULT_PROFILE = "accurate"  # the corpus build's
+DEFAULT_MAX_PAGES = 30
 _TOL = 1e-9
 _WORD = re.compile(r"\w+")
 
@@ -144,7 +154,11 @@ def evaluate_selection(sel: Selection, relevant: Collection[str]) -> dict[str, A
 
 
 def summary_stats(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """n, recall mean, 10th percentile and min, mean token share, the shares of units with
+    ``guarantee`` and ``capped``, and the mean recall over the uncapped units alone (a capped
+    unit returns the whole document, so its recall of 1 says nothing about the dial)."""
     recalls = [float(r["recall"]) for r in rows if r["recall"] is not None]
+    uncapped = [float(r["recall"]) for r in rows if r["recall"] is not None and not r["capped"]]
     if not recalls:
         return {
             "n": 0,
@@ -154,6 +168,8 @@ def summary_stats(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "token_share_mean": None,
             "guarantee_share": None,
             "capped_share": None,
+            "n_uncapped": 0,
+            "recall_mean_uncapped": None,
         }
     n = len(rows)
     return {
@@ -164,12 +180,13 @@ def summary_stats(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "token_share_mean": float(np.mean([float(r["token_share"]) for r in rows])),
         "guarantee_share": sum(bool(r["guarantee"]) for r in rows) / n,
         "capped_share": sum(bool(r["capped"]) for r in rows) / n,
+        "n_uncapped": len(uncapped),
+        "recall_mean_uncapped": float(np.mean(uncapped)) if uncapped else None,
     }
 
 
 def aggregate(units: Sequence[Mapping[str, Any]], c_grid: Sequence[float]) -> dict[str, Any]:
-    """Per c (:func:`c_key`), overall and per family: n, recall mean, 10th percentile and min,
-    mean token share, and the shares of units with ``guarantee`` and ``capped``."""
+    """Per c (:func:`c_key`), overall and per family: :func:`summary_stats`."""
     families = sorted({str(u["family"]) for u in units})
     out: dict[str, Any] = {"overall": {}, "families": {f: {} for f in families}}
     for c in c_grid:
@@ -182,18 +199,28 @@ def aggregate(units: Sequence[Mapping[str, Any]], c_grid: Sequence[float]) -> di
 
 
 def program_target(agg: Mapping[str, Any], c: float = TARGET_C) -> dict[str, Any]:
-    """Spec §0.5: mean recall >= c at c = 0.9, overall and per family, with the 10th percentile
-    and the token share beside it."""
+    """Spec §0.5: mean recall >= c at c = 0.9, overall and per family, judged twice.
+
+    The headline (``pass``) keeps capped units at recall 1, which is what the user gets; the
+    uncapped-only verdict (``pass_uncapped``, ``None`` when every unit is capped) judges the dial
+    itself. The capped and guaranteed shares, the 10th percentile and the token share are kept
+    beside them."""
     key = c_key(c)
 
     def verdict(stats: Mapping[str, Any]) -> dict[str, Any]:
         mean = stats.get("recall_mean")
+        uncapped = stats.get("recall_mean_uncapped")
         return {
             "n": stats.get("n", 0),
             "mean": mean,
             "p10": stats.get("recall_p10"),
             "token_share_mean": stats.get("token_share_mean"),
+            "guarantee_share": stats.get("guarantee_share"),
+            "capped_share": stats.get("capped_share"),
             "pass": mean is not None and mean >= c - _TOL,
+            "n_uncapped": stats.get("n_uncapped", 0),
+            "mean_uncapped": uncapped,
+            "pass_uncapped": None if uncapped is None else uncapped >= c - _TOL,
         }
 
     overall = verdict(agg["overall"].get(key, {}))
@@ -202,6 +229,74 @@ def program_target(agg: Mapping[str, Any], c: float = TARGET_C) -> dict[str, Any
         **overall,
         "families": {f: verdict(by_c.get(key, {})) for f, by_c in agg["families"].items()},
     }
+
+
+SKIP_REASONS = (
+    "no_teacher_labels",
+    "no_fields",
+    "nothing_to_evaluate",
+    "read_failed",
+    "label_check_failed",
+)
+
+
+def _pct(value: float | None) -> str:
+    return "–" if value is None else f"{value:.0%}"
+
+
+def _verdict_text(value: bool | None) -> str:
+    return "n/a" if value is None else ("PASS" if value else "FAIL")
+
+
+def target_line(
+    target: Mapping[str, Any],
+    documents: Mapping[str, Any],
+    gold_elements: Mapping[str, int],
+) -> str:
+    """The program-target readout: both verdicts, the capped share, and every exclusion."""
+    uncapped = (
+        f"uncapped only {_verdict_text(target['pass_uncapped'])} "
+        f"(mean {_fmt(target['mean_uncapped'])}, n = {target['n_uncapped']})"
+        if target["pass_uncapped"] is not None
+        else "uncapped only n/a (every unit capped)"
+    )
+    skipped = documents.get("skipped", {})
+    reasons = [f"{r} {len(skipped[r])}" for r in SKIP_REASONS if skipped.get(r)]
+    return (
+        f"program target at c = {target['c']:.2f}: headline {_verdict_text(target['pass'])} "
+        f"(mean recall {_fmt(target['mean'])}, p10 {_fmt(target['p10'])}, token share "
+        f"{_fmt(target['token_share_mean'])}; {_pct(target['capped_share'])} of units capped, "
+        f"{_pct(target['guarantee_share'])} guaranteed; n = {target['n']}), {uncapped}; "
+        f"documents: {documents.get('gold_split', 0)} gold, {documents.get('read', 0)} read, "
+        f"{documents.get('evaluated', 0)} with units, "
+        f"{len(documents.get('read_without_units', []))} read without units; "
+        f"skipped: {', '.join(reasons) or 'none'}; gold elements: "
+        f"{gold_elements.get('matched', 0)} matched, {gold_elements.get('hash_mismatch', 0)} "
+        f"hash mismatch, {gold_elements.get('missing', 0)} missing"
+    )
+
+
+def reading_settings(
+    profile: str | None, max_pages: int | None, meta: Mapping[str, Any]
+) -> tuple[str, int, list[str]]:
+    """The profile and page cap to read with: the ones given, else the selector's fit (its
+    ``meta``), else the corpus build's defaults; plus a warning for each one given that differs
+    from the fit."""
+    fit_profile, fit_pages = meta.get("profile"), meta.get("max_pages")
+    warnings: list[str] = []
+    if profile is not None and fit_profile is not None and profile != fit_profile:
+        warnings.append(
+            f"--profile {profile} differs from the profile the selector was fitted with "
+            f"({fit_profile}): readings may diverge from the labels"
+        )
+    if max_pages is not None and fit_pages is not None and max_pages != fit_pages:
+        warnings.append(
+            f"--max-pages {max_pages} differs from the {fit_pages} pages the selector was "
+            "fitted with: readings may diverge from the labels"
+        )
+    chosen_profile = profile or fit_profile or DEFAULT_PROFILE
+    chosen_pages = max_pages if max_pages is not None else fit_pages or DEFAULT_MAX_PAGES
+    return str(chosen_profile), int(chosen_pages), warnings
 
 
 # --- the curve ------------------------------------------------------------------------------------
@@ -475,7 +570,7 @@ def teacher_gold_disagreement(
 def evaluate_document(
     analysis: Any,
     ctx: Any,
-    leaves: Sequence[str | None],
+    leaves: Sequence[str | None] | None,
     fields: Sequence[Any],
     gold_rows: Sequence[Mapping[str, Any]],
     selector: Any,
@@ -486,7 +581,9 @@ def evaluate_document(
     thresholds: Sequence[float] = THRESHOLDS,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, int], list[list[Any]]]:
     """The units of one prepared document: ``(units, gold units, gold counts, curves)``; a
-    unit's curve is :func:`threshold_curve` on the probabilities select() cuts."""
+    unit's curve is :func:`threshold_curve` on the probabilities select() cuts. ``leaves`` is
+    each content element's teacher topic; ``None`` (no usable teacher labels) gives gold-subset
+    units only."""
     from docrooter.corpus.store import text_sha1
     from docrooter.select.selection import need_features, need_texts, select_scored
 
@@ -506,7 +603,7 @@ def evaluate_document(
     curves: list[list[Any]] = []
     for field in fields:
         topics = set(field.topics)
-        relevant = {content_ids[j] for j, leaf in enumerate(leaves) if leaf in topics}
+        relevant = {content_ids[j] for j, leaf in enumerate(leaves or ()) if leaf in topics}
         gold_relevant = {element_id for element_id, t in matched.items() if t in topics}
         if not relevant and not gold_relevant:
             continue
@@ -628,6 +725,35 @@ def _main_table(by_group: Mapping[str, Mapping[str, Any]], title: str) -> list[s
     return [*lines, ""]
 
 
+def _coverage(results: Mapping[str, Any]) -> list[str]:
+    documents = results.get("documents", {})
+    skipped = documents.get("skipped", {})
+    gold = results.get("gold_elements", {})
+    totals = results.get("label_checks", {}).get("totals", {})
+    return [
+        "### Coverage",
+        "",
+        f"{documents.get('gold_split', 0)} gold-split documents, {documents.get('read', 0)} "
+        f"read, {documents.get('evaluated', 0)} with units, "
+        f"{len(documents.get('read_without_units', []))} read without units.",
+        "",
+        "| skipped because | documents |",
+        "|---|---|",
+        *(f"| {reason} | {len(skipped.get(reason, []))} |" for reason in SKIP_REASONS),
+        "",
+        "| gold elements | n |",
+        "|---|---|",
+        f"| matched | {gold.get('matched', 0)} |",
+        f"| hash mismatch | {gold.get('hash_mismatch', 0)} |",
+        f"| missing | {gold.get('missing', 0)} |",
+        "",
+        "Teacher labels of the evaluated documents: "
+        + (", ".join(f"{k} {v}" for k, v in totals.items()) or "none")
+        + " (unlabelled elements count as not relevant).",
+        "",
+    ]
+
+
 def markdown(results: Mapping[str, Any]) -> str:
     """The results as Markdown tables (for ``docs/benchmarks-selection.md``)."""
     main, gold = results["main"], results["gold_subset"]
@@ -639,14 +765,21 @@ def markdown(results: Mapping[str, Any]) -> str:
         f"{results['disclosure']}.",
         "",
         f"**Program target** (mean teacher-relevance recall >= {target['c']} at c = "
-        f"{target['c']}): {_fmt(target['pass'])}, mean {_fmt(target['mean'])}, "
-        f"p10 {_fmt(target['p10'])}, token share {_fmt(target['token_share_mean'])}, "
-        f"n = {target['n']}.",
+        f"{target['c']}; the headline counts a capped unit at recall 1, the uncapped-only "
+        "verdict leaves capped units out):",
+        "",
+        target_line(target, results.get("documents", {}), results.get("gold_elements", {})),
         "",
     ]
     for family, v in target["families"].items():
-        lines.append(f"- {family}: {_fmt(v['pass'])}, mean {_fmt(v['mean'])}, n = {v['n']}")
+        lines.append(
+            f"- {family}: headline {_verdict_text(v['pass'])} (mean {_fmt(v['mean'])}, "
+            f"{_pct(v['capped_share'])} capped, n = {v['n']}), uncapped only "
+            f"{_verdict_text(v['pass_uncapped'])} (mean {_fmt(v['mean_uncapped'])}, "
+            f"n = {v['n_uncapped']})"
+        )
     lines.append("")
+    lines += _coverage(results)
     lines += _main_table(
         {"overall": main["overall"], **main["families"]}, "Main: teacher relevance"
     )
@@ -737,14 +870,111 @@ def load_selector(selector: Path | None, tagger: str) -> Any:
 # --- commands -------------------------------------------------------------------------------------
 
 
+def run_gold(
+    records: Sequence[Any],
+    read: Callable[[Any], tuple[Any, Any]],
+    labels: Mapping[str, Mapping[str, Mapping[str, str]]],
+    fields: Mapping[str, Sequence[Any]],
+    gold_by_doc: Mapping[str, Sequence[Mapping[str, Any]]],
+    selector: Any,
+) -> dict[str, Any]:
+    """Every gold-split record: read it (``read(record) -> (analysis, prepared context)``) when it
+    has teacher labels or gold rows, evaluate its units, and account for every document.
+
+    The gold subset is evaluated whenever the reading succeeds, whatever the teacher labels
+    say; the main units need the labels to pass :func:`~docrooter.select.fit.label_leaves`'s
+    checks, whose counts are kept per document. A reading that fails, for any reason, is
+    recorded with the exception's type."""
+    from docrooter.errors import DocrooterError
+    from docrooter.select.fit import label_leaves
+    from docrooter.teach.shortlist import doc_family
+
+    skipped: dict[str, list[Any]] = {reason: [] for reason in SKIP_REASONS}
+    units: list[dict[str, Any]] = []
+    gold_units: list[dict[str, Any]] = []
+    curves: list[list[Any]] = []
+    gold_counts: Counter[str] = Counter()
+    checks: dict[str, dict[str, Any]] = {}
+    read_ok: list[str] = []
+    without_units: list[str] = []
+    evaluated: list[str] = []
+    for done, record in enumerate(records, 1):
+        family = doc_family(record)
+        has_labels = record.id in labels
+        gold_rows = gold_by_doc.get(record.id, [])
+        if not has_labels:
+            skipped["no_teacher_labels"].append(record.id)
+        if not fields.get(family):
+            skipped["no_fields"].append(record.id)
+            continue
+        if not has_labels and not gold_rows:
+            skipped["nothing_to_evaluate"].append(record.id)
+            continue
+        try:
+            analysis, ctx = read(record)
+        except Exception as exc:  # one bad PDF never takes the run down
+            error = f"{type(exc).__name__}: {exc}"[:300]
+            skipped["read_failed"].append({"doc_id": record.id, "error": error})
+            log(f"[{done}/{len(records)}] {record.id}: read failed ({type(exc).__name__})")
+            continue
+        read_ok.append(record.id)
+        leaves = None
+        if has_labels:
+            try:
+                leaves, checks[record.id] = label_leaves(ctx, labels[record.id], record.id)
+            except DocrooterError as exc:
+                error = f"{type(exc).__name__}: {exc}"[:300]
+                skipped["label_check_failed"].append({"doc_id": record.id, "error": error})
+        doc_units, doc_gold, counts, doc_curves = evaluate_document(
+            analysis,
+            ctx,
+            leaves,
+            fields[family],
+            gold_rows,
+            selector,
+            doc_id=record.id,
+            family=family,
+        )
+        units += doc_units
+        gold_units += doc_gold
+        curves += doc_curves
+        gold_counts.update(counts)
+        (evaluated if doc_units or doc_gold else without_units).append(record.id)
+        log(
+            f"[{done}/{len(records)}] {record.id}: {len(doc_units)} units, "
+            f"{len(doc_gold)} gold-subset units"
+        )
+    totals: Counter[str] = Counter()
+    for check in checks.values():
+        totals.update({k: v for k, v in check.items() if k != "rate"})
+    return {
+        "units": units,
+        "gold_units": gold_units,
+        "curves": curves,
+        "gold_elements": {
+            "gold": gold_counts["gold"],
+            "matched": gold_counts["matched"],
+            "hash_mismatch": gold_counts["hash_mismatch"],
+            "missing": gold_counts["missing"],
+        },
+        "label_checks": {"totals": dict(totals), "per_document": checks},
+        "documents": {
+            "gold_split": len(records),
+            "read": len(read_ok),
+            "evaluated": len(evaluated),
+            "read_without_units": without_units,
+            "skipped": skipped,
+        },
+    }
+
+
 def cmd_gold(args: argparse.Namespace) -> int:
     from docrooter.backends.base import close_backend
     from docrooter.backends.registry import resolve_backend
     from docrooter.corpus.store import Corpus
-    from docrooter.errors import DocrooterError
     from docrooter.rooter.profiles import profile_defaults
     from docrooter.select.fields import builtin_fields, list_builtin_field_sets
-    from docrooter.select.fit import CorpusPdfReader, label_leaves, labels_by_document
+    from docrooter.select.fit import CorpusPdfReader, labels_by_document
     from docrooter.select.selection import prepare
     from docrooter.tagger.element_tags import resolve_tagger
     from docrooter.teach.shortlist import doc_family
@@ -755,6 +985,9 @@ def cmd_gold(args: argparse.Namespace) -> int:
     labels = labels_by_document(corpus)
     disagreement = teacher_gold_disagreement(gold_rows, labels)
     selector = load_selector(args.selector, args.tagger)
+    profile, max_pages, warnings = reading_settings(args.profile, args.max_pages, selector.meta)
+    for warning in warnings:
+        log(f"warning: {warning}")
     embedder = args.embedder or selector.embedder
     if embedder is None:
         raise SystemExit("the selector records no embedder; pass --embedder")
@@ -763,91 +996,59 @@ def cmd_gold(args: argparse.Namespace) -> int:
     for row in gold_rows:
         gold_by_doc[str(row["doc_id"])].append(row)
     records = [r for r in corpus.manifest() if r.split == "gold"]
-    skipped: dict[str, Any] = {
-        "no_teacher_labels": sorted(r.id for r in records if r.id not in labels),
-        "no_fields": [],
-        "errors": [],
-    }
-    docs = [r for r in records if r.id in labels]
-    log(f"{len(docs)} gold documents with teacher-full labels (of {len(records)})")
+    log(f"{len(records)} gold-split documents, {sum(r.id in labels for r in records)} labelled")
 
-    units: list[dict[str, Any]] = []
-    gold_units: list[dict[str, Any]] = []
-    curves: list[list[Any]] = []
-    gold_counts: Counter[str] = Counter()
     tagger = resolve_tagger(args.tagger)
     encoder = resolve_backend(embedder)
-    same = embedder == profile_defaults(args.profile)["sections"]
+    same = embedder == profile_defaults(profile)["sections"]
     reader = CorpusPdfReader(
         corpus,
         args.pdf_dir,
-        profile=args.profile,
-        max_pages=args.max_pages,
+        profile=profile,
+        max_pages=max_pages,
         sections_backend=encoder if same else None,
     )
+
+    def read(record: Any) -> tuple[Any, Any]:
+        analysis = reader(record)
+        family = doc_family(record)
+        return analysis, prepare(analysis, tagger=tagger, encoder=encoder, family=family)
+
     try:
-        for done, record in enumerate(docs, 1):
-            family = doc_family(record)
-            if not fields.get(family):
-                skipped["no_fields"].append(record.id)
-                continue
-            try:
-                analysis = reader(record)
-                ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=family)
-                leaves, _ = label_leaves(ctx, labels[record.id], record.id)
-            except DocrooterError as exc:
-                skipped["errors"].append({"doc_id": record.id, "error": str(exc)[:300]})
-                log(f"[{done}/{len(docs)}] {record.id}: skipped ({exc})")
-                continue
-            doc_units, doc_gold, counts, doc_curves = evaluate_document(
-                analysis,
-                ctx,
-                leaves,
-                fields[family],
-                gold_by_doc.get(record.id, []),
-                selector,
-                doc_id=record.id,
-                family=family,
-            )
-            units += doc_units
-            gold_units += doc_gold
-            curves += doc_curves
-            gold_counts.update(counts)
-            log(f"[{done}/{len(docs)}] {record.id}: {len(doc_units)} units")
+        run = run_gold(records, read, labels, fields, gold_by_doc, selector)
     finally:
         reader.close()
         close_backend(tagger)
         close_backend(encoder)
 
+    units = run["units"]
     main = aggregate(units, C_GRID)
     target = program_target(main)
     results: dict[str, Any] = {
         "date": datetime.date.today().isoformat(),
         "disclosure": DISCLOSURE,
         "c_grid": list(C_GRID),
-        "documents": {
-            "gold_split": len(records),
-            "evaluated": len({u["doc_id"] for u in units}),
-            "skipped": skipped,
-        },
+        "documents": run["documents"],
         "main": main,
         "program_target": target,
-        "gold_subset": aggregate(gold_units, C_GRID),
-        "gold_elements": dict(gold_counts),
+        "gold_subset": aggregate(run["gold_units"], C_GRID),
+        "gold_elements": run["gold_elements"],
+        "label_checks": run["label_checks"],
         "disagreement": disagreement,
         "baselines": aggregate_baselines(units, C_GRID),
-        "curve": summarise_curves(curves),
+        "curve": summarise_curves(run["curves"]),
         "dial_tokens_to_95": dial_tokens_to_95(main),
         "units": units,
-        "gold_units": gold_units,
+        "gold_units": run["gold_units"],
         "provenance": {
             "commit": _commit(),
             "tagger": args.tagger,
             "selector": str(args.selector) if args.selector else None,
             "selector_meta": {k: selector.meta.get(k) for k in ("profile", "max_pages", "dials")},
             "embedder": embedder,
-            "profile": args.profile,
-            "max_pages": args.max_pages,
+            "profile": profile,
+            "max_pages": max_pages,
+            "reading_warnings": warnings,
             "gold_sha256": _sha256(args.gold),
         },
         "seconds": round(time.perf_counter() - started, 1),
@@ -856,12 +1057,7 @@ def cmd_gold(args: argparse.Namespace) -> int:
     out = _out_dir(args.out)
     _write_json(out / RESULTS_FILE, results)
     (out / MARKDOWN_FILE).write_text(markdown(results), encoding="utf-8")
-    overall = target
-    log(
-        f"program target at c = {TARGET_C}: {'PASS' if overall['pass'] else 'FAIL'} "
-        f"(mean recall {_fmt(overall['mean'])}, p10 {_fmt(overall['p10'])}, token share "
-        f"{_fmt(overall['token_share_mean'])}, n = {overall['n']}) -> {out / RESULTS_FILE}"
-    )
+    log(f"{target_line(target, run['documents'], run['gold_elements'])} -> {out / RESULTS_FILE}")
     return 0
 
 
@@ -881,8 +1077,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--store", type=Path, default=STORE, help="corpus store")
     p.add_argument("--pdf-dir", type=Path, default=PDF_DIR, help="folder of <id>.pdf")
     p.add_argument("--gold", type=Path, default=GOLD_PATH)
-    p.add_argument("--profile", default="accurate", help="the corpus build's profile")
-    p.add_argument("--max-pages", type=int, default=30, help="the corpus build's page cap")
+    p.add_argument("--profile", default=None, help="reading profile (default: the selector fit's)")
+    p.add_argument(
+        "--max-pages", type=int, default=None, help="page cap (default: the selector fit's)"
+    )
     p.add_argument("--out", type=Path, default=None, help="results dir (default: dated)")
     _guard.add_guard_argument(p)
     p = sub.add_parser("markdown", help="print a results file as Markdown (no models)")

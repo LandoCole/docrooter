@@ -12,6 +12,7 @@ import io
 import json
 import os
 import urllib.error
+from collections import Counter
 from email.message import Message
 from pathlib import Path
 
@@ -52,6 +53,25 @@ def selection(ids, tokens, share, *, c=0.9, guarantee=True, capped=False) -> Sel
 # --- recall and token share ----------------------------------------------------------------------
 
 
+def unit(family, field_id, recalls, shares, guarantee=True, capped=False, doc_id=None):
+    """A unit result at c = 0.8 and 0.9."""
+    return {
+        "doc_id": doc_id or f"d-{field_id}",
+        "family": family,
+        "field_id": field_id,
+        "by_c": {
+            bench.c_key(c): {
+                "recall": r,
+                "token_share": s,
+                "tokens": 1,
+                "guarantee": guarantee,
+                "capped": capped,
+            }
+            for c, r, s in zip((0.8, 0.9), recalls, shares, strict=True)
+        },
+    }
+
+
 def test_recall_and_token_share():
     # Recall is over the relevant content elements, after expansion: what the user gets.
     assert bench.recall({"e1", "e2", "h0"}, {"e1", "e3"}) == 0.5
@@ -65,23 +85,6 @@ def test_recall_and_token_share():
         "guarantee": True,
         "capped": False,
     }
-
-    def unit(family, field_id, recalls, shares, guarantee=True, capped=False):
-        return {
-            "doc_id": f"d-{field_id}",
-            "family": family,
-            "field_id": field_id,
-            "by_c": {
-                bench.c_key(c): {
-                    "recall": r,
-                    "token_share": s,
-                    "tokens": 1,
-                    "guarantee": guarantee,
-                    "capped": capped,
-                }
-                for c, r, s in zip((0.8, 0.9), recalls, shares, strict=True)
-            },
-        }
 
     units = [
         unit("annual_report", "a", (0.8, 1.0), (0.2, 0.3)),
@@ -106,6 +109,77 @@ def test_recall_and_token_share():
     assert verdict["c"] == 0.9 and verdict["pass"] is True
     low = bench.aggregate([unit("annual_report", "x", (0.5, 0.85), (0.1, 0.2))], (0.8, 0.9))
     assert bench.program_target(low)["pass"] is False
+
+
+def test_program_target_shows_capped_units_and_exclusions():
+    # A capped unit returns the whole document: recall 1 in the headline, as the user gets it,
+    # but the uncapped-only mean and the capped share are shown beside it, with their verdicts.
+    units = [
+        unit("annual_report", "a", (1.0, 1.0), (1.0, 1.0), capped=True),
+        unit("annual_report", "b", (0.6, 0.85), (0.3, 0.4)),
+    ]
+    agg = bench.aggregate(units, (0.8, 0.9))
+    stats = agg["overall"][bench.c_key(0.9)]
+    assert stats["n_uncapped"] == 1 and stats["recall_mean_uncapped"] == pytest.approx(0.85)
+    verdict = bench.program_target(agg)
+    assert verdict["mean"] == pytest.approx(0.925) and verdict["pass"] is True
+    assert verdict["capped_share"] == 0.5 and verdict["guarantee_share"] == 1.0
+    assert verdict["mean_uncapped"] == pytest.approx(0.85) and verdict["n_uncapped"] == 1
+    assert verdict["pass_uncapped"] is False
+    assert verdict["families"]["annual_report"]["pass_uncapped"] is False
+    all_capped = bench.program_target(
+        bench.aggregate([unit("fund_document", "c", (1.0, 1.0), (1.0, 1.0), capped=True)], (0.9,))
+    )
+    assert all_capped["pass"] is True and all_capped["pass_uncapped"] is None  # undefined
+
+    documents = {
+        "gold_split": 10,
+        "read": 8,
+        "evaluated": 6,
+        "read_without_units": ["d7", "d8"],
+        "skipped": {
+            "no_teacher_labels": ["d9"],
+            "no_fields": [],
+            "read_failed": [{"doc_id": "d10", "error": "DocrooterError: x"}],
+            "label_check_failed": [{"doc_id": "d6", "error": "DocrooterError: y"}],
+        },
+    }
+    gold_elements = {"gold": 900, "matched": 880, "hash_mismatch": 15, "missing": 5}
+    line = bench.target_line(verdict, documents, gold_elements)
+    assert "headline PASS" in line and "uncapped only FAIL" in line
+    assert "50% of units capped" in line and "mean 0.850" in line
+    assert "no_teacher_labels 1" in line and "read_failed 1" in line
+    assert "label_check_failed 1" in line and "2 read without units" in line
+    assert "15 hash mismatch" in line and "5 missing" in line
+
+    results = {
+        "date": "2026-10-19",
+        "disclosure": bench.DISCLOSURE,
+        "provenance": {"commit": "abc"},
+        "documents": documents,
+        "gold_elements": gold_elements,
+        "label_checks": {"totals": {"content": 10, "no_label": 1, "missing": 0}},
+        "main": agg,
+        "program_target": verdict,
+        "gold_subset": agg,
+        "disagreement": bench.teacher_gold_disagreement([], {}),
+        "baselines": bench.aggregate_baselines([], (0.9,)),
+        "curve": {},
+        "dial_tokens_to_95": {},
+    }
+    text = bench.markdown(results)
+    assert line in text and "### Coverage" in text
+    assert "| read_failed | 1 |" in text and "| hash mismatch | 15 |" in text
+
+
+def test_reading_settings_default_to_the_selector_fit():
+    meta = {"profile": "balanced", "max_pages": 20}
+    assert bench.reading_settings(None, None, meta) == ("balanced", 20, [])
+    profile, pages, warnings = bench.reading_settings("accurate", 20, meta)
+    assert (profile, pages) == ("accurate", 20)
+    assert len(warnings) == 1 and "balanced" in warnings[0] and "accurate" in warnings[0]
+    assert bench.reading_settings(None, 40, meta)[2][0].count("max-pages") == 1
+    assert bench.reading_settings(None, None, {}) == ("accurate", 30, [])
 
 
 # --- the curve and tokens-to-95 ------------------------------------------------------------------
@@ -342,10 +416,10 @@ def test_evaluate_document_with_fakes():
     # Evidence QA on the same document: the question as a need and its closest field.
     evidence = (qa.Evidence(1, "Interest rate risk could harm our results."),)
     question = qa.Question("q1", "d", "Which interest rate risk?", "x", evidence)
+    matcher = qa.FieldMatcher([RISK, LEGAL], FakeEmbedder())
     rows, tally = qa.evaluate_document(
-        analysis, ctx, [question], [RISK, LEGAL], selector, FakeEmbedder(), {1},
-        other_base_shift=-1,
-    )  # fmt: skip
+        analysis, ctx, [question], matcher, selector, {1}, other_base_shift=-1
+    )
     assert tally["aligned"] == 1 and tally["aligned_if_other_base"] == 0
     assert rows[0]["field_id"] == RISK.id and rows[0]["n_relevant"] == 1
     assert set(rows[0]["query"]) == {bench.c_key(c) for c in qa.QUERY_GRID}
@@ -353,9 +427,73 @@ def test_evaluate_document_with_fakes():
     assert "Which" not in json.dumps(rows)  # ids and numbers only
     off_page = qa.Question("q2", "d", "q", "x", (qa.Evidence(7, "anything"),))
     _, tally = qa.evaluate_document(
-        analysis, ctx, [off_page], [RISK], selector, FakeEmbedder(), {1}, other_base_shift=None
+        analysis, ctx, [off_page], matcher, selector, {1}, other_base_shift=None
     )
     assert tally["pages_not_read"] == 1
+
+    # Without teacher labels, the gold subset is still evaluated.
+    units, gold_units, _, curves = bench.evaluate_document(
+        analysis, ctx, None, [RISK, LEGAL], gold, selector, doc_id="d", family="annual_report"
+    )
+    assert units == [] and curves == [] and [u["field_id"] for u in gold_units] == [RISK.id]
+
+
+def test_run_gold_counts_every_document():
+    from docrooter.corpus.store import ManifestRecord
+    from docrooter.errors import DocrooterError
+
+    analysis, ctx, selector = _fake_document()
+    doc = analysis.document
+    content = [e for e in doc.elements if e.kind != "heading"]
+
+    def leaves(topic_of, sha=text_sha1):
+        return {e.id: {sha(e.text): topic_of(e)} for e in content}
+
+    def risky(e):
+        return "annual_report.risk_factors" if "risk" in e.text.lower() else "annual_report.other"
+
+    labels = {
+        "ok": leaves(risky),
+        "nounits": leaves(lambda e: "annual_report.other"),
+        "badcheck": leaves(risky, sha=lambda text: "0" * 40),  # labels for other texts
+    }
+    gold_row = {
+        "element_id": "e3",
+        "text_sha1": text_sha1(doc.elements[3].text),
+        "family": "annual_report",
+        "topic": "annual_report.risk_factors",
+    }
+    gold_by_doc = {d: [{**gold_row, "doc_id": d}] for d in ("ok", "nolabels", "badcheck", "broken")}
+
+    def record(doc_id):
+        return ManifestRecord(id=doc_id, sha256="0" * 64, family_hint="annual_report", split="gold")
+
+    def read(rec):
+        if rec.id == "broken":
+            raise DocrooterError("cannot open PDF")
+        return analysis, ctx
+
+    ids = ["ok", "nounits", "nolabels", "badcheck", "broken", "nothing"]
+    run = bench.run_gold(
+        [record(d) for d in ids], read, labels, {"annual_report": [RISK, LEGAL]},
+        gold_by_doc, selector,
+    )  # fmt: skip
+    docs = run["documents"]
+    assert docs["gold_split"] == 6 and docs["read"] == 4
+    assert sorted({u["doc_id"] for u in run["units"]}) == ["ok"]
+    assert sorted({u["doc_id"] for u in run["gold_units"]}) == ["badcheck", "nolabels", "ok"]
+    assert docs["evaluated"] == 3  # with any unit, main or gold subset
+    assert docs["read_without_units"] == ["nounits"]
+    skipped = docs["skipped"]
+    assert skipped["no_teacher_labels"] == ["nolabels", "broken", "nothing"]
+    assert [f["doc_id"] for f in skipped["read_failed"]] == ["broken"]
+    assert skipped["read_failed"][0]["error"].startswith("DocrooterError")
+    assert [f["doc_id"] for f in skipped["label_check_failed"]] == ["badcheck"]
+    assert skipped["nothing_to_evaluate"] == ["nothing"]  # no labels and no gold: never read
+    checks = run["label_checks"]
+    assert set(checks["per_document"]) == {"ok", "nounits"}
+    assert checks["totals"]["content"] == 2 * len(content)
+    assert run["gold_elements"]["matched"] == 3
 
 
 def test_selection_bench_and_evidence_qa_are_model_processes():
@@ -414,9 +552,96 @@ def test_evidence_alignment_char_overlap():
     assert question.evidence == (qa.Evidence(5, evidence_text),)
     assert qa.parse_financebench([json.dumps(row)], page_base=1)[0].evidence[0].page == 4
 
-    # The closest field is the one most similar to the question.
-    fields = ["annual_report.a", "annual_report.b", "annual_report.c"]
-    assert qa.closest(fields, np.array([0.1, 0.7, 0.3])) == "annual_report.b"
+
+def test_schema_failures_are_loud():
+    good = qa.Question("q1", "d", "q", "a", (qa.Evidence(1, "t"),))
+    bare = qa.Question("q2", "d", "q", "a", ())
+    qa.check_questions([good, good, bare], "financebench")  # one in three: fine
+    with pytest.raises(SystemExit, match="no question loaded.*schema"):
+        qa.check_questions([], "tat-dqa")
+    with pytest.raises(SystemExit, match="3 of 4 questions have no evidence.*schema"):
+        qa.check_questions([good, bare, bare, bare], "tat-dqa")
+
+    assert qa.check_alignment({"questions_evaluated": 4, "aligned": 3}) == []
+    with pytest.raises(SystemExit, match="no question aligned.*page base.*schema"):
+        qa.check_alignment({"questions_evaluated": 4, "aligned": 0, "unaligned": 4})
+    with pytest.raises(SystemExit, match="no evidence.*schema"):
+        qa.check_alignment({"questions_evaluated": 4, "aligned": 1, "no_evidence": 3})
+    warnings = qa.check_alignment(
+        {"questions_evaluated": 4, "aligned": 1, "aligned_if_other_base": 3}
+    )
+    assert len(warnings) == 1 and "page base" in warnings[0]
+
+
+def test_field_texts_are_embedded_once():
+    class Counting(FakeEmbedder):
+        def __init__(self):
+            self.batches = []
+
+        def encode(self, texts, prompt=""):
+            self.batches.append(len(texts))
+            return super().encode(texts, prompt)
+
+    encoder = Counting()
+    matcher = qa.FieldMatcher([LEGAL, RISK], encoder)
+    assert matcher.closest("Which risks matter?") is RISK
+    assert matcher.closest("Who sued whom?").id in (LEGAL.id, RISK.id)
+    assert encoder.batches == [2, 1, 1]  # the fields once, then one question at a time
+
+
+def test_run_documents_survives_a_crash_and_writes_as_it_goes():
+    written = []
+
+    def evaluate(doc_id, payload):
+        if doc_id == "bad":
+            raise RuntimeError("engine crashed")
+        return [{"id": f"{doc_id}-q"}], Counter({"aligned": 1})
+
+    rows, counts, failures = qa.run_documents(
+        [("a", None), ("bad", None), ("c", None)],
+        evaluate,
+        lambda rows, counts, failures: written.append(len(rows)),
+    )
+    assert [r["id"] for r in rows] == ["a-q", "c-q"]
+    assert counts["aligned"] == 2 and counts["documents_failed"] == 1
+    assert failures == [{"doc_id": "bad", "error": "RuntimeError"}]
+    assert written == [1, 1, 2]  # after every document, the failed one included
+    with pytest.raises(KeyboardInterrupt):
+        qa.run_documents([("x", None)], lambda d, p: (_ for _ in ()).throw(KeyboardInterrupt()),
+                         lambda *a: None)  # fmt: skip
+
+
+def test_fetch_builds_its_own_net_in_the_cache_and_records_the_dataset(tmp_path, monkeypatch):
+    from benchmarks.training_corpus import _net
+
+    row = {
+        "financebench_id": "financebench_id_1",
+        "doc_name": "DOC_A",
+        "question": "q",
+        "answer": "a",
+        "evidence": [{"evidence_text": "t", "evidence_page_num": 0}],
+    }
+    built = []
+
+    class FakeNet:
+        def __init__(self, cache_dir=None, **kwargs):
+            built.append(cache_dir)
+
+        def listing(self, url):
+            return json.dumps(row).encode()
+
+        def download_pdf(self, url, dest):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"%PDF-1.4 fake")
+
+    monkeypatch.setattr(_net, "Net", FakeNet)
+    cache = tmp_path / "evidence_qa"
+    dataset = qa.fetch(cache, max_documents=5)
+    assert dataset.name == "financebench" and len(dataset.questions) == 1
+    assert built == [cache / "listings"]
+    record = json.loads((cache / "dataset.json").read_text())
+    assert record["dataset"] == "financebench" and record["fallback_reason"] is None
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["evidence_qa"]
 
 
 class _Response(io.BytesIO):
@@ -530,6 +755,22 @@ def test_extraction_scoring_exact_or_numeric_tolerance():
     assert extraction.score("  Yes. ", "yes") is True  # exact match, normalised
     assert extraction.score("No", "yes") is False
     assert extraction.score("", "0") is False
+
+
+def test_extraction_scoring_ignores_years_and_keys_on_the_main_number():
+    gold = "The FY2019 fixed asset turnover ratio for Activision Blizzard is 24.26."
+    assert extraction.score("2019", gold) is False  # the year is not the answer
+    assert extraction.score("FY2019 was strong", gold) is False
+    assert extraction.score("24.3", gold) is True  # 0.16% off
+    assert extraction.score("In fiscal 2019 it was 24.26", gold) is True
+    # Several non-year numbers: the prediction must match the last one.
+    several = "Revenue rose from $1,200 million in 2018 to $1,577 million in 2019."
+    assert extraction.score("1,200", several) is False
+    assert extraction.score("$1,577 million", several) is True
+    # A list answer: any of its items.
+    assert extraction.score("12", ["10", "12"]) is True
+    assert extraction.score("11", ["10", "12"]) is False
+    assert extraction.main_numbers("FY 2021 and fiscal year 2020: 3.5% in 2050") == [3.5]
 
 
 def test_extraction_refuses_jev_and_typesafe(monkeypatch, capsys):

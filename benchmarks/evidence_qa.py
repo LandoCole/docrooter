@@ -37,8 +37,17 @@ no aligned element, or with an evidence page beyond the pages read, is excluded 
 §0.4); evidence recall and token share at every c of :data:`QUERY_GRID`. *Closest field*: the
 built-in annual-report field whose text (its ``query``, else its description) is most similar
 to the question (:func:`~docrooter.select.selection.similarities`: the field text embedded as a
-passage, the question with the query prompt); evidence recall and token share at c in
-:data:`FIELD_GRID`. Results are descriptive: no query-side guarantee exists.
+passage once per run, each question with the query prompt: :class:`FieldMatcher`); evidence
+recall and token share at c in :data:`FIELD_GRID`. Results are descriptive: no query-side
+guarantee exists.
+
+**Failing loudly.** A loaded dataset with no question, or with more than half its questions
+without evidence, stops with a message naming the schema (:func:`check_questions`); a run where
+no question aligns stops naming the page base or the schema, after writing its results
+(:func:`check_alignment`). A document that fails to read, for any reason, is recorded with the
+exception's type and the run goes on; the results file is rewritten after every document
+(:func:`run_documents`), so a crash keeps what is done. The reading profile defaults to the
+selector fit's; the page cap does not (whole filings are read).
 
 Commands (fetch needs no model; run loads the tagger and embedder)::
 
@@ -60,10 +69,10 @@ import sys
 import time
 import urllib.parse
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, TypeVar
 
 import numpy as np
 
@@ -115,7 +124,7 @@ class Question:
     id: str
     doc_id: str
     question: str = field(repr=False)
-    answer: str = field(repr=False)
+    answer: str | tuple[str, ...] = field(repr=False)  # a tuple: any of them is right
     evidence: tuple[Evidence, ...] = field(repr=False)
 
 
@@ -204,6 +213,7 @@ def fetch_financebench(
     questions = parse_financebench(
         questions_path.read_text(encoding="utf-8").splitlines(), page_base=page_base
     )
+    check_questions(questions, FINANCEBENCH)  # before any PDF is fetched
     names = list(dict.fromkeys(q.doc_id for q in questions))[:max_documents]
     pdf_dir = in_cache(root / "pdfs", cache)
     have: set[str] = set()
@@ -282,10 +292,11 @@ def load_tat_dqa(
                     id=str(q["uid"]),
                     doc_id=uid,
                     question=str(q["question"]),
-                    answer=" ".join(map(str, answer)) if isinstance(answer, list) else str(answer),
+                    answer=tuple(map(str, answer)) if isinstance(answer, list) else str(answer),
                     evidence=tuple(Evidence(n, " ".join(t)) for n, t in sorted(by_page.items())),
                 )
             )
+    check_questions(questions, TAT_DQA)
     return Dataset(
         name=TAT_DQA,
         licence=LICENCES[TAT_DQA],
@@ -340,6 +351,7 @@ def load_cached(cache: Path = CACHE) -> tuple[Dataset, dict[str, Any]]:
         )
         pdf_dir = root / "pdfs"
         kept = [q for q in questions if (pdf_dir / f"{safe_id(q.doc_id)}.pdf").is_file()]
+        check_questions(kept, FINANCEBENCH)
         dataset = Dataset(FINANCEBENCH, LICENCES[FINANCEBENCH], kept, pdf_dir, record["counts"])
         return dataset, record
     return load_tat_dqa(cache, max_documents=int(record["max_documents"])), record
@@ -375,11 +387,6 @@ def evidence_elements(
             if overlap_share(element.text, item.text) >= min_share:
                 relevant.add(element.id)
     return relevant
-
-
-def closest(names: Sequence[str], sims: np.ndarray) -> str:
-    """The name with the highest similarity (the first on a tie)."""
-    return names[int(np.argmax(np.asarray(sims)))]
 
 
 def page_texts(ctx: Any) -> list[PageText]:
@@ -437,6 +444,99 @@ def record_for(doc_id: str, pdf_dir: Path) -> Any:
     )
 
 
+class FieldMatcher:
+    """The closest built-in field to a question. The field texts (each field's ``query``, else
+    its description) are embedded once, as passages, when the matcher is made; each question is
+    embedded with the recipe's query prompt, as :func:`~docrooter.select.selection.similarities`
+    does."""
+
+    def __init__(self, fields: Sequence[Any], encoder: Any) -> None:
+        from docrooter.select.selection import _text_vectors, need_texts
+
+        self.fields = list(fields)
+        self.encoder = encoder
+        self.vectors = _text_vectors([need_texts(f)[0] for f in self.fields], encoder)
+
+    def closest(self, question: str) -> Any:
+        from docrooter.select.selection import _need_sims
+
+        sims = _need_sims(self.vectors, question, self.encoder)
+        return self.fields[int(np.argmax(sims))]
+
+
+def check_questions(questions: Sequence[Question], name: str) -> None:
+    """Exit when the loaded questions look like a misread dataset: none at all, or more than
+    half without evidence (a schema the loader does not match)."""
+    if not questions:
+        raise SystemExit(
+            f"{name}: no question loaded; the dataset schema likely differs from what the "
+            "loader expects (or no document was fetched)"
+        )
+    bare = sum(1 for q in questions if not q.evidence)
+    if bare * 2 > len(questions):
+        raise SystemExit(
+            f"{name}: {bare} of {len(questions)} questions have no evidence; the dataset schema "
+            "likely differs from what the loader expects (its evidence fields)"
+        )
+
+
+def check_alignment(counts: Mapping[str, int]) -> list[str]:
+    """Exit when a run's alignment looks wrong: no evaluated question, more than half without
+    evidence (the schema), or none aligned (the page base or the schema). Returns a warning when
+    the other page base would align more questions."""
+    evaluated = counts.get("questions_evaluated", 0)
+    if not evaluated:
+        raise SystemExit("no question was evaluated; the dataset schema likely differs")
+    bare = counts.get("no_evidence", 0)
+    if bare * 2 > evaluated:
+        raise SystemExit(
+            f"{bare} of {evaluated} evaluated questions have no evidence; the dataset schema "
+            "likely differs from what the loader expects"
+        )
+    aligned = counts.get("aligned", 0)
+    if not aligned:
+        raise SystemExit(
+            f"no question aligned with its evidence (of {evaluated}); check the page base "
+            "(fetch --page-base) or the dataset schema"
+        )
+    other = counts.get("aligned_if_other_base", 0)
+    if other > aligned:
+        return [
+            f"{other} questions would align with the other page base against {aligned} with "
+            "this one: check the page base (fetch --page-base)"
+        ]
+    return []
+
+
+T = TypeVar("T")
+Evaluate = Callable[[str, T], tuple[list[dict[str, Any]], Counter[str]]]
+Progress = Callable[[list[dict[str, Any]], Counter[str], list[dict[str, str]]], None]
+
+
+def run_documents(
+    items: Sequence[tuple[str, T]], evaluate: Evaluate[T], on_progress: Progress
+) -> tuple[list[dict[str, Any]], Counter[str], list[dict[str, str]]]:
+    """``evaluate(doc_id, payload)`` for each item, so that one document's failure (any
+    exception) is recorded with its type and the run goes on; ``on_progress(rows, counts,
+    failures)`` after every document, for partial results. Interrupts still stop the run."""
+    rows: list[dict[str, Any]] = []
+    counts: Counter[str] = Counter()
+    failures: list[dict[str, str]] = []
+    for done, (doc_id, payload) in enumerate(items, 1):
+        try:
+            doc_rows, doc_counts = evaluate(doc_id, payload)
+        except Exception as exc:
+            failures.append({"doc_id": doc_id, "error": type(exc).__name__})
+            counts["documents_failed"] += 1
+            log(f"[{done}/{len(items)}] document failed ({type(exc).__name__}); skipped")
+        else:
+            rows += doc_rows
+            counts.update(doc_counts)
+            log(f"[{done}/{len(items)}] {len(doc_rows)} questions evaluated")
+        on_progress(rows, counts, failures)
+    return rows, counts, failures
+
+
 # --- evaluation -----------------------------------------------------------------------------------
 
 
@@ -444,20 +544,17 @@ def evaluate_document(
     analysis: Any,
     ctx: Any,
     questions: Sequence[Question],
-    fields: Sequence[Any],
+    matcher: FieldMatcher,
     selector: Any,
-    encoder: Any,
     pages_read: set[int],
     *,
     other_base_shift: int | None,
 ) -> tuple[list[dict[str, Any]], Counter[str]]:
     """Per question of one prepared document: evidence recall and token share for the question
     as a query need and for its closest field. Rows hold ids and numbers only."""
-    from docrooter.select.selection import need_features, need_texts, select_scored, similarities
+    from docrooter.select.selection import need_features, select_scored
 
     texts = page_texts(ctx)
-    field_texts = [need_texts(f)[0] for f in fields]
-    by_id = {f.id: f for f in fields}
     field_X: dict[str, np.ndarray] = {}
     counts: Counter[str] = Counter()
     rows: list[dict[str, Any]] = []
@@ -485,13 +582,14 @@ def evaluate_document(
             )
             for c in QUERY_GRID
         }
-        field_id = closest([f.id for f in fields], similarities(field_texts, q.question, encoder))
+        field = matcher.closest(q.question)
+        field_id = field.id
         if field_id not in field_X:
-            field_X[field_id] = need_features(ctx, by_id[field_id])[1]
+            field_X[field_id] = need_features(ctx, field)[1]
         by_field = {
             c_key(c): evaluate_selection(
                 select_scored(
-                    analysis, ctx, field_X[field_id], by_id[field_id], completeness=c,
+                    analysis, ctx, field_X[field_id], field, completeness=c,
                     selector=selector,
                 ),
                 relevant,
@@ -540,10 +638,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         _out_dir,
         _write_json,
         load_selector,
+        reading_settings,
     )
     from docrooter.backends.base import close_backend
     from docrooter.backends.registry import resolve_backend
-    from docrooter.errors import DocrooterError
     from docrooter.rooter.profiles import profile_defaults
     from docrooter.select.fields import builtin_fields
     from docrooter.select.selection import prepare
@@ -552,83 +650,98 @@ def cmd_run(args: argparse.Namespace) -> int:
     started = time.perf_counter()
     dataset, record = load_cached(CACHE)
     selector = load_selector(args.selector, args.tagger)
+    # The profile defaults to the selector fit's; the page cap does not: whole filings are read
+    # here, because evidence pages lie anywhere in them.
+    profile, _, warnings = reading_settings(args.profile, None, selector.meta)
+    for warning in warnings:
+        log(f"warning: {warning}")
     embedder = args.embedder or selector.embedder
     if embedder is None:
         raise SystemExit("the selector records no embedder; pass --embedder")
-    fields = builtin_fields(FAMILY)
     by_doc: dict[str, list[Question]] = defaultdict(list)
     for q in dataset.questions:
         by_doc[q.doc_id].append(q)
     shift = None
     if dataset.name == FINANCEBENCH:
         shift = -1 if int(record["page_base"]) == 0 else 1
+    path = _out_dir(args.out) / RESULTS_FILE
+
+    def results(
+        rows: list[dict[str, Any]], counts: Counter[str], failures: list[dict[str, str]]
+    ) -> dict[str, Any]:
+        return {
+            "date": datetime.date.today().isoformat(),
+            "partial": len(failures) + len({r["doc_id"] for r in rows}) < len(by_doc),
+            "dataset": dataset.name,
+            "licence": dataset.licence,
+            "evaluation_only": True,
+            "descriptive_only": "queries are never guaranteed (spec §0.4)",
+            "fallback_reason": record.get("fallback_reason"),
+            "page_base": record.get("page_base"),
+            "alignment": {"min_overlap": MIN_OVERLAP, "min_block_chars": MIN_BLOCK_CHARS},
+            "counts": {**dataset.counts, **dict(counts)},
+            "failures": failures,
+            "summary": summarise(rows),
+            "questions": rows,
+            "provenance": {
+                "commit": _commit(),
+                "tagger": args.tagger,
+                "selector": str(args.selector) if args.selector else None,
+                "embedder": embedder,
+                "profile": profile,
+                "max_pages": args.max_pages,
+                "reading_warnings": warnings,
+            },
+            "seconds": round(time.perf_counter() - started, 1),
+            **_environment(),
+        }
+
     tagger = resolve_tagger(args.tagger)
     encoder = resolve_backend(embedder)
-    same = embedder == profile_defaults(args.profile)["sections"]
+    same = embedder == profile_defaults(profile)["sections"]
     reader = make_reader(
         dataset.pdf_dir,
-        profile=args.profile,
+        profile=profile,
         max_pages=args.max_pages,
         sections_backend=encoder if same else None,
     )
-    rows: list[dict[str, Any]] = []
-    counts: Counter[str] = Counter()
+    matcher = FieldMatcher(builtin_fields(FAMILY), encoder)  # field texts embedded once
+
+    def evaluate(
+        doc_id: str, questions: list[Question]
+    ) -> tuple[list[dict[str, Any]], Counter[str]]:
+        doc = record_for(doc_id, dataset.pdf_dir)
+        analysis = reader(doc)
+        pages_read = set(reader.corpus.pages_read(doc.id))
+        ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=FAMILY)
+        doc_rows, doc_counts = evaluate_document(
+            analysis, ctx, questions, matcher, selector, pages_read, other_base_shift=shift
+        )
+        for row in doc_rows:
+            row["doc_id"] = doc_id
+        return doc_rows, doc_counts
+
     try:
-        for done, (doc_id, questions) in enumerate(by_doc.items(), 1):
-            try:
-                doc = record_for(doc_id, dataset.pdf_dir)
-                analysis = reader(doc)
-                pages_read = set(reader.corpus.pages_read(doc.id))
-                ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=FAMILY)
-            except DocrooterError:
-                counts["documents_failed"] += 1
-                counts["questions_of_failed_documents"] += len(questions)
-                log(f"[{done}/{len(by_doc)}] document could not be read; skipped")
-                continue
-            doc_rows, doc_counts = evaluate_document(
-                analysis, ctx, questions, fields, selector, encoder, pages_read,
-                other_base_shift=shift,
-            )  # fmt: skip
-            for row in doc_rows:
-                row["doc_id"] = doc_id
-            rows += doc_rows
-            counts.update(doc_counts)
-            log(f"[{done}/{len(by_doc)}] {len(doc_rows)} of {len(questions)} questions aligned")
+        rows, counts, failures = run_documents(
+            list(by_doc.items()),
+            evaluate,
+            lambda r, c, f: _write_json(path, results(r, c, f)),  # partial results as it goes
+        )
     finally:
         reader.close()
         close_backend(tagger)
         close_backend(encoder)
 
-    results = {
-        "date": datetime.date.today().isoformat(),
-        "dataset": dataset.name,
-        "licence": dataset.licence,
-        "evaluation_only": True,
-        "descriptive_only": "queries are never guaranteed (spec §0.4)",
-        "fallback_reason": record.get("fallback_reason"),
-        "page_base": record.get("page_base"),
-        "alignment": {"min_overlap": MIN_OVERLAP, "min_block_chars": MIN_BLOCK_CHARS},
-        "counts": {**dataset.counts, **dict(counts)},
-        "summary": summarise(rows),
-        "questions": rows,
-        "provenance": {
-            "commit": _commit(),
-            "tagger": args.tagger,
-            "selector": str(args.selector) if args.selector else None,
-            "embedder": embedder,
-            "profile": args.profile,
-            "max_pages": args.max_pages,
-        },
-        "seconds": round(time.perf_counter() - started, 1),
-        **_environment(),
-    }
-    path = _out_dir(args.out) / RESULTS_FILE
-    _write_json(path, results)
-    q90 = results["summary"]["query"][c_key(0.9)]
+    final = results(rows, counts, failures)
+    _write_json(path, final)
+    q90 = final["summary"]["query"][c_key(0.9)]
     log(
-        f"{dataset.name}: {len(rows)} aligned questions; query need at c = 0.90: mean recall "
-        f"{q90['recall_mean']}, token share {q90['token_share_mean']} -> {path}"
+        f"{dataset.name}: {counts['aligned']} aligned questions, {len(failures)} documents "
+        f"failed; query need at c = 0.90: mean recall {q90['recall_mean']}, token share "
+        f"{q90['token_share_mean']} -> {path}"
     )
+    for warning in check_alignment(counts):  # exits non-zero on a misread dataset
+        log(f"warning: {warning}")
     return 0
 
 
@@ -642,7 +755,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--tagger", required=True, help="element tagger bundle directory")
     p.add_argument("--selector", type=Path, default=None, help="selector.json (default: bundle's)")
     p.add_argument("--embedder", default=None, help="embedding spec (default: the selector's)")
-    p.add_argument("--profile", default="accurate", help="the profile the selector was fitted on")
+    p.add_argument("--profile", default=None, help="reading profile (default: the selector fit's)")
     p.add_argument("--max-pages", type=int, default=DEFAULT_MAX_PAGES)
     p.add_argument("--out", type=Path, default=None, help="results dir (default: dated)")
     _guard.add_guard_argument(p)

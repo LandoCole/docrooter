@@ -16,9 +16,13 @@ an extractor. A base URL containing "typesafe" or a model named like Jev is refu
 ``TYPESAFE_API_KEY`` is never read.
 
 **Scoring** (:func:`score`): exact match after normalisation (case, punctuation, whitespace), or
-numeric tolerance: the first number of the gold answer is matched when any number in the answer
-is within 1% of it (relative). Scale words ("million") are not reconciled. A question whose
-whole document exceeds ``--max-context-tokens`` is skipped and counted, never truncated.
+numeric tolerance: the gold answer's main number (the last of its numbers once years from 1900
+to 2100 and numbers right after "FY" or "fiscal" are dropped) is matched when any such number
+in the answer is within 1% of it (relative); a list answer matches any of its items. Scale
+words ("million") are not reconciled, and a plain amount such as "2000" reads as a year. A
+question whose whole document exceeds ``--max-context-tokens`` is skipped and counted, never
+truncated. A document that fails, for any reason, is recorded with the exception's type and
+the run goes on; results are rewritten after every document, so a crash keeps what is done.
 
 **Results** go to ``benchmarks/results/<date>/selection-extraction.json``: question ids,
 correctness and token counts only; no question, answer or model output is written::
@@ -39,6 +43,7 @@ import string
 import sys
 import time
 import urllib.request
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -60,6 +65,8 @@ SYSTEM_PROMPT = (
 )
 _NUMBER = re.compile(r"\(?-?\$?\d[\d,]*(?:\.\d+)?\)?")
 _PUNCTUATION = str.maketrans("", "", string.punctuation)
+_YEAR = re.compile(r"\d{4}")
+_FISCAL_BEFORE = re.compile(r"(?:\bFY|\bfiscal(?:\s+years?)?)\s*'?$", re.IGNORECASE)
 
 
 # --- configuration --------------------------------------------------------------------------------
@@ -98,36 +105,46 @@ def normalise_answer(text: str) -> str:
     return " ".join(text.lower().translate(_PUNCTUATION).split())
 
 
-def numbers(text: str) -> list[float]:
-    """The numbers in ``text``: thousands separators and ``$`` dropped, ``(x)`` negative."""
+def main_numbers(text: str) -> list[float]:
+    """The numbers in ``text`` that can be an answer, in order: thousands separators and ``$``
+    dropped, ``(x)`` negative; a plain four-digit year from 1900 to 2100, and any number right
+    after "FY" or "fiscal" ("fiscal year"), are left out."""
     out = []
-    for token in _NUMBER.findall(text):
+    for match in _NUMBER.finditer(text):
+        token = match.group()
+        if _FISCAL_BEFORE.search(text[: match.start()]):
+            continue
+        bare = token.strip("()")
+        if _YEAR.fullmatch(bare) and 1900 <= int(bare) <= 2100:
+            continue
         negative = token.startswith("(") and token.endswith(")")
-        cleaned = token.strip("()").replace("$", "").replace(",", "")
         try:
-            value = float(cleaned)
+            value = float(bare.replace("$", "").replace(",", ""))
         except ValueError:
             continue
         out.append(-abs(value) if negative else value)
     return out
 
 
-def score(prediction: str, gold: str, tolerance: float = TOLERANCE) -> bool:
-    """Exact match after normalisation, or the gold answer's first number within ``tolerance``
-    (relative) of any number in the prediction."""
+def _close(value: float, target: float, tolerance: float) -> bool:
+    if target == 0.0:
+        return value == 0.0
+    return abs(value - target) <= tolerance * abs(target)
+
+
+def score(prediction: str, gold: str | Sequence[str], tolerance: float = TOLERANCE) -> bool:
+    """Whether ``prediction`` answers ``gold``: an exact match after normalisation, or a number
+    of the prediction within ``tolerance`` (relative) of the gold answer's main number, the last
+    of its :func:`main_numbers` (years and fiscal-year labels never count, on either side). A
+    list ``gold`` is right when any of its items is."""
+    if not isinstance(gold, str):
+        return any(score(prediction, item, tolerance) for item in gold)
     if normalise_answer(prediction) and normalise_answer(prediction) == normalise_answer(gold):
         return True
-    wanted = numbers(gold)
+    wanted = main_numbers(gold)
     if not wanted:
         return False
-    target = wanted[0]
-    for value in numbers(prediction):
-        if target == 0.0:
-            if value == 0.0:
-                return True
-        elif abs(value - target) <= tolerance * abs(target):
-            return True
-    return False
+    return any(_close(value, wanted[-1], tolerance) for value in main_numbers(prediction))
 
 
 # --- models ---------------------------------------------------------------------------------------
@@ -210,11 +227,16 @@ def _mean_tokens(rows: Sequence[dict[str, Any]], key: str) -> float | None:
 
 def run(args: argparse.Namespace, model: Any) -> int:
     from benchmarks import evidence_qa as qa
-    from benchmarks.selection_bench import _commit, _out_dir, _write_json, load_selector
+    from benchmarks.selection_bench import (
+        _commit,
+        _out_dir,
+        _write_json,
+        load_selector,
+        reading_settings,
+    )
     from docrooter.backends.base import close_backend
     from docrooter.backends.registry import resolve_backend
     from docrooter.chunking import document_of
-    from docrooter.errors import DocrooterError
     from docrooter.rooter.profiles import profile_defaults
     from docrooter.select.selection import need_features, prepare, select, select_scored
     from docrooter.tagger.element_tags import resolve_tagger
@@ -222,86 +244,104 @@ def run(args: argparse.Namespace, model: Any) -> int:
     started = time.perf_counter()
     dataset, _ = qa.load_cached(qa.CACHE)
     selector = load_selector(args.selector, args.tagger)
+    profile, _, warnings = reading_settings(args.profile, None, selector.meta)
+    for warning in warnings:
+        print(f"warning: {warning}")
     embedder = args.embedder or selector.embedder
     if embedder is None:
         raise SystemExit("the selector records no embedder; pass --embedder")
     by_doc: dict[str, list[Any]] = {}
     for q in dataset.questions[: args.limit] if args.limit else dataset.questions:
         by_doc.setdefault(q.doc_id, []).append(q)
+    path = _out_dir(args.out) / RESULTS_FILE
+
+    def results(
+        rows: list[dict[str, Any]], counts: Any, failures: list[dict[str, str]]
+    ) -> dict[str, Any]:
+        selected, whole_acc = _accuracy(rows, "selected"), _accuracy(rows, "whole")
+        return {
+            "date": datetime.date.today().isoformat(),
+            "partial": len(failures) + len({r["doc_id"] for r in rows}) < len(by_doc),
+            "dataset": dataset.name,
+            "licence": dataset.licence,
+            "evaluation_only": True,
+            "completeness": COMPLETENESS,
+            "model": args.mlx_model or os.environ.get(ENV_MODEL),
+            "profile": profile,
+            "scoring": {"exact_or_numeric_relative_tolerance": TOLERANCE},
+            "n": len(rows),
+            "skipped": dict(counts),
+            "failures": failures,
+            "accuracy": {
+                "selected": selected,
+                "whole": whole_acc,
+                "difference": (
+                    selected - whole_acc if selected is not None and whole_acc is not None else None
+                ),
+            },
+            "mean_tokens": {
+                "selected": _mean_tokens(rows, "selected"),
+                "whole": _mean_tokens(rows, "whole"),
+            },
+            "questions": rows,
+            "commit": _commit(),
+            "seconds": round(time.perf_counter() - started, 1),
+        }
+
     tagger = resolve_tagger(args.tagger)
     encoder = resolve_backend(embedder)
-    same = embedder == profile_defaults(args.profile)["sections"]
+    same = embedder == profile_defaults(profile)["sections"]
     reader = qa.make_reader(
         dataset.pdf_dir,
-        profile=args.profile,
+        profile=profile,
         max_pages=args.max_pages,
         sections_backend=encoder if same else None,
     )
-    rows: list[dict[str, Any]] = []
-    skipped = {"whole_document_too_long": 0, "documents_failed": 0}
+
+    def evaluate(doc_id: str, questions: list[Any]) -> tuple[list[dict[str, Any]], Counter[str]]:
+        counts: Counter[str] = Counter()
+        analysis = reader(qa.record_for(doc_id, dataset.pdf_dir))
+        ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=qa.FAMILY)
+        doc = document_of(analysis)
+        whole = select(analysis, questions[0].question, completeness=1.0)
+        if whole.tokens > args.max_context_tokens:
+            counts["whole_document_too_long"] += len(questions)
+            return [], counts
+        whole_context = _context(doc, whole.element_ids)
+        rows: list[dict[str, Any]] = []
+        for q in questions:
+            _, X = need_features(ctx, q.question)
+            chosen = select_scored(
+                analysis, ctx, X, q.question, completeness=COMPLETENESS, selector=selector
+            )
+            row: dict[str, Any] = {"id": q.id, "doc_id": doc_id}
+            for key, sel, context in (
+                ("selected", chosen, _context(doc, chosen.element_ids)),
+                ("whole", whole, whole_context),
+            ):
+                answer = model.ask(q.question, context)
+                row[key] = {"correct": score(answer, q.answer), "tokens": sel.tokens}
+            rows.append(row)
+        return rows, counts
+
     try:
-        for doc_id, questions in by_doc.items():
-            try:
-                analysis = reader(qa.record_for(doc_id, dataset.pdf_dir))
-                ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=qa.FAMILY)
-            except DocrooterError:
-                skipped["documents_failed"] += 1
-                continue
-            doc = document_of(analysis)
-            whole = select(analysis, questions[0].question, completeness=1.0)
-            if whole.tokens > args.max_context_tokens:
-                skipped["whole_document_too_long"] += len(questions)
-                continue
-            whole_context = _context(doc, whole.element_ids)
-            for q in questions:
-                _, X = need_features(ctx, q.question)
-                chosen = select_scored(
-                    analysis, ctx, X, q.question, completeness=COMPLETENESS, selector=selector
-                )
-                row: dict[str, Any] = {"id": q.id, "doc_id": doc_id}
-                for key, sel, context in (
-                    ("selected", chosen, _context(doc, chosen.element_ids)),
-                    ("whole", whole, whole_context),
-                ):
-                    answer = model.ask(q.question, context)
-                    row[key] = {"correct": score(answer, q.answer), "tokens": sel.tokens}
-                rows.append(row)
+        rows, counts, failures = qa.run_documents(
+            list(by_doc.items()),
+            evaluate,
+            lambda r, c, f: _write_json(path, results(r, c, f)),  # partial results as it goes
+        )
     finally:
         reader.close()
         close_backend(tagger)
         close_backend(encoder)
         model.close()
 
-    selected, whole_acc = _accuracy(rows, "selected"), _accuracy(rows, "whole")
-    results = {
-        "date": datetime.date.today().isoformat(),
-        "dataset": dataset.name,
-        "licence": dataset.licence,
-        "evaluation_only": True,
-        "completeness": COMPLETENESS,
-        "model": args.mlx_model or os.environ.get(ENV_MODEL),
-        "scoring": {"exact_or_numeric_relative_tolerance": TOLERANCE},
-        "n": len(rows),
-        "skipped": skipped,
-        "accuracy": {
-            "selected": selected,
-            "whole": whole_acc,
-            "difference": (
-                selected - whole_acc if selected is not None and whole_acc is not None else None
-            ),
-        },
-        "mean_tokens": {
-            "selected": _mean_tokens(rows, "selected"),
-            "whole": _mean_tokens(rows, "whole"),
-        },
-        "questions": rows,
-        "commit": _commit(),
-        "seconds": round(time.perf_counter() - started, 1),
-    }
-    path = _out_dir(args.out) / RESULTS_FILE
-    _write_json(path, results)
+    final = results(rows, counts, failures)
+    _write_json(path, final)
+    accuracy = final["accuracy"]
     print(
-        f"extraction: n = {len(rows)}, accuracy selected {selected} vs whole {whole_acc} -> {path}"
+        f"extraction: n = {len(rows)}, accuracy selected {accuracy['selected']} vs whole "
+        f"{accuracy['whole']}, {len(failures)} documents failed -> {path}"
     )
     return 0
 
@@ -312,7 +352,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tagger", default=None, help="element tagger bundle directory")
     parser.add_argument("--selector", type=Path, default=None, help="selector.json")
     parser.add_argument("--embedder", default=None, help="embedding spec (default: selector's)")
-    parser.add_argument("--profile", default="accurate")
+    parser.add_argument("--profile", default=None, help="default: the selector fit's")
     parser.add_argument("--max-pages", type=int, default=200)
     parser.add_argument("--max-context-tokens", type=int, default=DEFAULT_MAX_CONTEXT_TOKENS)
     parser.add_argument("--limit", type=int, default=None, help="at most this many questions")

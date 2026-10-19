@@ -13,18 +13,20 @@ SECTION_NAMES = [
     "section_types/contract",
     "section_types/technical_document",
     "section_types/generic",
+    "section_types/fund_document",
 ]
+ELEMENT_NAMES = ["element_topics", "element_functions"]
 
 
 def test_list_builtin_taxonomies():
-    assert list_builtin_taxonomies() == sorted(["doc_types", *SECTION_NAMES])
+    assert list_builtin_taxonomies() == sorted(["doc_types", *ELEMENT_NAMES, *SECTION_NAMES])
 
 
 def test_exported_from_package():
     assert dr.builtin_taxonomy is builtin_taxonomy
 
 
-@pytest.mark.parametrize("name", ["doc_types", *SECTION_NAMES])
+@pytest.mark.parametrize("name", ["doc_types", *ELEMENT_NAMES, *SECTION_NAMES])
 def test_every_builtin_loads_with_descriptions(name):
     taxonomy = builtin_taxonomy(name)
     assert len(taxonomy) > 0
@@ -33,19 +35,24 @@ def test_every_builtin_loads_with_descriptions(name):
         assert node.label.strip(), node.id
 
 
-def test_doc_types_has_18_leaves_in_6_groups():
+def test_doc_types_has_19_leaves_in_6_groups():
     taxonomy = builtin_taxonomy("doc_types")
-    assert len(taxonomy.leaves()) == 18
+    assert len(taxonomy.leaves()) == 19  # v0.5 added financial.fact_sheet
     assert len(taxonomy.children()) == 6
 
 
 def test_doc_types_matches_benchmark_corpus_taxonomy():
+    """The dev corpus keeps its 18 labelled types: the built-in is that taxonomy plus the v0.5
+    fact_sheet leaf, which no dev (or held-out) document carries."""
     from pathlib import Path
 
     corpus = Path(__file__).resolve().parents[2] / "benchmarks" / "corpus" / "doc_types.json"
     if not corpus.exists():
         pytest.skip("benchmark corpus not present")
-    assert builtin_taxonomy("doc_types").content_hash() == dr.Taxonomy.load(corpus).content_hash()
+    builtin = builtin_taxonomy("doc_types")
+    without = dr.Taxonomy([n for n in builtin.nodes.values() if n.id != "financial.fact_sheet"])
+    assert without.content_hash() == dr.Taxonomy.load(corpus).content_hash()
+    assert "financial.fact_sheet" in builtin
 
 
 @pytest.mark.parametrize("name", SECTION_NAMES)
@@ -82,7 +89,8 @@ def test_doc_type_mapping_families():
         assert m[leaf] == "section_types/generic"
     assert m["legal.contract"] == "section_types/contract"
     assert m["legal.legislation"] == "section_types/generic"
-    assert m["financial.prospectus"] == "section_types/generic"
+    for leaf in ("financial.prospectus", "financial.fact_sheet"):
+        assert m[leaf] == "section_types/fund_document"
 
 
 @pytest.mark.parametrize(
@@ -93,7 +101,8 @@ def test_unknown_name_raises_keyerror_listing_options(name):
         builtin_taxonomy(name)
 
 
-@pytest.mark.parametrize("name", ["doc_types", *SECTION_NAMES])
+# element_topics repeats labels such as "Other" across families (unique among siblings only)
+@pytest.mark.parametrize("name", ["doc_types", "element_functions", *SECTION_NAMES])
 def test_ids_and_labels_are_unique(name):
     taxonomy = builtin_taxonomy(name)
     labels = [n.label for n in taxonomy.nodes.values()]
@@ -101,7 +110,7 @@ def test_ids_and_labels_are_unique(name):
     assert len(taxonomy.nodes) == len({n.id for n in taxonomy.nodes.values()})
 
 
-@pytest.mark.parametrize("name", SECTION_NAMES)
+@pytest.mark.parametrize("name", [*ELEMENT_NAMES, *SECTION_NAMES])
 def test_section_definitions_use_american_spelling(name):
     text = " ".join(n.description for n in builtin_taxonomy(name).nodes.values()).lower()
     for british in ("licence", "capitalised", "organised", "behaviour", "recognis"):

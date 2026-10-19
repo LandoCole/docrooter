@@ -67,7 +67,7 @@ Item 7. Management's Discussion and Analysis  (p. 2)
   Liquidity and Capital Resources  (p. 2)
 Item 8. Financial Statements  (p. 3)
 Item 9A. Controls and Procedures  (p. 3)
-type: Financial > Annual report (confidence 0.10)
+type: Financial > Annual report (confidence 0.09)
 section taxonomy: section_types/annual_report
   Annual Report 2025 -> controls_and_procedures
   Item 1. Business -> business_overview

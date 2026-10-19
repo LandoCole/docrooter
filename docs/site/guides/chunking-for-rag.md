@@ -20,7 +20,7 @@ On the sample report of [`examples/elements_and_chunks.py`](../../../examples/el
 
 ```text
 c0: 4 tokens, Annual Report 2025 ['heading_only']
-c1: 94 tokens, 1. Business []
+c1: 95 tokens, 1. Business []
 c2: 65 tokens, 2. Financial results []
 c3: 25 tokens, 3. Outlook []
 2. Financial results

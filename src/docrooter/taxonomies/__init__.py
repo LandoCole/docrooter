@@ -52,7 +52,8 @@ def list_builtin_taxonomies() -> list[str]:
 
 
 def builtin_taxonomy(name: str) -> Taxonomy:
-    """Load a built-in taxonomy: ``"doc_types"`` or ``"section_types/<name>"``.
+    """Load a built-in taxonomy: ``"doc_types"``, ``"element_topics"``, ``"element_functions"``
+    or ``"section_types/<name>"``.
 
     Each name is parsed once per process; every call returns a fresh deep copy, so callers may
     change it freely. Unknown names raise :class:`~docrooter.errors.UnknownTaxonomyError`
@@ -83,8 +84,9 @@ DOC_TYPE_TO_SECTION_TAXONOMY: dict[str, str] = {
     "financial.quarterly_report": "section_types/annual_report",
     "financial.shareholder_letter": "section_types/generic",
     "financial.earnings_release": "section_types/generic",
-    "financial.prospectus": "section_types/generic",
+    "financial.prospectus": "section_types/fund_document",
     "financial.proxy_statement": "section_types/annual_report",
+    "financial.fact_sheet": "section_types/fund_document",
     "legal.contract": "section_types/contract",
     "legal.terms_policy": "section_types/generic",
     "legal.court_opinion": "section_types/generic",
@@ -99,8 +101,35 @@ DOC_TYPE_TO_SECTION_TAXONOMY: dict[str, str] = {
     "corporate.investor_presentation": "section_types/generic",
 }
 
+# The families of the merged element topic tree (``element_topics``), in tree order: each is a
+# section taxonomy, and its leaves are ``f"{family}.{section_leaf}"`` plus ``f"{family}.other"``.
+ELEMENT_FAMILIES: tuple[str, ...] = (
+    "annual_report",
+    "fund_document",
+    "contract",
+    "research_paper",
+    "technical_document",
+    "generic",
+)
+
+
+def family_for_doc_type(doc_type: str) -> str:
+    """The element topic family for a doc type: its mapped section taxonomy's name.
+
+    A group id (``"financial"``) takes the family of its first leaf, and an unknown or empty type
+    the ``generic`` family, as section normalisation does; no taxonomy is parsed.
+    """
+    name = DOC_TYPE_TO_SECTION_TAXONOMY.get(doc_type)
+    if name is None:
+        group = [v for k, v in DOC_TYPE_TO_SECTION_TAXONOMY.items() if k.startswith(f"{doc_type}.")]
+        name = group[0] if doc_type and group else f"{_SECTION_PREFIX}generic"
+    return name[len(_SECTION_PREFIX) :]
+
+
 __all__ = [
     "DOC_TYPE_TO_SECTION_TAXONOMY",
+    "ELEMENT_FAMILIES",
     "builtin_taxonomy",
+    "family_for_doc_type",
     "list_builtin_taxonomies",
 ]

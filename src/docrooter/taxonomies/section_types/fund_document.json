@@ -1,0 +1,151 @@
+{
+  "nodes": [
+    {
+      "id": "investment_objective",
+      "label": "Investment objective",
+      "description": "The fund's stated investment goal, such as long-term capital growth, current income, or tracking an index, usually in one or two sentences; how the fund pursues that goal belongs to principal_investment_strategies.",
+      "examples": [
+        "Investment Objective",
+        "Investment Objectives",
+        "Investment Goal",
+        "Fund Objective",
+        "Objective"
+      ],
+      "children": []
+    },
+    {
+      "id": "fees_and_expenses",
+      "label": "Fees and expenses",
+      "description": "The costs of buying, holding, and selling fund shares: shareholder fees and sales charges, annual operating expenses and expense ratios, fee waivers, the expense example, and portfolio turnover.",
+      "examples": [
+        "Fees and Expenses of the Fund",
+        "Fees and Expenses",
+        "Annual Fund Operating Expenses",
+        "Shareholder Fees",
+        "Expense Example",
+        "Expense Ratio",
+        "Portfolio Turnover",
+        "Charges"
+      ],
+      "children": []
+    },
+    {
+      "id": "principal_investment_strategies",
+      "label": "Principal investment strategies",
+      "description": "How the fund pursues its objective: the kinds of securities it buys, its selection process or index methodology, and limits on what it may hold; not the risks of those investments (principal_risks) or the portfolio held on a given date (holdings_and_allocation).",
+      "examples": [
+        "Principal Investment Strategies",
+        "Principal Investment Strategies of the Fund",
+        "Investment Strategy",
+        "Investment Approach",
+        "Investment Policies",
+        "Investment Process"
+      ],
+      "children": []
+    },
+    {
+      "id": "principal_risks",
+      "label": "Principal risks",
+      "description": "The main risks of investing in the fund or in the offered securities and how they could cause an investor to lose money, such as market, credit, interest-rate, liquidity, and issuer risks; not the strategy that gives rise to them (principal_investment_strategies).",
+      "examples": [
+        "Principal Risks",
+        "Principal Risks of Investing in the Fund",
+        "Risk Factors",
+        "Main Risks",
+        "Risks",
+        "Risk Considerations"
+      ],
+      "children": []
+    },
+    {
+      "id": "performance",
+      "label": "Performance",
+      "description": "Past returns of the fund or share class and its benchmark: annual return bar charts, average annual total return tables, best and worst quarters, the growth of a hypothetical investment, and commentary on past results; not the fund's costs (fees_and_expenses).",
+      "examples": [
+        "Performance",
+        "Past Performance",
+        "Fund Performance",
+        "Average Annual Total Returns",
+        "Annual Total Returns",
+        "Calendar Year Returns",
+        "Performance Information",
+        "Growth of $10,000"
+      ],
+      "children": []
+    },
+    {
+      "id": "holdings_and_allocation",
+      "label": "Holdings and allocation",
+      "description": "What the fund holds as of a date: its top or full holdings, the number of holdings, and breakdowns by asset class, sector, region, credit quality, or maturity; not the strategy that selects them (principal_investment_strategies).",
+      "examples": [
+        "Top Holdings",
+        "Top 10 Holdings",
+        "Portfolio Holdings",
+        "Schedule of Investments",
+        "Sector Allocation",
+        "Asset Allocation",
+        "Portfolio Composition",
+        "Geographic Breakdown"
+      ],
+      "children": []
+    },
+    {
+      "id": "management",
+      "label": "Management",
+      "description": "Who runs the fund: the investment adviser and any sub-advisers, the portfolio managers with their tenure and experience, and the management company; the fees paid to them belong to fees_and_expenses.",
+      "examples": [
+        "Management",
+        "Management of the Fund",
+        "Fund Management",
+        "Investment Adviser",
+        "Investment Manager",
+        "Portfolio Managers",
+        "Management Team"
+      ],
+      "children": []
+    },
+    {
+      "id": "purchase_and_sale",
+      "label": "Purchase and sale",
+      "description": "How investors buy, sell, exchange, or redeem shares: minimum investments, available share classes, how orders are placed and priced, and exchange trading; the charges on those transactions belong to fees_and_expenses.",
+      "examples": [
+        "Purchase and Sale of Fund Shares",
+        "Buying and Selling Shares",
+        "How to Buy Shares",
+        "How to Sell Shares",
+        "Redeeming Shares",
+        "Minimum Investment",
+        "Exchanges"
+      ],
+      "children": []
+    },
+    {
+      "id": "tax_information",
+      "label": "Tax information",
+      "description": "How the fund's distributions and the sale of its shares are taxed, together with its dividend and capital gain distribution policy.",
+      "examples": [
+        "Tax Information",
+        "Taxes",
+        "Dividends, Distributions and Taxes",
+        "Tax Considerations",
+        "Federal Income Taxes",
+        "Distributions"
+      ],
+      "children": []
+    },
+    {
+      "id": "other",
+      "label": "Other",
+      "description": "Content that fits none of the other categories, such as cover pages, tables of contents, key fund facts (tickers, inception date, net assets), glossaries, payments to financial intermediaries, service providers, and legal notices.",
+      "examples": [
+        "Table of Contents",
+        "Key Facts",
+        "Fund Facts",
+        "Glossary",
+        "Payments to Broker-Dealers and Other Financial Intermediaries",
+        "Important Information"
+      ],
+      "children": []
+    }
+  ]
+}

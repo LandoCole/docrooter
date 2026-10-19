@@ -7,6 +7,7 @@ import pytest
 
 from benchmarks import normalize_bench as nb
 from docrooter.document.models import Section
+from docrooter.taxonomies import builtin_taxonomy
 
 
 def _section(sid, title, page, level=1):
@@ -272,7 +273,8 @@ def test_warmup_encodes_each_doc_type_taxonomy_and_all_leaves_for_auto(monkeypat
 
     calls.clear()
     nb._warmup(object(), nb.CONFIGS[nb.FINAL_CONFIG], [None])
-    assert calls[0]["doc_type"] is None and len(calls) == 1 + 18
+    leaves = len(builtin_taxonomy("doc_types").leaves())  # 19 since v0.5 added fact_sheet
+    assert calls[0]["doc_type"] is None and len(calls) == 1 + leaves
 
 
 def test_a_single_configuration_is_not_described_as_selected_on_the_data():

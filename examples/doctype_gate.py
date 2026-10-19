@@ -15,7 +15,9 @@ from docrooter import Classifier, builtin_taxonomy, load
 SAMPLES = {
     "results.md": "# Quarterly results\n\n## Revenue\nNet revenue and earnings per share rose.\n",
     "lease.md": "# Lease agreement\n\n## Term\nThe tenant shall pay rent. The landlord agrees.\n",
-    "paper.md": "# A sparse attention method\n\n## Abstract\nWe report experiments.\n",
+    "paper.md": (
+        "# A sparse attention method\n\n## Abstract\nWe report experiments and research results.\n"
+    ),
 }
 
 

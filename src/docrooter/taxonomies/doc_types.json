@@ -40,6 +40,12 @@
           "label": "Proxy statement",
           "description": "A document sent to shareholders ahead of a shareholder meeting that describes the items to be voted on, the board nominees, executive compensation and governance, such as a Schedule 14A or DEF 14A. Not an annual_report even when it is bundled with one.",
           "children": []
+        },
+        {
+          "id": "financial.fact_sheet",
+          "label": "Fact sheet",
+          "description": "A short (typically 1–4 page) periodic summary of a single fund or share class: objective, key facts, fees, performance table and chart, top holdings and allocation, as of a date. Not a full prospectus and not an annual report.",
+          "children": []
         }
       ]
     },

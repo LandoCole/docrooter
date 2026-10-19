@@ -9,14 +9,26 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    ValidationError,
+    model_serializer,
+)
 
 from docrooter.errors import TaxonomyError
 from docrooter.taxonomy.validate import ROOT_ID, TaxonomyIssue, validate_nodes
 
 
 class TaxonomyNode(BaseModel):
-    """One category. In a built :class:`Taxonomy`, ``children`` holds child ids."""
+    """One category. In a built :class:`Taxonomy`, ``children`` holds child ids.
+
+    ``keywords`` (optional) holds class terms, such as those mined from a corpus. An empty list is
+    left out of every dump, so a taxonomy without keywords dumps and hashes exactly as before the
+    field existed (trained bundles store that hash).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -30,6 +42,14 @@ class TaxonomyNode(BaseModel):
     threshold: float | None = None
     backend: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    keywords: list[str] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_keywords(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = handler(self)
+        if not self.keywords:
+            data.pop("keywords", None)
+        return data
 
 
 ROOT_SETTINGS = ("multi_label", "threshold", "backend", "description")

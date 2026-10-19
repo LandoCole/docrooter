@@ -1,0 +1,164 @@
+{
+  "root": {
+    "multi_label": true,
+    "description": "What a document element does, whatever the document is about. Flat and multi-label: an element may carry zero, one, or several functions."
+  },
+  "nodes": [
+    {
+      "id": "forward_looking",
+      "label": "Forward-looking",
+      "description": "States expectations, plans, targets, guidance, or an outlook about future results, events, or conditions, typically with words such as expect, plan, intend, target, or will. Not a description of what could go wrong (risk_disclosure), and not the standard cautionary legend that warns readers about forward-looking statements (legal_boilerplate).",
+      "examples": [
+        "We expect revenue for fiscal 2027 to grow between 6% and 8%, driven by new subscription customers.",
+        "The company plans to open twelve additional distribution centers over the next three years.",
+        "Management anticipates that capital expenditures will decline in the second half of the year.",
+        "Our goal is to reach net-zero operational emissions by 2035.",
+        "Looking ahead, the portfolio managers believe credit spreads are likely to stay narrow through year end."
+      ],
+      "children": []
+    },
+    {
+      "id": "risk_disclosure",
+      "label": "Risk disclosure",
+      "description": "Describes a specific risk, uncertainty, or adverse scenario that could harm a business, an investment, or a party, with its possible causes or consequences. Not management's plans or outlook (forward_looking), and not a generic disclaimer that limits liability without describing a particular risk (legal_boilerplate).",
+      "examples": [
+        "A prolonged outage at our only assembly plant could prevent us from filling customer orders for several months.",
+        "Interest rate risk: when interest rates rise, the value of the bonds the fund holds is likely to fall.",
+        "We rely on a small number of suppliers for key components, and losing any of them could raise our costs.",
+        "Changes in foreign exchange rates may reduce the reported value of our international sales.",
+        "An investor may lose some or all of the money invested in these shares."
+      ],
+      "children": []
+    },
+    {
+      "id": "financial_data",
+      "label": "Financial data",
+      "description": "Reports actual or stated quantitative financial figures as its content: financial statement line items and totals, KPIs, per-share amounts, returns, fees, and expense ratios, usually with amounts, percentages, and periods. Not projections of future figures (forward_looking), and not an explanation of how amounts are measured (accounting_policy).",
+      "examples": [
+        "Total revenue | 4,812 | 4,390 | 3,975",
+        "Net income for the quarter was $213 million, or $1.07 per diluted share, compared with $188 million a year earlier.",
+        "Management fee 0.45% | Other expenses 0.12% | Total annual fund operating expenses 0.57%",
+        "Average annual total returns as of June 30: 1 year 8.4%, 5 years 6.1%, 10 years 7.3%.",
+        "Cash and cash equivalents at end of period: $1,204 million."
+      ],
+      "children": []
+    },
+    {
+      "id": "accounting_policy",
+      "label": "Accounting policy",
+      "description": "States how amounts are recognized, measured, valued, classified, or estimated in financial statements, including recognition criteria, measurement bases, depreciation and valuation methods, significant judgments, and the adoption of accounting standards. Not the reported amounts themselves (financial_data).",
+      "examples": [
+        "Revenue from software licenses is recognized at the point in time when control of the license passes to the customer.",
+        "Inventories are stated at the lower of cost, determined on a first-in, first-out basis, and net realizable value.",
+        "Property and equipment are depreciated on a straight-line basis over estimated useful lives of three to forty years.",
+        "Securities without readily available market quotations are valued at fair value under procedures approved by the board.",
+        "Effective January 1, the company adopted the new lease accounting standard using the modified retrospective method."
+      ],
+      "children": []
+    },
+    {
+      "id": "legal_boilerplate",
+      "label": "Legal boilerplate",
+      "description": "Standard legal text reused across documents with little document-specific content: disclaimers, safe harbor and cautionary legends, copyright and trademark notices, regulatory legends, and confidentiality or distribution notices. Not a clause that imposes a specific duty on a party (obligation), and not a description of a particular risk (risk_disclosure).",
+      "examples": [
+        "© 2026 Example Holdings, Inc. All rights reserved.",
+        "Statements in this report that are not historical facts are forward-looking statements made under the safe harbor provisions of securities law, and actual results may differ materially.",
+        "No securities regulator has approved or disapproved of these securities or passed on the accuracy of this document.",
+        "This material is for general information only and does not constitute investment, legal, or tax advice.",
+        "All trademarks mentioned herein are the property of their respective owners."
+      ],
+      "children": []
+    },
+    {
+      "id": "definition",
+      "label": "Definition",
+      "description": "Defines a term, abbreviation, or acronym by stating its meaning, as in a glossary entry, a defined-terms clause, or an inline statement that X means Y. Not a clause that uses defined terms to impose a duty (obligation), and not an explanation of how an amount is measured (accounting_policy).",
+      "examples": [
+        "\"Business Day\" means any day other than a Saturday, a Sunday, or a day on which banks in New York are authorized to close.",
+        "EBITDA: earnings before interest, taxes, depreciation, and amortization.",
+        "In this guide, a node is any machine that runs the agent process.",
+        "Net asset value (NAV) is the value of a fund's assets minus its liabilities, divided by the number of shares outstanding.",
+        "\"Confidential Information\" has the meaning given in Section 7.1."
+      ],
+      "children": []
+    },
+    {
+      "id": "obligation",
+      "label": "Obligation",
+      "description": "Imposes a duty, condition, or prohibition on a party, typically with shall, must, agrees to, is required to, or may not, as in covenants, requirements, and restrictions. Not the definition of a term (definition), not a standard notice or disclaimer (legal_boilerplate), and not instructions for operating something (procedure).",
+      "examples": [
+        "The Supplier shall deliver the Goods to the Delivery Location within ten Business Days of each Purchase Order.",
+        "The Borrower may not incur additional indebtedness above $5,000,000 without the Lender's prior written consent.",
+        "Each party must keep the other party's Confidential Information secret and use it only to perform this Agreement.",
+        "Implementations MUST reject a message whose length field exceeds the maximum frame size.",
+        "Employees are required to complete the annual compliance training by March 31."
+      ],
+      "children": []
+    },
+    {
+      "id": "procedure",
+      "label": "Procedure",
+      "description": "Gives instructions or describes a process as an ordered series of steps or actions, such as installation steps, how to buy or redeem shares, or the sequence of operations in an experiment. Not a duty imposed on a party by an agreement or rule (obligation).",
+      "examples": [
+        "1. Remove the battery cover. 2. Insert two AA batteries, observing polarity. 3. Slide the cover back until it clicks.",
+        "To redeem shares, send a written request signed by every registered owner to the transfer agent; proceeds are paid within seven days.",
+        "Run pip install example-tool, then create a configuration file with example-tool init before starting the service.",
+        "Samples were centrifuged at 4,000 g for 10 minutes, after which the supernatant was filtered and stored at -80 °C.",
+        "If the indicator light flashes red, hold the reset button for five seconds and wait for the device to restart."
+      ],
+      "children": []
+    },
+    {
+      "id": "contact_or_admin",
+      "label": "Contact or administrative",
+      "description": "Administrative or identifying details about the document or its parties rather than its substance: addresses, phone numbers, email and web addresses, filing and form headers, registration and identification numbers, tickers and share-class codes, and version or date metadata. Not a signature block or attestation (signature), and not a standard legal notice (legal_boilerplate).",
+      "examples": [
+        "Investor Relations, 100 Example Plaza, Springfield, IL 62701 | (555) 010-0199 | ir@example.com",
+        "Example Industries, Inc. | Form 10-Q for the quarter ended June 30, 2026 | Incorporated in Delaware",
+        "Commission File Number: 001-00000 | IRS Employer Identification No.: 00-0000000",
+        "Class A: EXMPX | Class I: EXMIX | Inception date: 03/15/2012",
+        "Document version 2.3, revised 14 March 2026"
+      ],
+      "children": []
+    },
+    {
+      "id": "signature",
+      "label": "Signature",
+      "description": "A signature block, signature line, or attestation by which a person signs, certifies, or witnesses a document, usually with names, titles, and dates. Not other contact or filing details (contact_or_admin).",
+      "examples": [
+        "IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.",
+        "By: /s/ Jane Example | Name: Jane Example | Title: Chief Financial Officer | Date: February 20, 2026",
+        "I, John Sample, certify that I have reviewed this quarterly report and that, to my knowledge, it contains no untrue statement of a material fact.",
+        "Signed for and on behalf of the Board: A. Director, Chair, 12 April 2026",
+        "Subscribed and sworn to before me this 3rd day of May, 2026. Notary Public"
+      ],
+      "children": []
+    },
+    {
+      "id": "citation",
+      "label": "Citation",
+      "description": "An element whose content is chiefly a reference to another work: a bibliography or reference-list entry, a footnote or endnote citation, a source line under a table or chart, or a citation of a statute, case, or standard by its identifier. Not body text that merely contains an inline citation while making its own point, and not contact details (contact_or_admin).",
+      "examples": [
+        "[12] A. Author and B. Writer. Learning to rank with noisy labels. In Proceedings of the Example Conference, pages 101-110, 2024.",
+        "Doe, J. (2021). Measuring liquidity in corporate bond markets. Journal of Example Finance, 14(2), 55-78.",
+        "3 See Example Corp. v. Sample Inc., 123 F.4th 456 (9th Cir. 2025).",
+        "Example Protocol Specification, version 1.2. Example Standards Body, 2025.",
+        "Source: Example Statistics Office, Annual Labor Survey 2025."
+      ],
+      "children": []
+    },
+    {
+      "id": "marketing",
+      "label": "Marketing",
+      "description": "Promotional language that presents a product, service, fund, or company favorably to win customers or investors: superlatives, awards and ratings, unverified claims of quality or leadership, and calls to action. Not neutral reporting of results (financial_data), and not plans or outlook (forward_looking).",
+      "examples": [
+        "Our award-winning platform helps thousands of businesses work smarter every day.",
+        "Discover the industry's most reliable sensors, built to last and backed by a lifetime warranty.",
+        "Why invest with us? Decades of experience, disciplined research, and a relentless focus on our clients.",
+        "Rated five stars by Example Ratings for consistent long-term results.",
+        "Talk to your financial advisor today to learn how the fund can help you reach your goals."
+      ],
+      "children": []
+    }
+  ]
+}

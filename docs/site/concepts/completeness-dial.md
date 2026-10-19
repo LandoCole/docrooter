@@ -16,7 +16,7 @@ page is about what the number `c` promises, and where it promises nothing.
 
 | Need | Python | Relevance | The guarantee |
 | --- | --- | --- | --- |
-| A **field** | `Field`, or a list of fields of one family | Elements whose topic is one of the field's topics | Possible below `c = 1.0`, for a field the dial was calibrated on (see below) |
+| A **field** | `Field`, or a list of fields of one family | Elements whose topic is one of the field's topics | Possible below `c = 1.0` for **one** field the dial was calibrated on (see below); a list is an estimate |
 | A **query** | a `str` | The embedding similarity of each element to the text, plus the element's kind and length. Tags are not used | Never below `c = 1.0` |
 
 A **field** is a named, query-independent target tied to [element tags](element-tags.md): its
@@ -26,7 +26,9 @@ optional `query` is the field as a question, for the embedding term. Three built
 the package: `annual_report` (15 fields), `fund_document` (12) and `contract` (15). Some fields
 are one topic leaf; a few cross cutting ones gather several, such as `contract.core_obligations`
 or `fund_document.costs_and_returns`. A list of fields of one family is one need: the union of
-their topics.
+their topics. Below `c = 1.0` a list is an **estimate only** (`multi_field=True`): the dial is
+calibrated on units of one field each, and a union of fields is scored and weighted differently,
+so for a guarantee call `select()` **once per field**.
 
 Each content element (paragraph, list item, table, caption, footnote, formula) gets a
 probability P(relevant) from a small logistic regression over a few features:
@@ -86,7 +88,8 @@ than `1/(n+1)`, that is `c > n/(n+1)` (above 0.990 for 100 units), is out of rea
 is the dial capped. `select()` then returns the whole document and sets
 **`capped=True`**: "dial capped by calibration size". Recall is trivially 1 there, `guarantee`
 stays `True`, and `expected_recall` is 1.0 (what is delivered), not `c`. A bigger calibration set
-lowers the slack. The fitted `selector.json` records *n* for every family.
+lowers the slack. The fitted `selector.json` records *n* for every family, and a selection made
+with the dial reports it as `calibration_n` (the playground shows it as a badge).
 
 ### What it is calibrated against
 
@@ -114,6 +117,41 @@ so the gap is visible. And because units are pooled over the family's fields, th
 an average over fields too, as [above](#what-c-means). Treat the guarantee as approximate, and
 check it on your own documents.
 
+## The same reading, tagger and embedder
+
+The dial was calibrated on probabilities computed in one particular way, and it promises nothing
+about probabilities computed another way. `fit-selector` records that way in the selector's
+**provenance** (`Selector.provenance`, saved in `selector.json`):
+
+- the **tagger**: the fingerprint of the tagger bundle (a content hash of its files; a
+  `selector.json` kept in the bundle does not count);
+- the **embedder**: the embedding spec that gave `sim`;
+- the **reading**: the rooter profile, its layout engine (`heron` for `accurate`, the heuristic
+  rules for `balanced`) and its sections backend. `fit-selector` reads with `accurate` by
+  default, as the corpus build does.
+
+`select()` grants the guarantee only when the document was **read and tagged the same way**:
+every content element's tags carry the fingerprint of the fit's bundle (tags from a zero-shot
+`embedding:` or `teacher:` tagger, or from another bundle, do not), `sim` comes from the same
+embedder spec, the analysis was read with the same layout engine, and section labelling ran.
+Otherwise `Selection.fit_mismatch` lists what differs (`"tagger"`, `"embedder"`, `"layout"`,
+`"sections"`), the selection is an estimate, and the readout adds "reading differs from
+calibration (estimate)". A selector saved before provenance was recorded reports
+`fit_mismatch=["provenance"]` and guarantees nothing until you refit.
+
+The flow that earns the guarantee reads with the fit's profile and tags with the bundle that
+holds the selector:
+
+```python
+analysis = process("report.pdf", profile="accurate", element_tags="bundles/tagger-a")
+selection = select(analysis, risk, completeness=0.9, selector="bundles/tagger-a")
+```
+
+The default `balanced` profile reads with the heuristic layout rules, so the same call on
+`process("report.pdf", element_tags=...)` reports `fit_mismatch=["layout"]`. From the shell,
+`docrooter select report.pdf --need annual_report.risk_factors --profile accurate --tagger
+bundles/tagger-a` does the same.
+
 ## When there is no guarantee
 
 **Below `c = 1.0`**, `Selection.guarantee` is `True` only when **all** of these hold. When any
@@ -124,7 +162,9 @@ reports `guarantee=True`: nothing is missed, so there is nothing to estimate.)
 | Case | Why |
 | --- | --- |
 | The need is a **free-text query** | The dial is calibrated on fields. There is no query-side calibration, whatever you ask |
-| A field of the need is **not one the dial was calibrated on** (`uncalibrated_field=True`) | The selector records the fields it was fitted with, each by id and a fingerprint of its topics and functions. A field of your own, or a built-in one whose topics you edited, is not among them. A `selector.json` made before this was recorded calibrated no field, so every field in it reads as uncalibrated |
+| The need is **several fields** (`multi_field=True`) | The dial is calibrated on single-field units; a union of fields is not one of them. Call `select()` once per field |
+| The document was **read, tagged or embedded otherwise than the fit** (`fit_mismatch` not empty) | The dial's probabilities came from the fit's tagger bundle, embedder and reading; others give other probabilities. See [the same reading, tagger and embedder](#the-same-reading-tagger-and-embedder) |
+| A field of the need is **not one the dial was calibrated on** (`uncalibrated_field=True`) | The selector records the fields it was fitted with, each by id and a fingerprint of its topics, functions and need text, and only those that gave the dial at least one calibration unit. A field of your own, or a built-in one whose topics or query you edited, is not among them. A `selector.json` made before this was recorded calibrated no field, so every field in it reads as uncalibrated |
 | There is **no tagger**, or **no embedder** | The full relevance model needs both. Without them docrooter falls back to `sim` and `section_hit` alone, and the dial was not calibrated on those probabilities |
 | The **document type** maps to another family than the field's (`doc_type_mismatch=True`) | The dial was calibrated on correctly typed documents. The content elements are re-tagged within the field's family, which gives a usable selection, not a promise |
 | You pass a **budget** | A budget replaces the dial, so no threshold is calibrated |
@@ -166,9 +206,12 @@ together with its expansion, it is returned alone too.
 
 A field outside the set the dial was fitted with is not covered, whatever its topics. `select()`
 checks every field of the need against the selector's record, by id and by a fingerprint of its
-sorted topics and functions (labels, descriptions and queries do not enter it). A field that does
-not match gets the estimate path, `guarantee=False` and **`uncalibrated_field=True`**, and the
-readout says "field not calibrated (estimate)". To make your own field part of the guarantee,
+sorted topics and functions and its need text, which `sim` compares elements with (its `query`,
+else its `description`; the label does not enter it). A field that does not match gets the
+estimate path, `guarantee=False` and **`uncalibrated_field=True`**, and the readout says "field
+not calibrated (estimate)". A field that gave the dial no calibration unit (no calibration
+document had an element relevant to it) is not recorded as calibrated either: the dial has
+seen nothing of it. `fit-selector` reports the units per field. To make your own field part of the guarantee,
 include it when you fit (see the [guide](../guides/select-for-extraction.md#refit-on-your-own-corpus));
 the dial then pools its units with the family's.
 
@@ -198,6 +241,9 @@ document text, rather than calibrate on a diverged reading. The
 | `capped` | The target was unreachable with this many units; the whole document is returned |
 | `doc_type_mismatch` | The document's type maps to another family than the field's |
 | `uncalibrated_field` | The guarantee would have applied, but a field of the need is not one the dial was calibrated on |
+| `multi_field` | The need is several fields, an estimate below `c = 1.0` |
+| `fit_mismatch` | What differs from the selector's fit: `tagger`, `embedder`, `layout`, `sections`, or `provenance` for an old selector; empty when nothing does |
+| `calibration_n` | The *n* of the dial that was applied (`None` when none was) |
 | `expected_recall` | `c` (or 1.0 when capped) under the guarantee, else the model's estimate; `None` only without the guarantee, when no relevant content is expected |
 | `relevant_expected` | ΣP over the content elements: the expected number of relevant elements |
 | `over_budget` | The most relevant element alone is over the token budget |

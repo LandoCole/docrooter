@@ -320,11 +320,25 @@ def test_selection_docs_state_what_the_guarantee_is_and_is_not():
         "uncalibrated_field=True",
         "`c > n/(n+1)`",
         "pending",
+        "multi_field=True",
+        "once per field",
+        "fit_mismatch",
+        'profile="accurate", element_tags="bundles/tagger-a"',
+        "need text",
     ):
         assert fact in concept, fact
-    for fact in ("docrooter selects", "validate_fields", "fit-selector", "teach label", "pending"):
+    for fact in (
+        "docrooter selects",
+        "validate_fields",
+        "fit-selector",
+        "teach label",
+        "pending",
+        "once per field",
+        "fit_mismatch",
+        "--profile accurate",
+    ):
         assert fact in guide, fact
-    for fact in ("teacher", "average", "capped=True", "pending"):
+    for fact in ("teacher", "average", "capped=True", "pending", "fit_mismatch", "once per field"):
         assert fact in readme.split("## Select what to read", 1)[1].split("\n## ", 1)[0], fact
     # no field count drifts from the shipped sets
     from docrooter.select import builtin_fields

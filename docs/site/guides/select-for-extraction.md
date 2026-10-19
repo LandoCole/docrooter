@@ -26,6 +26,12 @@ the number `c` promises, because the answer is more careful than "90%".
 - **Extras.** `pip install 'docrooter[models,layout]'` for the tagger and the embedding model.
 - **One model at a time, within 8 GiB.** Selecting loads the student and the embedder, as
   [element tagging](../concepts/element-tags.md) does.
+- **Read as the selector was fitted.** The guarantee holds only on documents read and tagged the
+  way the selector was fitted: the same profile (`accurate`, the corpus build's, unless you
+  fitted with another), the tagger bundle that holds the selector, and the selector's own
+  embedder. Pass `--profile accurate` on the shell, or `profile="accurate"` to `process()`.
+  Anything else is reported in `fit_mismatch` and gives an estimate (see
+  [the dial](../concepts/completeness-dial.md#the-same-reading-tagger-and-embedder)).
 
 The Python example [`examples/select_for_extraction.py`](../../../examples/select_for_extraction.py)
 needs none of this. It runs `select()` with keyword stand-ins and a hand-set selector, so you can
@@ -44,16 +50,22 @@ for field in builtin_fields("fund_document"):
 ```
 
 On the command line, `--need` takes a field id. Repeat it for several fields of one family: they
-are read as one need.
+are read as one need, the union of their topics.
 
 ```bash
-docrooter select report.pdf --need annual_report.risk_factors --tagger bundles/tagger-a
-docrooter select report.pdf --need annual_report.risk_factors --need annual_report.legal_proceedings --tagger bundles/tagger-a
+docrooter select report.pdf --need annual_report.risk_factors --profile accurate --tagger bundles/tagger-a
+docrooter select report.pdf --need annual_report.risk_factors --need annual_report.legal_proceedings --profile accurate --tagger bundles/tagger-a
 ```
+
+Several fields together are an **estimate** below `c = 1.0` (`multi_field=True`, "several fields
+(estimate)"): the dial is calibrated on units of one field each, and a union is scored and
+weighted differently. For a guarantee on each, select **once per field** and merge the element
+ids yourself.
 
 Any other `--need` value is a **free-text query**, such as `--need "interest rate risk"`. A query
 works, but below `c = 1.0` it never carries the guarantee (see [below](#3-read-the-selection)).
-A mistyped field id is read as a query too, so check the readout: a query shows "(estimate)".
+A value shaped like a field id of a built-in family that is not one, such as
+`annual_report.risk_factor`, is refused as a typo, with the closest field ids.
 
 **Your own field** is a JSON file. A field names the `element_topics` leaves that carry it, all in
 one family; `functions` and `query` are optional:
@@ -116,9 +128,10 @@ cannot be combined with `c = 1.0`.
 ## 3. Read the Selection
 
 ```python
-from docrooter import select
+from docrooter import process, select
 from docrooter.select.selection import readout
 
+analysis = process("report.pdf", profile="accurate", element_tags="bundles/tagger-a")
 selection = select(analysis, field, completeness=0.9, selector="bundles/tagger-a")
 print(readout(selection))
 ```
@@ -134,13 +147,16 @@ fields. These matter before you trust it:
 | --- | --- | --- |
 | `guarantee=True` | The dial's guarantee applies: on documents like its calibration set, the mean share of **teacher-relevant** elements kept, over documents and the family's fields, is at least `c` (at `c = 1.0` it is always `True`: the whole document) | Rely on it on, and only on, such documents |
 | `guarantee=False`, "(estimate)" | The recall is the model's own estimate | Treat as an estimate; raise `c` if a miss is costly |
-| `uncalibrated_field=True` | The guarantee would have applied, but a field of the need is not one the dial was fitted with (a field of your own, one with edited topics, or any field of a `selector.json` that predates this record). The readout says "field not calibrated (estimate)" | Refit with the field, or accept an estimate |
+| `uncalibrated_field=True` | The guarantee would have applied, but a field of the need is not one the dial was fitted with (a field of your own, one with edited topics or query, or any field of a `selector.json` that predates this record). The readout says "field not calibrated (estimate)" | Refit with the field, or accept an estimate |
+| `fit_mismatch` not empty | The document was read, tagged or embedded otherwise than the selector was fitted: `layout` (another profile, such as the default `balanced`), `tagger` (tags from another bundle or a zero-shot tagger), `embedder`, `sections` (section labelling off), or `provenance` (a selector saved before this was recorded). The readout says "reading differs from calibration (estimate)" | Read with the fit's profile and tag with its bundle; refit an old selector |
+| `multi_field=True` | Several fields as one need. The readout says "several fields (estimate)" | Select once per field for a guarantee |
 | `capped=True` | The calibration set was too small to reach this `c`, so the **whole document** is returned | Fine, just costlier; fit with more documents to uncap it |
 | `doc_type_mismatch=True` | The document's type maps to another family than the field's, for example an annual-report field on a prospectus. The elements were re-tagged for the field's family; the guarantee is dropped | Check the document type, or accept an estimate |
 | `over_budget=True` | The most relevant element alone is over your budget | Raise the budget |
 | `expected_recall=None` | Without the guarantee, no relevant content is expected in this document | Nothing to send; do not read it as 0 or 1 |
 
 Below `c = 1.0`, a query, a missing tagger or embedder, and a budget also give `guarantee=False`.
+`calibration_n` is the number of calibration units behind the dial that was applied.
 [The completeness dial](../concepts/completeness-dial.md#when-there-is-no-guarantee) lists every
 case and why.
 
@@ -194,8 +210,11 @@ Currency risk follows from sales in six currencies.
 `docrooter serve --element-tags BUNDLE --selector SELECTOR` (or a `selector.json` inside the
 bundle) adds a panel to a run in element mode: a field picker or a free-text query, a
 completeness slider with the four presets, and a live readout with badges for "estimate",
-"dial capped by calibration size" and "doc type mismatch". The Elements tab highlights the
-selected elements, and **Show selected only** hides the rest. See [the playground](playground.md).
+"dial capped by calibration size", "doc type mismatch", "field not calibrated", "several
+fields", "reading differs from calibration" and the dial's calibration size `n`. Upload with the
+profile the selector was fitted with (Accurate, for one fitted on the corpus build), or the
+dial reads "reading differs from calibration". The Elements tab highlights the selected
+elements, and **Show selected only** hides the rest. See [the playground](playground.md).
 
 ## Refit on your own corpus
 
@@ -213,8 +232,11 @@ docrooter fit-selector corpus/ --bundle bundles/tagger-a --out bundles/tagger-a/
 `fit-selector` reads each calibration PDF again exactly as the corpus build read it, so pass the
 build's `--profile` and `--max-pages` if they were not the defaults (`accurate`, 30). It refuses a
 corpus whose teacher labels are missing or do not match the document text, so it cannot calibrate
-on a reading that diverged. Its summary lists the number of units behind each family's dial: if a
-family has few, expect `capped=True` at high `c`.
+on a reading that diverged. Its summary lists the number of units behind each family's dial and
+each field's, and the provenance it recorded (the bundle's fingerprint, the embedder, the profile
+and layout): if a family has few units, expect `capped=True` at high `c`. Keep the selector in
+the bundle it was fitted with; a retrained bundle has another fingerprint, so refit after
+retraining.
 
 **For a field set of your own:**
 
@@ -240,8 +262,9 @@ family has few, expect `capped=True` at high `c`.
 3. `fields_by_family` replaces the built-in sets, so list every field you want guaranteed, the
    built-in ones too. A field left out is not calibrated after the refit.
 
-The selector records the fields it was fitted with, each by id and a fingerprint of its topics and
-functions, and `select()` guarantees recall for those and for nothing else. A field you did not
+The selector records the fields it was fitted with, each by id and a fingerprint of its topics,
+functions and need text (its `query`, else its description), and only those that gave the dial
+at least one calibration unit; `select()` guarantees recall for those and for nothing else. A field you did not
 fit with still **works**, since the combiner scores any field from the same features, but it is an
 estimate (`uncalibrated_field=True`). The guarantee for a fitted field is still only as good as
 your documents' likeness to the calibration documents: check recall on a few you have labelled

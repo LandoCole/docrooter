@@ -64,9 +64,17 @@ preset (1.0) does:
 - **Readout.** For example "≈ 90% of relevant content kept · 3,240 tokens (12%) · guaranteed on
   calibration-like documents" (an illustration of the line's shape, not a result), with badges
   when it is an estimate, when the dial was capped by its calibration size, when the document
-  type does not match the field's family, when the field was not calibrated, or when a budget was
-  exceeded. The playground offers built-in fields only, and a selector made before the calibrated
-  fields were recorded shows "field not calibrated".
+  type does not match the field's family, when the field was not calibrated, when several
+  fields are selected together ("several fields"), when the run was read or tagged otherwise
+  than the selector was fitted ("reading differs from calibration"), and the calibration size
+  `n` of the dial that was applied. The page has no budget control; a budget is set through the
+  API (`budget` below), and its readout says when the most relevant element alone exceeds it.
+  The playground offers built-in fields only, and a selector made before the calibrated fields
+  were recorded shows "field not calibrated".
+- **Read as the selector was fitted.** The guarantee needs the run read with the profile the
+  selector was fitted with (Accurate, for one fitted on the corpus build) and tagged by its
+  bundle (`--element-tags` the bundle that holds the selector). A run with another profile, or
+  tagged by another tagger, shows "reading differs from calibration" and gets an estimate.
 - **Elements tab.** The selected elements are highlighted, and *Show selected only* hides the
   rest.
 

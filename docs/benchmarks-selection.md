@@ -11,7 +11,9 @@
 
 *Results pending.*
 
-- **Documents.** The gold split of the training corpus: every gold document that has full teacher labels. Each one is read again exactly as the corpus build read it (same profile, page cap and pages). It is then tagged by the trained element tagger and scored by the fitted selector through `select()`'s own cut, dial and expansion.
+- **Documents.** The gold split of the training corpus: every gold document that has full teacher labels. Each one is read in two ways, and both are reported side by side (see [two readings](#two-readings-fit-identical-and-runtime)):
+  - the **fit-identical reading**, exactly as the corpus build read it and the selector was fitted (same profile, page cap and pages; sections normalised with the doc type of the manifest's family), then tagged by the trained element tagger and scored by the fitted selector through `select()`'s own cut, dial and expansion. The doc type comes from the manifest, so no classifier error can drop the guarantee here: this row measures the dial, not the routing;
+  - the **runtime path**, the way a user reads a document.
 - **Units.** A unit is a (document, built-in field of the document's family) pair with at least one relevant content element.
 - **Relevance (main number).** An element is relevant to a field when its teacher topic, from the local teacher's full labelling, is one of the field's topics. This is the target the dial was calibrated on (CRC).
 - **Recall** is |selected ∩ relevant| / |relevant| over content elements, after context expansion, since that is what the reader gets. The **token share** is the selection's tokens over the document's content and heading tokens.
@@ -24,7 +26,18 @@
   - the uncapped-only verdict leaves capped units out and judges the dial itself.
 
   Both verdicts are shown with the share of capped units, the skipped documents and their reasons, and the gold elements whose text changed.
-- **Coverage.** Every gold-split document is accounted for: read, with units, read without units, or skipped with its reason. The gold subset is evaluated whenever a document reads, whatever its teacher labels say.
+- **Coverage.** Every gold-split document is accounted for: read, with units, read without units, or skipped with its reason. A document without teacher labels is not skipped: its gold subset is evaluated (it is counted as "gold subset only"). The gold subset is evaluated whenever a document reads, whatever its teacher labels say.
+- **Dials.** The per-family dial size n, the number of documents its units come from, and the slack 1/(n+1) are printed in a table.
+- **Overrides.** A `--tagger` or `--embedder` that differs from the selector's recorded fit is logged as a WARNING and recorded in the results (`provenance.overrides`): the guarantee does not apply to such a run.
+
+### Two readings: fit-identical and runtime
+
+The guarantee holds on documents read, tagged and embedded as the selector was fitted. The fit-identical row measures exactly that. The runtime row measures what a user gets from the documented flow:
+
+- each gold PDF goes through `process(pdf, profile=<the fit's profile>, pages=<the pages the build read>, element_tags=<the bundle>)`, with the profile's own doc-type classification and section labelling;
+- then `select()` runs on that analysis with the selector and no tagger, as in the README. (The benchmark computes `select()`'s own scoring once per document, `prepare` then `select_scored`, which a unit test pins equal to `select()`.)
+
+The runtime reading's elements are matched to the teacher labels by element id and text hash. Elements that do not match are excluded and counted, and the match rate is reported. The runtime row has its own program-target verdict and guarantee share, plus the counts of units with a `fit_mismatch` (a reading that differs from the fit's) and with a `doc_type_mismatch` (the classifier gave a type of another family, which drops the guarantee). A gap between the two rows is the cost of the runtime path: classification errors, a different section reading, and labels that no longer match.
 
 ## Main evaluation: teacher relevance
 
@@ -71,7 +84,7 @@ The curve plots mean recall against mean token share. It is computed over a fine
 - **Relevance.** An element is relevant when it lies on an evidence page and at least half of its characters overlap the evidence text.
 - **Needs.**
   - The question itself as a free-text need: never guaranteed, so its numbers are descriptive.
-  - The built-in field closest to the question, at c ∈ {0.8, 0.9, 0.98}.
+  - The built-in field closest to the question, at c ∈ {0.8, 0.9, 0.98}. A closest-field row may carry `guarantee=True`, but that flag is about teacher relevance on calibration-like readings. It says nothing about evidence recall on these whole filings.
 
 ## Extraction demo
 

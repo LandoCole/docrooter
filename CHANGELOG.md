@@ -62,8 +62,9 @@ element tags and a tagger you train yourself, and (v0.6) selection and the compl
     `builtin_fields`, `load_fields` and `validate_fields` read and check your own, in JSON.
   - **`select()`** takes a field, a list of fields of one family or a free-text query, and
     returns a `Selection`: the element ids in reading order, the `chunks`, `tokens` and
-    `token_share`, `expected_recall`, `relevant_expected`, and the flags `guarantee`, `capped`,
-    `doc_type_mismatch`, `uncalibrated_field` and `over_budget`. `readout()` is its one-line summary. `completeness=1.0`
+    `token_share`, `expected_recall`, `relevant_expected`, `calibration_n`, and the flags
+    `guarantee`, `capped`, `doc_type_mismatch`, `uncalibrated_field`, `multi_field`,
+    `fit_mismatch` and `over_budget`. `readout()` is its one-line summary. `completeness=1.0`
     is always the whole document and needs no model. A `budget` (tokens) replaces the dial.
     Each selected element brings its context (the previous element, the section's heading and
     first paragraph, a table's caption), so expansion can only raise recall.
@@ -73,22 +74,32 @@ element tags and a tagger you train yourself, and (v0.6) selection and the compl
     **It is calibrated against teacher relevance, not human labels**, it is an average (some
     documents are below `c`), its 1/(n+1) slack caps it only above `c = n/(n+1)` (the whole
     document is returned, `capped=True`), and its units come from shared documents, so they are
-    correlated. Below `c = 1.0` it gives no guarantee, only an estimate, for free-text queries,
-    without a tagger or embedder, on a document type that does not match the field's family,
-    under a budget, for a family without a dial, or for a field it was not calibrated on
-    (`uncalibrated_field=True`: the selector records the fitted fields by id and a fingerprint of
-    their topics and functions; a `selector.json` without that record guarantees no field).
-    `c = 1.0` is always the whole document and reports `guarantee=True`.
+    correlated. It holds only for **one field** on a document **read and tagged as the selector
+    was fitted**: the selector records its fit provenance (the tagger bundle's fingerprint, which
+    `TagResult.fingerprint` carries on every tag, the embedder spec, and the profile, layout
+    engine and sections backend of the reading), and `select()` lists any difference in
+    `fit_mismatch` (for example `["layout"]` for the default `balanced` profile against a selector
+    fitted with `accurate`). Below `c = 1.0` it gives no guarantee, only an estimate, for
+    free-text queries, for several fields at once (`multi_field=True`: select once per field),
+    without a tagger or embedder, with another tagger, embedder or reading than the fit's, on a
+    document type that does not match the field's family, under a budget, for a family without
+    a dial, or for a field it was not calibrated on (`uncalibrated_field=True`: the selector
+    records the fitted fields that gave the dial at least one unit, by id and a fingerprint of
+    their topics, functions and need text; a `selector.json` without that record, or without
+    provenance, guarantees nothing). `c = 1.0` is always the whole document and reports
+    `guarantee=True`.
   - **`docrooter fit-selector`** fits the relevance models (on calib-fit) and the dials (on
     calib-crc) from the teacher's full labels, which `docrooter teach label --full` writes
     (`labels/teacher-full.jsonl`, never used to train the tagger). There is no built-in selector:
     fit one on your corpus.
   - **CLI and playground.** `docrooter select FILE --need ... [--completeness] [--budget]
-    [--tagger] [--selector] [--json]`, and `docrooter serve --selector` for a dial panel: field
-    picker, query box, slider, the presets Lean (0.8), Balanced (0.9), Thorough (0.98) and
-    Whole document (1.0), a readout with badges, and *Show selected only*.
+    [--profile] [--tagger] [--selector] [--json]`, and `docrooter serve --selector` for a dial
+    panel: field picker, query box, slider, the presets Lean (0.8), Balanced (0.9), Thorough
+    (0.98) and Whole document (1.0), a readout with badges, and *Show selected only*. A corrupt
+    `selector.json` is an `error:` line, and a mistyped field id a usage error.
   - **Benchmarks.** `benchmarks/selection_bench.py` (recall against the promise, tokens against
-    baselines), `benchmarks/evidence_qa.py` (evaluation-only public QA evidence) and a demo
+    baselines, on the fit-identical reading and on the runtime path users run),
+    `benchmarks/evidence_qa.py` (evaluation-only public QA evidence) and a demo
     extraction harness, `benchmarks/extraction/` (not in the wheel). The results are pending:
     [docs/benchmarks-selection.md](docs/benchmarks-selection.md).
   - **Example.** `examples/select_for_extraction.py` runs `select()` with stand-ins and no model.

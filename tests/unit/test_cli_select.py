@@ -366,7 +366,7 @@ class FakeReader:
 
     made: list["FakeReader"] = []
 
-    def __init__(self, corpus, pdf_dir, *, profile, max_pages):
+    def __init__(self, corpus, pdf_dir, *, profile, max_pages, sections_backend=None):
         self.args = (pdf_dir, profile, max_pages)
         self.closed = 0
         FakeReader.made.append(self)

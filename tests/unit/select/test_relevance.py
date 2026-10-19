@@ -281,3 +281,31 @@ def test_feature_names_must_be_known(names):
     data["feature_names"] = list(names)
     with pytest.raises(ValueError):
         Combiner.from_dict(data)
+
+
+def _fit_quietly(X, y, feature_names=FEATURE_NAMES):
+    import warnings
+
+    ids = [_ids("fit", 3)[i % 3] for i in range(len(y))]
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        model = Combiner(feature_names=feature_names).fit(X, y, doc_ids=ids)
+    return model, [str(w.message) for w in caught]
+
+
+@pytest.mark.parametrize("n", [62, 200, 5000])
+def test_converges_without_warning_on_separable_and_noisy_data(n):
+    """A step that leaves the loss unchanged within rounding is no progress: the fit stops
+    there and is converged when the gradient is ~0 for its size, never a spurious warning."""
+    rng = np.random.default_rng(n)
+    half = n // 2
+    # Separable on sim, with a constant column (the fallback when section_hit never fires).
+    sim = np.r_[np.ones(half), np.zeros(n - half)]
+    y = np.r_[(rng.random(half) < 0.3).astype(float), np.zeros(n - half)]
+    y[0] = 1.0
+    model, caught = _fit_quietly(np.c_[sim, np.zeros(n)], y, ("sim", "section_hit"))
+    assert model.converged is True and caught == []
+    # Noisy, on every feature.
+    X, y = _synthetic(rng, n)
+    model, caught = _fit_quietly(X, y)
+    assert model.converged is True and caught == []

@@ -96,11 +96,15 @@ def ids_in(half: str, n: int, prefix: str) -> list[str]:
     return out
 
 
-def items_for(doc_id: str, seed: int) -> list[tuple[str, str, str]]:
+def items_for(
+    doc_id: str, seed: int, paragraphs: int | None = None, empty: int = 0
+) -> list[tuple[str, str, str]]:
     """``(element id, kind, text)`` of a small annual report: a heading, risk paragraphs and
-    filler, varied by ``seed``."""
+    filler (``6 + seed % 3`` paragraphs unless ``paragraphs``), ``empty`` paragraphs without
+    text, and a table."""
     items = [("h0", "heading", "Risk Factors")]
-    for j in range(6 + seed % 3):
+    items += [(f"z{k}", "paragraph", "") for k in range(empty)]
+    for j in range(6 + seed % 3 if paragraphs is None else paragraphs):
         risky = j % 3 == 0
         text = (
             f"Interest rate risk number {j} could harm {doc_id}."
@@ -116,12 +120,15 @@ def leaf_of(text: str) -> str:
     return RISK_LEAF if "risk" in text.lower() and "factors" not in text.lower() else OTHER_LEAF
 
 
-def record(doc_id: str, split: str = "calib", family: str = "annual_report") -> ManifestRecord:
+def record(
+    doc_id: str, split: str = "calib", family: str = "annual_report", doc_type=None
+) -> ManifestRecord:
     return ManifestRecord(
         id=doc_id,
         sha256=hashlib.sha256(doc_id.encode()).hexdigest(),
         split=split,
         family_hint=family,
+        doc_type_hint=doc_type,
     )
 
 
@@ -144,11 +151,24 @@ class Store:
         self.corpus = Corpus(path)
         self.items: dict[str, list[tuple[str, str, str]]] = {}
 
-    def add(self, doc_id: str, split: str = "calib", family: str = "annual_report", seed=0):
-        items = items_for(doc_id, seed)
+    def add(
+        self,
+        doc_id: str,
+        split: str = "calib",
+        family: str = "annual_report",
+        seed=0,
+        *,
+        paragraphs=None,
+        empty=0,
+        unlabelled=(),
+        doc_type=None,
+    ):
+        """Store a document and its labels: ``teacher-full`` for every content element with
+        text (the labeller skips empty ones) but ``unlabelled``, and a contrary ``teacher``."""
+        items = items_for(doc_id, seed, paragraphs, empty)
         self.items[doc_id] = items
         self.corpus.add_document(
-            record(doc_id, split, family),
+            record(doc_id, split, family, doc_type),
             [
                 CorpusElement(
                     doc_id=doc_id,
@@ -163,7 +183,11 @@ class Store:
             ],
             [1],
         )
-        content = [(eid, text) for eid, kind, text in items if kind != "heading"]
+        content = [
+            (eid, text)
+            for eid, kind, text in items
+            if kind != "heading" and text.strip() and eid not in unlabelled
+        ]
         self.corpus.write_labels(
             "teacher-full", [label_row(doc_id, eid, text, leaf_of(text)) for eid, text in content]
         )
@@ -291,6 +315,9 @@ def test_fit_uses_teacher_full_labels_and_partitions(store):
     assert meta["corpus_manifest_sha256"] == manifest_sha
     assert meta["label_mismatch"]["hash_mismatch"] == 0
     assert meta["label_mismatch"]["no_label"] == 0
+    assert meta["label_mismatch"]["missing"] == 0
+    assert meta["warnings"] == []  # every combiner converged
+    assert meta["fields_using_description"] == ["annual_report.legal_proceedings"]  # no query
 
     # Each calib document is read once, fit documents first; the skipped one is never read.
     assert analyse.calls == fit_ids + crc_ids
@@ -324,21 +351,65 @@ def test_hash_mismatch_raises_naming_the_document(store):
         fit(store, analyse=FakeAnalyse(store, edit=drift))
 
 
-def test_unlabelled_elements_count_as_not_relevant(store):
-    target = ids_in("fit", 4, "fit-")[0]
+def big_store(path, *, unlabelled=0, empty=0):
+    """Two fit and two crc documents; the first fit one has 100 content elements with text
+    (99 paragraphs and a table), ``empty`` more without, and its first ``unlabelled``
+    paragraphs have no teacher-full label."""
+    s = Store(path)
+    fit_ids, crc_ids = ids_in("fit", 2, "fit-"), ids_in("crc", 2, "crc-")
+    s.add(
+        fit_ids[0],
+        paragraphs=99,
+        empty=empty,
+        unlabelled={f"p{j}" for j in range(unlabelled)},
+    )
+    s.add(fit_ids[1], seed=1)
+    for i, doc_id in enumerate(crc_ids):
+        s.add(doc_id, seed=i)
+    return s, fit_ids[0]
 
-    def extra(doc_id, items):
+
+def test_empty_elements_may_lack_labels(tmp_path):
+    store, target = big_store(tmp_path / "s", empty=5)
+    selector, _, _ = fit(store)
+    per_doc = selector.meta["label_mismatch"]["per_document"][target]
+    assert per_doc["content"] == 105 and per_doc["no_label"] == 5 and per_doc["missing"] == 0
+    assert selector.meta["class_balance"]["field"]["relevant"] == expected_positives(store, "fit")
+
+
+@pytest.mark.parametrize(("unlabelled", "raises"), [(2, False), (3, True), (99, True)])
+def test_unlabelled_text_elements_boundary(tmp_path, unlabelled, raises):
+    """Only elements without text may lack a label: more than 2% of a document's elements
+    with text unlabelled (a labelling run that stopped early) raises, naming it."""
+    store, target = big_store(tmp_path / "s", unlabelled=unlabelled)
+    if raises:
+        with pytest.raises(DocrooterError, match=target):
+            fit(store)
+        return
+    selector, _, _ = fit(store)
+    per_doc = selector.meta["label_mismatch"]["per_document"][target]
+    assert per_doc["missing"] == 2 and per_doc["no_label"] == 0
+    assert per_doc["rate"] == pytest.approx(2 / 100)
+    assert selector.meta["label_mismatch"]["missing"] == 2
+
+
+@pytest.mark.parametrize(("changed", "raises"), [(2, False), (3, True)])
+def test_hash_mismatch_boundary(tmp_path, changed, raises):
+    store, target = big_store(tmp_path / "s")
+    edited = {f"p{j}" for j in range(changed)}
+
+    def drift(doc_id, items):
         if doc_id != target:
             return items
-        return [*items, ("x9", "paragraph", "An unlabelled risk paragraph.")]
+        return [(e, k, t + " (read differently)" if e in edited else t) for e, k, t in items]
 
-    selector, _, _ = fit(store, analyse=FakeAnalyse(store, edit=extra))
-    mismatch = selector.meta["label_mismatch"]
-    assert mismatch["no_label"] == 1 and mismatch["hash_mismatch"] == 0
-    per_doc = mismatch["per_document"][target]
-    assert per_doc["no_label"] == 1
-    assert per_doc["rate"] == pytest.approx(1 / per_doc["content"])
-    assert selector.meta["class_balance"]["field"]["relevant"] == expected_positives(store, "fit")
+    analyse = FakeAnalyse(store, edit=drift)
+    if raises:
+        with pytest.raises(DocrooterError, match=target):
+            fit(store, analyse=analyse)
+        return
+    selector, _, _ = fit(store, analyse=analyse)
+    assert selector.meta["label_mismatch"]["per_document"][target]["hash_mismatch"] == 2
 
 
 def test_fitted_selector_round_trips_and_selects_with_guarantee(store, tmp_path):
@@ -420,7 +491,17 @@ def test_default_reader_reads_as_the_build_did(store, tmp_path, monkeypatch):
     monkeypatch.setattr(
         sys.modules["docrooter.classify.normalize"], "normalize_sections", fake_normalize
     )
-    monkeypatch.setattr(registry, "resolve_backend", lambda spec: Backend())
+    resolved = []
+
+    def resolve(spec):
+        resolved.append(Backend())
+        return resolved[-1]
+
+    pages = {"n": 1}
+    monkeypatch.setattr(registry, "resolve_backend", resolve)
+    monkeypatch.setattr(
+        sys.modules["docrooter.corpus.build"], "_page_count", lambda path, engine: pages["n"]
+    )
     reader = CorpusPdfReader(store.corpus, pdfs, profile="accurate", max_pages=30)
     engines = FakeEngines()
     reader._engines = engines
@@ -435,6 +516,10 @@ def test_default_reader_reads_as_the_build_did(store, tmp_path, monkeypatch):
     assert (cfg.profile, cfg.max_pages, cfg.layout) == ("accurate", 30, "heron")
     assert (cfg.doc_type, cfg.sections, cfg.embeddings, cfg.escalate) == ("none",) * 4
     assert seen["normalize"]["taxonomy"] == "section_types/annual_report"  # the family's
+    # No doc type in the manifest: the family's first doc type, so the section prompt reads
+    # "... of a <doc type>" as it does for a correctly typed document at runtime.
+    assert seen["normalize"]["doc_type"] == "financial.annual_report"
+    assert seen["normalize"]["backend"] is resolved[0]
     reader.close()
     assert engines.closed == 1 and closed == [True]
 
@@ -445,3 +530,56 @@ def test_default_reader_reads_as_the_build_did(store, tmp_path, monkeypatch):
     (pdfs / f"{other.id}.pdf").write_bytes(b"other bytes")
     with pytest.raises(DocrooterError, match="sha256"):
         reader(other)
+
+    # The manifest's doc type is used when it maps to the document's family.
+    quarterly = ids_in("fit", 1, "q-")[0]
+    store.add(quarterly, doc_type="financial.quarterly_report")
+    (pdfs / f"{quarterly}.pdf").write_bytes(quarterly.encode())
+    reader(store.corpus.manifest()[-1])
+    assert seen["normalize"]["doc_type"] == "financial.quarterly_report"
+
+    # Stored pages that the page cap could not have produced: another --max-pages.
+    pages["n"] = 40  # a 40-page PDF read with max_pages=30 gives 30 pages, not 1
+    with pytest.raises(DocrooterError, match="max-pages"):
+        reader(store.corpus.manifest()[0])
+    reader.close()
+
+
+def test_reader_shares_the_sections_backend_with_the_embedder(store, tmp_path, monkeypatch):
+    """One embedding model, not two, when the profile's sections backend is the sim
+    embedder's spec; a shared backend is the caller's to close."""
+    made = []
+
+    class Reader:
+        def __init__(self, corpus, pdf_dir, **kwargs):
+            self.kwargs = kwargs
+            made.append(self)
+
+        def __call__(self, record):
+            return FakeAnalyse(store)(record)
+
+        def close(self):
+            pass
+
+    embedders = []
+
+    def resolve(spec):
+        embedders.append(FakeEmbedder())
+        return embedders[-1]
+
+    from docrooter.rooter.profiles import profile_defaults
+    from docrooter.select import fit as fit_module
+
+    monkeypatch.setattr(fit_module, "CorpusPdfReader", Reader)
+    monkeypatch.setattr(registry, "resolve_backend", resolve)
+    sections = profile_defaults("accurate")["sections"]
+    fit_selector(store.corpus, FakeTagger(), sections, fields_by_family=FIELDS)
+    assert len(embedders) == 1 and made[-1].kwargs["sections_backend"] is embedders[0]
+    fit_selector(store.corpus, FakeTagger(), "embedding:other", fields_by_family=FIELDS)
+    assert made[-1].kwargs["sections_backend"] is None
+
+    shared = object()
+    reader = CorpusPdfReader(store.corpus, tmp_path, sections_backend=shared)
+    reader._engines = FakeEngines()
+    reader.close()  # leaves the shared backend alone (it has no close to call anyway)
+    assert reader._sections is shared

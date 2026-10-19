@@ -13,15 +13,18 @@ and counted.
 :func:`~docrooter.select.selection.need_features`, the functions :func:`select` uses, so the
 combiners and dials are fitted on exactly the features they will see. The default ``analyse``
 (:class:`CorpusPdfReader`) reads the PDF as the corpus build did (the profile's engines, the
-same pages), then normalises its sections with the family's section taxonomy for
-``section_hit``. Document-type classification stays off: the family comes from the manifest.
+same pages), then normalises its sections with the family's section taxonomy and a doc type
+of that family (:func:`section_doc_type`) for ``section_hit``. Document-type classification
+stays off: the family comes from the manifest.
 
 **Relevance.** An element is relevant to a field when its ``teacher-full`` topic (the argmax
 of its row) is one of the field's topics. Content elements are matched to labels by element id
-and checked by text hash: an element with no label (the labeller skips empty ones) counts as not
-relevant; one whose label was given to another text is a hash mismatch, and more than
-:data:`MAX_HASH_MISMATCH` of a document's content elements mismatching raises, naming the
-document (a reading that diverged from the corpus would void the calibration).
+and checked by text hash. An element without text (the labeller skips those) may have no label
+and counts as not relevant; more than :data:`MAX_MISSING_LABELS` of a document's elements with
+text unlabelled (an incomplete labelling run) raises, naming the document. One whose label was
+given to another text is a hash mismatch, and more than :data:`MAX_HASH_MISMATCH` of a
+document's content elements mismatching raises too (a reading that diverged from the corpus
+would void the calibration).
 
 **Rows** (spec §5). For each calib-fit document and each field of its family: the field
 combiner and its fallback (on ``("sim", "section_hit")``) get the field's feature rows; the
@@ -64,10 +67,18 @@ from docrooter.select.selection import (
 if TYPE_CHECKING:
     from docrooter.rooter.analysis import Analysis
 
-__all__ = ["MAX_HASH_MISMATCH", "CorpusPdfReader", "fit_selector"]
+__all__ = [
+    "MAX_HASH_MISMATCH",
+    "MAX_MISSING_LABELS",
+    "CorpusPdfReader",
+    "fit_selector",
+    "section_doc_type",
+]
 
 MAX_HASH_MISMATCH = 0.02
 """The largest share of a document's content elements whose label is for another text."""
+MAX_MISSING_LABELS = 0.02
+"""The largest share of a document's content elements with text that may lack a label."""
 LABELER = "teacher-full"
 DEFAULT_PROFILE = "accurate"
 DEFAULT_MAX_PAGES = 30  # the corpus build's
@@ -83,9 +94,13 @@ class CorpusPdfReader:
     The PDF is ``pdf_dir/<id>.pdf`` (as ``docrooter corpus build`` finds it) and must hash to
     the record's sha256. It is read with :func:`~docrooter.corpus.build.reading_config` (the
     profile's text, OCR and layout engines; everything else off) on the pages the build read,
-    which the store recorded. The sections are then normalised with the section taxonomy of
-    the document's family, by the profile's ``sections`` backend. Engines and the backend are
-    created on first use and closed by :meth:`close`.
+    which the store recorded; their number must be what ``max_pages`` gives the PDF's page
+    count, else the build used another page cap. The sections are then normalised with the
+    section taxonomy of the document's family and the doc type :func:`section_doc_type` names
+    (so the section prompt is the one a correctly typed document gets at runtime), by the
+    profile's ``sections`` backend, or by ``sections_backend`` when the caller shares one (the
+    caller closes it). Engines and an own backend are created on first use and closed by
+    :meth:`close`.
     """
 
     def __init__(
@@ -95,6 +110,7 @@ class CorpusPdfReader:
         *,
         profile: str = DEFAULT_PROFILE,
         max_pages: int = DEFAULT_MAX_PAGES,
+        sections_backend: Any = None,
     ) -> None:
         from docrooter.corpus.build import reading_config
         from docrooter.rooter.process import _Engines
@@ -105,11 +121,13 @@ class CorpusPdfReader:
         self.cfg = reading_config(profile, max_pages)
         self.sections_spec = str(profile_defaults(profile)["sections"])
         self._engines = _Engines(self.cfg, {})
-        self._sections: Any = None
+        self.max_pages = max_pages
+        self._sections: Any = sections_backend
+        self._owns_sections = sections_backend is None
 
     def __call__(self, record: ManifestRecord) -> Analysis:
         from docrooter.classify.normalize import normalize_sections
-        from docrooter.corpus.build import _sha256
+        from docrooter.corpus.build import _page_count, _sha256
         from docrooter.rooter import process
         from docrooter.teach.shortlist import doc_family
 
@@ -118,12 +136,19 @@ class CorpusPdfReader:
             raise DocrooterError(f"no PDF for {record.id} at {path}; pass --pdf-dir")
         if _sha256(path) != record.sha256:
             raise DocrooterError(f"{path} does not hash to {record.id}'s manifest sha256")
+        pages = self.corpus.pages_read(record.id)
+        n_pages = _page_count(path, self.cfg.text)
+        if len(pages) != min(n_pages, self.max_pages) or any(p > n_pages for p in pages):
+            raise DocrooterError(
+                f"{record.id}: the store read {len(pages)} of its {n_pages} pages, which a page "
+                f"cap of {self.max_pages} cannot give; pass the build's --max-pages"
+            )
         layout, _ = self._engines.layout()
         ocr, _ = self._engines.ocr()
         analysis = process(
             path,
             config=self.cfg,
-            pages=self.corpus.pages_read(record.id),
+            pages=pages,
             layout=layout,
             ocr="none" if ocr is None else ocr,
         )
@@ -131,9 +156,11 @@ class CorpusPdfReader:
             from docrooter.backends.registry import resolve_backend
 
             self._sections = resolve_backend(self.sections_spec)
+        family = doc_family(record)
         sections = normalize_sections(
             analysis.document,
-            taxonomy=f"section_types/{doc_family(record)}",
+            doc_type=section_doc_type(record, family),
+            taxonomy=f"section_types/{family}",
             backend=self._sections,
         )
         return analysis.model_copy(update={"sections": sections})
@@ -142,9 +169,22 @@ class CorpusPdfReader:
         try:
             self._engines.close()
         finally:
-            if self._sections is not None:
+            if self._owns_sections and self._sections is not None:
                 close_backend(self._sections)
                 self._sections = None
+
+
+def section_doc_type(record: ManifestRecord, family: str) -> str | None:
+    """The doc type whose section prompt fit-time normalisation uses for a ``family`` document:
+    the manifest's doc type when it maps to the family, else the family's first mapped doc type
+    (``None`` when none maps to it)."""
+    from docrooter.taxonomies import DOC_TYPE_TO_SECTION_TAXONOMY, family_for_doc_type
+
+    hint = record.doc_type_hint
+    if hint in DOC_TYPE_TO_SECTION_TAXONOMY and family_for_doc_type(hint) == family:
+        return hint
+    wanted = f"section_types/{family}"
+    return next((t for t, name in DOC_TYPE_TO_SECTION_TAXONOMY.items() if name == wanted), None)
 
 
 class _Rows:
@@ -192,15 +232,23 @@ def _relevance(
     ctx: DocContext, labels: Mapping[str, Mapping[str, str]], doc_id: str
 ) -> tuple[list[str | None], dict[str, Any]]:
     """Each content element's teacher-full leaf (``None`` when unlabelled or mismatched), and
-    the document's label check; raises when too many hashes disagree."""
+    the document's label check. An element the labeller skips (no text) may lack a label
+    (``no_label``); one with text may not (``missing``). Raises when more than
+    :data:`MAX_MISSING_LABELS` of the elements with text are missing or more than
+    :data:`MAX_HASH_MISMATCH` of all have a label for another text."""
     index = ctx.index
     leaves: list[str | None] = []
-    no_label = mismatch = 0
+    no_label = missing = mismatch = with_text = 0
     for pos in index.content:
         element = index.doc.elements[pos]
+        labellable = _has_text(element)
+        with_text += labellable
         by_hash = labels.get(element.id)
         if by_hash is None:
-            no_label += 1
+            if labellable:
+                missing += 1
+            else:
+                no_label += 1
             leaves.append(None)
             continue
         leaf = by_hash.get(text_sha1(element.text))
@@ -208,6 +256,13 @@ def _relevance(
             mismatch += 1
         leaves.append(leaf)
     content = len(index.content)
+    if with_text and missing / with_text > MAX_MISSING_LABELS:
+        raise DocrooterError(
+            f"{doc_id}: {missing} of its {with_text} content elements with text have no "
+            f"{LABELER} label (more than {MAX_MISSING_LABELS:.0%}): its labelling is "
+            "incomplete (a run stopped early?); finish it (docrooter teach label --mode full) "
+            "before fitting"
+        )
     if content and mismatch / content > MAX_HASH_MISMATCH:
         raise DocrooterError(
             f"{doc_id}: {mismatch} of {content} content elements have a {LABELER} label for "
@@ -217,10 +272,20 @@ def _relevance(
     check = {
         "content": content,
         "no_label": no_label,
+        "missing": missing,
         "hash_mismatch": mismatch,
-        "rate": (no_label + mismatch) / content if content else 0.0,
+        "rate": (no_label + missing + mismatch) / content if content else 0.0,
     }
     return leaves, check
+
+
+def _has_text(element: Any) -> bool:
+    """Whether the full-mode labeller labels this element (``teach.label._has_text`` on the
+    stored element): a table with cells, or any element with text."""
+    table = getattr(element, "table", None)
+    if element.kind == "table" and table is not None and table.to_markdown().strip():
+        return True
+    return bool(element.text.strip())
 
 
 def _query_of(field: Field) -> str:
@@ -312,8 +377,17 @@ def fit_selector(
             encoder = resolve_backend(embedder)
             owned.append(encoder)
         if analyse is None:
+            from docrooter.rooter.profiles import profile_defaults
+
             folder = Path(pdf_dir) if pdf_dir is not None else corpus.dir / "pdfs"
-            reader = CorpusPdfReader(corpus, folder, profile=profile, max_pages=max_pages)
+            same = isinstance(embedder, str) and embedder == profile_defaults(profile)["sections"]
+            reader = CorpusPdfReader(
+                corpus,
+                folder,
+                profile=profile,
+                max_pages=max_pages,
+                sections_backend=encoder if same else None,  # one embedding model, not two
+            )
             analyse = reader
         selector = _fit_all(todo, labels, fields, tagger_obj, encoder, analyse, on_progress)
     finally:
@@ -337,6 +411,9 @@ def fit_selector(
             },
             "corpus_manifest_sha256": hashlib.sha256(corpus.manifest_path.read_bytes()).hexdigest(),
             "fields": {family: [f.id for f in fs] for family, fs in sorted(fields.items())},
+            "fields_using_description": sorted(
+                f.id for fs in fields.values() for f in fs if not f.query
+            ),
         }
     )
     meta["documents"]["skipped_no_fields"] = dict(sorted(skipped.items()))
@@ -365,8 +442,12 @@ def _fit_all(
     crc_scored: list[tuple[str, str, Field, np.ndarray, np.ndarray]] = []
     checks: dict[str, dict[str, Any]] = {}
     counts: dict[str, Counter[str]] = {"fit": Counter(), "crc": Counter()}
+    section_types: Counter[str] = Counter()  # the doc type each one's sections were read as
     for done, (record, family, half) in enumerate(todo, 1):
-        ctx = prepare(analyse(record), tagger=tagger, encoder=encoder, family=family)
+        analysis = analyse(record)
+        sections = getattr(analysis, "sections", None)
+        section_types[str(getattr(sections, "doc_type", None) or "none")] += 1
+        ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=family)
         if not (ctx.tagged and ctx.has_sims):
             raise DocrooterError(
                 f"{record.id}: the full features need every content element tagged and "
@@ -418,6 +499,7 @@ def _fit_all(
         "label_mismatch": {
             "content": sum(c["content"] for c in checks.values()),
             "no_label": sum(c["no_label"] for c in checks.values()),
+            "missing": sum(c["missing"] for c in checks.values()),
             "hash_mismatch": sum(c["hash_mismatch"] for c in checks.values()),
             "per_document": checks,
         },
@@ -430,6 +512,7 @@ def _fit_all(
             family: {"n": d.n, "n_docs": d.n_docs, "n_excluded": d.n_excluded}
             for family, d in sorted(dials.items())
         },
+        "section_doc_types": dict(sorted(section_types.items())),
         "warnings": fit_warnings,
     }
     return Selector(

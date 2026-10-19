@@ -133,6 +133,20 @@ def test_teacher_labelling_is_a_model_process():
     assert [pid for pid, _ in found] == [10, 11]
 
 
+def test_corpus_build_fit_selector_and_train_elements_are_model_processes():
+    table = [
+        (20, 1, "Python", "/usr/bin/Python /x/.venv/bin/docrooter corpus build store --pdf-dir p"),
+        (21, 1, "docrooter", "docrooter fit-selector store --bundle b --out s.json"),
+        (22, 1, "python3.12", f"{ROOT} -m docrooter.cli fit-selector store --bundle b"),
+        (23, 1, "docrooter", "docrooter train-elements store --teacher mlx:x"),
+        (24, 1, "zsh", "zsh -c docrooter fit-selector store"),  # a wrapping shell
+        (25, 1, "python3.12", f"{ROOT} -m pytest tests/unit/test_cli_select.py"),
+        (26, 1, "docrooter", "docrooter corpus stats store"),  # no models
+    ]
+    found = _guard.other_model_processes(table, pid=99, ppid=98)
+    assert [pid for pid, _ in found] == [20, 21, 22, 23]
+
+
 def test_parent_is_excluded_even_when_ps_missed_it():
     table = [(5, 1, "python3.12", f"{ROOT} -m benchmarks.run")]
     assert _guard.other_model_processes(table, pid=9, ppid=5) == []

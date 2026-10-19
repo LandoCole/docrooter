@@ -64,7 +64,7 @@ COMBINER_VERSION = 1
 _MAX_NEWTON_STEPS = 100
 _STEP_TOL = 1e-10
 _MIN_STEP_SIZE = 1e-8  # backtracking floor
-_GRAD_TOL = 1e-6
+_GRAD_TOL = 1e-6  # per row: the gradient is a sum over the rows
 _MIN_SCALE = 1e-12
 
 
@@ -168,8 +168,9 @@ class Combiner:
     :meth:`predict_proba` take either the full :func:`features` matrix, from which the
     combiner takes its own columns (:meth:`project`), or a matrix of just those columns.
 
-    Newton's method stops after ``max_iter`` steps. A step that would raise the loss, even
-    after backtracking to the smallest step size, is rejected and ends the fit. ``converged``
+    Newton's method stops after ``max_iter`` steps. A step that does not strictly lower the
+    loss, even after backtracking to the smallest step size, is rejected and ends the fit; the
+    fit is then converged when the gradient is within ``1e-6`` per row of zero. ``converged``
     says whether the fit reached a stationary point; when it did not, :meth:`fit` warns
     (``RuntimeWarning``).
     """
@@ -260,13 +261,14 @@ class Combiner:
                 break
             t = 1.0
             candidate = objective(w - step)
-            while candidate > current and t > _MIN_STEP_SIZE:  # backtrack
+            while candidate >= current and t > _MIN_STEP_SIZE:  # backtrack
                 t *= 0.5
                 candidate = objective(w - t * step)
-            if candidate > current:
-                # Even the smallest step raises the loss: reject it and stop. That is only a
-                # stationary point when the gradient is already ~0 (rounding near the optimum).
-                converged = bool(np.abs(gradient).max() < _GRAD_TOL)
+            if candidate >= current:
+                # Even the smallest step fails to lower the loss: reject it and stop. That is
+                # only a stationary point when the gradient is ~0 for the data's size (rounding
+                # near the optimum leaves the loss unchanged or a hair higher).
+                converged = bool(np.abs(gradient).max() < _GRAD_TOL * max(1, X.shape[0]))
                 break
             w = w - t * step
             current = candidate

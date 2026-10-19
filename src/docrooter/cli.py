@@ -1626,7 +1626,12 @@ def fit_selector_(
         str, typer.Option(help="The rooter profile the corpus was built with.")
     ] = "accurate",
     max_pages: Annotated[
-        int, typer.Option("--max-pages", min=1, help="The build's page cap per document.")
+        int,
+        typer.Option(
+            "--max-pages",
+            min=1,
+            help="The build's page cap per document (checked against each one's stored pages).",
+        ),
     ] = 30,
     embedder: Annotated[
         str, typer.Option(help="Embedding backend spec for sim, recorded in the selector.")

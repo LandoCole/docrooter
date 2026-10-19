@@ -55,6 +55,7 @@ __all__ = [
     "BuildReport",
     "build_corpus",
     "corpus_elements",
+    "reading_config",
     "select_pages",
 ]
 
@@ -166,7 +167,7 @@ def build_corpus(
     updated at the end.
     """
     select_pages(0, first_pages=first_pages, max_pages=max_pages)  # check the arguments
-    cfg = _config(profile, max_pages)
+    cfg = reading_config(profile, max_pages)
     report = BuildReport()
     started = time.perf_counter()
     crashed = corpus.pending_attempt()
@@ -192,8 +193,9 @@ def build_corpus(
     return report
 
 
-def _config(profile: str, max_pages: int) -> RouterConfig:
-    """``profile``'s configuration with every task but loading switched off."""
+def reading_config(profile: str, max_pages: int) -> RouterConfig:
+    """``profile``'s configuration with every task but loading switched off: how the build
+    reads a document (and how fitting the selector reads it again, ``docrooter.select.fit``)."""
     cfg = RouterConfig.resolve(
         profile=profile,
         doc_type="none",

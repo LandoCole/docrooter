@@ -510,6 +510,14 @@ class Corpus:
             )
         return doc
 
+    def pages_read(self, doc_id: str) -> list[int]:
+        """The 1-based pages document ``doc_id``'s elements were read from (``KeyError`` when it
+        is not in the corpus)."""
+        record = self._index().get(doc_id)
+        if record is None:
+            raise KeyError(f"document {doc_id!r} is not in the corpus")
+        return [int(p) for p in self._read_doc(record)["pages_read"]]
+
     def write_labels(self, labeler: str, rows: Iterable[LabelRow]) -> int:
         """Append ``rows`` to ``labels/<labeler>.jsonl`` in one write; returns how many. A row
         for a key that already has one supersedes it (see :meth:`labels`)."""

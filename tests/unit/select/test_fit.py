@@ -1,0 +1,447 @@
+"""Fitting the selector (v0.6 S5): the combiners on calib-fit, the dial on calib-crc, relevance
+from ``teacher-full`` labels.
+
+Everything is fake and torch-free: a tmp corpus store with ``teacher-full`` rows, a fake
+``analyse`` that rebuilds each stored document as an analysis (no PDF is read), a tagger that
+tags "risk" texts with the risk-factors topic, and an embedder with two directions.
+"""
+
+import hashlib
+import sys
+
+import numpy as np
+import pytest
+
+from docrooter import Document, RouterConfig
+from docrooter.backends import registry
+from docrooter.classify.results import DocTypeResult, PathResult
+from docrooter.corpus import Corpus, CorpusElement, LabelRow, ManifestRecord
+from docrooter.corpus.store import calib_half, text_sha1
+from docrooter.elements.models import Element, TagResult
+from docrooter.errors import DocrooterError
+from docrooter.rooter.analysis import Analysis
+from docrooter.select import Field
+from docrooter.select.fit import CorpusPdfReader, fit_selector
+from docrooter.select.selection import Selector, select
+
+RISK = Field(
+    id="annual_report.risk_factors",
+    label="Risk factors",
+    description="The risks the company faces.",
+    topics=["annual_report.risk_factors"],
+    functions=["risk_disclosure"],
+    query="What are the main risks the company faces?",
+)
+LEGAL = Field(
+    id="annual_report.legal_proceedings",
+    label="Legal proceedings",
+    description="Lawsuits the company is party to.",
+    topics=["annual_report.legal_proceedings"],
+)
+FIELDS = {"annual_report": [RISK, LEGAL]}
+RISK_LEAF = "annual_report.risk_factors"
+OTHER_LEAF = "annual_report.other"
+
+
+# --- fakes -------------------------------------------------------------------------------------
+
+
+class FakeTagger:
+    """Tags "risk" texts with the family's risk leaf (mostly) and anything else with its
+    catch-all; counts its calls and closes."""
+
+    def __init__(self):
+        self.calls = 0
+        self.closed = 0
+
+    def tag(self, elements, family):
+        self.calls += 1
+        out = []
+        for element in elements:
+            risky = "risk" in element.text.lower()
+            probs = (
+                {f"{family}.risk_factors": 0.8, f"{family}.other": 0.2}
+                if risky
+                else {f"{family}.risk_factors": 0.1, f"{family}.other": 0.9}
+            )
+            best = max(probs, key=probs.__getitem__)
+            out.append(
+                {"topic": TagResult(labels=[best], probs=probs, confidence=probs[best], source="f")}
+            )
+        return out
+
+    def close(self):
+        self.closed += 1
+
+
+class FakeEmbedder:
+    """Two directions: texts that mention risk, and everything else."""
+
+    name = "embedding:fake"
+
+    def encode(self, texts, prompt=""):
+        return np.array([[1.0, 0.0] if "risk" in t.lower() else [0.0, 1.0] for t in texts])
+
+
+# --- the corpus --------------------------------------------------------------------------------
+
+
+def ids_in(half: str, n: int, prefix: str) -> list[str]:
+    out, i = [], 0
+    while len(out) < n:
+        doc_id = f"{prefix}{i}"
+        if calib_half(doc_id) == half:
+            out.append(doc_id)
+        i += 1
+    return out
+
+
+def items_for(doc_id: str, seed: int) -> list[tuple[str, str, str]]:
+    """``(element id, kind, text)`` of a small annual report: a heading, risk paragraphs and
+    filler, varied by ``seed``."""
+    items = [("h0", "heading", "Risk Factors")]
+    for j in range(6 + seed % 3):
+        risky = j % 3 == 0
+        text = (
+            f"Interest rate risk number {j} could harm {doc_id}."
+            if risky
+            else f"Filler paragraph {j} about the offices of {doc_id}."
+        )
+        items.append((f"p{j}", "paragraph", text))
+    items.append(("t0", "table", f"Revenue table of {doc_id}"))
+    return items
+
+
+def leaf_of(text: str) -> str:
+    return RISK_LEAF if "risk" in text.lower() and "factors" not in text.lower() else OTHER_LEAF
+
+
+def record(doc_id: str, split: str = "calib", family: str = "annual_report") -> ManifestRecord:
+    return ManifestRecord(
+        id=doc_id,
+        sha256=hashlib.sha256(doc_id.encode()).hexdigest(),
+        split=split,
+        family_hint=family,
+    )
+
+
+def label_row(doc_id: str, element_id: str, text: str, leaf: str) -> LabelRow:
+    other = OTHER_LEAF if leaf != OTHER_LEAF else RISK_LEAF
+    return LabelRow(
+        doc_id=doc_id,
+        element_id=element_id,
+        text_sha1=text_sha1(text),
+        facet="topic",
+        probs={leaf: 0.9, other: 0.1},
+        provenance={"teacher": "mlx:fake"},
+    )
+
+
+class Store:
+    """A tmp corpus store and the items of each document, for the fake ``analyse``."""
+
+    def __init__(self, path):
+        self.corpus = Corpus(path)
+        self.items: dict[str, list[tuple[str, str, str]]] = {}
+
+    def add(self, doc_id: str, split: str = "calib", family: str = "annual_report", seed=0):
+        items = items_for(doc_id, seed)
+        self.items[doc_id] = items
+        self.corpus.add_document(
+            record(doc_id, split, family),
+            [
+                CorpusElement(
+                    doc_id=doc_id,
+                    element_id=eid,
+                    kind=kind,
+                    text=text,
+                    heading_path=["Risk Factors"],
+                    section_title="Risk Factors",
+                    page=1,
+                )
+                for eid, kind, text in items
+            ],
+            [1],
+        )
+        content = [(eid, text) for eid, kind, text in items if kind != "heading"]
+        self.corpus.write_labels(
+            "teacher-full", [label_row(doc_id, eid, text, leaf_of(text)) for eid, text in content]
+        )
+        # The v0.5 sample labeller says the opposite everywhere: fitting must never read it.
+        self.corpus.write_labels(
+            "teacher",
+            [
+                label_row(doc_id, eid, text, "annual_report.legal_proceedings")
+                for eid, text in content
+            ],
+        )
+
+
+def make_doc(items) -> Document:
+    doc = Document.from_sections([{"title": "Risk Factors", "level": 1}])
+    doc.elements = [
+        Element(
+            id=eid,
+            kind=kind,
+            text=text,
+            boxes=[],
+            order=i,
+            section_id="s1",
+            **({"level": 1} if kind == "heading" else {}),
+        )
+        for i, (eid, kind, text) in enumerate(items)
+    ]
+    doc.sections["s1"].element_ids.extend(e.id for e in doc.elements)
+    return doc
+
+
+class FakeAnalyse:
+    """Rebuilds a stored document as an analysis; ``edit`` may change its items first."""
+
+    def __init__(self, store: Store, edit=None):
+        self.store = store
+        self.edit = edit
+        self.calls: list[str] = []
+
+    def __call__(self, rec: ManifestRecord) -> Analysis:
+        self.calls.append(rec.id)
+        items = list(self.store.items[rec.id])
+        if self.edit is not None:
+            items = self.edit(rec.id, items)
+        return Analysis(document=make_doc(items), config=RouterConfig(profile="fast"))
+
+
+@pytest.fixture
+def store(tmp_path):
+    s = Store(tmp_path / "store")
+    for i, doc_id in enumerate(ids_in("fit", 4, "fit-")):
+        s.add(doc_id, seed=i)
+    for i, doc_id in enumerate(ids_in("crc", 4, "crc-")):
+        s.add(doc_id, seed=i)
+    return s
+
+
+def fit(store: Store, analyse=None, **kwargs):
+    analyse = analyse or FakeAnalyse(store)
+    tagger = FakeTagger()
+    selector = fit_selector(
+        store.corpus,
+        tagger,
+        FakeEmbedder(),
+        fields_by_family=kwargs.pop("fields_by_family", FIELDS),
+        analyse=analyse,
+        **kwargs,
+    )
+    return selector, analyse, tagger
+
+
+def expected_positives(store: Store, half: str) -> int:
+    return sum(
+        1
+        for doc_id, items in store.items.items()
+        if calib_half(doc_id) == half and doc_id.startswith(half)
+        for _, kind, text in items
+        if kind != "heading" and leaf_of(text) == RISK_LEAF
+    )
+
+
+# --- tests -------------------------------------------------------------------------------------
+
+
+def test_fit_uses_teacher_full_labels_and_partitions(store):
+    # A calib document of a family without fields is skipped and counted.
+    store.add("contract-doc", family="contract")
+    selector, analyse, tagger = fit(store)
+    fit_ids = ids_in("fit", 4, "fit-")
+    crc_ids = ids_in("crc", 4, "crc-")
+
+    # calib-fit trains the four combiners, calib-crc calibrates the dial: never the other way.
+    for combiner in (
+        selector.field,
+        selector.field_fallback,
+        selector.query,
+        selector.query_fallback,
+    ):
+        assert combiner.fitted and combiner.n_docs == 4
+    content_rows = sum(len(store.items[d]) - 1 for d in fit_ids)  # all but the heading
+    assert selector.field.n_train == 2 * content_rows  # two fields
+    assert selector.query.n_train == selector.field.n_train
+    assert selector.field_fallback.feature_names == ("sim", "section_hit")
+    dial = selector.dials["annual_report"]
+    assert dial.n == 4 and dial.n_docs == 4  # one RISK unit per crc document
+    assert dial.n_excluded == 4  # LEGAL is never relevant there: no CRC unit
+    dial.check_combiner(selector.field)
+    assert selector.embedder == "embedding:fake"
+
+    # Relevance is teacher-full's: the "teacher" labeller would make every row a LEGAL one.
+    meta = selector.meta
+    balance = meta["class_balance"]["field"]
+    assert balance["relevant"] == expected_positives(store, "fit")
+    assert balance["rows"] == selector.field.n_train
+    assert balance["share"] == pytest.approx(balance["relevant"] / balance["rows"])
+    assert meta["class_balance"]["query"] == balance  # queries follow their field
+    assert meta["labeler"] == "teacher-full"
+
+    assert meta["documents"]["fit"] == {"annual_report": 4}
+    assert meta["documents"]["crc"] == {"annual_report": 4}
+    assert meta["documents"]["skipped_no_fields"] == {"contract": 1}
+    assert meta["dials"]["annual_report"] == {"n": 4, "n_docs": 4, "n_excluded": 4}
+    assert meta["profile"] == "accurate"
+    manifest_sha = hashlib.sha256(store.corpus.manifest_path.read_bytes()).hexdigest()
+    assert meta["corpus_manifest_sha256"] == manifest_sha
+    assert meta["label_mismatch"]["hash_mismatch"] == 0
+    assert meta["label_mismatch"]["no_label"] == 0
+
+    # Each calib document is read once, fit documents first; the skipped one is never read.
+    assert analyse.calls == fit_ids + crc_ids
+    assert tagger.calls == 8
+
+
+def test_gold_and_train_documents_never_used(store):
+    gold = [ids_in("fit", 1, "gold-")[0], ids_in("crc", 1, "gold-")[0]]
+    train = [ids_in("fit", 1, "train-")[0], ids_in("crc", 1, "train-")[0]]
+    for doc_id in gold:
+        store.add(doc_id, split="gold")  # full mode labels gold too
+    for doc_id in train:
+        store.add(doc_id, split="train")
+    selector, analyse, _ = fit(store)
+    assert not set(analyse.calls) & set(gold + train)
+    assert selector.field.n_docs == 4
+    assert selector.dials["annual_report"].n_docs == 4
+    assert selector.meta["documents"]["fit"] == {"annual_report": 4}
+    assert selector.meta["documents"]["crc"] == {"annual_report": 4}
+
+
+def test_hash_mismatch_raises_naming_the_document(store):
+    victim = ids_in("crc", 4, "crc-")[1]
+
+    def drift(doc_id, items):
+        if doc_id != victim:
+            return items
+        return [(eid, kind, text + " (read differently)") for eid, kind, text in items]
+
+    with pytest.raises(DocrooterError, match=victim):
+        fit(store, analyse=FakeAnalyse(store, edit=drift))
+
+
+def test_unlabelled_elements_count_as_not_relevant(store):
+    target = ids_in("fit", 4, "fit-")[0]
+
+    def extra(doc_id, items):
+        if doc_id != target:
+            return items
+        return [*items, ("x9", "paragraph", "An unlabelled risk paragraph.")]
+
+    selector, _, _ = fit(store, analyse=FakeAnalyse(store, edit=extra))
+    mismatch = selector.meta["label_mismatch"]
+    assert mismatch["no_label"] == 1 and mismatch["hash_mismatch"] == 0
+    per_doc = mismatch["per_document"][target]
+    assert per_doc["no_label"] == 1
+    assert per_doc["rate"] == pytest.approx(1 / per_doc["content"])
+    assert selector.meta["class_balance"]["field"]["relevant"] == expected_positives(store, "fit")
+
+
+def test_fitted_selector_round_trips_and_selects_with_guarantee(store, tmp_path):
+    selector, _, _ = fit(store)
+    path = selector.save(tmp_path / "selector.json")
+    loaded = Selector.load(path)
+    assert loaded.to_dict() == selector.to_dict()
+    assert loaded.meta == selector.meta
+    for dial in loaded.dials.values():
+        dial.check_combiner(loaded.field)
+
+    doc = make_doc(items_for("new-doc", 1))
+    analysis = Analysis(
+        document=doc,
+        doc_type=DocTypeResult(
+            source="test", best=PathResult(node_ids=["financial", "financial.annual_report"])
+        ),
+        config=RouterConfig(profile="fast"),
+    )
+    result = select(
+        analysis,
+        RISK,
+        completeness=0.5,
+        selector=loaded,
+        tagger=FakeTagger(),
+        embedder=FakeEmbedder(),
+    )
+    assert result.guarantee is True and result.capped is False
+    risky = {e.id for e in doc.elements if e.kind != "heading" and leaf_of(e.text) == RISK_LEAF}
+    assert risky & set(result.element_ids)
+    assert result.threshold is not None
+
+
+def test_fit_needs_teacher_full_labels(tmp_path):
+    s = Store(tmp_path / "bare")
+    s.add(ids_in("fit", 1, "fit-")[0])
+    (s.corpus.dir / "labels" / "teacher-full.jsonl").unlink()
+    with pytest.raises(DocrooterError, match="teacher-full"):
+        fit(s)
+
+
+class FakeEngines:
+    def __init__(self):
+        self.closed = 0
+
+    def layout(self):
+        return "LAYOUT", None
+
+    def ocr(self):
+        return None, None
+
+    def close(self):
+        self.closed += 1
+
+
+def test_default_reader_reads_as_the_build_did(store, tmp_path, monkeypatch):
+    doc_id = ids_in("fit", 1, "fit-")[0]
+    pdfs = tmp_path / "pdfs"
+    pdfs.mkdir()
+    # The fake store's sha256 is of the id, so the "PDF" holds the id's bytes.
+    (pdfs / f"{doc_id}.pdf").write_bytes(doc_id.encode())
+    seen = {}
+
+    def fake_process(path, **kwargs):
+        seen["process"] = (path, kwargs)
+        return Analysis(document=make_doc(store.items[doc_id]), config=RouterConfig(profile="fast"))
+
+    def fake_normalize(doc, **kwargs):
+        seen["normalize"] = kwargs
+        return None
+
+    closed = []
+
+    class Backend:
+        def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(sys.modules["docrooter.rooter"], "process", fake_process)
+    monkeypatch.setattr(
+        sys.modules["docrooter.classify.normalize"], "normalize_sections", fake_normalize
+    )
+    monkeypatch.setattr(registry, "resolve_backend", lambda spec: Backend())
+    reader = CorpusPdfReader(store.corpus, pdfs, profile="accurate", max_pages=30)
+    engines = FakeEngines()
+    reader._engines = engines
+    analysis = reader(store.corpus.manifest()[0])
+    assert [e.id for e in analysis.document.elements] == [i for i, _, _ in store.items[doc_id]]
+
+    path, kwargs = seen["process"]
+    assert path == pdfs / f"{doc_id}.pdf"
+    assert kwargs["pages"] == [1]  # the pages the build read, from the store
+    assert kwargs["layout"] == "LAYOUT" and kwargs["ocr"] == "none"
+    cfg = kwargs["config"]
+    assert (cfg.profile, cfg.max_pages, cfg.layout) == ("accurate", 30, "heron")
+    assert (cfg.doc_type, cfg.sections, cfg.embeddings, cfg.escalate) == ("none",) * 4
+    assert seen["normalize"]["taxonomy"] == "section_types/annual_report"  # the family's
+    reader.close()
+    assert engines.closed == 1 and closed == [True]
+
+    # A missing PDF, or one that is not the manifest's bytes, is refused before reading.
+    other = store.corpus.manifest()[1]
+    with pytest.raises(DocrooterError, match="no PDF"):
+        reader(other)
+    (pdfs / f"{other.id}.pdf").write_bytes(b"other bytes")
+    with pytest.raises(DocrooterError, match="sha256"):
+        reader(other)

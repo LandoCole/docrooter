@@ -22,6 +22,7 @@ from docrooter.select.fields import (
     load_fields,
     validate_fields,
 )
+from docrooter.select.fit import fit_selector
 from docrooter.select.relevance import CONTENT_KINDS, FEATURE_NAMES, Combiner, features
 from docrooter.select.selection import SELECTOR_FILE, Selection, Selector, select
 
@@ -40,6 +41,7 @@ __all__ = [
     "calibrate_dial",
     "crc_threshold",
     "features",
+    "fit_selector",
     "list_builtin_field_sets",
     "load_fields",
     "select",

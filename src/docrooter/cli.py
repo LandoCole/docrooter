@@ -1478,6 +1478,202 @@ def train_elements(
     typer.echo(json.dumps(report, indent=2))
 
 
+# --- selection ----------------------------------------------------------------------------
+
+
+def _parse_needs(values: list[str]) -> Any:
+    """``--need`` values as a need: built-in field ids are those fields (one, or a list), and
+    any other single value is a free-text query. A query among field ids, or two queries, is a
+    usage error."""
+    from docrooter.select.fields import builtin_fields, list_builtin_field_sets
+
+    families = set(list_builtin_field_sets())
+    fields: list[Any] = []
+    queries: list[str] = []
+    for value in values:
+        family = value.strip().split(".", 1)[0]
+        known = {f.id: f for f in builtin_fields(family)} if family in families else {}
+        if value.strip() in known:
+            fields.append(known[value.strip()])
+        else:
+            queries.append(value)
+    if queries and (fields or len(queries) > 1):
+        raise typer.BadParameter(
+            f"give one free-text query, or built-in field ids (repeat --need for several); "
+            f"not a field id: {', '.join(map(repr, queries))}",
+            param_hint="--need",
+        )
+    if queries:
+        return queries[0]
+    return fields[0] if len(fields) == 1 else fields
+
+
+def _readout(selection: Any) -> str:
+    """The one-line readout of a selection, e.g. "≈ 90% of relevant content kept · 3,240 tokens
+    (12%) · guaranteed on calibration-like documents"."""
+    parts: list[str] = []
+    if selection.expected_recall is None:
+        parts.append("no relevant content expected")
+    else:
+        kept = f"≈ {selection.expected_recall:.0%} of relevant content kept"
+        parts.append(kept if selection.guarantee else f"{kept} (estimate)")
+    parts.append(f"{selection.tokens:,} tokens ({selection.token_share:.0%})")
+    if selection.capped:
+        parts.append("dial capped by calibration size")
+    elif selection.guarantee:
+        parts.append("guaranteed on calibration-like documents")
+    if selection.doc_type_mismatch:
+        parts.append("doc type mismatch")
+    if selection.over_budget:
+        parts.append("the most relevant element alone exceeds the budget")
+    return " · ".join(parts)
+
+
+@app.command("select")
+def select_(
+    file: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Document to read.")
+    ],
+    need: Annotated[
+        list[str],
+        typer.Option(
+            "--need",
+            help="A built-in field id (e.g. annual_report.risk_factors; repeat for several of "
+            "one family) or a free-text query.",
+        ),
+    ],
+    completeness: Annotated[
+        float,
+        typer.Option(min=0.0, max=1.0, help="Target share of the relevant content (1.0: all)."),
+    ] = 0.9,
+    budget: Annotated[
+        int | None,
+        typer.Option(min=1, help="A token budget instead of the dial (never guaranteed)."),
+    ] = None,
+    tagger: Annotated[str | None, typer.Option("--tagger", help=_BUNDLE_HELP)] = None,
+    selector: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            readable=True,
+            help="selector.json (or a folder holding one); default: the tagger bundle's.",
+        ),
+    ] = None,
+    embedder: Annotated[
+        str | None,
+        typer.Option(help="Embedding backend spec for sim (default: the selector's)."),
+    ] = None,
+    profile: Annotated[str | None, typer.Option(help=_PROFILE_HELP)] = None,
+    config: Annotated[
+        Path | None,
+        typer.Option(exists=True, dir_okay=False, readable=True, help=_CONFIG_HELP),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Print the selection as JSON.")] = False,
+) -> None:
+    """Choose the elements a downstream LLM should read for a need, at a completeness.
+
+    The document is read and classified as the profile says (summaries, embeddings and
+    escalation off). Prints a readout line, then the selected elements (id, page, text).
+    """
+    from docrooter.rooter import process
+    from docrooter.select.selection import select
+
+    wanted = _parse_needs(need)
+    with _errors_exit_1():
+        resolved = _element_config(profile, config, "docrooter select")
+        analysis = process(
+            file, config=resolved, summaries="none", escalate="none", embeddings="none"
+        )
+        selection = select(
+            analysis,
+            wanted,
+            completeness=completeness,
+            budget=budget,
+            selector=selector,
+            tagger=tagger,
+            embedder=embedder,
+        )
+    if as_json:
+        typer.echo(selection.model_dump_json(indent=2))
+        return
+    typer.echo(_readout(selection))
+    by_id = {el.id: el for el in analysis.document.elements}
+    for element_id in selection.element_ids:
+        el = by_id[element_id]
+        page = el.boxes[0].page if el.boxes else None
+        typer.echo(
+            f"{element_id}  p{'-' if page is None else page}  "
+            f"{_first_chars(el.text, _TEXT_COLUMN_CHARS)}"
+        )
+
+
+@app.command("fit-selector")
+def fit_selector_(
+    directory: Annotated[Path, typer.Argument(file_okay=False, help="Corpus store directory.")],
+    bundle: Annotated[str, typer.Option("--bundle", help=_BUNDLE_HELP)],
+    out: Annotated[
+        Path, typer.Option("--out", "-o", dir_okay=False, help="selector.json to write.")
+    ],
+    pdf_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--pdf-dir",
+            file_okay=False,
+            help="Folder holding <id>.pdf for every document (default: DIRECTORY/pdfs).",
+        ),
+    ] = None,
+    profile: Annotated[
+        str, typer.Option(help="The rooter profile the corpus was built with.")
+    ] = "accurate",
+    max_pages: Annotated[
+        int, typer.Option("--max-pages", min=1, help="The build's page cap per document.")
+    ] = 30,
+    embedder: Annotated[
+        str, typer.Option(help="Embedding backend spec for sim, recorded in the selector.")
+    ] = DEFAULT_BACKEND,
+) -> None:
+    """Fit the selector: the relevance combiners on calib-fit, the completeness dials on
+    calib-crc, relevance from the teacher-full labels.
+
+    Each calib document's PDF is read again as the corpus build read it (same profile, page cap
+    and pages) and scored as `docrooter select` scores it. Progress goes to stderr, a summary
+    (JSON) to stdout; the selector's meta holds the full record.
+    """
+    from docrooter.corpus import Corpus
+    from docrooter.select.fit import fit_selector
+
+    checked = _check_profile(profile) or "accurate"
+    folder = pdf_dir if pdf_dir is not None else directory / "pdfs"
+    with _errors_exit_1():
+        _check_store(directory)
+        _check_writable(out)
+        if not folder.is_dir():
+            raise DocrooterError(f"no PDF folder at {folder}; pass --pdf-dir")
+        chosen = fit_selector(
+            Corpus(directory),
+            bundle,
+            embedder,
+            pdf_dir=folder,
+            profile=checked,
+            max_pages=max_pages,
+            on_progress=lambda done, total, doc_id, half: typer.echo(
+                f"[{done}/{total}] {doc_id}: calib-{half}", err=True
+            ),
+        )
+        written = chosen.save(out)
+    meta = chosen.meta
+    mismatch = meta["label_mismatch"]
+    summary = {
+        "out": str(written),
+        "documents": meta["documents"],
+        "dials": meta["dials"],
+        "class_balance": meta["class_balance"],
+        "label_mismatch": {k: mismatch[k] for k in ("content", "no_label", "hash_mismatch")},
+        "warnings": meta["warnings"],
+    }
+    typer.echo(json.dumps(summary, indent=2))
+
+
 # --- serve --------------------------------------------------------------------------------
 
 

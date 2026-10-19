@@ -154,7 +154,9 @@ class Selector:
     calibrated on its probabilities; ``field_fallback`` and ``query_fallback`` use
     :data:`FALLBACK_FEATURES` only; ``query`` scores free-text queries. ``embedder`` is the
     spec of the embedding backend ``sim`` was fitted with (``None`` when not recorded):
-    :func:`select` loads it when the caller passes no embedder.
+    :func:`select` loads it when the caller passes no embedder. ``meta`` is what the fit
+    recorded (``docrooter.select.fit``: profile, tagger, corpus, document counts, label checks,
+    warnings); it does not affect selection.
 
     The attributes are read-only, so a dial cannot be paired with another combiner after the
     check in the constructor; :func:`select` checks the pairing again before it guarantees.
@@ -169,6 +171,7 @@ class Selector:
         query_fallback: Combiner,
         dials: dict[str, DialTable],
         embedder: str | None = None,
+        meta: dict[str, Any] | None = None,
     ) -> None:
         if tuple(field.feature_names) != FEATURE_NAMES:
             raise ValueError(
@@ -194,6 +197,7 @@ class Selector:
         self._query_fallback = query_fallback
         self._dials = dict(dials)
         self._embedder = embedder
+        self._meta = json.loads(json.dumps(meta or {}))  # a JSON-safe copy
 
     @property
     def field(self) -> Combiner:
@@ -220,6 +224,12 @@ class Selector:
     def embedder(self) -> str | None:
         return self._embedder
 
+    @property
+    def meta(self) -> dict[str, Any]:
+        """What the fit recorded (a copy)."""
+        result: dict[str, Any] = json.loads(json.dumps(self._meta))
+        return result
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "format": SELECTOR_FORMAT,
@@ -227,6 +237,7 @@ class Selector:
             "embedder": self.embedder,
             "combiners": {role: getattr(self, role).to_dict() for role in _ROLES},
             "dials": {family: dial.to_dict() for family, dial in sorted(self.dials.items())},
+            "meta": self.meta,
         }
 
     @classmethod
@@ -246,6 +257,7 @@ class Selector:
             query_fallback=combiners["query_fallback"],
             dials={family: DialTable.from_dict(d) for family, d in data["dials"].items()},
             embedder=data.get("embedder"),
+            meta=data.get("meta") or {},
         )
 
     def save(self, path: str | Path) -> Path:

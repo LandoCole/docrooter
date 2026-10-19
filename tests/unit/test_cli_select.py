@@ -433,3 +433,69 @@ def test_cli_fit_selector_writes_file(tmp_path, fakes, monkeypatch):
         app, ["fit-selector", str(tmp_path / "nothing"), "--bundle", str(bundle), "--out", str(out)]
     )
     assert no_store.exit_code == 1 and "no corpus" in no_store.output
+
+
+def test_readout_names_several_fields_and_a_fit_mismatch():
+    several = _readout(_selection(guarantee=False, multi_field=True))
+    assert several.endswith("several fields (estimate)")
+    differs = _readout(_selection(guarantee=False, fit_mismatch=["layout"]))
+    assert differs.endswith("reading differs from calibration (estimate)")
+
+
+def test_a_mistyped_field_id_is_a_usage_error(files, fakes, tmp_path):
+    """A value shaped like a field id of a known family is never silently a query."""
+    bundle, _ = fakes
+    typo = _select(files, tmp_path, bundle, "--need", "annual_report.risk_factor")
+    assert typo.exit_code == 2
+    assert "annual_report.risk_factors" in typo.output  # the closest ids are suggested
+    # an ordinary question is still a query
+    query = _select(files, tmp_path, bundle, "--need", "What are the risks?", "--json")
+    assert query.exit_code == 0, query.output
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "{not json",
+        "[1, 2]",
+        '{"format": "docrooter-selector", "version": 1}',
+        '{"format": "docrooter-selector", "version": 1, "combiners": {}, "dials": {}}',
+    ],
+)
+def test_a_corrupt_selector_is_an_error_line(files, fakes, tmp_path, text):
+    bundle, _ = fakes
+    doc, config = files
+    bad = tmp_path / "bad.json"
+    bad.write_text(text, encoding="utf-8")
+    result = runner.invoke(
+        app,
+        [
+            "select",
+            str(doc),
+            "--config",
+            str(config),
+            "--selector",
+            str(bad),
+            "--tagger",
+            str(bundle),
+            "--need",
+            "annual_report.risk_factors",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "error:" in result.output and "bad.json" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_serve_refuses_a_corrupt_selector_cleanly(tmp_path):
+    pytest.importorskip("uvicorn")
+    bad = tmp_path / "selector.json"
+    bad.write_text('{"format": "docrooter-selector", "version": 1}', encoding="utf-8")
+    result = runner.invoke(app, ["serve", "--selector", str(bad)])
+    assert result.exit_code == 1
+    assert "error:" in result.output and "corrupt selector" in result.output
+
+
+def test_teach_label_splits_without_full_is_a_usage_error(tmp_path):
+    result = runner.invoke(app, ["teach", "label", str(tmp_path), "--splits", "calib"])
+    assert result.exit_code == 2 and "--full" in result.output

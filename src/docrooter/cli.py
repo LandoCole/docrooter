@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from collections.abc import Callable, Generator, Iterator
 from contextlib import closing, contextmanager
@@ -1227,11 +1228,11 @@ def teach_label(
     from docrooter.teach.label import SampleSpec, label_corpus
     from docrooter.teach.mlx import DEFAULT_TEACHER
 
+    if splits and not full:
+        raise typer.BadParameter("--splits applies only with --full", param_hint="--splits")
     with _errors_exit_1():
         if not (directory / "manifest.jsonl").is_file():
             raise DocrooterError(f"no corpus at {directory} (no manifest.jsonl)")
-        if splits and not full:
-            raise DocrooterError("--splits applies only with --full")
         if full:
             names = tuple(
                 n.strip() for item in (splits or ["calib", "gold"]) for n in item.split(",")
@@ -1481,10 +1482,16 @@ def train_elements(
 # --- selection ----------------------------------------------------------------------------
 
 
+_FIELD_ID_SHAPE = re.compile(r"[a-z_]+\.[a-z0-9_]+")
+
+
 def _parse_needs(values: list[str]) -> Any:
     """``--need`` values as a need: built-in field ids are those fields (one, or a list), and
     any other single value is a free-text query. A query among field ids, or two queries, is a
-    usage error."""
+    usage error, and so is a value shaped like a field id of a built-in family that is not one
+    (a typo, never meant as a query)."""
+    import difflib
+
     from docrooter.select.fields import builtin_fields, list_builtin_field_sets
 
     families = set(list_builtin_field_sets())
@@ -1495,6 +1502,14 @@ def _parse_needs(values: list[str]) -> Any:
         known = {f.id: f for f in builtin_fields(family)} if family in families else {}
         if value.strip() in known:
             fields.append(known[value.strip()])
+        elif known and _FIELD_ID_SHAPE.fullmatch(value.strip()):
+            close = difflib.get_close_matches(value.strip(), list(known), n=3, cutoff=0.5)
+            hint = f"; did you mean {', '.join(close)}?" if close else ""
+            raise typer.BadParameter(
+                f"{value.strip()!r} is not a built-in {family} field id{hint} "
+                f"(`docrooter select` reads a free-text query as a question, not an id)",
+                param_hint="--need",
+            )
         else:
             queries.append(value)
     if queries and (fields or len(queries) > 1):
@@ -1547,7 +1562,10 @@ def select_(
     ] = None,
     embedder: Annotated[
         str | None,
-        typer.Option(help="Embedding backend spec for sim (default: the selector's)."),
+        typer.Option(
+            help="Embedding backend spec for sim (default: the selector's; another one drops "
+            "the guarantee)."
+        ),
     ] = None,
     profile: Annotated[str | None, typer.Option(help=_PROFILE_HELP)] = None,
     config: Annotated[
@@ -1559,7 +1577,9 @@ def select_(
     """Choose the elements a downstream LLM should read for a need, at a completeness.
 
     The document is read and classified as the profile says (summaries, embeddings and
-    escalation off). Prints a readout line, then the selected elements (id, page, text).
+    escalation off). Prints a readout line, then the selected elements (id, page, text). The
+    guarantee needs one field and the reading, tagger and embedder the selector was fitted
+    with (--profile accurate for a selector fitted on the corpus build, --tagger its bundle).
     """
     from docrooter.rooter import process
     from docrooter.select.selection import select
@@ -1660,6 +1680,8 @@ def fit_selector_(
         "dials": meta["dials"],
         "class_balance": meta["class_balance"],
         "label_mismatch": {k: mismatch[k] for k in ("content", "no_label", "hash_mismatch")},
+        "crc_units": meta["crc_units"],
+        "provenance": None if chosen.provenance is None else chosen.provenance.model_dump(),
         "warnings": meta["warnings"],
     }
     typer.echo(json.dumps(summary, indent=2))

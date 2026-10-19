@@ -117,12 +117,15 @@ def test_auto_ocr_resolution_order(monkeypatch):
         registry_mod.shutil, "which", lambda name, *a, **k: "/bin/x" if name in binaries else None
     )
     monkeypatch.setattr(sys, "platform", "darwin")
+    assert resolve_auto_ocr() == "tesseract"  # measured CER 0.058: the best engine wins
+    binaries.clear()
     assert resolve_auto_ocr() == "ocrmac"
     monkeypatch.setattr(sys, "platform", "linux")  # ocrmac is darwin-only
     assert resolve_auto_ocr() == "rapidocr"
-    installed.discard("onnxruntime")  # rapidocr needs it
+    binaries.add("tesseract")
     assert resolve_auto_ocr() == "tesseract"
     binaries.clear()
+    installed.discard("onnxruntime")  # rapidocr needs it
     assert resolve_auto_ocr() is None
     with pytest.raises(DocrooterError, match="no OCR engine"):
         get_ocr_engine("auto")

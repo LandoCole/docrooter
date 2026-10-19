@@ -298,7 +298,7 @@ class _Engines:
                     "binary); pages that need OCR keep their text layer",
                 )
             name = resolved
-            reason = "ocr=auto: the first installed engine (ocrmac on macOS, rapidocr, tesseract)"
+            reason = "ocr=auto: the first installed engine (tesseract, ocrmac on macOS, rapidocr)"
         known = ocr_registry.available_ocr_engines()
         if name not in known:  # checked now; the engine itself is created on first use
             raise DocrooterError(f"unknown OCR engine {name!r}; available: {', '.join(known)}")

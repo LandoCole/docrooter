@@ -32,8 +32,8 @@ class RouterConfig(BaseModel):
     ``accurate`` configuration. Unknown keys are errors.
 
     - ``text``: the PDF text engine (``auto``, ``pymupdf``, ``pdfplumber``, ``both``).
-    - ``ocr``: ``none``, ``auto`` (``ocrmac`` on macOS if installed, else ``rapidocr``, else the
-      ``tesseract`` binary, else none with a route warning) or an engine name registered with
+    - ``ocr``: ``none``, ``auto`` (the ``tesseract`` binary if on PATH, else ``ocrmac`` on macOS,
+      else ``rapidocr``, else none with a route warning) or an engine name registered with
       :func:`~docrooter.register_ocr_engine`.
     - ``layout``: ``none`` (no elements: the ``fast`` path), ``heuristic`` (the element rules)
       or a layout engine name (``heron``, extra ``layout``, or one registered with

@@ -84,12 +84,14 @@ def _has_module(*names: str) -> bool:
 
 
 def resolve_auto_ocr() -> str | None:
-    """The first usable engine: ``ocrmac`` (macOS), then ``rapidocr``, then ``tesseract`` (the
-    binary on PATH); ``None`` when there is none."""
+    """The first usable engine: ``tesseract`` (the binary on PATH), then ``ocrmac`` (macOS),
+    then ``rapidocr``; ``None`` when there is none. The order follows the measured character
+    error rate (tesseract 0.058, rapidocr 0.089, ocrmac 0.102; ``docs/benchmarks-elements.md``),
+    and ocrmac fails on legal pages and table columns."""
+    if shutil.which("tesseract"):
+        return "tesseract"
     if sys.platform == "darwin" and _has_module("ocrmac"):
         return "ocrmac"
     if _has_module("rapidocr", "onnxruntime"):
         return "rapidocr"
-    if shutil.which("tesseract"):
-        return "tesseract"
     return None

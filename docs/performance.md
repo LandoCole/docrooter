@@ -225,7 +225,7 @@ PYTHONPATH=src .venv/bin/python -m benchmarks.profile_pipeline --elements
 - The set is the same ten dev PDFs as Q5 (1,439 pages, 1 to 642 pages each), with no classification and no OCR engine (`ocr=None`). OCR is measured separately, below.
 - Each system runs in its own worker process, one after the other, under the one-model-process guard, so each peak RSS is that system's own.
 - After an untimed warm-up on the smallest PDF (heron's ONNX session is created there: 3.2 s), each document is loaded once.
-- Measured 2026-10-18 at `aa729eb` (`src` clean), Apple M1, 16 GB, Python 3.12.13, pymupdf 1.28.2. The load average was 2.9 at the start and 7.4 at the end, so the later systems ran on a busier machine.
+- Measured 2026-10-18. The JSON stamp `aa729eb` is the `src` revision only; the stamp ignored uncommitted benchmark code at the time, which is now fixed. The measuring code is `benchmarks/profile_pipeline.py` as committed in `2f3825a`. The XY-cut table fix (`c09b9f7`) came later: it adds one row-alignment test per candidate gutter, and these figures were not re-measured for it. Apple M1, 16 GB, Python 3.12.13, pymupdf 1.28.2. The load average was 2.9 at the start and 7.4 at the end, so the later systems ran on a busier machine.
 - Raw rows: `benchmarks/results/2026-10-18/profile-elements.json`.
 
 | System | s / 100 pages | Total s (1,439 pages) | x `fast` | Peak RSS |
@@ -250,7 +250,8 @@ PYTHONPATH=src .venv/bin/python -m benchmarks.profile_pipeline --elements
 Every model process is far inside the 8 GiB budget. The largest is rapidocr, at 3.3 GiB.
 
 **`fast` against v0.3 (target: within 5%).**
-- The same command was run with `--systems fast --repeat 3` (best of 3 per document), alternately against this checkout (`aa729eb`) and a `git worktree` of v0.3 (`28fbf9d`, `PYTHONPATH=<worktree>/src`), two rounds each.
+- The stamps say `aa729eb` (`src`), with the measuring code of `2f3825a`, as above. `fast` does not run XY-cut, so the later fix cannot affect these rows.
+- The same command was run with `--systems fast --repeat 3` (best of 3 per document), against this checkout (`aa729eb`) and a `git worktree` of v0.3 (`28fbf9d`, `PYTHONPATH=<worktree>/src`), two rounds each. Both rounds ran v0.4 first (ABAB, not counterbalanced). Every variant is well inside 5%, so the order bias does not change the verdict.
 - Measured 2026-10-19, just after the run above; the load average at the start of each run was 7.4, 5.4, 3.9 and 6.0.
 - Raw rows: `benchmarks/results/2026-10-19/profile-elements-fast-v0.{3,4}-r{1,2}.json`.
 

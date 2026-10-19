@@ -316,24 +316,96 @@ Every other constant keeps its starting value, including `FIGURE_MIN_AREA` 0.02,
 PYTHONPATH=src .venv/bin/python -m benchmarks.elements_bench --reading-order
 ```
 
-Every dev PDF is loaded twice with pymupdf and no OCR: in element mode, recording the line list and the permutation that `order_lines` returns, and as `fast`. Both loads run with bookmarks off for the TOC, as in the TOC benchmark. Results are in `benchmarks/results/2026-10-18/elements-reading-order.json`, at commit `aa729eb`. The run covers 5,036 pages with at least one text line.
+Each dev PDF is loaded twice with pymupdf and no OCR: in element mode, recording the line list and the permutation that `order_lines` returns, and as `fast`. Bookmarks are off for the TOC in both, as in the TOC benchmark.
 
-**Single-column pages unchanged (the hard constraint).** A page is single-column when XY-cut finds no column gutter among its body lines, that is, its lines other than running headers, footers and page numbers. 4,460 pages qualify. Every element-mode line list was first checked against `fast`'s (`extract_lines`) on all 5,036 pages: the checksums of the page's line texts, in order, are equal on every page.
+- **Results:** `benchmarks/results/2026-10-19/elements-reading-order.json`, from commit `c09b9f7`, which has the row-alignment fix below and clean code.
+- **Before the fix:** the same code measured `src` at `2f3825a`, unchanged since `aa729eb`. That run is quoted below as *before*; it was kept out of the repository.
+- **Superseded:** `2026-10-18/elements-reading-order.json` is the first E11b run, made before the fix.
 
-| Check on the 4,460 single-column pages | Pages equal to `fast` |
-| --- | --- |
-| Body lines, in order | **4,460 (100%)** |
-| All lines, furniture included (checksum of the page's line texts in order) | 4,193 (94.0%) |
+The run covers 5,036 pages with at least one text line.
 
-The 267 pages that differ do so only in where their furniture lines sit. Element mode puts a page's running headers, footers and page numbers at its start (upper half) or end (lower half), by the E5b design; `fast` keeps them where the extractor put them. doc_030 accounts for 106 of these pages, doc_042 for 85 and doc_002 for 17. Body text order is never changed on a single-column page.
+### What the single-column check can and cannot show
 
-**The page-global identity guard (review E3).** Once XY-cut finds a gutter anywhere on a page, the whole page is re-sorted by bands and row cuts, including the page's single-column regions. The check: on each page with a gutter, take every band XY-cut forms (a run of full-width or of narrower lines) that has no gutter of its own. Such a band is *shifted* when its lines' relative order differs from the extraction order, which a band-local guard would have kept.
+`xy_cut_order` returns the input order exactly when it cuts no column gutter on a page (the identity guard).
+
+- **Pages with no gutter (4,520 after the fix).** Their body order equals `fast`'s by construction. That is a property of the code, not a measurement: a page that a reader would call single-column but that XY-cut cuts anyway is simply not in this set.
+- **The non-trivial checks on these pages:**
+  - the element-mode line list equals `fast`'s `extract_lines` on all 5,036 pages (checksums of the line texts in order);
+  - with furniture included, 4,248 of 4,520 no-gutter pages equal `fast`. The other 272 differ only in where furniture lines sit: element mode puts running headers, footers and page numbers at the page's start or end, by the E5b design. doc_030 has 106 such pages, doc_042 86 and doc_002 17.
+
+### Non-circular check: lines moved on cut pages of single-column documents
+
+A reader's notion of a single-column page cannot be checked from the cut decision itself. So the check is: in each dev document where fewer than half the pages have a cut, count the body lines that XY-cut moves on its pages that do have one. *Moved* is the number of lines that must move to restore the extraction order: the page's line count minus the longest increasing subsequence of the new order.
+
+The first run of this benchmark (review E11b) found a false gutter on doc_004 p27, a single-column revenue table in a 10-Q:
+- XY-cut cut between the row labels and the number columns, giving every label first and then every number. That breaks row association in exactly the financial tables docrooter is for.
+- The 20%-of-text-width column guard did not stop it, because the table's labels and column headers are wide enough.
+
+**The fix (controller ruling; `src/docrooter/pdf/reading_order.py`).** A vertical cut is rejected when both of these hold:
+1. **The sides are row-aligned.** At least 50% of the boxes on the side with fewer boxes have a box on the other side whose vertical centre is within 0.2 x the median line height.
+2. **One side is made of cells.** Its median box is narrower than 10% of the text width.
+
+The second condition and the tight tolerance are refinements of the ruling (which said 0.5 x the line height), and the data showed both were needed:
+- **Text columns are row-aligned too.** Text columns set on one baseline grid pass the alignment test: 67-96% of lines in doc_028 (ResNet) and doc_045's two-column pages. Rejecting those cuts would read real articles row by row.
+- **The 0.5 tolerance finds chance partners.** Next to dense prose, almost any box has a line within half a line height. For example, 100% of doc_045 p13's chart labels "align" with the text beside them.
+- **The first cell threshold was too high.** At 20% of the text width, the narrow three-column pages of doc_049 (columns at about 20% of the text width) were read row by row. At 10%, only tables stay together: number columns are 3-7% of the text width.
+
+Unit tests pin the new rule:
+- an unruled label/number table keeps its row order;
+- a two-column article with independent baselines still reads column by column;
+- text columns on one baseline grid, and three narrow brochure columns, are still columns;
+- the existing reading-order tests pass.
+
+Mostly single-column documents (gutters on less than 50% of their pages):
+
+| | Before (`2f3825a` src) | After (`c09b9f7`) |
+| --- | --- | --- |
+| Documents | 46 | 47 (doc_045 drops to 36 of 73 column pages) |
+| Pages with a cut | 228 | 221 |
+| Body lines moved on those pages | 5,755 (of 20,692) | 5,425 (of 19,352) |
+| ... on the same 46 documents | 5,755 | 4,545 |
+
+| Document | Pages with a cut, before -> after | Lines moved, before -> after |
+| --- | --- | --- |
+| doc_004 10-Q (p27 and p28: the revenue table) | 3 -> 1 | 34 -> **0** |
+| doc_005 10-Q | 4 -> 2 | 32 -> 5 |
+| doc_003 Amazon annual report | 4 -> 0 | 51 -> 0 |
+| doc_001 Berkshire annual report | 9 -> 2 | 199 -> 5 |
+| doc_009 / doc_010 earnings releases | 3 -> 1 each | 65 -> 3 each |
+| doc_042 RP2040 datasheet | 15 -> 2 | 528 -> 54 |
+| doc_041 NE555 datasheet | 5 -> 3 | 85 -> 21 |
+| doc_046 Financial Stability Report | 16 -> 13 | 280 -> 164 |
+| doc_048 Google environmental report | 19 -> 18 | 824 -> 737 |
+| doc_011 bilingual prospectus | 56 -> 56 | 2,062 -> 2,062 |
+| doc_039 GNU coreutils manual | 24 -> 22 | 704 -> 685 |
+| doc_047 9/11 Commission Report | 11 -> 11 | 201 -> 201 |
+
+Every financial filing (doc_001 to doc_005, doc_009, doc_010) now moves at most 5 lines per document. doc_004 p27 and p28 are no longer cut. Before the fix, 120 of p27's 137 body lines and 32 of p28's 150 changed position (the review's count); now 0 do, and both keep their extraction (row) order.
+
+**Spot check of 10 pages that are still cut** (in mostly single-column documents; the order checked by eye):
+
+| Page | What it is | Verdict |
+| --- | --- | --- |
+| doc_011 p50 | German and English text in parallel columns | genuine columns |
+| doc_039 p310 | two-column index | genuine columns |
+| doc_048 p31 | report page with two text columns | genuine columns |
+| doc_047 p11 | staff list in two columns | genuine columns |
+| doc_029 p49 | two generated poems side by side | genuine columns |
+| doc_050 p7 | slide with text columns | genuine columns |
+| doc_011 p42 | label/value terms table, wide value column | false gutter: table |
+| doc_035 p11 | maturity-scale grid with wide text cells | false gutter: table |
+| doc_046 p16 | chart: axis labels and legend | chart labels |
+| doc_044 p3 | datasheet chart: axis labels | chart labels |
+
+So 6 of 10 are true multi-column layouts. Two are tables whose cells are wide text, which the cell rule deliberately does not catch, and two are charts, where any order of axis labels is arbitrary. Tables with wide text cells remain a known limitation of the heuristic order; heron (`accurate`) orders by layout regions instead.
+
+**The page-global identity guard (review E3).** Once XY-cut finds a gutter on a page, the whole page is re-sorted by bands and row cuts, including the page's single-column regions. The check: on each page with a gutter, take every band XY-cut forms (a run of full-width or of narrower lines) that has no gutter of its own. Such a band is *shifted* when its lines' relative order differs from the extraction order, which a band-local guard would have kept.
 
 | Pages with a gutter | Reordered | Bands | Single-column bands | Shifted bands | Lines in shifted bands |
 | --- | --- | --- | --- | --- | --- |
-| 576 | 569 | 1,397 | 812 | **2** | 64 of 66,938 |
+| 516 | 506 | 1,192 | 669 | **2** | 64 of 59,084 |
 
-Both shifted bands are in doc_036 (Future of Jobs Report): the source note under a chart on page 28 (two source lines swap places, because the row cut sorts them by height), and a chart's label column on page 44. No prose band moved. A band-local guard would change these two pages only, so the guard stays page-global. The finding is recorded here.
+Both shifted bands are in doc_036 (Future of Jobs Report): a chart's source note on p28, and a chart's label column on p44. No prose band moved, so the guard stays page-global.
 
 **Bookmark-pair order agreement.** This runs on the 24 dev PDFs with at least 5 bookmarks. Headings are matched to bookmarks as in the TOC benchmark (title ratio >= 0.85, page within 1). For each pair of consecutive bookmarks whose two headings both match, the pair agrees when the headings come out in the same order.
 
@@ -342,20 +414,26 @@ Both shifted bands are in doc_036 (Future of Jobs Report): the source note under
 | `fast` (before XY-cut) | 1,640 of 1,642 | 0.9988 |
 | element mode (after XY-cut) | 1,652 of 1,654 | 0.9988 |
 
-- The two disagreeing pairs are the same in both modes, one each in doc_004 and doc_005 (10-Q filings).
+- The fix leaves these numbers exactly as they were.
+- The two disagreeing pairs are the same in both modes, one each in doc_004 and doc_005.
 - Element mode matches 12 more pairs (doc_045 +2, doc_048 +7, doc_049 +3) and adds no disagreement.
 
-**Kendall's tau on two-column documents.** A document counts as two-column when a gutter is cut on at least half of its pages. Only one dev research paper qualifies: doc_028 (Deep Residual Learning, 12 of 12 pages). It has no bookmarks, so there is no bookmark gold for it.
+**Kendall's tau on two-column documents.** A document counts as two-column when a gutter is cut on at least half of its pages. Only one dev research paper qualifies: doc_028 (Deep Residual Learning, 12 of 12 pages). It has no bookmarks.
 
-Ruling: its gold is the paper's own section numbering. The numbered headings ("3.1 ...") are taken in predicted order, and tau is computed against the order of their numbers. Two other documents qualify and do have bookmarks, so tau against bookmarks is reported for them.
+Ruling: its gold is its own section numbering. The numbered headings ("3.1 ...") are taken in predicted order, and tau is computed against the order of their numbers. The two modes find different heading sets (9 numbered headings in `fast`, 11 in element mode), so the two taus are not over the same items. Two other documents qualify and do have bookmarks (before the fix, doc_045 was one of them).
 
-| Document | Column pages | Gold | `fast` tau | Element-mode tau |
+| Document | Column pages (after the fix) | Gold | `fast` tau | Element-mode tau |
 | --- | --- | --- | --- | --- |
 | doc_028 Deep Residual Learning | 12 / 12 | section numbers | 0.944 (9 headings) | **1.000** (11 headings) |
-| doc_045 Monetary Policy Report | 37 / 73 | bookmarks | 0.736 | **0.800** |
-| doc_049 NVIDIA Sustainability Report | 31 / 41 | bookmarks | 1.000 | 1.000 |
+| doc_045 Monetary Policy Report | 36 / 73 | bookmarks | 0.736 | **0.800** |
+| doc_049 NVIDIA Sustainability Report | 27 / 41 | bookmarks | 1.000 | 1.000 |
 
-doc_017 (one page) and doc_036 also cross the 50% line, but neither has bookmarks. doc_036's numbered "headings" are the numbered items of its guide panels, laid out in grids (pages 89-92 and 259-260), not section numbers, so they are no gold for it. Its numbers are kept in the JSON only.
+- doc_049 lost column cuts on four pages: its GRI index tables (pp. 27, 30, 31, 38), which now keep row order.
+- doc_036 (no bookmarks) also crosses the 50% line. Its numbered "headings" are the numbered items of its guide panels, laid out in grids (pages 89-92 and 259-260), not section numbers, so they are no gold for it.
+
+**TOC and the line invariant after the fix.**
+- `benchmarks.toc --engines pymupdf --elements` (`2026-10-19/toc-elements.json`) gives depth <= 2 micro F1 **0.7071** in element mode, against 0.7031 for `fast`. The target is >= 0.703, and the value before the fix was 0.7074.
+- On all 51 dev PDFs, every line with text is in exactly one element: 316,617 lines, 89,410 elements, 0 failures.
 
 ## OCR and routing (spec §10.4)
 
@@ -363,7 +441,7 @@ doc_017 (one page) and doc_036 also cross the 50% line, but neither has bookmark
 PYTHONPATH=src .venv/bin/python -m benchmarks.ocr_bench
 ```
 
-Results are in `benchmarks/results/2026-10-18/ocr.json`, at commit `aa729eb` (no `src` change since).
+Results are in `benchmarks/results/2026-10-18/ocr.json`. Its stamp says `aa729eb`, but that is only the `src` revision: the stamp ignored uncommitted benchmark code at the time, and that has since been fixed. The measuring code is `benchmarks/ocr_bench.py` as committed in `2f3825a`. The element-kind agreement below predates the XY-cut table fix (`c09b9f7`), which can change the order, though not the kinds, of OCR'd table lines.
 
 **Pages.**
 - Dev PDFs are shuffled with seed `20261018:ocr`. The first 20 that have at least 3 pages with a clean text layer are taken, with 3 such pages each, also seeded: 60 pages from doc_002, 003, 005, 006, 007, 013, 016, 018, 019, 022, 023, 024, 031, 033, 035, 040, 044, 045, 047 and 050. doc_017 was skipped, because it has a single page.
@@ -390,7 +468,7 @@ Rendering a page at 200 dpi takes 0.10 s on top of the OCR time. Peak RSS is the
 - The pooled CER is dominated by a few pages; the median page is at about 1% for ocrmac and tesseract.
   - doc_007 p1 (Berkshire's performance table) scores 0.69-0.79 CER for every engine. Its text layer is full of dot leaders that no engine reads, and word precision there is 0.94 (measured for ocrmac).
   - doc_007 p5 and doc_013 p49 (dense tables) score 0.22-0.34.
-- ocrmac fails on the three CHIPS Act pages (doc_024, CER 0.51-0.65; the other engines get 0.04-0.06). Its recall drops to 0.39 and it outputs unrelated words. On doc_050 p23 (an income-statement slide), it reads 2 of 5 number columns.
+- ocrmac fails on the three CHIPS Act pages (doc_024, CER 0.51-0.65; the other engines get 0.04-0.06). Its word recall on those pages is 0.35 pooled (0.30-0.39 per page), and it outputs unrelated words. On doc_050 p23 (an income-statement slide), it reads 2 of 5 number columns.
 - rapidocr's median page CER is about 4%, against about 1% for the others: its errors are small but spread over most pages. It is also the slowest engine and the largest in memory.
 - `ocr=auto` picks ocrmac on macOS. It is the fastest engine and fine on prose, but it is the least reliable on legal text and tables.
 
@@ -414,8 +492,8 @@ Rendering a page at 200 dpi takes 0.10 s on top of the OCR time. Peak RSS is the
 | tesseract | 771 / 924 (0.834) | 0.899 | 21 |
 
 Paragraphs agree in 94-98% of cases. Where the kinds differ, the cause is by design:
-- An OCR page has no ruled tables, so all 11 tables become paragraphs.
-- Its only image is the page scan, so the 14 figures become paragraphs or are missed.
+- An OCR page has no ruled tables, so 10-11 of the 11 tables become paragraphs (tesseract misses one).
+- Its only image is the page scan, so 13-14 of the 14 figures become paragraphs or are missed (tesseract types one as a title).
 - Headings come only from size and isolation (no bold, no font), so 12-17 of 32 headings and 10-13 of 31 titles are kept.
 - Page numbers agree in 14-32 of 44 cases.
 

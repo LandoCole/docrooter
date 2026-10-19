@@ -43,6 +43,7 @@ const PRESETS = [
   { name: "Whole document", value: 1.0 },
 ];
 const SELECT_DEBOUNCE_MS = 250;
+const NO_EMBEDDER_NOTE = "Free-text queries need an embedder; this selector was fitted without one. Pick a field instead.";
 const NO_SELECTOR_NOTE = "No selector: fit one with docrooter fit-selector, then start the playground with --selector. Only the whole document can be selected until then.";
 
 const state = {
@@ -792,7 +793,7 @@ function stopSelect() {
 
 function selectBadges(selection) {
   const found = [];
-  if (!selection.guarantee) found.push(["estimate", "The recall is the model's own estimate, not a guarantee"]);
+  if (!selection.guarantee && selection.expected_recall !== null) found.push(["estimate", "The recall is the model's own estimate, not a guarantee"]);
   if (selection.capped) found.push(["capped", "Too few calibration documents reach this completeness, so the whole document is kept"]);
   if (selection.doc_type_mismatch) found.push(["mismatch", "The field belongs to another document type than this document's"]);
   if (selection.over_budget) found.push(["over-budget", "The most relevant element alone is over the token budget"]);
@@ -912,11 +913,15 @@ async function renderSelect(run) {
   if (!run.elements_total) return;
   const dial = newSelectState(run);
   state.select = dial;
-  const hasSelector = Boolean(state.backends?.selector);
+  const hasSelector = Boolean(state.backends?.selector?.loaded);
+  const hasEmbedder = Boolean(state.backends?.selector?.embedder);
   const slider = $("select-slider");
   slider.value = hasSelector ? "0.9" : "1";
   slider.disabled = !hasSelector;
-  $("select-query").value = "";
+  const query = $("select-query");
+  query.value = "";
+  query.disabled = hasSelector && !hasEmbedder; // without sim a query matches nothing
+  query.title = query.disabled ? NO_EMBEDDER_NOTE : "";
   $("select-presets").replaceChildren(
     ...PRESETS.map((preset) =>
       h(
@@ -937,7 +942,7 @@ async function renderSelect(run) {
       ),
     ),
   );
-  $("select-note").textContent = hasSelector ? "" : NO_SELECTOR_NOTE;
+  $("select-note").textContent = !hasSelector ? NO_SELECTOR_NOTE : hasEmbedder ? "" : NO_EMBEDDER_NOTE;
   showReadout("Pick a field or type a query to see what would be sent.");
   $("select-badges").replaceChildren();
   syncDial();

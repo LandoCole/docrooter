@@ -91,8 +91,10 @@ from docrooter.taxonomies import builtin_taxonomy, family_for_doc_type  # noqa: 
 from docrooter.taxonomy import Taxonomy  # noqa: E402
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from docrooter.select.fields import Field as SelectField
-    from docrooter.select.selection import Selection, Selector
+    from docrooter.select.selection import DocContext, Selection, Selector
 
 __all__ = [
     "MAX_TEXT_UPLOAD_BYTES",
@@ -138,6 +140,8 @@ MAX_KEPT_ANALYSES = 3
 JSON); the oldest is dropped first, and selecting on it says to run the file again."""
 MAX_QUERY_CHARS = 500
 """Longest free-text need the select endpoint accepts."""
+MAX_SELECT_BODY_BYTES = 16 * 1024
+"""Largest select request body; a request is a need, a number and a budget."""
 KEEPALIVE_SECONDS = 15.0
 MAX_PENDING = 8
 """Jobs that may wait behind the running one; more get 503."""
@@ -684,9 +688,11 @@ class _Task:
     future: asyncio.Future[Any]
 
     def run(self) -> None:
+        if self.future.done():  # the caller gave up (cancelled) or was answered: no work to do
+            return
         try:
             value = self.fn()
-        except BaseException as exc:  # handed to the awaiting handler, which decides
+        except Exception as exc:  # handed to the awaiting handler, which decides
             self._settle(exc=exc)
         else:
             self._settle(value=value)
@@ -707,6 +713,38 @@ class _Task:
             self.loop.call_soon_threadsafe(deliver)
 
 
+@dataclass(frozen=True)
+class _Scored:
+    """What a selection computed for a kept run, for the next one: the prepared document and the
+    features and key of the last need. Replaced whole, never changed, so the event loop may
+    read it while the worker writes."""
+
+    ctx: DocContext
+    encoder_spec: str | None
+    need_key: tuple[Any, ...] | None = None
+    X: np.ndarray | None = None
+
+
+class _LazyTagger:
+    """The playground's element tagger, loaded when :func:`prepare` first asks it to tag
+    something: a tagged analysis never loads it."""
+
+    def __init__(self, load: Callable[[], Any]) -> None:
+        self._load = load
+
+    def tag(self, elements: Any, family: str) -> Any:
+        return self._load().tag(elements, family)
+
+
+def _need_key(need: Any) -> tuple[str | None, tuple[Any, ...]]:
+    """``(family, key)`` of a need: the family its tags must be in (``None`` for a query, the
+    document's own) and what names it."""
+    if isinstance(need, str):
+        return None, ("query", need)
+    fields = need if isinstance(need, list) else [need]
+    return fields[0].family, ("fields", *(f.id for f in fields))
+
+
 class Playground:
     """Run history, the job queue and its worker thread, and the backend pool."""
 
@@ -722,6 +760,7 @@ class Playground:
         self.selector = selector
         self.selector_name = selector_name
         self.analyses: OrderedDict[str, Analysis] = OrderedDict()
+        self.scored: dict[str, _Scored] = {}
         self._tagger: Any = None
         self.doc_types = builtin_taxonomy(DOC_TYPES)
         self.backends = BackendPool(self.doc_types)
@@ -782,13 +821,15 @@ class Playground:
         while len(self.runs) > HISTORY:
             dropped, _ = self.runs.popitem(last=False)
             self.analyses.pop(dropped, None)
+            self.scored.pop(dropped, None)
 
     def keep(self, run_id: str, analysis: Analysis) -> None:
         """Keep the analysis of a run for the dial, dropping the oldest beyond
         :data:`MAX_KEPT_ANALYSES`. Event loop thread only."""
         self.analyses[run_id] = analysis
         while len(self.analyses) > MAX_KEPT_ANALYSES:
-            self.analyses.popitem(last=False)
+            dropped, _ = self.analyses.popitem(last=False)
+            self.scored.pop(dropped, None)
 
     async def on_worker(self, fn: Callable[[], Any]) -> Any:
         """The result of ``fn()`` run on the worker thread after the jobs ahead of it
@@ -798,28 +839,85 @@ class Playground:
         self.jobs.put_nowait(task)
         return await task.future
 
+    def select_cached(
+        self,
+        run_id: str,
+        analysis: Analysis,
+        need: SelectField | list[SelectField] | str,
+        completeness: float,
+        budget: int | None,
+    ) -> Selection | None:
+        """The selection when the run's features for ``need`` are already computed (only a
+        re-threshold: no model, any thread), else ``None``."""
+        from docrooter.select.selection import select_scored
+
+        entry = self.scored.get(run_id)
+        family, key = _need_key(need)
+        if (
+            entry is None
+            or self.selector is None
+            or entry.ctx.family != (family or entry.ctx.doc_family)
+            or entry.need_key != key
+            or entry.X is None
+        ):
+            return None
+        return select_scored(
+            analysis,
+            entry.ctx,
+            entry.X,
+            need,
+            completeness=completeness,
+            budget=budget,
+            selector=self.selector,
+        )
+
     def select(
-        self, analysis: Analysis, need: SelectField | list[SelectField] | str, completeness: float
+        self,
+        run_id: str,
+        analysis: Analysis,
+        need: SelectField | list[SelectField] | str,
+        completeness: float,
+        budget: int | None,
     ) -> Selection:
         """:func:`~docrooter.select.selection.select` with this server's selector, tagger and
         embedder. The embedder is the selector's recorded spec, taken from the backend pool: a
         pooled backend of that spec is reused, otherwise the pooled model is closed first, so
-        one model is held. Worker thread only, unless ``completeness`` is 1.0 (no model)."""
-        from docrooter.select.selection import select
+        one model is held. The tagger loads only if an element needs tags. The prepared
+        document and the features of the need are kept for the run, so the next completeness
+        for it is :meth:`select_cached`. Worker thread only, unless ``completeness`` is 1.0 (no
+        model; ``budget`` is refused there)."""
+        from docrooter.select.selection import need_features, prepare, select, select_scored
 
         if completeness >= 1.0:
-            return select(analysis, need, completeness=1.0)
+            return select(analysis, need, completeness=completeness, budget=budget)
         selector = self.selector
         assert selector is not None  # the endpoint checked
-        embedder = None if selector.embedder is None else self.backends.get(selector.embedder)
-        tagger = self.tagger() if self.element_tags is not None else None
-        return select(
+        family, key = _need_key(need)
+        spec = selector.embedder
+        encoder = None if spec is None else self.backends.get(spec)
+        entry = self.scored.get(run_id)
+        if (
+            entry is None
+            or entry.ctx.family != (family or entry.ctx.doc_family)
+            or entry.encoder_spec != spec
+        ):
+            tagger = _LazyTagger(self.tagger) if self.element_tags is not None else None
+            ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=family)
+            entry = _Scored(ctx, spec)
+        else:
+            entry.ctx.encoder = encoder  # the pool may have swapped the model since
+        _, X = need_features(entry.ctx, need)
+        entry = _Scored(entry.ctx, spec, key, X)
+        if run_id in self.analyses:  # not evicted while this ran
+            self.scored[run_id] = entry
+        return select_scored(
             analysis,
+            entry.ctx,
+            X,
             need,
             completeness=completeness,
+            budget=budget,
             selector=selector,
-            tagger=tagger,
-            embedder=embedder,
         )
 
     def _work(self) -> None:
@@ -1259,7 +1357,11 @@ def create_app(
             "max_upload_bytes": MAX_UPLOAD_BYTES,
             "max_text_upload_bytes": MAX_TEXT_UPLOAD_BYTES,
             "element_tags": playground.tagger_name,
-            "selector": playground.selector_name,
+            "selector": {
+                "loaded": playground.selector is not None,
+                "name": playground.selector_name,
+                "embedder": playground.selector.embedder if playground.selector else None,
+            },
         }
 
     @app.get("/api/fields")
@@ -1322,14 +1424,12 @@ def create_app(
     async def select_elements(run_id: str, request: Request) -> dict[str, Any]:
         _check_origin(request)
         run = get_run(run_id)
-        try:
-            body = await request.json()
-        except ValueError:
-            raise HTTPException(400, "Send a JSON body.") from None
-        need, completeness, budget = _select_request(body)
+        need, completeness, budget = _select_request(await _read_json(request))
         analysis = playground.analyses.get(run_id)
         if analysis is None:
-            if run.finished and run.options.get("profile") == "fast":
+            if not run.finished:
+                raise HTTPException(409, "This run is still running: select once it is done.")
+            if run.options.get("profile") == "fast":
                 raise HTTPException(
                     409, "The fast profile builds no elements: run the file again with Balanced."
                 )
@@ -1338,19 +1438,19 @@ def create_app(
                 f"No analysis kept for run {run_id!r} (only the last {MAX_KEPT_ANALYSES} runs "
                 "with elements are kept): run it again.",
             )
-        if completeness < 1.0 and playground.selector is None:
-            raise HTTPException(409, NO_SELECTOR)
+        selector = playground.selector
+        if completeness < 1.0:
+            if selector is None:
+                raise HTTPException(409, NO_SELECTOR)
+            if isinstance(need, str) and selector.embedder is None:
+                raise HTTPException(409, NO_QUERY_EMBEDDER)
         try:
-            if budget is not None and completeness >= 1.0:
-                raise ValueError(
-                    "A token budget cannot be combined with completeness 1.0, which always "
-                    "means the whole document."
-                )
             if completeness >= 1.0:  # no model: answer now, whatever the worker is doing
-                selection = playground.select(analysis, need, completeness)
-            else:
-                selection = await playground.on_worker(
-                    lambda: playground.select(analysis, need, completeness)
+                selection = playground.select(run_id, analysis, need, completeness, budget)
+            else:  # a re-threshold of features already computed is as cheap
+                cached = playground.select_cached(run_id, analysis, need, completeness, budget)
+                selection = cached or await playground.on_worker(
+                    lambda: playground.select(run_id, analysis, need, completeness, budget)
                 )
         except queue.Full:
             raise HTTPException(
@@ -1375,6 +1475,24 @@ def create_app(
 
 
 NO_SELECTOR = "no selector: fit one with docrooter fit-selector"
+NO_QUERY_EMBEDDER = "free-text queries need an embedder; this selector was fitted without one"
+
+
+async def _read_json(request: Request) -> Any:
+    """The request's JSON body, 413 past :data:`MAX_SELECT_BODY_BYTES` (declared or sent), 400
+    when it is not JSON."""
+    length = request.headers.get("content-length", "")
+    if _is_decimal(length) and int(length) > MAX_SELECT_BODY_BYTES:
+        raise HTTPException(413, "The request is too large.")
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > MAX_SELECT_BODY_BYTES:
+            raise HTTPException(413, "The request is too large.")
+    try:
+        return json.loads(body)
+    except ValueError:
+        raise HTTPException(400, "Send a JSON body.") from None
 
 
 def _load_selector(

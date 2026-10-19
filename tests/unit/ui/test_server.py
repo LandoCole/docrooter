@@ -1452,12 +1452,15 @@ class FakeEncoder:
 
     made = 0
     closed = 0
+    encodes = 0
 
     def __init__(self, *args, **kwargs):
         type(self).made += 1
 
     def encode(self, texts, prompt=""):
         import numpy as np
+
+        type(self).encodes += 1
 
         return np.array([[1.0, 0.0] if "risk" in t.lower() else [0.0, 1.0] for t in texts])
 
@@ -1470,6 +1473,7 @@ def selector_file(tmp_path, monkeypatch):
     monkeypatch.setitem(registry._KINDS, "fakeenc", FakeEncoder)
     monkeypatch.setattr(FakeEncoder, "made", 0)
     monkeypatch.setattr(FakeEncoder, "closed", 0)
+    monkeypatch.setattr(FakeEncoder, "encodes", 0)
     path = tmp_path / "selector.json"
     fake_selector().save(path)
     return path
@@ -1580,7 +1584,11 @@ def test_select_endpoint_returns_selection(selector_file):
             f for f in fields["annual_report"] if f["id"] == RISK_ID
         ).items()
         assert set(fields["annual_report"][0]) == {"id", "label", "description"}
-        assert client.get("/api/backends").json()["selector"] == "selector.json"
+        assert client.get("/api/backends").json()["selector"] == {
+            "loaded": True,
+            "name": "selector.json",
+            "embedder": "fakeenc:m",
+        }
     assert FakeEncoder.closed == 1  # closed with the pool at shutdown
 
 
@@ -1608,7 +1616,11 @@ def test_select_without_a_selector_serves_the_whole_document_only(client):
     refused = select_post(client, run_id, RISK_ID, 0.9)
     assert refused.status_code == 409
     assert refused.json()["detail"] == "no selector: fit one with docrooter fit-selector"
-    assert client.get("/api/backends").json()["selector"] is None
+    assert client.get("/api/backends").json()["selector"] == {
+        "loaded": False,
+        "name": None,
+        "embedder": None,
+    }
     whole = select_post(client, run_id, RISK_ID, 1.0)
     assert whole.status_code == 200 and whole.json()["guarantee"] is True
 
@@ -1702,7 +1714,7 @@ def test_dial_presets(selector_file, client):
         ("Whole document", 1.0),
     ):
         assert f'{{ name: "{name}", value: {value} }}' in script
-    assert "250" in script  # the readout is debounced
+    assert "SELECT_DEBOUNCE_MS = 250;" in script  # the readout is debounced
 
     # the presets are monotone in tokens: a higher completeness never reads less
     with make_selector_client(selector_file) as selecting:
@@ -1773,3 +1785,129 @@ def test_serve_selector_option(monkeypatch, selector_file, tmp_path):
     missing = CliRunner().invoke(cli.app, ["serve", "--selector", str(tmp_path / "nope.json")])
     assert missing.exit_code == 1 and "no selector" in missing.output
     assert len(started) == 1
+
+
+def test_select_budget_is_used_below_one(selector_file):
+    with make_selector_client(selector_file) as client:
+        run_id = inject(client)
+        roomy = select_post(client, run_id, RISK_ID, 0.9, budget=200).json()
+        assert roomy["guarantee"] is False and roomy["tokens"] <= 200
+        assert roomy["over_budget"] is False and "guaranteed" not in roomy["readout"]
+        tiny = select_post(client, run_id, RISK_ID, 0.9, budget=1).json()
+        assert tiny["over_budget"] is True and tiny["guarantee"] is False
+        assert "exceeds the budget" in tiny["readout"]
+        assert tiny["selected_total"] == 1  # the most relevant element, alone
+
+
+def test_query_needs_an_embedder_in_the_selector(tmp_path, monkeypatch):
+    monkeypatch.setitem(registry._KINDS, "fakeenc", FakeEncoder)
+    bare = tmp_path / "bare.json"
+    fake_selector(embedder=None).save(bare)
+    with make_selector_client(bare) as client:
+        assert client.get("/api/backends").json()["selector"] == {
+            "loaded": True,
+            "name": "bare.json",
+            "embedder": None,
+        }
+        run_id = inject(client)
+        refused = select_post(client, run_id, "interest rate risk", 0.9)
+        assert refused.status_code == 409
+        assert refused.json()["detail"] == (
+            "free-text queries need an embedder; this selector was fitted without one"
+        )
+        # fields still work (on the fallback combiner), and the whole document needs nothing
+        assert select_post(client, run_id, RISK_ID, 0.9).status_code == 200
+        assert select_post(client, run_id, "interest rate risk", 1.0).status_code == 200
+        page = client.get("/static/app.js").text
+        assert "query.disabled = hasSelector && !hasEmbedder" in page
+
+
+def test_select_features_are_cached_per_run(selector_file):
+    with make_selector_client(selector_file) as client:
+        playground = client.app.state.playground
+        run_id = inject(client)
+        first = select_post(client, run_id, RISK_ID, 0.9)
+        assert first.status_code == 200
+        encodes = FakeEncoder.encodes
+        assert encodes >= 2  # the elements, and the need
+
+        async def refuse(fn):  # a cache hit must not go through the worker queue
+            raise AssertionError("re-thresholding went to the worker")
+
+        monkey = playground.on_worker
+        playground.on_worker = refuse
+        try:
+            for completeness in (0.5, 0.8, 0.98):
+                again = select_post(client, run_id, RISK_ID, completeness)
+                assert again.status_code == 200, again.text
+        finally:
+            playground.on_worker = monkey
+        assert FakeEncoder.encodes == encodes  # nothing was embedded again
+        assert select_post(client, run_id, RISK_ID, 0.9).json() == first.json()
+
+        other = select_post(client, run_id, "interest rate risk", 0.9)  # a new need: one encode
+        assert other.status_code == 200 and FakeEncoder.encodes == encodes + 1
+        assert FakeEncoder.made == 1
+
+        # the caches go with the analysis they belong to
+        for n in range(3):
+            playground.keep(f"other{n}", tagged_analysis())
+        assert run_id not in playground.analyses and run_id not in playground.scored
+
+
+def test_select_loads_the_tagger_only_for_untagged_elements(tag_bundle, selector_file):
+    app = server.create_app("keyword", element_tags=str(tag_bundle), selector=str(selector_file))
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        tagged_id = inject(client)  # every content element has its tags already
+        assert select_post(client, tagged_id, RISK_ID, 0.9).status_code == 200
+        assert FakeTagger.made == 0
+
+        bare = tagged_analysis()
+        for element in bare.document.elements:
+            element.tags = None
+        bare_id = "bare"
+        playground = client.app.state.playground
+        playground.runs[bare_id] = server.Run(bare_id, "b.pdf", "pdf", 1, {"profile": "balanced"})
+        playground.runs[bare_id].status = "done"
+        playground.keep(bare_id, bare)
+        assert select_post(client, bare_id, RISK_ID, 0.9).status_code == 200
+        assert FakeTagger.made == 1
+
+
+def test_a_settled_task_is_skipped_by_the_worker():
+    loop = asyncio.new_event_loop()
+    try:
+        called = []
+        cancelled = loop.create_future()
+        cancelled.cancel()
+        done = loop.create_future()
+        done.set_result(1)
+        for future in (cancelled, done):
+            server._Task(lambda: called.append(1), loop, future).run()
+        assert called == []
+        live = loop.create_future()
+        server._Task(lambda: called.append(1), loop, live).run()
+        assert called == [1]
+    finally:
+        loop.close()
+
+
+def test_select_body_is_capped(selector_file):
+    with make_selector_client(selector_file) as client:
+        run_id = inject(client)
+        big = {"need": ["annual_report.risk_factors"] * 5000, "completeness": 0.9}
+        response = client.post(f"/api/runs/{run_id}/select", json=big)
+        assert response.status_code == 413
+
+
+def test_select_on_a_running_run_says_so(client):
+    run_obj = server.Run("busy", "a.pdf", "pdf", 1, {"profile": "balanced"})
+    run_obj.status = "running"
+    client.app.state.playground.runs["busy"] = run_obj
+    response = select_post(client, "busy", RISK_ID, 1.0)
+    assert response.status_code == 409 and "still running" in response.json()["detail"]
+
+
+def test_no_estimate_badge_without_a_relevance_estimate(client):
+    script = client.get("/static/app.js").text
+    assert "!selection.guarantee && selection.expected_recall !== null" in script

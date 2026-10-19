@@ -103,6 +103,7 @@ __all__ = [
     "prepare",
     "readout",
     "select",
+    "select_scored",
     "similarities",
 ]
 
@@ -631,17 +632,7 @@ def select(
     ``budget`` (tokens, at least 1) replaces the dial and never carries the guarantee; it
     cannot be combined with c = 1.0, which always means the whole document.
     """
-    c = float(completeness)
-    if not 0.0 <= c <= 1.0:  # also refuses NaN
-        raise ValueError(f"completeness must be in [0, 1], got {completeness}")
-    if budget is not None:
-        if isinstance(budget, bool) or not isinstance(budget, int) or budget < 1:
-            raise ValueError(f"budget must be a whole number of tokens >= 1, got {budget!r}")
-        if c == 1.0:
-            raise ValueError(
-                "budget cannot be combined with completeness=1.0, which always returns the "
-                "whole document; lower the completeness or drop the budget"
-            )
+    c = _check_target(completeness, budget)
     fields, query = _parse_need(need)
     label = query if query is not None else ",".join(f.id for f in fields)
     doc_family = family_for_doc_type(_doc_type(analysis) or "")
@@ -679,7 +670,46 @@ def select(
     finally:
         if encoder_owned and encoder is not None:
             close_backend(encoder)
+    return select_scored(analysis, ctx, X, need, completeness=c, budget=budget, selector=chosen)
 
+
+def _check_target(completeness: float, budget: int | None) -> float:
+    c = float(completeness)
+    if not 0.0 <= c <= 1.0:  # also refuses NaN
+        raise ValueError(f"completeness must be in [0, 1], got {completeness}")
+    if budget is not None:
+        if isinstance(budget, bool) or not isinstance(budget, int) or budget < 1:
+            raise ValueError(f"budget must be a whole number of tokens >= 1, got {budget!r}")
+        if c == 1.0:
+            raise ValueError(
+                "budget cannot be combined with completeness=1.0, which always returns the "
+                "whole document; lower the completeness or drop the budget"
+            )
+    return c
+
+
+def select_scored(
+    analysis: Analysis | Document,
+    ctx: DocContext,
+    X: np.ndarray,
+    need: Field | Sequence[Field] | str,
+    *,
+    completeness: float,
+    budget: int | None = None,
+    selector: Selector,
+) -> Selection:
+    """The cut of :func:`select` on features already computed: ``ctx`` from :func:`prepare` and
+    ``X`` from :func:`need_features` for the same ``need`` (the family of ``ctx`` must be the
+    need's). Moving the completeness for a need then costs a re-threshold, with no tagging or
+    embedding. Raises as :func:`select` does for a bad ``completeness`` or ``budget``."""
+    c = _check_target(completeness, budget)
+    if c == 1.0:
+        return select(analysis, need, completeness=1.0)
+    fields, query = _parse_need(need)
+    label = query if query is not None else ",".join(f.id for f in fields)
+    field_family = fields[0].family if fields else None
+    mismatch = field_family is not None and field_family != ctx.doc_family
+    chosen = selector
     index = ctx.index
     full = ctx.tagged and ctx.has_sims
     if fields:

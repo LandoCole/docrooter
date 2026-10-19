@@ -154,7 +154,9 @@ def test_every_docs_cli_command_and_option_exists():
 
 def test_api_page_documents_every_public_name():
     text = _page("reference/api.md")
-    documented = set(re.findall(r"^::: docrooter\.(\w+)$", text, re.MULTILINE))
+    # ``process``, ``summarize`` and ``embed`` are documented from their defining modules
+    # (``::: docrooter.summarize.summarize``), which their names shadow on the package
+    documented = set(re.findall(r"^::: docrooter\.(?:[\w.]+\.)?(\w+)$", text, re.MULTILINE))
     missing = set(docrooter.__all__) - documented - {"__version__"}
     assert not missing, missing
 

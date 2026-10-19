@@ -171,7 +171,7 @@ def test_cli_full_labels_calib_and_gold(corpus, monkeypatch):
     assert len(corpus.labels(TEACHER_FULL_LABELER)) == expected
     assert corpus.labelers() == [TEACHER_FULL_LABELER]
     stray = CliRunner().invoke(app, ["teach", "label", str(corpus.dir), "--splits", "gold"])
-    assert stray.exit_code == 1 and "--full" in stray.output
+    assert stray.exit_code == 2 and "--full" in stray.output  # a usage error
 
 
 def _add_rows(corpus: Corpus, doc_id: str, split: str, rows) -> None:

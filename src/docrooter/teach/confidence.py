@@ -5,7 +5,11 @@
 - **Core classes:** an element's classes sorted by cosine to their centroids; the core classes
   are those ranked above the largest drop between neighbours, and that drop is its gap.
 - **Keep rule:** an element stays when the teacher's choice is one of its core classes, or the
-  teacher's probability is at least ``prob_override`` (0.8).
+  teacher's probability is at least the ``prob_override_quantile`` (0.9) quantile of the teacher
+  probabilities of the elements given that class (linear interpolation): only about the most
+  confident decile of each class bypasses the gap check. This amends spec §4.0 ruling 7 (an
+  absolute 0.8) by controller ruling: the teacher is overconfident (mean top probability 0.974
+  in the L7 smoke run), so an absolute threshold would keep nearly everything.
 - **Combined confidence:** the teacher's probability times the element's gap rank percentile
   (the share of all scored elements whose gap is at most its own).
 - **Trim:** per class, the top ``keep`` (75%) by combined confidence, rounded up, and at least
@@ -32,7 +36,7 @@ from docrooter.teach.enrich import teacher_choices
 __all__ = [
     "KEEP",
     "MIN_PER_CLASS",
-    "PROB_OVERRIDE",
+    "PROB_OVERRIDE_QUANTILE",
     "ClassReport",
     "TrainingExample",
     "TrainingSet",
@@ -46,7 +50,7 @@ logger = logging.getLogger("docrooter.teach")
 
 KEEP = 0.75
 MIN_PER_CLASS = 20
-PROB_OVERRIDE = 0.8
+PROB_OVERRIDE_QUANTILE = 0.9
 
 Core = tuple[list[str], float]
 
@@ -127,12 +131,15 @@ class TrainingExample(BaseModel):
 
 class ClassReport(BaseModel):
     """Counts for one topic leaf: elements the teacher gave it (among those scored), those
-    passing the keep rule, those kept after the trim, and whether it is trained."""
+    passing the keep rule, those kept after the trim, and whether it is trained.
+    ``override_prob`` is the class's teacher probability at or above which an element outside
+    its core classes is kept (``None`` when no element was given the class)."""
 
     labelled: int = 0
     confident: int = 0
     kept: int = 0
     trained: bool = False
+    override_prob: float | None = None
 
 
 class TrainingSet(BaseModel):
@@ -162,7 +169,7 @@ def confident_set(
     *,
     keep: float = KEEP,
     min_per_class: int = MIN_PER_CLASS,
-    prob_override: float = PROB_OVERRIDE,
+    prob_override_quantile: float = PROB_OVERRIDE_QUANTILE,
     taxonomy: Taxonomy | None = None,
 ) -> TrainingSet:
     """The confident training set from the teacher's ``topic`` rows and each element's
@@ -175,11 +182,20 @@ def confident_set(
         raise ValueError(f"keep must be in (0, 1], got {keep}")
     if min_per_class < 1:
         raise ValueError(f"min_per_class must be >= 1, got {min_per_class}")
+    if not 0 <= prob_override_quantile <= 1:
+        raise ValueError(f"prob_override_quantile must be in [0, 1], got {prob_override_quantile}")
     taxonomy = taxonomy if taxonomy is not None else _default_taxonomy()
     choices = {
         key: choice for key, choice in teacher_choices(labels, taxonomy).items() if key in cores
     }
     gaps = np.sort(np.array([cores[key][1] for key in choices], dtype=np.float64))
+    probs: dict[str, list[float]] = {}
+    for label, prob in choices.values():
+        probs.setdefault(label, []).append(prob)
+    override = {
+        label: float(np.quantile(np.array(values), prob_override_quantile))
+        for label, values in probs.items()
+    }
 
     by_class: dict[str, list[TrainingExample]] = {}
     classes = {leaf.id: ClassReport() for leaf in taxonomy.leaves()}
@@ -187,8 +203,9 @@ def confident_set(
         core, gap = cores[key]
         report = classes[label]
         report.labelled += 1
+        report.override_prob = override[label]
         in_core = label in core
-        if not (in_core or prob >= prob_override):
+        if not (in_core or prob >= override[label]):
             continue
         report.confident += 1
         percentile = np.searchsorted(gaps, gap, side="right") / len(gaps)
@@ -224,7 +241,11 @@ def confident_set(
     result = TrainingSet(
         examples=examples,
         classes=classes,
-        params={"keep": keep, "min_per_class": min_per_class, "prob_override": prob_override},
+        params={
+            "keep": keep,
+            "min_per_class": min_per_class,
+            "prob_override_quantile": prob_override_quantile,
+        },
     )
     if result.untrained:
         logger.warning(

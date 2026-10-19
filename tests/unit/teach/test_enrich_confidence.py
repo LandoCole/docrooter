@@ -299,31 +299,70 @@ def _labelled(cls, n, *, prob=0.6, doc="d", start=0):
     ]
 
 
+def _probs(cls, p):
+    others = [c for c in ("fund.fees", "fund.risks", "fund.other") if c != cls]
+    return {cls: p, others[0]: (1 - p) / 2, others[1]: (1 - p) / 2}
+
+
 def test_keep_rule_core_or_prob_override():
-    rows = [
-        _row("d", "in-core", "1", {"fund.fees": 0.5, "fund.risks": 0.3, "fund.other": 0.2}),
-        _row("d", "high-prob", "2", {"fund.fees": 0.85, "fund.risks": 0.15}),
-        _row("d", "at-override", "3", {"fund.fees": 0.8, "fund.risks": 0.2}),
-        _row("d", "low-prob", "4", {"fund.fees": 0.79, "fund.risks": 0.21}),
-        _row("d", "no-core", "5", {"fund.fees": 0.6, "fund.risks": 0.4}),
+    # fund.fees: 11 elements at 0.50, 0.55, ..., 1.00 -> 90th percentile 0.95
+    fees = [_row("d", f"fees-{i}", f"f{i}", _probs("fund.fees", 0.5 + 0.05 * i)) for i in range(11)]
+    # fund.risks: a less sure class, 0.40 ... 0.60 -> 90th percentile 0.58, well below 0.8
+    risks = [
+        _row("d", f"risks-{i}", f"r{i}", _probs("fund.risks", 0.4 + 0.02 * i)) for i in range(11)
     ]
-    cores = {
-        rows[0].key: (["fund.fees", "fund.risks"], 0.3),
-        rows[1].key: (["fund.risks"], 0.2),
-        rows[2].key: (["fund.risks"], 0.2),
-        rows[3].key: (["fund.risks", "fund.other"], 0.1),
-        rows[4].key: (["fund.other"], 0.4),
-    }
+    cores = {row.key: (["fund.other"], 0.2) for row in fees + risks}  # nobody in core...
+    cores[fees[0].key] = (["fund.fees", "fund.risks"], 0.3)  # ...but the least sure fees element
+    rows = fees + risks
+
     ts = confident_set(rows, cores, keep=1.0, min_per_class=1, taxonomy=_taxonomy())
 
-    assert sorted(e.element_id for e in ts.examples) == ["at-override", "high-prob", "in-core"]
+    kept = sorted(e.element_id for e in ts.examples)
+    # in core whatever its probability; else only the class's top decile (>= its 0.9 quantile)
+    assert kept == ["fees-0", "fees-10", "fees-9", "risks-10", "risks-9"]
     report = ts.classes["fund.fees"]
-    assert (report.labelled, report.confident, report.kept, report.trained) == (5, 3, 3, True)
-    in_core = next(e for e in ts.examples if e.element_id == "in-core")
+    assert (report.labelled, report.confident, report.kept, report.trained) == (11, 3, 3, True)
+    assert report.override_prob == pytest.approx(0.95)
+    assert ts.classes["fund.risks"].override_prob == pytest.approx(0.58)
+    assert ts.params["prob_override_quantile"] == 0.9
+    in_core = next(e for e in ts.examples if e.element_id == "fees-0")
     assert in_core.in_core and in_core.path == ["fund", "fund.fees"]
-    assert not next(e for e in ts.examples if e.element_id == "high-prob").in_core
+    assert not next(e for e in ts.examples if e.element_id == "fees-10").in_core
+    # the quantile is a parameter: at 0.5, the upper half of each class bypasses the gap check
+    half = confident_set(
+        rows, cores, keep=1.0, min_per_class=1, prob_override_quantile=0.5, taxonomy=_taxonomy()
+    )
+    assert len(half.examples) == 1 + 6 + 6
     # rows without a core (another split, or never scored) are not candidates
     assert len(confident_set(rows, {}, taxonomy=_taxonomy()).examples) == 0
+
+
+def test_overconfident_teacher_does_not_bypass_the_gap():
+    # every teacher probability >= 0.95: an absolute 0.8 override would keep all 40
+    in_core = [
+        _row("d", f"core-{i}", f"c{i}", _probs("fund.fees", 0.97 + 0.001 * i)) for i in range(20)
+    ]
+    off_core = [
+        _row("d", f"off-{i}", f"o{i}", _probs("fund.fees", 0.95 + 0.001 * i)) for i in range(20)
+    ]
+    cores = {row.key: (["fund.fees"], 0.3) for row in in_core}
+    cores.update({row.key: (["fund.risks"], 0.3) for row in off_core})
+
+    ts = confident_set(in_core + off_core, cores, keep=1.0, taxonomy=_taxonomy())
+
+    assert {e.element_id for e in ts.examples} == {f"core-{i}" for i in range(20)}
+    report = ts.classes["fund.fees"]
+    assert (report.labelled, report.confident) == (40, 20)
+    assert report.override_prob > max(r.probs["fund.fees"] for r in off_core)
+
+    # an off-core element in the class's top decile still gets through
+    top = [
+        _row("d", f"top-{i}", f"t{i}", _probs("fund.fees", 0.9995 + 0.0001 * i)) for i in range(5)
+    ]
+    cores.update({row.key: (["fund.risks"], 0.3) for row in top})
+    ts = confident_set(in_core + off_core + top, cores, keep=1.0, taxonomy=_taxonomy())
+    assert {e.element_id for e in ts.examples} >= {"top-1", "top-2", "top-3", "top-4"}
+    assert not any(e.element_id.startswith("off-") for e in ts.examples)
 
 
 def test_top75_per_class_with_floor():
@@ -351,7 +390,9 @@ def test_top75_per_class_with_floor():
 def test_sparse_class_reported_untrained(caplog):
     a = _labelled("fund.fees", 25, prob=0.9)
     b = _labelled("fund.risks", 19, prob=0.9)
-    b_weak = _labelled("fund.risks", 5, prob=0.5, start=19)  # not in core, below 0.8: dropped
+    b_weak = _labelled(
+        "fund.risks", 5, prob=0.5, start=19
+    )  # not in core, below the class's 0.9 quantile: dropped
     rows = a + b + b_weak
     cores = {row.key: (["fund.fees", "fund.risks"], 0.1) for row in a + b}
     cores.update({row.key: (["fund.other"], 0.1) for row in b_weak})

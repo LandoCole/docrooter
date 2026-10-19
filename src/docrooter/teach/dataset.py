@@ -25,7 +25,7 @@ from docrooter.taxonomy import Taxonomy
 from docrooter.teach.confidence import (
     KEEP,
     MIN_PER_CLASS,
-    PROB_OVERRIDE,
+    PROB_OVERRIDE_QUANTILE,
     TrainingSet,
     class_centroids,
     confident_set,
@@ -119,7 +119,7 @@ def build_training_set(
     k: int = 10,
     keep: float = KEEP,
     min_per_class: int = MIN_PER_CLASS,
-    prob_override: float = PROB_OVERRIDE,
+    prob_override_quantile: float = PROB_OVERRIDE_QUANTILE,
     split: str = "train",
     batch_size: int = 256,
 ) -> tuple[Taxonomy, TrainingSet]:
@@ -164,7 +164,7 @@ def build_training_set(
         cores,
         keep=keep,
         min_per_class=min_per_class,
-        prob_override=prob_override,
+        prob_override_quantile=prob_override_quantile,
         taxonomy=taxonomy,
     )
     return enriched, training_set

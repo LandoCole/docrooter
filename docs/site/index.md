@@ -27,6 +27,9 @@ Optionally, each paragraph, list item and table can be tagged with what it is ab
 it does ([element tags](concepts/element-tags.md)), by a small model you
 [train on your own documents](guides/train-your-tagger.md).
 
+It can then choose which elements to send to your own LLM for a field or a question, at a
+completeness you set ([the completeness dial](concepts/completeness-dial.md)).
+
 It runs zero-shot out of the box: small embedding models run on a laptop, and LLM backends
 (TypeSafe Jev or any OpenAI-compatible server) are optional. When zero-shot is not enough it
 trains per-node classifiers from a few labelled examples, and it measures itself with built-in

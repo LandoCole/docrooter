@@ -14,8 +14,8 @@ in the release after it.
 ## [Unreleased]
 
 Work towards the next release: memory containment, pipeline events, a local playground, a
-held-out evaluation, the repository essentials, (v0.4) elements, OCR and the rooter, and (v0.5)
-element tags and a tagger you train yourself.
+held-out evaluation, the repository essentials, (v0.4) elements, OCR and the rooter, (v0.5)
+element tags and a tagger you train yourself, and (v0.6) selection and the completeness dial.
 
 ### Added
 
@@ -52,6 +52,41 @@ element tags and a tagger you train yourself.
   sites, mostly non-US. CUAD contracts (CC BY 4.0) are attributed in the corpus README.
 - **Element-tag benchmarks.** The harness and its method are in
   [docs/benchmarks-element-tags.md](docs/benchmarks-element-tags.md); the results are pending.
+
+- **Selection and the completeness dial (v0.6).** `select(analysis, need, completeness=0.9)`
+  says which elements a downstream LLM should read for a need, and your application does the
+  extraction. See [The completeness dial](docs/site/concepts/completeness-dial.md) and
+  [Select what to send to an LLM](docs/site/guides/select-for-extraction.md).
+  - **Fields.** A `Field` names the element topics (and functions) that carry a target.
+    Built-in sets: `annual_report` (15 fields), `fund_document` (12) and `contract` (15);
+    `builtin_fields`, `load_fields` and `validate_fields` read and check your own, in JSON.
+  - **`select()`** takes a field, a list of fields of one family or a free-text query, and
+    returns a `Selection`: the element ids in reading order, the `chunks`, `tokens` and
+    `token_share`, `expected_recall`, `relevant_expected`, and the flags `guarantee`, `capped`,
+    `doc_type_mismatch` and `over_budget`. `readout()` is its one-line summary. `completeness=1.0`
+    is always the whole document and needs no model. A `budget` (tokens) replaces the dial.
+    Each selected element brings its context (the previous element, the section's heading and
+    first paragraph, a table's caption), so expansion can only raise recall.
+  - **The dial** is conformal risk control, per element family: on documents like the calibration
+    set, the average share of relevant elements kept is at least `c`. **It is calibrated against
+    teacher relevance, not human labels**, it is an average (some documents are below `c`), its
+    1/(n+1) slack can cap it (the whole document is returned, `capped=True`), and its units come
+    from shared documents, so they are correlated. It gives no guarantee, only an estimate, for
+    free-text queries, without a tagger or embedder, on a document type that does not match the
+    field's family, under a budget, or for a family without a dial.
+  - **`docrooter fit-selector`** fits the relevance models (on calib-fit) and the dials (on
+    calib-crc) from the teacher's full labels, which `docrooter teach label --full` writes
+    (`labels/teacher-full.jsonl`, never used to train the tagger). There is no built-in selector:
+    fit one on your corpus.
+  - **CLI and playground.** `docrooter select FILE --need ... [--completeness] [--budget]
+    [--tagger] [--selector] [--json]`, and `docrooter serve --selector` for a dial panel: field
+    picker, query box, slider, the presets Lean (0.8), Balanced (0.9), Thorough (0.98) and
+    Whole document (1.0), a readout with badges, and *Show selected only*.
+  - **Benchmarks.** `benchmarks/selection_bench.py` (recall against the promise, tokens against
+    baselines), `benchmarks/evidence_qa.py` (evaluation-only public QA evidence) and a demo
+    extraction harness, `benchmarks/extraction/` (not in the wheel). The results are pending:
+    [docs/benchmarks-selection.md](docs/benchmarks-selection.md).
+  - **Example.** `examples/select_for_extraction.py` runs `select()` with stand-ins and no model.
 
 - **Elements.** Every visible part of a document is a typed `Element`: title, heading,
   paragraph, list item, table, figure, caption, footnote, formula, contents and page furniture,

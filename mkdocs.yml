@@ -117,6 +117,7 @@ nav:
       - TOC engine: concepts/toc-engine.md
       - Elements: concepts/elements.md
       - Element tags: concepts/element-tags.md
+      - The completeness dial: concepts/completeness-dial.md
       - The rooter: concepts/rooter.md
       - Taxonomies: concepts/taxonomies.md
       - Views: concepts/views.md
@@ -130,6 +131,7 @@ nav:
       - Custom taxonomies: guides/custom-taxonomies.md
       - Training and evaluation: guides/training-evaluation.md
       - Train your own element tagger: guides/train-your-tagger.md
+      - Select what to send to an LLM: guides/select-for-extraction.md
       - OCR and layout models: guides/ocr-and-layout.md
       - Chunking for RAG: guides/chunking-for-rag.md
       - Jev and OpenAI-compatible LLMs: guides/llm-backends.md

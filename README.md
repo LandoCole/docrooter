@@ -335,6 +335,41 @@ See [Element tags](docs/site/concepts/element-tags.md) for the taxonomies and
 [`examples/train_element_tagger.py`](examples/train_element_tagger.py) runs the stages on a tiny
 corpus with no model.
 
+## Select what to read (v0.6)
+
+A downstream LLM rarely needs the whole document. `select()` returns the elements to read for a
+**field** (the risk factors of an annual report, a fund's fees) or a free-text query, at a
+**completeness** `c` from 0 to 1: `c = 1.0` is the whole document, and a lower `c` sends fewer
+tokens. docrooter selects; your application extracts.
+
+```python
+from docrooter import builtin_fields, process, select
+from docrooter.select.selection import readout
+
+risk = {f.id: f for f in builtin_fields("annual_report")}["annual_report.risk_factors"]
+analysis = process("report.pdf", element_tags="bundles/tagger-a")
+selection = select(analysis, risk, completeness=0.9, selector="bundles/tagger-a")
+print(readout(selection))
+print("\n\n".join(chunk.text for chunk in selection.chunks))
+```
+
+- **What `c` promises.** On documents like its calibration set, the *average* share of relevant
+  elements kept is at least `c` (conformal risk control). It is an average, not a promise about
+  any one document, and "relevant" is what the **teacher** model labelled, not a human.
+- **When it promises nothing.** Free-text queries, a missing tagger or embedder, a document type
+  that does not match the field's family, and a token budget give an estimate only
+  (`guarantee=False`). Where the calibration set is too small for `c`, the whole document comes
+  back (`capped=True`).
+- **Your own corpus.** A selector is fitted, not shipped: `docrooter teach label --full`, then
+  `docrooter fit-selector`. Without one only `c = 1.0` works.
+- **Results** are pending: [docs/benchmarks-selection.md](docs/benchmarks-selection.md).
+
+See [Select what to send to an LLM](docs/site/guides/select-for-extraction.md) and
+[The completeness dial](docs/site/concepts/completeness-dial.md);
+[`examples/select_for_extraction.py`](examples/select_for_extraction.py) runs `select()` with no
+model. `docrooter select report.pdf --need annual_report.risk_factors --tagger BUNDLE` does it from
+the shell, and `docrooter serve --selector` adds the dial to the playground.
+
 ## Command line
 
 ```bash
@@ -683,6 +718,8 @@ files committed under `benchmarks/results/`:
   held-out corpus;
 - [docs/benchmarks-element-tags.md](docs/benchmarks-element-tags.md): the element tagger on a
   Claude-annotated gold set (results pending);
+- [docs/benchmarks-selection.md](docs/benchmarks-selection.md): the completeness dial: realised
+  recall against the promised one, and tokens against baselines (results pending);
 - [docs/benchmarks.md](docs/benchmarks.md): section classification, zero-shot and few-shot, on
   SEC 10-K items (EDGAR-CORPUS), DBpedia classes and LEDGAR contract clauses, with the default
   backend, training base and strategy decided under rules written down before the runs.

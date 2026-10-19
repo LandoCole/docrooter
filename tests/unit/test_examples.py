@@ -263,3 +263,66 @@ def test_current_docs_say_nineteen_document_types():
         text = page.read_text(encoding="utf-8")
         for stale in ("18 document types", "18 types in 6"):
             assert stale not in text, f"{page.relative_to(ROOT)}: {stale!r}"
+
+
+def test_select_for_extraction_example_runs_without_a_model(capsys, monkeypatch):
+    """With no arguments the example selects with keyword stand-ins and a hand-set selector (no
+    model, no bundle); the guide shows its output."""
+    monkeypatch.setattr("sys.argv", ["select_for_extraction.py"])
+    runpy.run_path(str(EXAMPLES / "select_for_extraction.py"), run_name="__main__")
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert lines[0] == (
+        "≈ 90% of relevant content kept · 41 tokens (43%) · "
+        "guaranteed on calibration-like documents"
+    )
+    assert lines[1:3] == ["guarantee=True capped=False", "elements: h1, p2, p3, p4"]
+    assert "Interest rate risk could raise our borrowing costs." in lines
+    assert "We own one factory and lease three warehouses." not in out  # outside the selection
+    assert lines[-1].startswith("≈ 100% of relevant content kept · 95 tokens (100%)")  # c = 1.0
+    guide = (DOCS / "site" / "guides" / "select-for-extraction.md").read_text(encoding="utf-8")
+    assert out.rstrip("\n") in guide
+
+
+def test_select_for_extraction_example_stand_ins_follow_the_protocols():
+    """The stand-in tagger tags the way the real one does (a dict of TagResult per element)."""
+    from docrooter.elements.models import Element
+
+    namespace = runpy.run_path(str(EXAMPLES / "select_for_extraction.py"))
+    element = Element(id="e0", kind="paragraph", text="A risk.", boxes=[], order=0, section_id="s1")
+    tags = namespace["KeywordTagger"]().tag([element], "annual_report")
+    assert tags[0]["topic"].labels == ["annual_report.risk_factors"]
+    assert namespace["hand_set_selector"]().dials["annual_report"].n == 100
+
+
+def test_selection_docs_state_what_the_guarantee_is_and_is_not():
+    """The pages say what the number means (an average, against teacher relevance, capped by
+    the calibration size, correlated units) and when it does not apply, and give no result."""
+    concept = (DOCS / "site" / "concepts" / "completeness-dial.md").read_text(encoding="utf-8")
+    guide = (DOCS / "site" / "guides" / "select-for-extraction.md").read_text(encoding="utf-8")
+    readme = README.read_text(encoding="utf-8")
+    for fact in (
+        "λ̂(c) = max { λ : (n/(n+1)) · mean L_d(λ) + 1/(n+1) ≤ α }",
+        "teacher relevance, not human labels",
+        "average over documents",
+        "capped=True",
+        "not exchangeable",
+        "free-text query",
+        "no tagger",
+        "doc_type_mismatch",
+        "budget",
+        "estimate only",
+        "`c = 1.0` is always the whole document",
+        "pending",
+    ):
+        assert fact in concept, fact
+    for fact in ("docrooter selects", "validate_fields", "fit-selector", "teach label", "pending"):
+        assert fact in guide, fact
+    for fact in ("teacher", "average", "capped=True", "pending"):
+        assert fact in readme.split("## Select what to read", 1)[1].split("\n## ", 1)[0], fact
+    # no field count drifts from the shipped sets
+    from docrooter.select import builtin_fields
+
+    counts = {f: len(builtin_fields(f)) for f in ("annual_report", "fund_document", "contract")}
+    assert counts == {"annual_report": 15, "fund_document": 12, "contract": 15}
+    assert "(15 fields), `fund_document` (12) and `contract` (15)" in concept

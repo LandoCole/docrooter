@@ -31,6 +31,9 @@ docrooter is a short pipeline. Each stage is a plain function or class you can u
 - **[Element tags](element-tags.md)** say what an element is about (its topic) and what it does
   (its functions). They come from a small student model you train on your own documents, and
   are off by default.
+- **[The completeness dial](completeness-dial.md)** chooses which elements to send to your own
+  LLM for a need, at a completeness you set from 0 to 1, and says what that number does and does
+  not promise.
 - **[The rooter](rooter.md)** is the configurable pipeline, `process()`: per page it chooses the
   text layer or OCR, per task an engine, in one of three profiles (`fast`, `balanced`,
   `accurate`), and it logs why.

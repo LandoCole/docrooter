@@ -24,6 +24,7 @@ docrooter serve -b keyword --open  # pick the preselected backend, open the brow
 | `--open` | off | Open the page in the browser once the server is up |
 | `--env-file` | none | Read missing environment variables (such as `TYPESAFE_API_KEY`) from this file |
 | `--element-tags` | none | Tag every run's elements with this [element-tagger](../concepts/element-tags.md) bundle (or `embedding:<model>`, `teacher:<engine spec>`); the Elements tab then shows tag chips |
+| `--selector` | the `--element-tags` bundle's | The `selector.json` (or a folder holding one) behind the [completeness dial](#the-completeness-dial). Without one only the whole document can be selected |
 
 ## Using it
 
@@ -49,6 +50,28 @@ The `keyword` backend is selected by default so the page works without models; s
 default embedding model or `jev` for real results. The first run with a model includes loading
 it (the `model_load` stage); later runs reuse it, and switching backends releases the previous
 one. The `jev` backend appears only when `TYPESAFE_API_KEY` is set.
+
+## The completeness dial
+
+With a [selector](../guides/select-for-extraction.md) and a tagger (`docrooter serve
+--element-tags BUNDLE --selector SELECTOR`), a run in element mode shows a panel, *What to send
+to an LLM*, above the result tabs:
+
+- **Field or query.** Pick a built-in field, or type a free-text query.
+- **Completeness.** A slider from 0.5 to 1, with presets Lean (0.8), Balanced (0.9), Thorough
+  (0.98) and Whole document (1.0).
+- **Readout.** For example "≈ 90% of relevant content kept · 3,240 tokens (12%) · guaranteed on
+  calibration-like documents", with badges when it is an estimate, when the dial was capped by
+  its calibration size, when the document type does not match the field's family, or when a
+  budget was exceeded.
+- **Elements tab.** The selected elements are highlighted, and *Show selected only* hides the
+  rest.
+
+The last three runs in element mode keep their analysis so the slider reacts quickly; it stays in
+memory only, like everything else, and selecting on an older run says to run the file again. Selecting loads the selector's embedding model on the worker, between
+runs, so one model is loaded at a time. What the readout does and does not promise is on
+[the completeness dial](../concepts/completeness-dial.md): "guaranteed" means teacher-relevant
+recall on documents like the calibration set, on average.
 
 ## Limits and safety
 
@@ -79,5 +102,7 @@ yourself (for example from a notebook, while the server runs):
 | `GET /api/runs/{id}` | The run's final result |
 | `GET /api/runs` | The recent runs |
 | `GET /api/backends` | The available backends, engines and modes, and the upload limit |
+| `POST /api/runs/{id}/select` | JSON with `need` (a field id, a list of field ids, or a query), `completeness` and an optional `budget`; returns the readout, the selection's numbers and the selected element ids |
+| `GET /api/fields` | The built-in fields |
 
 The API is meant for the page; it is not a stable interface and may change between releases.

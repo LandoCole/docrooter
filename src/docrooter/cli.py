@@ -1190,14 +1190,36 @@ def teach_label(
     batch_size: Annotated[
         int, typer.Option("--batch-size", min=1, help="Elements per batch (and per write).")
     ] = 256,
+    full: Annotated[
+        bool,
+        typer.Option(
+            "--full",
+            help="Label the topic of EVERY content element of the --splits documents (no "
+            "function questions) into labels/teacher-full.jsonl, which v0.5 training never "
+            "reads. --per-doc, --target, --floor and --functions-share do not apply.",
+        ),
+    ] = False,
+    splits: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--splits",
+            help="With --full: the splits to label; repeat or comma-separate (default: calib "
+            "and gold), e.g. --splits calib --splits gold. Gold is allowed only with --full.",
+        ),
+    ] = None,
 ) -> None:
     """Label a corpus store's train and calib elements with a teacher LLM: topic among an
     embedding shortlist, yes/no for the top functions, with weak labels and prescreen scores
     recorded alongside (labels/teacher.jsonl, prescreen.jsonl, weak.jsonl).
 
+    With --full, the topic of every content element of the --splits documents (calib and gold
+    by default) goes to labels/teacher-full.jsonl instead: the labels that measure recall and
+    calibrate the completeness dial, never used for training.
+
     Resumable: elements already labelled under the same teacher, prompt, taxonomy and embedder
-    are skipped. Gold documents are never labelled. Progress goes to stderr, the report (JSON)
-    to stdout. Run one model process at a time: this loads the teacher and the embedder.
+    are skipped. Without --full, gold documents are never labelled. Progress goes to stderr, the
+    report (JSON) to stdout. Run one model process at a time: this loads the teacher and the
+    embedder.
     """
     from docrooter.backends.embedding import DEFAULT_EMBEDDING_MODEL, EmbeddingBackend
     from docrooter.corpus import Corpus
@@ -1208,7 +1230,15 @@ def teach_label(
     with _errors_exit_1():
         if not (directory / "manifest.jsonl").is_file():
             raise DocrooterError(f"no corpus at {directory} (no manifest.jsonl)")
-        sample = SampleSpec(per_doc=per_doc, target=target, floor=min(floor, target))
+        if splits and not full:
+            raise DocrooterError("--splits applies only with --full")
+        if full:
+            names = tuple(
+                n.strip() for item in (splits or ["calib", "gold"]) for n in item.split(",")
+            )
+            sample = SampleSpec(mode="full", splits=tuple(n for n in names if n))
+        else:
+            sample = SampleSpec(per_doc=per_doc, target=target, floor=min(floor, target))
         engine = get_teacher(teacher or DEFAULT_TEACHER)
         backend = None
         try:

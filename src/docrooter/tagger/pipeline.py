@@ -64,6 +64,7 @@ from docrooter.teach.dataset import build_training_set, input_text, to_dataset
 from docrooter.teach.enrich import teacher_choices
 from docrooter.teach.label import (
     PRESCREEN_LABELER,
+    TEACHER_FULL_LABELER,
     TEACHER_LABELER,
     TOPIC_FACET,
     WEAK_LABELER,
@@ -86,8 +87,11 @@ ENRICHED_FILE = "element_topics.enriched.json"
 TRAINING_SET_FILE = "training-set.json"
 DEFAULT_TAG_LABELER = "tagger"
 DATASET_VERSION = 2  # 2: calib is calib-fit only; a version change rebuilds the dataset
-RESERVED_LABELERS = (TEACHER_LABELER, PRESCREEN_LABELER, WEAK_LABELER)
-"""Label files the training chain reads: tag_corpus never writes into them."""
+TRAINING_LABELERS = (TEACHER_LABELER, PRESCREEN_LABELER)
+"""The label files the training dataset is built from (an allow-list, and its fingerprint).
+``teacher-full`` (full topic labels of calib and gold documents, v0.6) is never among them."""
+RESERVED_LABELERS = (*TRAINING_LABELERS, WEAK_LABELER, TEACHER_FULL_LABELER)
+"""Label files of the teacher's chains: tag_corpus never writes into them."""
 FUNCTION_FACET = "function"
 
 Say = Callable[[str], None]
@@ -142,6 +146,8 @@ def train_elements(
         raise ValueError(f"stage must be 'A' or 'B', got {stage!r}")
     say = say or (lambda _: None)
     sample = sample if sample is not None else SampleSpec()
+    if sample.full:
+        raise ValueError("train_elements labels the training sample; full mode is for calibration")
     work = corpus.dir / WORK_DIR
     work.mkdir(parents=True, exist_ok=True)
     bundle = Path(out)
@@ -258,7 +264,7 @@ def _fingerprint(corpus: Corpus, embedder: str, max_seq_len: int) -> str:
     digest = hashlib.sha256()
     settings = {"embedder": embedder, "max_seq_len": max_seq_len, "version": DATASET_VERSION}
     digest.update(json.dumps(settings).encode())
-    for name in (TEACHER_LABELER, PRESCREEN_LABELER):
+    for name in TRAINING_LABELERS:
         path = corpus.dir / "labels" / f"{name}.jsonl"
         digest.update(f"\0{name}\0".encode())
         if path.is_file():

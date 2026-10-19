@@ -25,8 +25,14 @@ Labellers (``labels/<name>.jsonl`` in the store):
 - ``weak`` (:data:`WEAK_LABELER`): facets ``section_norm`` and ``edgar_item``, one leaf each,
   with the ``source`` that produced it.
 
-**Never gold.** :class:`SampleSpec` refuses the ``gold`` split, and the sampler drops any
-document whose manifest split is ``gold``.
+**Never gold, except in full mode.** :class:`SampleSpec` refuses the ``gold`` split, and the
+sampler drops any document whose manifest split is ``gold``. The one exception is
+``SampleSpec(mode="full")`` (v0.6 spec §0 ruling 2): it labels the topic of EVERY content
+element of the named splits' documents (calib and gold), with no function questions, through
+the same topic prompt, shortlist and scoring as the normal mode, into the separate labeller
+``teacher-full`` (:data:`TEACHER_FULL_LABELER`). Those labels measure recall and calibrate the
+dial; v0.5 training reads only ``teacher`` and ``prescreen``, never ``teacher-full``. A full
+run writes no weak or prescreen rows (the training chain reads those files).
 
 **Resume and cache (Review Focus 2 and 5).** Each teacher row carries its
 :func:`~docrooter.teach.label_key`: element, facet, teacher name, prompt hash (with the
@@ -88,6 +94,7 @@ from docrooter.teach.weak import weak_labels
 __all__ = [
     "FUNCTION_FACET",
     "PRESCREEN_LABELER",
+    "TEACHER_FULL_LABELER",
     "TEACHER_LABELER",
     "TOPIC_FACET",
     "WEAK_LABELER",
@@ -100,6 +107,10 @@ __all__ = [
 ]
 
 TEACHER_LABELER = "teacher"
+TEACHER_FULL_LABELER = "teacher-full"
+"""Full-mode topic labels of calib and gold documents: never read by v0.5 training."""
+SAMPLE_MODE = "sample"
+FULL_MODE = "full"
 PRESCREEN_LABELER = "prescreen"
 WEAK_LABELER = "weak"
 TOPIC_FACET = "topic"
@@ -125,30 +136,44 @@ _KIND_ORDER = {kind: i for i, kind in enumerate(get_args(ElementKind))}
 
 @dataclass(frozen=True)
 class SampleSpec:
-    """What :func:`label_corpus` labels (spec §7.4, §4.0 ruling 5): at most ``per_doc``
-    elements per document, ``target`` in all if the ceiling allows, and at least ``floor``
-    (the report flags a run that stopped below it). ``splits`` never includes ``gold``."""
+    """What :func:`label_corpus` labels (spec §7.4, §4.0 ruling 5).
+
+    Normal mode (``"sample"``): at most ``per_doc`` elements per document, ``target`` in all if
+    the ceiling allows, and at least ``floor`` (the report flags a run that stopped below it);
+    ``splits`` never includes ``gold``.
+
+    Full mode (``"full"``, v0.6 ruling 2): every content element of every document in
+    ``splits``, in manifest then reading order; ``per_doc``, ``target`` and ``floor`` do not
+    apply. ``gold`` is allowed in this mode only.
+    """
 
     per_doc: int = 60
     target: int = 12000
     floor: int = 6000
     splits: tuple[str, ...] = ("train", "calib")
+    mode: str = SAMPLE_MODE
 
     def __post_init__(self) -> None:
+        if self.mode not in (SAMPLE_MODE, FULL_MODE):
+            raise ValueError(f"unknown mode {self.mode!r}; use {SAMPLE_MODE!r} or {FULL_MODE!r}")
         if self.per_doc < 1 or self.target < 1:
             raise ValueError("per_doc and target must be at least 1")
         if not 0 <= self.floor <= self.target:
             raise ValueError(f"floor must be within [0, target], got {self.floor}")
         if not self.splits:
             raise ValueError("splits must name at least one split")
-        if "gold" in self.splits:
+        if "gold" in self.splits and self.mode != FULL_MODE:
             raise ValueError(
                 "the gold split is never labelled: gold documents are scored only after "
                 "their annotations are committed"
             )
         unknown = sorted(set(self.splits) - set(SPLITS))
         if unknown:
-            raise ValueError(f"unknown split(s) {unknown}; use train or calib")
+            raise ValueError(f"unknown split(s) {unknown}; use train, calib or gold")
+
+    @property
+    def full(self) -> bool:
+        return self.mode == FULL_MODE
 
 
 @dataclass(frozen=True)
@@ -184,7 +209,12 @@ def sample_elements(
 
     Across documents, families take turns (in :data:`ELEMENT_FAMILIES` order), and within a
     family its documents take turns (in manifest order), one element each.
+
+    In full mode every content element of every document of ``spec.splits`` is a pick (topic
+    only: ``functions=False``), document by document in manifest order, each in reading order.
     """
+    if spec.full:
+        return _full_picks(corpus, spec)
     records = {r.id: r for r in corpus.manifest() if r.split in spec.splits}
     queues: dict[str, deque[deque[Pick]]] = {}
     for doc_id, elements in _by_document(corpus.iter_elements(split=spec.splits)):
@@ -210,6 +240,24 @@ def sample_elements(
                 docs.append(queue)
             if len(out) >= spec.target:
                 break
+    return out
+
+
+def _full_picks(corpus: Corpus, spec: SampleSpec) -> list[Pick]:
+    """Every content element of the documents of ``spec.splits`` (furniture and contents
+    excluded, elements without text skipped), in manifest then reading order."""
+    records = {r.id: r for r in corpus.manifest() if r.split in spec.splits}
+    out: list[Pick] = []
+    for doc_id, elements in _by_document(corpus.iter_elements(split=spec.splits)):
+        record = records.get(doc_id)
+        if record is None:
+            continue
+        family = doc_family(record)
+        for i, element in enumerate(elements):
+            if element.kind in SKIPPED_KINDS or not _has_text(element):
+                continue
+            caption = _caption(elements, i) if element.kind == "table" else None
+            out.append(Pick(element=element, record=record, family=family, caption=caption))
     return out
 
 
@@ -437,7 +485,10 @@ class LabelReport(BaseModel):
     - ``embedded``: sample elements whose function cosines were computed (the others' came
       from their prescreen rows); ``prescreen_rows`` / ``weak_labels``: rows written;
     - ``stopped_by_ceiling``: the wall clock reached ``ceiling_hours`` before the sample was
-      done; ``below_floor``: fewer than ``floor`` elements are labelled.
+      done; ``below_floor``: fewer than ``floor`` elements are labelled;
+    - full mode: ``mode`` is ``full`` and ``labeler`` ``teacher-full``; ``sampled`` is the
+      element count, ``seconds`` the measured wall time of the pass, ``target`` and ``floor``
+      equal ``sampled`` (a full run is below its floor when any element is unlabelled).
     """
 
     teacher: str
@@ -445,6 +496,8 @@ class LabelReport(BaseModel):
     target: int
     floor: int
     ceiling_hours: float
+    mode: str = SAMPLE_MODE
+    labeler: str = TEACHER_LABELER
     sampled: int = 0
     skipped: int = 0
     topic_labelled: int = 0
@@ -550,6 +603,8 @@ class _Run:
         self.release_embedder = release_embedder
         self.doc_types = builtin_taxonomy("doc_types")
         self.report: LabelReport
+        self.full = False  # full mode: topic only, into TEACHER_FULL_LABELER
+        self.labeler = TEACHER_LABELER
 
     def label(
         self,
@@ -560,20 +615,31 @@ class _Run:
         on_progress: Progress | None,
     ) -> LabelReport:
         start = self.clock()
+        self.full = sample.full
+        self.labeler = TEACHER_FULL_LABELER if self.full else TEACHER_LABELER
         report = self.report = LabelReport(
             teacher=self.keys.teacher,
             embedder=self.keys.embedder,
             target=sample.target,
             floor=sample.floor,
             ceiling_hours=ceiling_hours,
+            mode=sample.mode,
+            labeler=self.labeler,
         )
         picks = sample_elements(self.corpus, sample, functions_share=functions_share)
-        existing = self.corpus.labels(TEACHER_LABELER)
-        prescreened = self.corpus.labels(PRESCREEN_LABELER)
+        if self.full:  # a full run is complete only when every element is labelled
+            report.target = report.floor = len(picks)
+        existing = self.corpus.labels(self.labeler)
+        # a full run never reads or writes the prescreen file: the training chain owns it
+        prescreened = {} if self.full else self.corpus.labels(PRESCREEN_LABELER)
         tasks, topic_done = [], 0
         for position, pick in enumerate(picks):
             topic = not self._current(existing, pick, TOPIC_FACET)
-            function = pick.functions and not self._current(existing, pick, FUNCTION_FACET)
+            function = (
+                not self.full
+                and pick.functions
+                and not self._current(existing, pick, FUNCTION_FACET)
+            )
             topic_done += not topic
             if topic or function:
                 tasks.append(_Task(pick, position, topic, function))
@@ -610,7 +676,7 @@ class _Run:
             if on_progress is not None:
                 on_progress(done, len(picks), report)
         report.labelled_total = topic_done + report.topic_labelled
-        report.below_floor = report.labelled_total < sample.floor
+        report.below_floor = report.labelled_total < report.floor
         report.seconds = round(self.clock() - start, 3)
         return report
 
@@ -622,6 +688,9 @@ class _Run:
     # --- one batch ----------------------------------------------------------------------------
 
     def _batch(self, tasks: list[_Task]) -> None:
+        if self.full:  # topic rows only, one write: the commit point of the batch
+            self.corpus.write_labels(self.labeler, self._topics(tasks))
+            return
         side = [t for t in tasks if t.write_side]
         weak_rows = self._weak_rows(side)
         prescreen_rows = [self._prescreen_row(t) for t in side]
@@ -669,6 +738,9 @@ class _Run:
             if over():
                 return
             self._shortlist(topic_tasks[begin : begin + batch_size])
+        if self.full:  # no function questions: no cosines, percentiles or weak rows
+            self.report.embed_seconds = round(self.clock() - started, 3)
+            return
         for begin in range(0, len(missing), batch_size):
             if over():
                 return

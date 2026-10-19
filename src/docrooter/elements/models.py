@@ -74,12 +74,18 @@ class TagResult(BaseModel):
     # Topic only: the unconstrained family distribution, before restricting to the
     # document's family (so doc-type evidence built on it is not circular).
     family_probs: dict[str, Probability] | None = None
+    # The content fingerprint of the saved tagger bundle that produced the tags
+    # (docrooter.tagger.element_tags.tagger_fingerprint); None when unknown, as for the
+    # zero-shot and teacher taggers. select() guarantees recall only on tags whose fingerprint
+    # is the one its selector was fitted with.
+    fingerprint: str | None = None
 
     @model_serializer(mode="wrap")
-    def _omit_empty_family_probs(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+    def _omit_empty_optionals(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
         data: dict[str, Any] = handler(self)
-        if self.family_probs is None:
-            data.pop("family_probs", None)
+        for key in ("family_probs", "fingerprint"):
+            if getattr(self, key) is None:
+                data.pop(key, None)
         return data
 
 

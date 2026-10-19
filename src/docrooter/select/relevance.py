@@ -336,20 +336,27 @@ class Combiner:
                 f"not a {COMBINER_FORMAT} v{COMBINER_VERSION}: "
                 f"{data.get('format')!r} v{data.get('version')!r}"
             )
-        model = cls(
-            l2=float(data["l2"]),
-            feature_names=data["feature_names"],
-            max_iter=int(data["max_iter"]),
-        )
-        d = len(model.feature_names)
-        model.mean = np.asarray(data["mean"], dtype=np.float64)
-        model.scale = np.asarray(data["scale"], dtype=np.float64)
-        model.coef = np.asarray(data["coef"], dtype=np.float64)
+        try:
+            model = cls(
+                l2=float(data["l2"]),
+                feature_names=data["feature_names"],
+                max_iter=int(data["max_iter"]),
+            )
+            d = len(model.feature_names)
+            model.mean = np.asarray(data["mean"], dtype=np.float64)
+            model.scale = np.asarray(data["scale"], dtype=np.float64)
+            model.coef = np.asarray(data["coef"], dtype=np.float64)
+            model.intercept = float(data["intercept"])
+            model.n_train = int(data["n_train"])
+            model.n_docs = int(data["n_docs"])
+        except (KeyError, TypeError, ValueError) as exc:
+            name = f"missing key {exc}" if isinstance(exc, KeyError) else str(exc)
+            raise ValueError(f"corrupt combiner: {name}") from exc
         if not model.mean.shape == model.scale.shape == model.coef.shape == (d,):
             raise ValueError("combiner weights do not match its feature names")
-        model.intercept = float(data["intercept"])
-        model.n_train = int(data["n_train"])
-        model.n_docs = int(data["n_docs"])
+        weights = np.concatenate([model.mean, model.scale, model.coef, [model.intercept]])
+        if not np.isfinite(weights).all() or not (model.scale > 0.0).all():
+            raise ValueError("corrupt combiner: its weights must be finite and its scales > 0")
         model.converged = bool(data["converged"])
         model.fitted = True
         return model

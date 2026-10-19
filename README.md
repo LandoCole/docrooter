@@ -347,7 +347,7 @@ from docrooter import builtin_fields, process, select
 from docrooter.select.selection import readout
 
 risk = {f.id: f for f in builtin_fields("annual_report")}["annual_report.risk_factors"]
-analysis = process("report.pdf", element_tags="bundles/tagger-a")
+analysis = process("report.pdf", profile="accurate", element_tags="bundles/tagger-a")
 selection = select(analysis, risk, completeness=0.9, selector="bundles/tagger-a")
 print(readout(selection))
 print("\n\n".join(chunk.text for chunk in selection.chunks))
@@ -357,11 +357,17 @@ print("\n\n".join(chunk.text for chunk in selection.chunks))
   elements kept is at least `c` (conformal risk control), averaged over documents **and over the
   fields of the family**. It is not a promise about any one document or any one field, and
   "relevant" is what the **teacher** model labelled, not a human.
-- **When it promises nothing.** Below `c = 1.0`, free-text queries, a missing tagger or embedder,
-  a document type that does not match the field's family, a token budget, and a field the dial
-  was not calibrated on (your own, until you refit) give an estimate only (`guarantee=False`).
-  Where the calibration set is too small for `c` (only above `n/(n+1)`), the whole document comes
-  back (`capped=True`). `c = 1.0` is always the whole document.
+- **Only for what was calibrated.** The guarantee holds for **one field** at a time, on a
+  document **read and tagged as the selector was fitted**: the same profile (`accurate`, the
+  corpus build's), the bundle's own tagger and the selector's embedder. Anything else is reported
+  in `fit_mismatch` (for example `["layout"]` for the default `balanced` profile) and gives an
+  estimate.
+- **When it promises nothing.** Below `c = 1.0`, free-text queries, a list of several fields
+  (call `select()` once per field), a missing tagger or embedder, a tagger, embedder or reading
+  other than the fit's, a document type that does not match the field's family, a token budget,
+  and a field the dial was not calibrated on (your own, until you refit) give an estimate only
+  (`guarantee=False`). Where the calibration set is too small for `c` (only above `n/(n+1)`),
+  the whole document comes back (`capped=True`). `c = 1.0` is always the whole document.
 - **Your own corpus.** A selector is fitted, not shipped: `docrooter teach label --full`, then
   `docrooter fit-selector`. Without one only `c = 1.0` works.
 - **Results** are pending: [docs/benchmarks-selection.md](docs/benchmarks-selection.md).
@@ -369,8 +375,8 @@ print("\n\n".join(chunk.text for chunk in selection.chunks))
 See [Select what to send to an LLM](docs/site/guides/select-for-extraction.md) and
 [The completeness dial](docs/site/concepts/completeness-dial.md);
 [`examples/select_for_extraction.py`](examples/select_for_extraction.py) runs `select()` with no
-model. `docrooter select report.pdf --need annual_report.risk_factors --tagger BUNDLE` does it from
-the shell, and `docrooter serve --selector` adds the dial to the playground.
+model. `docrooter select report.pdf --need annual_report.risk_factors --profile accurate --tagger
+BUNDLE` does it from the shell, and `docrooter serve --selector` adds the dial to the playground.
 
 ## Command line
 

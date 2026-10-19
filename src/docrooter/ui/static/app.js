@@ -797,8 +797,11 @@ function selectBadges(selection) {
   if (selection.capped) found.push(["capped", "Too few calibration documents reach this completeness, so the whole document is kept"]);
   if (selection.doc_type_mismatch) found.push(["mismatch", "The field belongs to another document type than this document's"]);
   if (selection.uncalibrated_field) found.push(["uncalibrated", "The dial was not calibrated on this field, so the recall is an estimate"]);
+  if (selection.multi_field) found.push(["multi", "The dial was calibrated on single fields, so several fields together are an estimate: select once per field for a guarantee"]);
+  if (selection.fit_mismatch.length) found.push(["fit", `This run was not read and tagged as the selector was fitted (${selection.fit_mismatch.join(", ")} differ), so the recall is an estimate`]);
   if (selection.over_budget) found.push(["over-budget", "The most relevant element alone is over the token budget"]);
-  const labels = { estimate: "estimate", capped: "dial capped by calibration size", mismatch: "doc type mismatch", uncalibrated: "field not calibrated", "over-budget": "over budget" };
+  if (selection.calibration_n !== null) found.push(["calibration", `The dial was calibrated on n = ${selection.calibration_n} units; its finite-sample term 1/(n+1) is ${(1 / (selection.calibration_n + 1)).toFixed(3)}`]);
+  const labels = { estimate: "estimate", capped: "dial capped by calibration size", mismatch: "doc type mismatch", uncalibrated: "field not calibrated", multi: "several fields", fit: "reading differs from calibration", "over-budget": "over budget", calibration: `n = ${selection.calibration_n}` };
   return found.map(([kind, title]) => h("span", { class: "badge select-badge", "data-kind": kind, title }, labels[kind]));
 }
 

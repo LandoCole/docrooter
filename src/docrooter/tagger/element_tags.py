@@ -72,6 +72,7 @@ FUNCTION_THRESHOLD = 0.5  # as the student's (docrooter.tagger.bundle.FUNCTION_T
 ZERO_SHOT_PERCENTILE = 0.8  # the zero-shot function rule: the top fifth of the document per tag
 BUNDLE_MANIFEST = "tagger.json"  # docrooter.tagger.bundle.TAGGER_MANIFEST
 BODY_PREFIX = "topic/body/"  # the fine-tuned body's weights: left out of the fingerprint
+NOT_THE_TAGGER = ("selector.json",)  # kept in a bundle, not part of it: out of the fingerprint
 TEACHER_ENGINES = ("mlx", "hf", "openai")
 _DIGITS = 6
 
@@ -131,7 +132,9 @@ def tagger_fingerprint(tagger: object) -> str | None:
     """A content hash of a bundle tagger (one with a ``path`` holding ``tagger.json``): every
     file of the bundle but the body's weights, so the manifest (temperatures, training
     report), the taxonomy and every topic and function head. A retrain into the same
-    directory changes it. ``None`` for a tagger that is not a saved bundle."""
+    directory changes it. A ``selector.json`` kept in the bundle is not part of the tagger and
+    is left out (the selector records this fingerprint). ``None`` for a tagger that is not a
+    saved bundle."""
     path = getattr(tagger, "path", None)
     if path is None or not (Path(path) / BUNDLE_MANIFEST).is_file():
         return None
@@ -139,7 +142,7 @@ def tagger_fingerprint(tagger: object) -> str | None:
     digest = hashlib.sha256()
     for file in sorted(p for p in root.rglob("*") if p.is_file()):
         name = file.relative_to(root).as_posix()
-        if name.startswith(BODY_PREFIX) or name.endswith(".tmp"):
+        if name.startswith(BODY_PREFIX) or name.endswith(".tmp") or name in NOT_THE_TAGGER:
             continue
         digest.update(name.encode("utf-8") + b"\0")
         digest.update(hashlib.sha256(file.read_bytes()).digest())

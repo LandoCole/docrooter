@@ -131,6 +131,7 @@ class ElementTagger:
         self.temperatures = {"topic": 1.0, "function": 1.0, **(temperatures or {})}
         self.info = dict(info or {})
         self._path = path
+        self._fingerprint: str | None = None
         recipe = topic.manifest["recipe"]
         self._prompt: str = recipe["query_prompt"].format(instruction=topic.manifest["instruction"])
         self._families = [n.id for n in taxonomy.children()]
@@ -146,6 +147,19 @@ class ElementTagger:
     def source(self) -> str:
         """``TagResult.source``: ``bundle:<directory name>``, or ``element-tagger`` unsaved."""
         return f"bundle:{self._path.name}" if self._path is not None else "element-tagger"
+
+    @property
+    def fingerprint(self) -> str | None:
+        """``TagResult.fingerprint``: the bundle's content hash
+        (:func:`~docrooter.tagger.element_tags.tagger_fingerprint`), computed once per save or
+        load; ``None`` unsaved."""
+        if self._path is None:
+            return None
+        if self._fingerprint is None:
+            from docrooter.tagger.element_tags import tagger_fingerprint
+
+            self._fingerprint = tagger_fingerprint(self)
+        return self._fingerprint
 
     @property
     def untrained_families(self) -> list[str]:
@@ -295,6 +309,7 @@ class ElementTagger:
             probs={k: _p(v) for k, v in probs.items()},
             confidence=_p(probs[best]),
             source=self.source,
+            fingerprint=self.fingerprint,
             family_probs=(
                 {k: _p(v) for k, v in family_probs.items()} if family_probs is not None else None
             ),
@@ -323,6 +338,7 @@ class ElementTagger:
                     probs={t: _p(v) for t, v in values.items()},
                     confidence=_p(min(max(v, 1.0 - v) for v in values.values())),
                     source=self.source,
+                    fingerprint=self.fingerprint,
                 )
             )
         return out
@@ -383,6 +399,7 @@ class ElementTagger:
         }
         _write_json(out / TAGGER_MANIFEST, manifest)
         self._path = out
+        self._fingerprint = None  # the files changed
 
     @classmethod
     def load(cls, path: str | Path, *, device: str | None = None) -> ElementTagger:

@@ -432,7 +432,10 @@ button.preset[aria-pressed="true"] { border-color: var(--model); color: var(--mo
 .badge.select-badge[data-kind="capped"] { background: var(--model-soft); color: var(--model); }
 .badge.select-badge[data-kind="mismatch"] { background: var(--bad-soft); color: var(--warn); }
 .badge.select-badge[data-kind="uncalibrated"] { background: var(--bad-soft); color: var(--warn); }
+.badge.select-badge[data-kind="multi"] { background: var(--bad-soft); color: var(--warn); }
+.badge.select-badge[data-kind="fit"] { background: var(--bad-soft); color: var(--warn); }
 .badge.select-badge[data-kind="over-budget"] { background: var(--bad-soft); color: var(--bad); }
+.badge.select-badge[data-kind="calibration"] { background: var(--model-soft); color: var(--model); }
 .selected-only { margin-right: auto; align-items: center; }
 
 .tabs {

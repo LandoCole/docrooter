@@ -14,6 +14,7 @@ import pytest
 
 from docrooter import Document, RouterConfig
 from docrooter.backends import registry
+from docrooter.classify.normalize import NormalizationResult
 from docrooter.classify.results import DocTypeResult, PathResult
 from docrooter.corpus import Corpus, CorpusElement, LabelRow, ManifestRecord
 from docrooter.corpus.store import calib_half, text_sha1
@@ -22,7 +23,8 @@ from docrooter.errors import DocrooterError
 from docrooter.rooter.analysis import Analysis
 from docrooter.select import Field, calibration_of
 from docrooter.select.fit import CorpusPdfReader, fit_selector
-from docrooter.select.selection import Selector, select
+from docrooter.select.selection import FitProvenance, Selector, select
+from docrooter.tagger.element_tags import tagger_fingerprint
 
 RISK = Field(
     id="annual_report.risk_factors",
@@ -48,11 +50,17 @@ OTHER_LEAF = "annual_report.other"
 
 class FakeTagger:
     """Tags "risk" texts with the family's risk leaf (mostly) and anything else with its
-    catch-all; counts its calls and closes."""
+    catch-all; counts its calls and closes. With a ``path`` it is a saved bundle there (a
+    ``tagger.json``), and its tags carry the bundle's fingerprint, as a real bundle's do."""
 
-    def __init__(self):
+    def __init__(self, path=None):
         self.calls = 0
         self.closed = 0
+        self.path = path
+        if path is not None:
+            path.mkdir(parents=True, exist_ok=True)
+            (path / "tagger.json").write_text('{"format": "fake"}', encoding="utf-8")
+        self.fingerprint = tagger_fingerprint(self)
 
     def tag(self, elements, family):
         self.calls += 1
@@ -66,7 +74,15 @@ class FakeTagger:
             )
             best = max(probs, key=probs.__getitem__)
             out.append(
-                {"topic": TagResult(labels=[best], probs=probs, confidence=probs[best], source="f")}
+                {
+                    "topic": TagResult(
+                        labels=[best],
+                        probs=probs,
+                        confidence=probs[best],
+                        source="f",
+                        fingerprint=self.fingerprint,
+                    )
+                }
             )
         return out
 
@@ -232,7 +248,7 @@ class FakeAnalyse:
         items = list(self.store.items[rec.id])
         if self.edit is not None:
             items = self.edit(rec.id, items)
-        return Analysis(document=make_doc(items), config=RouterConfig(profile="fast"))
+        return Analysis(document=make_doc(items), config=RouterConfig(profile="balanced"))
 
 
 @pytest.fixture
@@ -245,9 +261,9 @@ def store(tmp_path):
     return s
 
 
-def fit(store: Store, analyse=None, **kwargs):
+def fit(store: Store, analyse=None, tagger=None, **kwargs):
     analyse = analyse or FakeAnalyse(store)
-    tagger = FakeTagger()
+    tagger = tagger or FakeTagger()
     selector = fit_selector(
         store.corpus,
         tagger,
@@ -296,11 +312,12 @@ def test_fit_uses_teacher_full_labels_and_partitions(store):
     assert dial.n_excluded == 4  # LEGAL is never relevant there: no CRC unit
     dial.check_combiner(selector.field)
     assert selector.embedder == "embedding:fake"
-    # The fitted fields are the calibrated ones (a family without a dial has none).
-    assert selector.calibrated_fields == calibration_of([RISK, LEGAL])
-    assert selector.is_calibrated(RISK) and not selector.is_calibrated(
-        RISK.model_copy(update={"topics": [LEGAL.topics[0]]})
-    )
+    # The calibrated fields are those that gave the dial at least one CRC unit: LEGAL gave
+    # none, so the dial says nothing about it (a family without a dial has none either).
+    assert selector.calibrated_fields == calibration_of([RISK])
+    assert selector.is_calibrated(RISK) and not selector.is_calibrated(LEGAL)
+    assert not selector.is_calibrated(RISK.model_copy(update={"topics": [LEGAL.topics[0]]}))
+    assert selector.meta["crc_units"] == {"annual_report": {RISK.id: 4, LEGAL.id: 0}}
 
     # Relevance is teacher-full's: the "teacher" labeller would make every row a LEGAL one.
     meta = selector.meta
@@ -321,7 +338,8 @@ def test_fit_uses_teacher_full_labels_and_partitions(store):
     assert meta["label_mismatch"]["hash_mismatch"] == 0
     assert meta["label_mismatch"]["no_label"] == 0
     assert meta["label_mismatch"]["missing"] == 0
-    assert meta["warnings"] == []  # every combiner converged
+    # every combiner converged; the fake tagger is no saved bundle, which is said
+    assert [w for w in meta["warnings"] if "not a saved bundle" not in w] == []
     assert meta["fields_using_description"] == ["annual_report.legal_proceedings"]  # no query
 
     # Each calib document is read once, fit documents first; the skipped one is never read.
@@ -418,8 +436,9 @@ def test_hash_mismatch_boundary(tmp_path, changed, raises):
 
 
 def test_fitted_selector_round_trips_and_selects_with_guarantee(store, tmp_path):
-    selector, _, _ = fit(store)
-    path = selector.save(tmp_path / "selector.json")
+    bundle = tmp_path / "bundle"
+    selector, _, _ = fit(store, tagger=FakeTagger(bundle))
+    path = selector.save(bundle)  # kept in the bundle, as fit-selector users do
     loaded = Selector.load(path)
     assert loaded.to_dict() == selector.to_dict()
     assert loaded.meta == selector.meta
@@ -432,17 +451,18 @@ def test_fitted_selector_round_trips_and_selects_with_guarantee(store, tmp_path)
         doc_type=DocTypeResult(
             source="test", best=PathResult(node_ids=["financial", "financial.annual_report"])
         ),
-        config=RouterConfig(profile="fast"),
+        sections=NormalizationResult(doc_type=None, taxonomy="section_types/annual_report"),
+        config=RouterConfig(profile="balanced"),  # the reading the fit used
     )
     result = select(
         analysis,
         RISK,
         completeness=0.5,
         selector=loaded,
-        tagger=FakeTagger(),
+        tagger=FakeTagger(bundle),  # the bundle the selector was fitted with
         embedder=FakeEmbedder(),
     )
-    assert result.guarantee is True and result.capped is False
+    assert result.guarantee is True and result.capped is False and result.fit_mismatch == []
     risky = {e.id for e in doc.elements if e.kind != "heading" and leaf_of(e.text) == RISK_LEAF}
     assert risky & set(result.element_ids)
     assert result.threshold is not None
@@ -452,8 +472,52 @@ def test_fit_needs_teacher_full_labels(tmp_path):
     s = Store(tmp_path / "bare")
     s.add(ids_in("fit", 1, "fit-")[0])
     (s.corpus.dir / "labels" / "teacher-full.jsonl").unlink()
-    with pytest.raises(DocrooterError, match="teacher-full"):
+    with pytest.raises(DocrooterError, match="teacher-full") as raised:
         fit(s)
+    assert "teach label --full" in str(raised.value)  # the flag that exists
+    assert "--mode" not in str(raised.value)
+
+
+def test_fit_records_its_provenance(store, tmp_path):
+    """The tagger bundle's fingerprint, the embedder spec and the reading are recorded, so
+    select() can refuse the guarantee on features made otherwise."""
+    bundle = tmp_path / "bundle"
+    tagger = FakeTagger(bundle)
+    selector, _, _ = fit(store, tagger=tagger)
+    assert selector.provenance == FitProvenance(
+        tagger=tagger_fingerprint(tagger),
+        embedder="embedding:fake",
+        profile="accurate",
+        layout="heuristic",  # what the analyses were read with (FakeAnalyse: balanced)
+        sections=selector.provenance.sections,
+    )
+    assert selector.provenance.tagger is not None
+    assert selector.meta["tagger"]["fingerprint"] == selector.provenance.tagger
+    # a tagger that is not a saved bundle gives no fingerprint: the selector never guarantees
+    plain, _, _ = fit(store)
+    assert plain.provenance is not None and plain.provenance.tagger is None
+    assert any("not a saved bundle" in w for w in plain.meta["warnings"])
+
+    # readings with different layouts are no single reading
+    def mixed(rec):
+        analysis = FakeAnalyse(store)(rec)
+        layout = "heuristic" if calib_half(rec.id) == "fit" else "heron"
+        return analysis.model_copy(update={"config": RouterConfig(layout=layout)})
+
+    mixed_selector, _, _ = fit(store, analyse=mixed, tagger=FakeTagger(bundle))
+    assert mixed_selector.provenance.layout is None
+    assert any("layout" in w for w in mixed_selector.meta["warnings"])
+
+
+def test_fields_must_sit_under_their_own_family(store):
+    contract = Field(
+        id="contract.termination",
+        label="Termination",
+        description="How the contract ends.",
+        topics=["contract.termination"],
+    )
+    with pytest.raises(ValueError, match="contract.termination"):
+        fit(store, fields_by_family={"annual_report": [RISK, contract]})
 
 
 class FakeEngines:

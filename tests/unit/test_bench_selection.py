@@ -25,6 +25,7 @@ from benchmarks import selection_bench as bench
 from benchmarks.extraction import run as extraction
 from benchmarks.training_corpus._net import Net, RateLimiter
 from docrooter import Document, RouterConfig
+from docrooter.classify.normalize import NormalizationResult
 from docrooter.classify.results import DocTypeResult, PathResult
 from docrooter.corpus.store import text_sha1
 from docrooter.elements.models import Box, Element, TagResult
@@ -32,7 +33,7 @@ from docrooter.rooter.analysis import Analysis
 from docrooter.select import Field, calibration_of
 from docrooter.select.crc import DialTable
 from docrooter.select.relevance import FEATURE_NAMES, Combiner
-from docrooter.select.selection import Selection, Selector, prepare
+from docrooter.select.selection import FitProvenance, Selection, Selector, prepare
 
 
 def selection(ids, tokens, share, *, c=0.9, guarantee=True, capped=False) -> Selection:
@@ -309,18 +310,44 @@ def _combiner(names, weights) -> Combiner:
     )
 
 
+TAGGER_FP = "fp-of-the-bench-bundle"
+EMBEDDER_SPEC = "embedding:bench-fake"
+PROVENANCE = FitProvenance(
+    tagger=TAGGER_FP,
+    embedder=EMBEDDER_SPEC,
+    profile="accurate",
+    layout="heron",
+    sections="embedding:dmis-lab/UltraBERT-Embed-150M",
+)
+
+
 class FakeTagger:
+    """Tags as a bundle of fingerprint :data:`TAGGER_FP` would (the fake selector's fit)."""
+
+    def __init__(self, fingerprint=TAGGER_FP):
+        self.fingerprint = fingerprint
+
     def tag(self, elements, family):
         leaves = [
             f"{family}.{'risk_factors' if 'risk' in e.text.lower() else 'other'}" for e in elements
         ]
         return [
-            {"topic": TagResult(labels=[leaf], probs={leaf: 1.0}, confidence=1.0, source="fake")}
+            {
+                "topic": TagResult(
+                    labels=[leaf],
+                    probs={leaf: 1.0},
+                    confidence=1.0,
+                    source="fake",
+                    fingerprint=self.fingerprint,
+                )
+            }
             for leaf in leaves
         ]
 
 
 class FakeEmbedder:
+    name = EMBEDDER_SPEC
+
     def encode(self, texts, prompt=""):
         return np.array([[1.0, 0.0] if "risk" in t.lower() else [0.0, 1.0] for t in texts])
 
@@ -345,6 +372,7 @@ def _fake_document():
         query_fallback=fallback,
         dials={"annual_report": dial},
         calibrated_fields=calibration_of([RISK, LEGAL]),
+        provenance=PROVENANCE,
     )
     doc = Document.from_sections([{"title": "Factors", "level": 1}])
     texts = [
@@ -372,7 +400,8 @@ def _fake_document():
         doc_type=DocTypeResult(
             source="test", best=PathResult(node_ids=["financial", "financial.annual_report"])
         ),
-        config=RouterConfig(profile="fast"),
+        sections=NormalizationResult(doc_type=None, taxonomy="section_types/annual_report"),
+        config=RouterConfig(profile="accurate"),  # the reading the fake selector was fitted on
     )
     ctx = prepare(analysis, tagger=FakeTagger(), encoder=FakeEmbedder(), family="annual_report")
     return analysis, ctx, selector

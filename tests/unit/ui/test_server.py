@@ -1418,13 +1418,17 @@ def _combiner(feature_names, weights, intercept=-5.0):
     )
 
 
+TAGGER_FP = "fp-of-the-playground-bundle"
+
+
 def fake_selector(embedder="fakeenc:m"):
     """Hand-set combiners (the field one listens to p_topic, the others to sim) and one dial for
-    the annual-report family: λ̂(0.9) = 0.5, capped for a target no calibration set reaches."""
+    the annual-report family: λ̂(0.9) = 0.5, capped for a target no calibration set reaches.
+    "Fitted" on the balanced reading, the tagger of :data:`TAGGER_FP` and ``embedder``."""
     from docrooter.select import builtin_fields, calibration_of
     from docrooter.select.crc import DialTable
     from docrooter.select.relevance import FEATURE_NAMES
-    from docrooter.select.selection import FALLBACK_FEATURES, Selector
+    from docrooter.select.selection import FALLBACK_FEATURES, FitProvenance, Selector
 
     field = _combiner(FEATURE_NAMES, {"p_topic": 10.0})
     dial = DialTable(
@@ -1446,6 +1450,13 @@ def fake_selector(embedder="fakeenc:m"):
         dials={"annual_report": dial},
         calibrated_fields=calibration_of(builtin_fields("annual_report")),
         embedder=embedder,
+        provenance=FitProvenance(
+            tagger=TAGGER_FP,
+            embedder=embedder,
+            profile="balanced",
+            layout="heuristic",
+            sections="keyword",
+        ),
     )
 
 
@@ -1486,9 +1497,11 @@ def make_selector_client(selector_file, backend="keyword"):
     return TestClient(app, base_url="http://127.0.0.1:8765")
 
 
-def tagged_analysis(n_filler=20):
-    """An annual report of tagged paragraphs: three about risk, the rest filler."""
+def tagged_analysis(n_filler=20, config=None):
+    """An annual report of tagged paragraphs (by the bundle the fake selector was fitted with,
+    read as it was fitted: balanced, section labels on): three about risk, the rest filler."""
     from docrooter import Document
+    from docrooter.classify.normalize import NormalizationResult
     from docrooter.classify.results import DocTypeResult, PathResult
     from docrooter.elements.models import Element, TagResult
     from docrooter.rooter.analysis import Analysis
@@ -1506,7 +1519,13 @@ def tagged_analysis(n_filler=20):
         tags = None
         if kind == "paragraph":
             tags = {
-                "topic": TagResult(labels=[leaf], probs={leaf: 1.0}, confidence=1.0, source="t")
+                "topic": TagResult(
+                    labels=[leaf],
+                    probs={leaf: 1.0},
+                    confidence=1.0,
+                    source="t",
+                    fingerprint=TAGGER_FP,
+                )
             }
         elements.append(
             Element(
@@ -1524,7 +1543,12 @@ def tagged_analysis(n_filler=20):
     doc_type = DocTypeResult(
         source="test", best=PathResult(node_ids=["financial", "financial.annual_report"])
     )
-    return Analysis(document=doc, doc_type=doc_type, config=RouterConfig(profile="balanced"))
+    return Analysis(
+        document=doc,
+        doc_type=doc_type,
+        sections=NormalizationResult(doc_type=None, taxonomy="section_types/annual_report"),
+        config=config or RouterConfig(profile="balanced"),
+    )
 
 
 def inject(client, analysis=None):
@@ -1567,9 +1591,11 @@ def test_select_endpoint_returns_selection(selector_file):
         assert query["guarantee"] is False and "(estimate)" in query["readout"]
         assert query["need"] == "interest rate risk"
 
-        # several fields of one family are one need
+        # several fields of one family are one need, an estimate
         both = select_post(client, run_id, [RISK_ID, "annual_report.legal_proceedings"]).json()
         assert both["need"] == f"{RISK_ID},annual_report.legal_proceedings"
+        assert both["guarantee"] is False and both["multi_field"] is True
+        assert "several fields (estimate)" in both["readout"]
 
         # c = 1.0 is the whole document, with no selector or model involved
         whole = select_post(client, run_id, RISK_ID, 1.0).json()
@@ -1697,6 +1723,9 @@ def test_select_payload_bounded(selector_file, monkeypatch):
             "relevant_expected",
             "over_budget",
             "uncalibrated_field",
+            "multi_field",
+            "fit_mismatch",
+            "calibration_n",
             "element_ids",
             "selected_total",
             "truncated",
@@ -1933,3 +1962,30 @@ def test_select_endpoint_reports_a_field_the_dial_was_not_calibrated_on(selector
         assert body["readout"].endswith("field not calibrated (estimate)")
         whole = select_post(client, run_id, RISK_ID, 1.0).json()
         assert whole["guarantee"] is True and whole["uncalibrated_field"] is False
+
+
+def test_a_run_read_otherwise_than_the_fit_has_no_guarantee(selector_file):
+    """The playground's runs are read with the profile the user picks: one that is not the
+    fit's reading is an estimate, flagged, and the page shows a badge for it."""
+    from docrooter.rooter import RouterConfig as Config
+
+    with make_selector_client(selector_file) as client:
+        same = select_post(client, inject(client)).json()
+        assert same["guarantee"] is True and same["fit_mismatch"] == []
+        assert same["calibration_n"] == 100
+        other = inject(client, tagged_analysis(config=Config(profile="accurate")))
+        body = select_post(client, other).json()
+        assert body["guarantee"] is False and body["fit_mismatch"] == ["layout"]
+        assert body["calibration_n"] is None
+        assert body["readout"].endswith("reading differs from calibration (estimate)")
+
+
+def test_fit_mismatch_several_fields_and_calibration_size_reach_the_page(client):
+    script = client.get("/static/app.js").text
+    assert "selection.fit_mismatch.length" in script
+    assert 'fit: "reading differs from calibration"' in script
+    assert "selection.multi_field" in script and 'multi: "several fields"' in script
+    assert "selection.calibration_n" in script
+    style = client.get("/static/style.css").text
+    for kind in ("fit", "multi", "calibration"):
+        assert f'[data-kind="{kind}"]' in style

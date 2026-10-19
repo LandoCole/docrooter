@@ -69,10 +69,16 @@ class Field(BaseModel):
 
 def field_fingerprint(field: Field) -> str:
     """A short fingerprint of what makes a field a field to the selector: its sorted topics and
-    functions. The dial is calibrated on relevance, which topics define, and on the ranking the
-    functions strengthen; labels, descriptions and queries do not enter it."""
+    functions, and its need text (its ``query``, else its ``description``). The dial is
+    calibrated on relevance, which topics define, on the ranking the functions strengthen, and
+    on ``sim``, which compares elements with the need text; the label does not enter it, nor
+    the description of a field that has a query."""
     canonical = json.dumps(
-        {"topics": sorted(field.topics), "functions": sorted(field.functions)},
+        {
+            "topics": sorted(field.topics),
+            "functions": sorted(field.functions),
+            "need": field.query or field.description,
+        },
         sort_keys=True,
         separators=(",", ":"),
     )

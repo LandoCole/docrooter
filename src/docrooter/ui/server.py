@@ -902,7 +902,9 @@ class Playground:
             or entry.encoder_spec != spec
         ):
             tagger = _LazyTagger(self.tagger) if self.element_tags is not None else None
-            ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=family)
+            ctx = prepare(
+                analysis, tagger=tagger, encoder=encoder, family=family, encoder_spec=spec
+            )
             entry = _Scored(ctx, spec)
         else:
             entry.ctx.encoder = encoder  # the pool may have swapped the model since

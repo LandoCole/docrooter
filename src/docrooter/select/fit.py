@@ -33,9 +33,13 @@ description) as a free-text need, with the field's relevance. **Units** (spec §
 calib-crc document and field: one :class:`~docrooter.select.crc.CalibUnit` with the fitted
 field combiner's probabilities over every content element.
 
-The returned :class:`~docrooter.select.selection.Selector` records the embedder spec and, in
-``meta``, the profile, tagger, corpus manifest hash, document counts, label checks, class
-balance, dial sizes and fit warnings.
+The returned :class:`~docrooter.select.selection.Selector` records its
+:class:`~docrooter.select.selection.FitProvenance` (the tagger bundle's fingerprint, the
+embedder spec, the profile, the layout engine the documents were read with and the sections
+backend), which :func:`~docrooter.select.select` requires of a guaranteed selection, and, in
+``meta``, the tagger, corpus manifest hash, document counts, label checks, class balance, dial
+sizes, CRC units per field and fit warnings. A field is recorded as calibrated only when it gave
+its family's dial at least one CRC unit.
 """
 
 from __future__ import annotations
@@ -64,7 +68,9 @@ from docrooter.select.relevance import Combiner
 from docrooter.select.selection import (
     FALLBACK_FEATURES,
     DocContext,
+    FitProvenance,
     Selector,
+    _spec_of,
     need_features,
     prepare,
 )
@@ -230,7 +236,7 @@ def labels_by_document(corpus: Corpus) -> dict[str, dict[str, dict[str, str]]]:
     if not rows:
         raise DocrooterError(
             f"the corpus at {corpus.dir} has no {LABELER} labels; label the calib split in "
-            "full mode first (docrooter teach label --mode full)"
+            "full mode first (docrooter teach label --full)"
         )
     out: dict[str, dict[str, dict[str, str]]] = {}
     for key, choice in teacher_choices(rows, builtin_taxonomy("element_topics")).items():
@@ -270,7 +276,7 @@ def label_leaves(
         raise DocrooterError(
             f"{doc_id}: {missing} of its {with_text} content elements with text have no "
             f"{LABELER} label (more than {MAX_MISSING_LABELS:.0%}): its labelling is "
-            "incomplete (a run stopped early?); finish it (docrooter teach label --mode full) "
+            "incomplete (a run stopped early?); finish it (docrooter teach label --full) "
             "before fitting"
         )
     if content and mismatch / content > MAX_HASH_MISMATCH:
@@ -318,13 +324,6 @@ def _fit(role: str, combiner: Combiner, rows: _Rows, fit_warnings: list[str]) ->
     return combiner
 
 
-def _spec_of(value: Any) -> str | None:
-    if isinstance(value, (str, Path)):
-        return str(value)
-    spec = getattr(value, "spec", None) or getattr(value, "name", None)
-    return spec if isinstance(spec, str) else None
-
-
 def fit_selector(
     corpus: Corpus,
     tagger: Any,
@@ -355,6 +354,12 @@ def fit_selector(
         if fields_by_family is not None
         else {family: builtin_fields(family) for family in list_builtin_field_sets()}
     )
+    stray = [f.id for family, fs in fields.items() for f in fs if f.family != family]
+    if stray:
+        raise ValueError(
+            f"fields listed under another family than their own: {stray}; each field must sit "
+            "under its family (the first segment of its topics)"
+        )
     from docrooter.teach.shortlist import doc_family
 
     labels = labels_by_document(corpus)
@@ -373,6 +378,7 @@ def fit_selector(
 
     owned: list[Any] = []
     reader: CorpusPdfReader | None = None
+    sections_spec: str | None = getattr(analyse, "sections_spec", None)
     try:
         tagger_obj = tagger
         if isinstance(tagger, (str, Path)):
@@ -399,6 +405,7 @@ def fit_selector(
                 sections_backend=encoder if same else None,  # one embedding model, not two
             )
             analyse = reader
+            sections_spec = getattr(reader, "sections_spec", None)
         selector = _fit_all(todo, labels, fields, tagger_obj, encoder, analyse, on_progress)
     finally:
         if reader is not None:
@@ -406,9 +413,29 @@ def fit_selector(
         for item in owned:
             close_backend(item)
 
+    from docrooter.rooter.profiles import profile_defaults
     from docrooter.tagger.element_tags import tagger_fingerprint
 
     meta = selector.meta
+    fingerprint = tagger_fingerprint(tagger_obj)
+    if fingerprint is None:
+        meta["warnings"].append(
+            "the tagger is not a saved bundle (no fingerprint): select() will never guarantee "
+            "recall with this selector; fit with a tagger bundle directory"
+        )
+    layouts = sorted(meta.pop("layouts"))
+    if len(layouts) != 1:
+        meta["warnings"].append(
+            f"the documents were read with layout engines {layouts}, not one: select() will "
+            "never guarantee recall with this selector"
+        )
+    provenance = FitProvenance(
+        tagger=fingerprint,
+        embedder=_spec_of(embedder),
+        profile=profile,
+        layout=layouts[0] if len(layouts) == 1 else None,
+        sections=sections_spec or str(profile_defaults(profile)["sections"]),
+    )
     meta.update(
         {
             "profile": profile,
@@ -416,7 +443,7 @@ def fit_selector(
             "labeler": LABELER,
             "tagger": {
                 "spec": _spec_of(tagger),
-                "fingerprint": tagger_fingerprint(tagger_obj),
+                "fingerprint": fingerprint,
                 "source": getattr(tagger_obj, "source", None),
             },
             "corpus_manifest_sha256": hashlib.sha256(corpus.manifest_path.read_bytes()).hexdigest(),
@@ -427,10 +454,17 @@ def fit_selector(
         }
     )
     meta["documents"]["skipped_no_fields"] = dict(sorted(skipped.items()))
-    # only the fields of a family that ended with a dial were calibrated; select() guarantees
-    # recall for these (id and fingerprint) and for nothing else
+    # only the fields that gave a dial at least one CRC unit were calibrated; select()
+    # guarantees recall for these (id and fingerprint) and for nothing else
+    units = meta["crc_units"]
     calibrated = calibration_of(
-        [f for family, fs in fields.items() if family in selector.dials for f in fs]
+        [
+            f
+            for family, fs in fields.items()
+            if family in selector.dials
+            for f in fs
+            if units.get(family, {}).get(f.id, 0) > 0
+        ]
     )
     return Selector(
         field=selector.field,
@@ -438,9 +472,10 @@ def fit_selector(
         query=selector.query,
         query_fallback=selector.query_fallback,
         dials=selector.dials,
-        embedder=_spec_of(embedder),
+        embedder=provenance.embedder,
         meta=meta,
         calibrated_fields=calibrated,
+        provenance=provenance,
     )
 
 
@@ -459,10 +494,12 @@ def _fit_all(
     checks: dict[str, dict[str, Any]] = {}
     counts: dict[str, Counter[str]] = {"fit": Counter(), "crc": Counter()}
     section_types: Counter[str] = Counter()  # the doc type each one's sections were read as
+    layouts: set[str] = set()  # the layout engines the documents were read with
     for done, (record, family, half) in enumerate(todo, 1):
         analysis = analyse(record)
         sections = getattr(analysis, "sections", None)
         section_types[str(getattr(sections, "doc_type", None) or "none")] += 1
+        layouts.add(str(getattr(getattr(analysis, "config", None), "layout", None)))
         ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=family)
         if not (ctx.tagged and ctx.has_sims):
             raise DocrooterError(
@@ -506,6 +543,11 @@ def _fit_all(
     dials = calibrate_dial(units, combiner=field_combiner)
     for family in sorted(set(counts["crc"]) - set(dials)):
         fit_warnings.append(f"no dial for {family}: no calib-crc unit has a relevant element")
+    crc_units: dict[str, dict[str, int]] = {}  # CRC units (relevant element present) per field
+    for family in sorted(counts["crc"]):
+        crc_units[family] = {f.id: 0 for f in fields[family]}
+    for unit in units:
+        crc_units[unit.family][unit.field_id] += int(unit.relevant.any())
 
     meta: dict[str, Any] = {
         "documents": {
@@ -529,6 +571,8 @@ def _fit_all(
             for family, d in sorted(dials.items())
         },
         "section_doc_types": dict(sorted(section_types.items())),
+        "crc_units": crc_units,
+        "layouts": sorted(layouts),
         "warnings": fit_warnings,
     }
     return Selector(

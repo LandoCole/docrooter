@@ -7,7 +7,9 @@ nothing. A real one comes from ``docrooter fit-selector`` (see the guide, "Selec
 to an LLM").
 
 With a trained bundle (a tagger and its ``selector.json``), edit the two paths in
-``select_from_bundle`` and run ``python examples/select_for_extraction.py --bundle``.
+``select_from_bundle`` and run ``python examples/select_for_extraction.py --bundle``. The
+guarantee needs the document read and tagged as the selector was fitted: the same profile
+(``accurate``, the corpus build's), the bundle's tagger and the selector's embedder.
 
 docrooter selects; your application extracts. The last step here only prints the text you would
 put in your prompt.
@@ -18,12 +20,12 @@ import sys
 import numpy as np
 
 from docrooter import Analysis, Document, RouterConfig, builtin_fields, process, select
+from docrooter.classify.normalize import NormalizationResult
 from docrooter.classify.results import DocTypeResult, PathResult
 from docrooter.elements.models import Element, TagResult
-from docrooter.select import Selector, calibration_of
+from docrooter.select import FitProvenance, Selector, calibration_of, readout
 from docrooter.select.crc import DialTable
 from docrooter.select.relevance import FEATURE_NAMES, Combiner
-from docrooter.select.selection import readout
 
 RISK = {f.id: f for f in builtin_fields("annual_report")}["annual_report.risk_factors"]
 
@@ -31,8 +33,11 @@ RISK = {f.id: f for f in builtin_fields("annual_report")}["annual_report.risk_fa
 def select_from_bundle() -> None:
     """The real thing: a tagged document, a fitted selector (edit these two paths)."""
     risk = {f.id: f for f in builtin_fields("annual_report")}["annual_report.risk_factors"]
-    analysis = process("report.pdf", element_tags="bundles/tagger-a")
+    # read as the selector was fitted: the accurate profile, tagged by the bundle
+    analysis = process("report.pdf", profile="accurate", element_tags="bundles/tagger-a")
     selection = select(analysis, risk, completeness=0.9, selector="bundles/tagger-a")
+    if selection.fit_mismatch:  # e.g. ["layout"]: read with another profile than the fit's
+        print("not guaranteed: differs from the fit in", ", ".join(selection.fit_mismatch))
     print(readout(selection))
     print("\n\n".join(chunk.text for chunk in selection.chunks))
 
@@ -103,22 +108,43 @@ BODY = [
 ]
 
 
+# What the hand-set selector says it was "fitted" on. A real selector records the bundle's
+# fingerprint, the embedder spec and the reading of `docrooter fit-selector`; select() grants
+# the guarantee only on tags, sim and a reading made the same way.
+STAND_IN = FitProvenance(
+    tagger="keyword-stand-in",
+    embedder="keyword-embedder",
+    profile="accurate",
+    layout="heron",
+    sections="embedding:dmis-lab/UltraBERT-Embed-150M",
+)
+
+
 class KeywordTagger:
     """Tags a paragraph that mentions risk as risk factors, and any other as the family's
-    catch-all. The real one is the student you trained (``element_tags``)."""
+    catch-all. The real one is the student you trained (``element_tags``), whose tags carry
+    its bundle's fingerprint; these carry the stand-in's."""
 
     def tag(self, elements, family):
         out = []
         for element in elements:
             leaf = "risk_factors" if "risk" in element.text.lower() else "other"
             topic = f"{family}.{leaf}"
-            tags = TagResult(labels=[topic], probs={topic: 1.0}, confidence=1.0, source="keyword")
+            tags = TagResult(
+                labels=[topic],
+                probs={topic: 1.0},
+                confidence=1.0,
+                source="keyword",
+                fingerprint=STAND_IN.tagger,
+            )
             out.append({"topic": tags})
         return out
 
 
 class KeywordEmbedder:
     """One direction for texts that mention risk, another for the rest."""
+
+    name = STAND_IN.embedder
 
     def encode(self, texts, prompt=""):
         return np.array([[1.0, 0.0] if "risk" in t.lower() else [0.0, 1.0] for t in texts])
@@ -165,11 +191,13 @@ def hand_set_selector() -> Selector:
         query_fallback=fallback,
         dials={"annual_report": dial},
         calibrated_fields=calibration_of([RISK]),  # the one field this demo "calibrated"
+        provenance=STAND_IN,
     )
 
 
 def sample_analysis() -> Analysis:
-    """An annual report of four sections, built by hand (no PDF, no model)."""
+    """An annual report of four sections, built by hand (no PDF, no model), as if read with the
+    accurate profile (heron layout, section labels on)."""
     doc = Document.from_sections([{"title": title, "level": 1} for title in SECTIONS])
     elements = []
     for number, title in enumerate(SECTIONS):
@@ -196,7 +224,10 @@ def sample_analysis() -> Analysis:
     result = DocTypeResult(
         source="example", best=PathResult(node_ids=["financial", "financial.annual_report"])
     )
-    return Analysis(document=doc, doc_type=result, config=RouterConfig(profile="fast"))
+    sections = NormalizationResult(doc_type=None, taxonomy="section_types/annual_report")
+    return Analysis(
+        document=doc, doc_type=result, sections=sections, config=RouterConfig(profile="accurate")
+    )
 
 
 def main() -> None:

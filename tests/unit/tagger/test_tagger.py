@@ -364,6 +364,32 @@ def test_bundle_round_trip_with_temperatures(tmp_path):
     assert again[1]["function"].labels == []
 
 
+def test_bundle_tags_carry_the_bundle_fingerprint(tmp_path):
+    """select() guarantees recall only on tags of the bundle its selector was fitted with, so
+    a saved bundle's tags carry its content hash; an unsaved tagger's carry none."""
+    from docrooter.tagger.element_tags import tagger_fingerprint
+
+    tagger = train_tagger(_dataset(), _function_rows(), stage="A", base_model=BASE, taxonomy=TAX)
+    elements = [_element("risk item")]
+    unsaved = tagger.tag(elements, "report")[0]
+    assert unsaved["topic"].fingerprint is None and unsaved["function"].fingerprint is None
+    bundle = tmp_path / "element-tagger-v1"
+    tagger.save(bundle)
+    loaded = ElementTagger.load(bundle)
+    expected = tagger_fingerprint(loaded)
+    assert expected is not None
+    for tags in (tagger.tag(elements, "report")[0], loaded.tag(elements, "report")[0]):
+        assert tags["topic"].fingerprint == expected
+        assert tags["function"].fingerprint == expected
+    # a selector.json kept in the bundle is not part of the tagger
+    (bundle / "selector.json").write_text("{}", encoding="utf-8")
+    assert tagger_fingerprint(ElementTagger.load(bundle)) == expected
+    # a retrain saved over it is another tagger
+    tagger.temperatures = {"topic": 0.5, "function": 2.0}
+    tagger.save(bundle)
+    assert tagger.tag(elements, "report")[0]["topic"].fingerprint != expected
+
+
 def test_calibrate_sets_one_temperature_per_facet():
     tagger = train_tagger(_dataset(), _function_rows(), stage="A", base_model=BASE, taxonomy=TAX)
     report = calibrate_tagger(tagger, _dataset(), _function_rows())

@@ -26,7 +26,17 @@ from docrooter.select.fields import (
 )
 from docrooter.select.fit import fit_selector
 from docrooter.select.relevance import CONTENT_KINDS, FEATURE_NAMES, Combiner, features
-from docrooter.select.selection import SELECTOR_FILE, Selection, Selector, select
+from docrooter.select.selection import (
+    SELECTOR_FILE,
+    FitProvenance,
+    Selection,
+    Selector,
+    need_features,
+    prepare,
+    readout,
+    select,
+    select_scored,
+)
 
 __all__ = [
     "CONTENT_KINDS",
@@ -37,6 +47,7 @@ __all__ = [
     "Combiner",
     "DialTable",
     "Field",
+    "FitProvenance",
     "Selection",
     "Selector",
     "builtin_fields",
@@ -48,6 +59,10 @@ __all__ = [
     "fit_selector",
     "list_builtin_field_sets",
     "load_fields",
+    "need_features",
+    "prepare",
+    "readout",
     "select",
+    "select_scored",
     "validate_fields",
 ]

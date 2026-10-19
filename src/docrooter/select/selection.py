@@ -12,20 +12,36 @@ tags (from the analysis, or from ``tagger``) and an embedder gives ``sim``; othe
 fallback is. The elements' tags are completed by ``tagger`` when it is given; the analysis is
 never modified.
 
-**The guarantee.** ``guarantee=True`` only when the need is fields of one family, the full field
-combiner was used, the selector has a dial for that family, the document's type maps to that
-family (spec §0.6), there is no budget, and every field of the need is one the dial was
-calibrated on (:attr:`Selector.calibrated_fields`: the field's id and a fingerprint of its
-topics and functions; a selector that records none, as in the old format, calibrated none).
-A field outside it gets an estimate with ``uncalibrated_field=True``. The dial's λ̂(c) is
-then the threshold and ``expected_recall`` is c: E[recall] ≥ c on documents like the calibration
-set. A dial capped by its calibration size returns the whole document (``capped=True``, recall
-trivially 1).
+**The guarantee.** ``guarantee=True`` only when **all** of these hold:
+
+- the need is **one field** (a list of fields is an estimate, ``multi_field=True``: the dial
+  was calibrated on single-field units);
+- the full field combiner was used (every content element tagged, and an embedder for ``sim``);
+- the selector has a dial for the field's family, and the document's type maps to that family
+  (spec §0.6);
+- there is no budget;
+- the field is one the dial was calibrated on (:attr:`Selector.calibrated_fields`: the field's
+  id and a fingerprint of its topics, functions and need text; a selector that records none, as
+  in the old format, calibrated none), else ``uncalibrated_field=True``;
+- the features come from what the selector was fitted on (:attr:`Selector.provenance`): every
+  content element's tags carry the fingerprint of the fit's tagger bundle
+  (``TagResult.fingerprint``; tags of unknown provenance do not), ``sim`` comes from the fit's
+  embedder spec, and the analysis was read with the fit's layout engine
+  (``analysis.config.layout``) and has section labels (``analysis.sections``). Otherwise
+  ``fit_mismatch`` lists what differs (``"tagger"``, ``"embedder"``, ``"layout"``,
+  ``"sections"``, or ``"provenance"`` for a selector that recorded none, which guarantees
+  nothing).
+
+The dial's λ̂(c) is then the threshold and ``expected_recall`` is c: E[recall] ≥ c on documents
+like the calibration set. A dial capped by its calibration size returns the whole document
+(``capped=True``, recall trivially 1). ``calibration_n`` is the dial's n (its finite-sample term
+is 1/(n+1)).
 
 **Without the guarantee** (a query, the no-tagger or no-embedder fallback, no dial for the
-family, a doc-type mismatch, an uncalibrated field) the cut is the model's own estimate: the
-shortest prefix by p, ties kept together, whose share of sum(p) reaches c.
-``expected_recall`` is that share, an estimate, and ``threshold`` the p of the last element taken.
+family, a doc-type mismatch, an uncalibrated field, several fields, a fit mismatch) the cut is
+the model's own estimate: the shortest prefix by p, ties kept together, whose share of sum(p)
+reaches c. ``expected_recall`` is that share, an estimate, and ``threshold`` the p of the last
+element taken.
 
 **Doc-type mismatch.** When the analysis's doc type maps to another family than the field's
 (no doc type maps to ``generic``, as in :func:`~docrooter.process`), the content elements are
@@ -73,12 +89,13 @@ per-section lookups precomputed.
 from __future__ import annotations
 
 import json
+import numbers
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from docrooter.backends.base import close_backend
 from docrooter.chunking import Chunk, chunk, compose, document_of, element_parts
@@ -97,11 +114,14 @@ if TYPE_CHECKING:
 
 __all__ = [
     "FALLBACK_FEATURES",
+    "FIT_MISMATCH_KINDS",
     "NEED_INSTRUCTION",
     "SELECTOR_FILE",
     "DocContext",
+    "FitProvenance",
     "Selection",
     "Selector",
+    "fit_mismatch",
     "need_features",
     "need_texts",
     "prepare",
@@ -122,6 +142,8 @@ NO_RELEVANT_BELOW = 0.5  # sum(p) under which the document is taken to hold noth
 HEADING_KINDS = frozenset({"heading", "title"})
 _TOL = 1e-12
 _ROLES = ("field", "field_fallback", "query", "query_fallback")
+FIT_MISMATCH_KINDS: tuple[str, ...] = ("provenance", "tagger", "embedder", "layout", "sections")
+"""What ``Selection.fit_mismatch`` can list, in the order it lists them."""
 
 
 class Selection(BaseModel):
@@ -133,8 +155,12 @@ class Selection(BaseModel):
     ``None`` without the guarantee when no relevant content is expected (``relevant_expected``
     < 0.5). ``uncalibrated_field`` is ``True`` when everything else would have carried the
     guarantee but a field of the need is not one the dial was calibrated on (it is then an
-    estimate, ``guarantee=False``). ``relevant_expected`` is the expected
-    number of relevant elements, sum(p) (``None`` at c = 1.0, where nothing is scored).
+    estimate, ``guarantee=False``). ``multi_field`` is ``True`` for a list of several fields
+    below c = 1.0 (an estimate). ``fit_mismatch`` lists, for a field need below c = 1.0, what
+    differs from the selector's fit (:data:`FIT_MISMATCH_KINDS`); non-empty means no guarantee.
+    ``calibration_n`` is the n of the dial that was applied (``None`` when none was).
+    ``relevant_expected`` is the expected number of relevant elements, sum(p) (``None`` at
+    c = 1.0, where nothing is scored).
     """
 
     need: str
@@ -151,6 +177,9 @@ class Selection(BaseModel):
     relevant_expected: float | None = None
     over_budget: bool = False
     uncalibrated_field: bool = False
+    multi_field: bool = False
+    fit_mismatch: list[str] = []
+    calibration_n: int | None = None
 
 
 def readout(selection: Selection) -> str:
@@ -172,6 +201,10 @@ def readout(selection: Selection) -> str:
         parts.append("doc type mismatch")
     if selection.uncalibrated_field:
         parts.append("field not calibrated (estimate)")
+    if selection.multi_field:
+        parts.append("several fields (estimate)")
+    if selection.fit_mismatch:
+        parts.append("reading differs from calibration (estimate)")
     if selection.over_budget:
         parts.append("the most relevant element alone exceeds the budget")
     return " · ".join(parts)
@@ -180,16 +213,35 @@ def readout(selection: Selection) -> str:
 # --- the selector ------------------------------------------------------------------------------
 
 
+class FitProvenance(BaseModel):
+    """What a selector's combiners and dials were fitted on, so that :func:`select` grants the
+    guarantee only on features made the same way: ``tagger`` is the fingerprint of the tagger
+    bundle (:func:`~docrooter.tagger.element_tags.tagger_fingerprint`; ``None`` when the fit's
+    tagger was not a saved bundle, which then never matches), ``embedder`` the embedding spec
+    of ``sim``, and the reading: the rooter ``profile``, its ``layout`` engine and its
+    ``sections`` backend (recorded; :func:`select` checks that section labels are on)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    tagger: str | None
+    embedder: str | None
+    profile: str
+    layout: str | None
+    sections: str | None
+
+
 class Selector:
     """The fitted relevance combiners and the completeness dials, saved as ``selector.json``.
 
     ``field`` scores fields on every feature, and its ``dials`` (one per element family) were
     calibrated on its probabilities; ``field_fallback`` and ``query_fallback`` use
     :data:`FALLBACK_FEATURES` only; ``query`` scores free-text queries. ``embedder`` is the
-    spec of the embedding backend ``sim`` was fitted with (``None`` when not recorded):
-    :func:`select` loads it when the caller passes no embedder. ``meta`` is what the fit
-    recorded (``docrooter.select.fit``: profile, tagger, corpus, document counts, label checks,
-    warnings); it does not affect selection.
+    spec of the embedding backend ``sim`` was fitted with (``None`` when not recorded; by
+    default the provenance's): :func:`select` loads it when the caller passes no embedder.
+    ``provenance`` (:class:`FitProvenance`) is the tagger, embedder and reading the fit used;
+    a selector without one guarantees nothing. ``meta`` is what else the fit recorded
+    (``docrooter.select.fit``: corpus, document counts, label checks, warnings); it does not
+    affect selection.
 
     The attributes are read-only, so a dial cannot be paired with another combiner after the
     check in the constructor; :func:`select` checks the pairing again before it guarantees.
@@ -206,6 +258,7 @@ class Selector:
         embedder: str | None = None,
         meta: dict[str, Any] | None = None,
         calibrated_fields: Mapping[str, Mapping[str, str]] | None = None,
+        provenance: FitProvenance | None = None,
     ) -> None:
         if tuple(field.feature_names) != FEATURE_NAMES:
             raise ValueError(
@@ -225,6 +278,20 @@ class Selector:
             if dial.family != family:
                 raise ValueError(f"the dial under {family!r} is for family {dial.family!r}")
             dial.check_combiner(field)
+        if embedder is not None and not isinstance(embedder, str):
+            raise ValueError(f"embedder must be a spec string or None, got {embedder!r}")
+        if provenance is not None and not isinstance(provenance, FitProvenance):
+            raise ValueError("provenance must be a FitProvenance")
+        if provenance is not None:
+            if embedder is None:
+                embedder = provenance.embedder
+            elif provenance.embedder != embedder:
+                raise ValueError(
+                    f"the embedder {embedder!r} is not the one the provenance records "
+                    f"({provenance.embedder!r})"
+                )
+        if meta is not None and not isinstance(meta, Mapping):
+            raise ValueError(f"meta must be a mapping, got {type(meta).__name__}")
         self._field = field
         self._field_fallback = field_fallback
         self._query = query
@@ -233,6 +300,7 @@ class Selector:
         self._embedder = embedder
         self._meta = json.loads(json.dumps(meta or {}))  # a JSON-safe copy
         self._calibrated = _check_calibrated(calibrated_fields)
+        self._provenance = provenance
 
     @property
     def field(self) -> Combiner:
@@ -258,6 +326,11 @@ class Selector:
     @property
     def embedder(self) -> str | None:
         return self._embedder
+
+    @property
+    def provenance(self) -> FitProvenance | None:
+        """What the fit used (``None``: unknown, so nothing is guaranteed)."""
+        return self._provenance
 
     @property
     def calibrated_fields(self) -> dict[str, dict[str, str]]:
@@ -288,29 +361,40 @@ class Selector:
                 family: dict(sorted(fields.items()))
                 for family, fields in sorted(self.calibrated_fields.items())
             },
+            "provenance": None if self.provenance is None else self.provenance.model_dump(),
             "meta": self.meta,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Selector:
         """Read :meth:`to_dict`'s form. Every dial is checked against the field combiner, so a
-        refit without recalibrating raises ``ValueError``."""
+        refit without recalibrating raises ``ValueError``; so does any corrupt content (a
+        missing key, a value of the wrong type). A selector saved before provenance was
+        recorded loads without one (it guarantees nothing)."""
+        if not isinstance(data, Mapping):
+            raise ValueError(f"corrupt selector: expected a JSON object, got {type(data).__name__}")
         if data.get("format") != SELECTOR_FORMAT or data.get("version") != SELECTOR_VERSION:
             raise ValueError(
                 f"not a {SELECTOR_FORMAT} v{SELECTOR_VERSION}: "
                 f"{data.get('format')!r} v{data.get('version')!r}"
             )
-        combiners = {role: Combiner.from_dict(data["combiners"][role]) for role in _ROLES}
-        return cls(
-            field=combiners["field"],
-            field_fallback=combiners["field_fallback"],
-            query=combiners["query"],
-            query_fallback=combiners["query_fallback"],
-            dials={family: DialTable.from_dict(d) for family, d in data["dials"].items()},
-            embedder=data.get("embedder"),
-            meta=data.get("meta") or {},
-            calibrated_fields=data.get("calibrated_fields"),
-        )
+        try:
+            combiners = {role: Combiner.from_dict(data["combiners"][role]) for role in _ROLES}
+            provenance = data.get("provenance")
+            return cls(
+                field=combiners["field"],
+                field_fallback=combiners["field_fallback"],
+                query=combiners["query"],
+                query_fallback=combiners["query_fallback"],
+                dials={family: DialTable.from_dict(d) for family, d in data["dials"].items()},
+                embedder=data.get("embedder"),
+                meta=data.get("meta") or {},
+                calibrated_fields=data.get("calibrated_fields"),
+                provenance=None if provenance is None else _read_provenance(provenance),
+            )
+        except (KeyError, TypeError, AttributeError, IndexError) as exc:
+            name = f"missing key {exc}" if isinstance(exc, KeyError) else str(exc)
+            raise ValueError(f"corrupt selector: {name}") from exc
 
     def save(self, path: str | Path) -> Path:
         """Write ``selector.json``: to ``path``, or into it when it is a directory (such as a
@@ -329,7 +413,17 @@ class Selector:
             raise DocrooterError(
                 f"no selector at {target}; make one with `docrooter fit-selector`"
             ) from None
-        return cls.from_dict(json.loads(text))
+        try:
+            return cls.from_dict(json.loads(text))
+        except ValueError as exc:  # corrupt JSON or content: name the file
+            raise ValueError(f"{target}: {exc}") from exc
+
+
+def _read_provenance(value: Any) -> FitProvenance:
+    try:
+        return FitProvenance.model_validate(value)
+    except ValidationError as exc:
+        raise ValueError(f"corrupt selector: provenance: {exc}") from None
 
 
 def _check_calibrated(
@@ -364,8 +458,14 @@ def _parse_need(need: Field | Sequence[Field] | str) -> tuple[list[Field], str |
         if not need.strip():
             raise ValueError("a query need must not be blank")
         return [], need
-    fields = [need] if isinstance(need, Field) else list(need)
-    if not fields or not all(isinstance(f, Field) for f in fields):
+    if not isinstance(need, (Field, Sequence)):
+        raise ValueError(
+            f"a need is a Field, a non-empty list of Fields, or a query string; got "
+            f"{type(need).__name__}"
+        )
+    items: list[Any] = [need] if isinstance(need, Field) else list(need)
+    fields = [f for f in items if isinstance(f, Field)]
+    if not fields or len(fields) != len(items):
         raise ValueError("a need is a Field, a non-empty list of Fields, or a query string")
     families = sorted({f.family for f in fields})
     if len(families) > 1:
@@ -554,7 +654,8 @@ class DocContext:
     :func:`need_features`. ``family`` is the element family the tags belong to, ``doc_family``
     the one the document's type maps to. ``tagged`` says whether every content element has a
     topic tag, and ``has_sims`` whether an encoder gave the element embeddings (else ``sim``
-    is 0); the full combiners need both.
+    is 0); the full combiners need both. ``embedder_spec`` is the spec of that encoder, which
+    :func:`select_scored` compares with the selector's provenance.
     """
 
     def __init__(
@@ -569,6 +670,7 @@ class DocContext:
         vectors: np.ndarray | None,
         rows: list[int],
         encoder: Any,
+        embedder_spec: str | None = None,
     ) -> None:
         self.index = index
         self.family = family
@@ -579,6 +681,7 @@ class DocContext:
         self.vectors = vectors  # unit rows, one per entry of ``rows``
         self.rows = rows  # indices into the content elements that have text
         self.encoder = encoder
+        self.embedder_spec = embedder_spec
         self.element_ids = [index.doc.elements[pos].id for pos in index.content]
 
     @property
@@ -592,6 +695,7 @@ def prepare(
     tagger: Any = None,
     encoder: Any = None,
     family: str | None = None,
+    encoder_spec: str | None = None,
 ) -> DocContext:
     """Read ``analysis`` once for :func:`need_features`.
 
@@ -602,28 +706,60 @@ def prepare(
     ``tag(elements, family)``) tags the content elements within ``family``; without a tagger,
     tags of another family are dropped. ``encoder`` (an object with ``encode``, which the
     caller keeps open until its last :func:`need_features` call) embeds each content element's
-    heading path and body once. The analysis is never modified.
+    heading path and body once; ``encoder_spec`` is its spec (by default its ``spec`` or
+    ``name``), which the guarantee compares with the selector's. The analysis is never
+    modified.
     """
+    _check_analysis(analysis)
     doc = document_of(analysis)
     index = _Index(doc)
     doc_family = family_for_doc_type(_doc_type(analysis) or "")
     family = family or doc_family
     tags, tagged = _content_tags(doc, index, tagger, retag=family != doc_family, family=family)
-    vectors: np.ndarray | None = None
-    rows: list[int] = []
-    if encoder is not None:
-        rows, texts = index.sim_texts()
-        vectors = _text_vectors(texts, encoder) if texts else np.zeros((0, 0))
-    return DocContext(
+    ctx = DocContext(
         index=index,
         family=family,
         doc_family=doc_family,
         tags=tags,
         tagged=tagged,
         sections=index.section_labels(analysis),
-        vectors=vectors,
-        rows=rows,
-        encoder=encoder,
+        vectors=None,
+        rows=[],
+        encoder=None,
+    )
+    if encoder is not None:
+        _embed(ctx, encoder, encoder_spec)
+    return ctx
+
+
+def _embed(ctx: DocContext, encoder: Any, spec: str | None) -> None:
+    """Embed the prepared document's content elements with ``encoder`` (once)."""
+    if not callable(getattr(encoder, "encode", None)):
+        raise ValueError(
+            f"the embedder {spec or _spec_of(encoder) or type(encoder).__name__!r} cannot "
+            "encode texts; sim needs an embedding backend, such as embedding:<model>"
+        )
+    rows, texts = ctx.index.sim_texts()
+    ctx.vectors = _text_vectors(texts, encoder) if texts else np.zeros((0, 0))
+    ctx.rows = rows
+    ctx.encoder = encoder
+    ctx.embedder_spec = spec if spec is not None else _spec_of(encoder)
+
+
+def _spec_of(value: Any) -> str | None:
+    """The spec of a backend or tagger given by spec or object (its ``spec``, else ``name``)."""
+    if isinstance(value, (str, Path)):
+        return str(value)
+    spec = getattr(value, "spec", None) or getattr(value, "name", None)
+    return spec if isinstance(spec, str) else None
+
+
+def _check_analysis(analysis: Any) -> None:
+    if isinstance(analysis, Document) or hasattr(analysis, "document"):
+        return
+    raise TypeError(
+        f"select() reads an Analysis (what process() returns) or a Document, not "
+        f"{type(analysis).__name__}: call docrooter.process(path) first"
     )
 
 
@@ -678,6 +814,7 @@ def select(
     ``budget`` (tokens, at least 1) replaces the dial and never carries the guarantee; it
     cannot be combined with c = 1.0, which always means the whole document.
     """
+    _check_analysis(analysis)
     c = _check_target(completeness, budget)
     fields, query = _parse_need(need)
     label = query if query is not None else ",".join(f.id for f in fields)
@@ -698,20 +835,22 @@ def select(
             mismatch=mismatch,
         )
 
+    chosen = _resolve_selector(selector, tagger)
+    # tags first (a tagger loaded from a spec is closed by then), then the embedder: one model
+    # body at a time
+    ctx = prepare(analysis, tagger=tagger, family=field_family or doc_family)
+    spec = embedder if embedder is not None else chosen.embedder
     encoder: Any = None
-    encoder_owned = False
+    encoder_owned = isinstance(spec, str)
     try:
-        chosen = _resolve_selector(selector, tagger)
-        spec = embedder if embedder is not None else chosen.embedder
         if spec is not None:
-            encoder_owned = isinstance(spec, str)
             if encoder_owned:
                 from docrooter.backends.registry import resolve_backend
 
                 encoder = resolve_backend(spec)
             else:
                 encoder = spec
-        ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=field_family or doc_family)
+            _embed(ctx, encoder, spec if encoder_owned else None)
         _, X = need_features(ctx, need)
     finally:
         if encoder_owned and encoder is not None:
@@ -720,11 +859,13 @@ def select(
 
 
 def _check_target(completeness: float, budget: int | None) -> float:
+    if isinstance(completeness, bool) or not isinstance(completeness, numbers.Real):
+        raise ValueError(f"completeness must be a number in [0, 1], got {completeness!r}")
     c = float(completeness)
     if not 0.0 <= c <= 1.0:  # also refuses NaN
         raise ValueError(f"completeness must be in [0, 1], got {completeness}")
     if budget is not None:
-        if isinstance(budget, bool) or not isinstance(budget, int) or budget < 1:
+        if isinstance(budget, bool) or not isinstance(budget, numbers.Integral) or budget < 1:
             raise ValueError(f"budget must be a whole number of tokens >= 1, got {budget!r}")
         if c == 1.0:
             raise ValueError(
@@ -759,6 +900,8 @@ def select_scored(
     index = ctx.index
     full = ctx.tagged and ctx.has_sims
     calibrated = all(chosen.is_calibrated(f) for f in fields)
+    multi = len(fields) > 1  # the dial was calibrated on single-field units
+    differs = fit_mismatch(chosen, analysis, ctx) if fields else []
     if fields:
         combiner = chosen.field if full else chosen.field_fallback
     else:
@@ -768,11 +911,12 @@ def select_scored(
     nothing = relevant < NO_RELEVANT_BELOW
     dial = chosen.dials.get(field_family) if field_family is not None else None
     eligible = bool(fields) and full and not mismatch and dial is not None and budget is None
-    guaranteed = eligible and calibrated
+    guaranteed = eligible and calibrated and not multi and not differs
     uncalibrated = eligible and not calibrated  # would be guaranteed, but this field was not fitted
 
     capped = over_budget = False
     threshold: float | None = None
+    calibration_n: int | None = None
     expected: float | None
     if budget is not None:
         picked, over_budget = _fill_budget(index, p, budget, nothing)
@@ -786,6 +930,7 @@ def select_scored(
         guarantee = True
         expected = 1.0 if capped else c  # what is promised, whatever sum(p) is
         picked = index.expand([index.content[j] for j in np.flatnonzero(mask)])
+        calibration_n = dial.n
     else:
         guarantee = False
         core, threshold, expected = ([], None, None) if nothing else _estimate_cut(p, c)
@@ -803,6 +948,39 @@ def select_scored(
         relevant=relevant,
         over_budget=over_budget,
         uncalibrated=uncalibrated,
+        multi=multi,
+        differs=differs,
+        calibration_n=calibration_n,
+    )
+
+
+def fit_mismatch(selector: Selector, analysis: Analysis | Document, ctx: DocContext) -> list[str]:
+    """What differs between how ``ctx`` was read and scored and what ``selector`` was fitted on
+    (:data:`FIT_MISMATCH_KINDS`, in that order; empty when nothing does). The tags are judged
+    only when every content element has one, and ``sim`` only when an encoder gave it: without
+    them the fallback is used, which is never guaranteed anyway."""
+    provenance = selector.provenance
+    if provenance is None:
+        return ["provenance"]
+    out: list[str] = []
+    if ctx.tagged and not _tagged_by(ctx.tags, provenance.tagger):
+        out.append("tagger")
+    if ctx.has_sims and (provenance.embedder is None or ctx.embedder_spec != provenance.embedder):
+        out.append("embedder")
+    config = None if isinstance(analysis, Document) else analysis.config
+    if config is None or provenance.layout is None or config.layout != provenance.layout:
+        out.append("layout")
+    if isinstance(analysis, Document) or analysis.sections is None:
+        out.append("sections")
+    return out
+
+
+def _tagged_by(tags: Sequence[dict[str, TagResult] | None], fingerprint: str | None) -> bool:
+    """Whether every tag carries ``fingerprint`` (never, for an unknown one)."""
+    if fingerprint is None:
+        return False
+    return all(
+        result.fingerprint == fingerprint for t in tags if t is not None for result in t.values()
     )
 
 
@@ -923,6 +1101,9 @@ def _selection(
     relevant: float | None = None,
     over_budget: bool = False,
     uncalibrated: bool = False,
+    multi: bool = False,
+    differs: Sequence[str] = (),
+    calibration_n: int | None = None,
 ) -> Selection:
     positions = sorted(picked)
     tokens = sum(index.tokens[pos] for pos in positions)
@@ -942,6 +1123,9 @@ def _selection(
         relevant_expected=relevant,
         over_budget=over_budget,
         uncalibrated_field=uncalibrated,
+        multi_field=multi,
+        fit_mismatch=list(differs),
+        calibration_n=calibration_n,
     )
 
 

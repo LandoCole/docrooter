@@ -168,7 +168,8 @@ def function_rows(
     """The function sample of ``split`` as :class:`FunctionRow`, in corpus order: every element
     with a teacher ``function`` row, its prescreen row's scores (none when it has no prescreen
     row) and its student input (:func:`~docrooter.tagger.bundle.student_text`). Teacher rows
-    naming Jev raise :class:`~docrooter.errors.TeacherNotAllowedError`."""
+    naming Jev raise :class:`~docrooter.errors.TeacherNotAllowedError`. calib-crc documents
+    are never read (:func:`~docrooter.corpus.calib_half`): ``split="calib"`` is calib-fit."""
     from docrooter.tagger.bundle import student_text
 
     answers = _by_key(teacher)
@@ -176,7 +177,7 @@ def function_rows(
         _refuse_jev_row(row)
     scores = _by_key(prescreen)
     out = []
-    for element in corpus.iter_elements(split=split):
+    for element in corpus.iter_fit_elements(split=split):
         key = LabelKey(element.doc_id, element.element_id, element.text_sha1, FUNCTION_FACET)
         answer = answers.get(key)
         if answer is None:

@@ -44,18 +44,24 @@ from docrooter.elements.models import ElementKind
 from docrooter.errors import DocrooterError
 
 __all__ = [
+    "CALIB_HALVES",
     "SPLITS",
     "Corpus",
     "CorpusElement",
     "LabelKey",
     "LabelRow",
     "ManifestRecord",
+    "calib_half",
+    "is_calib_crc",
     "read_manifest",
     "text_sha1",
 ]
 
 Split = Literal["train", "calib", "gold"]
 SPLITS: tuple[str, ...] = get_args(Split)
+CalibHalf = Literal["fit", "crc"]
+CALIB_HALVES: tuple[str, ...] = get_args(CalibHalf)
+_CALIB_SALT = "calibsplit:"
 _KINDS = frozenset(get_args(ElementKind))
 _SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -66,6 +72,25 @@ _ELEMENT_KEYS = frozenset({"id", "kind", "text", "heading_path", "section_title"
 def text_sha1(text: str) -> str:
     """The hex SHA-1 of ``text`` (UTF-8): the element-text part of a label key."""
     return hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+
+def calib_half(doc_id: str) -> CalibHalf:
+    """Which half of the ``calib`` split a document belongs to: ``"fit"`` (calib-fit) when
+    ``sha256("calibsplit:" + doc_id)`` (UTF-8), its first 8 bytes read as a big-endian
+    integer over 2**64, is below 0.5, else ``"crc"`` (calib-crc).
+
+    calib-fit is what v0.5 fits its temperatures on. calib-crc is never fitted by v0.5 (no
+    training, active learning, term mining or temperatures): it is reserved for the v0.6
+    conformal calibration, which reuses this exact partition. The answer depends on the id
+    only, so it is the same on every run and machine."""
+    digest = hashlib.sha256((_CALIB_SALT + doc_id).encode("utf-8")).digest()
+    return "fit" if int.from_bytes(digest[:8], "big") / 2**64 < 0.5 else "crc"
+
+
+def is_calib_crc(record: ManifestRecord) -> bool:
+    """Whether a corpus document is in calib-crc: the ``calib`` split's half that no v0.5
+    fitting may read (:func:`calib_half`)."""
+    return record.split == "calib" and calib_half(record.id) == "crc"
 
 
 def _check_name(value: str, what: str) -> str:
@@ -416,6 +441,23 @@ class Corpus:
         splits = _names(split, SPLITS, "split")
         wanted = _names(kinds, _KINDS, "kind")
         records = [r for r in self._index().values() if splits is None or r.split in splits]
+        return self._elements(records, wanted)
+
+    def iter_fit_elements(
+        self,
+        split: str | Iterable[str] | None = None,
+        kinds: Iterable[str] | None = None,
+    ) -> Iterator[CorpusElement]:
+        """:meth:`iter_elements` without the calib-crc documents (:func:`is_calib_crc`): the
+        elements any v0.5 fitting may read (training, active learning, term mining,
+        temperatures). ``split="calib"`` gives the calib-fit half."""
+        splits = _names(split, SPLITS, "split")
+        wanted = _names(kinds, _KINDS, "kind")
+        records = [
+            r
+            for r in self._index().values()
+            if (splits is None or r.split in splits) and not is_calib_crc(r)
+        ]
         return self._elements(records, wanted)
 
     def _elements(

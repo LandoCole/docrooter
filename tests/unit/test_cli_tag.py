@@ -167,7 +167,7 @@ def _store(directory):
     corpus = Corpus(directory)
     docs = [
         ("ar1", "train", "financial.annual_report", "annual_report"),
-        ("paper1", "calib", "research.research_paper", "research_paper"),
+        ("paper2", "calib", "research.research_paper", "research_paper"),  # calib-fit
     ]
     for doc_id, split, doc_type, family in docs:
         record = ManifestRecord(
@@ -192,7 +192,7 @@ def test_tag_corpus_writes_a_labels_file_and_resumes(tmp_path, bundle):
     assert report["tagged"] == 4 and report["skipped"] == 0 and report["documents"] == 2
     rows = corpus.labels("tagger")
     assert {(k.doc_id, k.element_id, k.facet) for k in rows} == {
-        (d, e, f) for d in ("ar1", "paper1") for e in ("e1", "e2") for f in ("topic", "function")
+        (d, e, f) for d in ("ar1", "paper2") for e in ("e1", "e2") for f in ("topic", "function")
     }
     topic = next(r for k, r in rows.items() if k.doc_id == "ar1" and k.facet == "topic")
     assert topic.probs == {"annual_report.other": 0.75}
@@ -212,7 +212,7 @@ def test_tag_corpus_writes_a_labels_file_and_resumes(tmp_path, bundle):
          "--labeler", "student"],
     )  # fmt: skip
     assert only.exit_code == 0, only.output
-    assert {k.doc_id for k in corpus.labels("student")} == {"paper1"}
+    assert {k.doc_id for k in corpus.labels("student")} == {"paper2"}
 
 
 def test_tag_corpus_needs_a_store(tmp_path, bundle):
@@ -270,7 +270,7 @@ def stages(monkeypatch):
         rows = []
         for element in corpus.iter_elements(kinds=["paragraph"]):
             leaf = "annual_report.risk_factors"
-            if element.doc_id == "paper1":
+            if element.doc_id == "paper2":
                 leaf = "research_paper.other"
             rows.append(
                 LabelRow(

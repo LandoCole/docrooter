@@ -69,7 +69,7 @@ def to_dataset(training_set: TrainingSet, corpus: Corpus) -> Dataset:
     element (with that text) is not in the corpus is a ``ValueError``."""
     wanted = {(e.doc_id, e.element_id, e.text_sha1) for e in training_set.examples}
     texts: dict[tuple[str, str, str], str] = {}
-    for element in corpus.iter_elements():
+    for element in corpus.iter_fit_elements():
         key = (element.doc_id, element.element_id, element.text_sha1)
         if key in wanted:
             texts[key] = input_text(element)
@@ -125,7 +125,8 @@ def build_training_set(
 ) -> tuple[Taxonomy, TrainingSet]:
     """``(enriched taxonomy, confident set)`` from the teacher's ``topic`` rows on the ``split``
     elements, in the order of spec §4.0 ruling 7 (module docstring). Holds one embedding per
-    labelled element (``float32``)."""
+    labelled element (``float32``). calib-crc documents are never read
+    (:func:`~docrooter.corpus.calib_half`)."""
     if not isinstance(labels, Mapping):
         labels = list(labels)  # read more than once
     terms = mine_terms(corpus, labels, taxonomy, embedder, k=k, split=split)
@@ -137,7 +138,7 @@ def build_training_set(
     texts: list[str] = []
     chosen: list[str] = []
     has_keyword: list[bool] = []
-    for element in corpus.iter_elements(split=split):
+    for element in corpus.iter_fit_elements(split=split):
         key = LabelKey(element.doc_id, element.element_id, element.text_sha1, TOPIC_FACET)
         choice = choices.get(key)
         if choice is None:

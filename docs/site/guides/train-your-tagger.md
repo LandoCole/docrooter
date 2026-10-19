@@ -112,7 +112,9 @@ This runs three stages, each skipped on the next run once it has finished:
 3. **Train and calibrate.** Stage A trains the heads on the frozen body (a cheap baseline).
    Stage B (`--stage B`, the default) fine-tunes the body, within `--time-budget-hours`;
    `--device cpu` forces the CPU. The function heads are one-vs-rest classifiers on the student's
-   embeddings. A temperature per facet is fitted on the `calib` documents.
+   embeddings. A temperature per facet is fitted on the calib-fit half of the `calib`
+   documents. The `calib` split is halved by document (`docrooter.corpus.calib_half`), and the
+   other half, calib-crc, is never fitted by anything: it is kept for conformal calibration.
 
 Teachers are named `mlx:<repo>@<revision>`, `hf:<repo>@<revision>` or `openai:<model>`, and the
 revision is required because every label records it. Labels are cached by element text, prompt,

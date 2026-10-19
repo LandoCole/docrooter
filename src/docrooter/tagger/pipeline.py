@@ -8,8 +8,11 @@ bundle chain behind ``docrooter train-elements``, and :func:`tag_corpus`, behind
    shortlist embedder (labels ``teacher``, ``prescreen`` and ``weak``);
 2. **dataset** (§8): :func:`~docrooter.teach.dataset.build_training_set` and
    :func:`~docrooter.teach.dataset.to_dataset` on the ``train`` split, the function rows of
-   ``train`` and ``calib``, and the ``calib`` topic examples (each calib element's teacher
-   choice, ``[family, leaf]``);
+   ``train`` and calib-fit, and the calib-fit topic examples (each element's teacher choice,
+   ``[family, leaf]``). The ``calib`` split is halved by document
+   (:func:`~docrooter.corpus.calib_half`): only calib-fit is fitted (the temperatures);
+   calib-crc is read by no stage of this chain (labelling aside), kept for v0.6's conformal
+   calibration;
 3. **train** (§9): :func:`~docrooter.tagger.train.train_tagger` at stage A or B, then
    :func:`~docrooter.tagger.train.calibrate_tagger` on ``calib``, saved as a bundle.
 
@@ -82,6 +85,7 @@ FUNCTIONS_CALIB_FILE = "functions-calib.jsonl"
 ENRICHED_FILE = "element_topics.enriched.json"
 TRAINING_SET_FILE = "training-set.json"
 DEFAULT_TAG_LABELER = "tagger"
+DATASET_VERSION = 2  # 2: calib is calib-fit only; a version change rebuilds the dataset
 RESERVED_LABELERS = (TEACHER_LABELER, PRESCREEN_LABELER, WEAK_LABELER)
 """Label files the training chain reads: tag_corpus never writes into them."""
 FUNCTION_FACET = "function"
@@ -252,7 +256,8 @@ def _fingerprint(corpus: Corpus, embedder: str, max_seq_len: int) -> str:
     """What the dataset depends on: the teacher and prescreen label files (their bytes), the
     embedder and the student's input length."""
     digest = hashlib.sha256()
-    digest.update(json.dumps({"embedder": embedder, "max_seq_len": max_seq_len}).encode())
+    settings = {"embedder": embedder, "max_seq_len": max_seq_len, "version": DATASET_VERSION}
+    digest.update(json.dumps(settings).encode())
     for name in (TEACHER_LABELER, PRESCREEN_LABELER):
         path = corpus.dir / "labels" / f"{name}.jsonl"
         digest.update(f"\0{name}\0".encode())
@@ -264,11 +269,13 @@ def _fingerprint(corpus: Corpus, embedder: str, max_seq_len: int) -> str:
 
 
 def calib_examples(corpus: Corpus, labels: dict[LabelKey, LabelRow], taxonomy: Taxonomy) -> Dataset:
-    """The ``calib`` split's topic examples: each element the teacher labelled, its text
+    """The calib-fit topic examples (the ``calib`` documents whose
+    :func:`~docrooter.corpus.calib_half` is ``fit``; calib-crc is never fitted, it is kept for
+    v0.6's conformal calibration): each element the teacher labelled, its text
     :func:`~docrooter.teach.dataset.input_text` and its path ``[family, teacher's leaf]``."""
     choices = teacher_choices(labels, taxonomy)
     examples = []
-    for element in corpus.iter_elements(split="calib"):
+    for element in corpus.iter_fit_elements(split="calib"):  # calib-fit only
         key = LabelKey(element.doc_id, element.element_id, element.text_sha1, TOPIC_FACET)
         choice = choices.get(key)
         if choice is None:
@@ -332,8 +339,15 @@ def _train(work: Path, bundle: Path, wanted: dict[str, str], **options: Any) -> 
     calib = Dataset.load(work / CALIB_FILE)
     tagger = train_tagger(train, _function_rows(work / FUNCTIONS_TRAIN_FILE), **options)
     try:
-        calibration = calibrate_tagger(tagger, calib, _function_rows(work / FUNCTIONS_CALIB_FILE))
+        calib_rows = _function_rows(work / FUNCTIONS_CALIB_FILE)
+        calibration = calibrate_tagger(tagger, calib, calib_rows)
         tagger.info["train_elements"] = wanted
+        tagger.info["calibration_data"] = {
+            "split": "calib-fit",
+            "documents": len({e.doc_id for e in calib if e.doc_id is not None}),
+            "elements": len(calib),
+            "function_rows": len(calib_rows),
+        }
         bundle.mkdir(parents=True, exist_ok=True)
         tagger.save(bundle)  # tagger.json last: the commit point
     finally:
@@ -343,6 +357,7 @@ def _train(work: Path, bundle: Path, wanted: dict[str, str], **options: Any) -> 
         "calib_examples": len(calib),
         "temperatures": dict(tagger.temperatures),
         "calibration": calibration,
+        "calibration_data": tagger.info["calibration_data"],
         "untrained_leaves": list(tagger.info.get("untrained_leaves", [])),
     }
 

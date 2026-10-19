@@ -355,7 +355,8 @@ def mine_terms(
     """The top ``k`` terms by affinity for every node of the topic ``taxonomy`` (leaves and
     families), mined from the ``split`` elements that have a teacher ``topic`` label (spec §8;
     module docstring). Every node is a key; a node whose elements yield no term with a positive
-    affinity gets ``[]``. Ties keep alphabetical order.
+    affinity gets ``[]``. Ties keep alphabetical order. calib-crc documents are never read
+    (:func:`~docrooter.corpus.calib_half`).
     """
     if k < 1:
         raise ValueError(f"k must be >= 1, got {k}")
@@ -363,7 +364,7 @@ def mine_terms(
     classes = list(taxonomy.nodes)
 
     def source() -> Iterator[tuple[str, list[str]]]:
-        for element in corpus.iter_elements(split=split):
+        for element in corpus.iter_fit_elements(split=split):
             choice = choices.get(
                 LabelKey(element.doc_id, element.element_id, element.text_sha1, TOPIC_FACET)
             )

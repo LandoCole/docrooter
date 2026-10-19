@@ -456,7 +456,8 @@ def active_learning_round(
       (every leaf in a family without a head). Provenance records
       ``"source": "active_learning"`` and the student's shortlist.
 
-    A Jev teacher is refused (TypeSafe MCA §2.3(b)).
+    A Jev teacher is refused (TypeSafe MCA §2.3(b)). calib-crc documents are never scored or
+    asked about (:func:`~docrooter.corpus.calib_half`).
     """
     refuse_jev(teacher.name)
     labeled = labeled if labeled is not None else corpus.labels(TEACHER_LABELER)
@@ -467,7 +468,7 @@ def active_learning_round(
 
     scored: list[Uncertain] = []
     batch: list[tuple[CorpusElement, str]] = []
-    for element in corpus.iter_elements(split=split):
+    for element in corpus.iter_fit_elements(split=split):
         if element.kind in SKIPPED_KINDS or not _has_text(element):
             continue
         if (element.doc_id, element.element_id, element.text_sha1) in done:
@@ -494,7 +495,7 @@ def active_learning_round(
         return []
 
     picked: list[tuple[CorpusElement, Uncertain]] = []
-    for element in corpus.iter_elements(split=split):
+    for element in corpus.iter_fit_elements(split=split):
         item = chosen.get((element.doc_id, element.element_id, element.text_sha1))
         if item is not None:
             picked.append((element, item))

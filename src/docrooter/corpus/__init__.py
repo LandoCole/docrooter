@@ -14,17 +14,21 @@ from docrooter.corpus.build import (
     select_pages,
 )
 from docrooter.corpus.store import (
+    CALIB_HALVES,
     SPLITS,
     Corpus,
     CorpusElement,
     LabelKey,
     LabelRow,
     ManifestRecord,
+    calib_half,
+    is_calib_crc,
     read_manifest,
     text_sha1,
 )
 
 __all__ = [
+    "CALIB_HALVES",
     "SKIPPED_KINDS",
     "SPLITS",
     "BuildReport",
@@ -34,7 +38,9 @@ __all__ = [
     "LabelRow",
     "ManifestRecord",
     "build_corpus",
+    "calib_half",
     "corpus_elements",
+    "is_calib_crc",
     "read_manifest",
     "select_pages",
     "text_sha1",

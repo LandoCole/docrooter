@@ -25,6 +25,15 @@ class UnknownTaxonomyError(TaxonomyError, KeyError):
         return str(self.args[0]) if self.args else ""
 
 
+class FieldError(DocrooterError, ValueError):
+    """Raised for a field set that cannot be loaded or does not fit the taxonomies. Each
+    problem found is listed in ``problems``. It is a ``ValueError`` too."""
+
+    def __init__(self, message: str, problems: list[str] | None = None) -> None:
+        super().__init__(message)
+        self.problems: list[str] = list(problems) if problems is not None else []
+
+
 class BackendError(DocrooterError):
     """Raised when a classification or extraction backend fails."""
 

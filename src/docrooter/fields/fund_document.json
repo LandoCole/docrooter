@@ -1,0 +1,137 @@
+{
+  "family": "fund_document",
+  "fields": [
+    {
+      "id": "fund_document.investment_objective",
+      "label": "Investment objective",
+      "description": "The fund's stated investment goal, such as long-term capital growth, current income, or tracking an index, usually in one or two sentences. Not how the fund pursues it (principal_investment_strategies).",
+      "topics": [
+        "fund_document.investment_objective"
+      ],
+      "query": "What is the fund's investment objective?"
+    },
+    {
+      "id": "fund_document.fees_and_expenses",
+      "label": "Fees and expenses",
+      "description": "What it costs to buy, hold, and sell the fund's shares: sales charges and other shareholder fees, annual operating expenses and the expense ratio, fee waivers, the expense example, and portfolio turnover.",
+      "topics": [
+        "fund_document.fees_and_expenses"
+      ],
+      "functions": [
+        "financial_data"
+      ],
+      "query": "What are the fund's fees and expense ratio?"
+    },
+    {
+      "id": "fund_document.principal_investment_strategies",
+      "label": "Principal investment strategies",
+      "description": "How the fund pursues its objective: the kinds of securities it buys, how it selects them or which index it tracks, and the limits on what it may hold. Not the risks of those investments (principal_risks).",
+      "topics": [
+        "fund_document.principal_investment_strategies"
+      ],
+      "query": "What does the fund invest in, and how does it choose its investments?"
+    },
+    {
+      "id": "fund_document.principal_risks",
+      "label": "Principal risks",
+      "description": "The main risks of investing in the fund and how they could cause an investor to lose money, such as market, credit, interest-rate, liquidity, and issuer risks.",
+      "topics": [
+        "fund_document.principal_risks"
+      ],
+      "functions": [
+        "risk_disclosure"
+      ],
+      "query": "What are the main risks of investing in this fund?"
+    },
+    {
+      "id": "fund_document.performance",
+      "label": "Performance",
+      "description": "The past returns of the fund and its benchmark: annual return bar charts, average annual total return tables, best and worst quarters, the growth of a hypothetical investment, and commentary on past results.",
+      "topics": [
+        "fund_document.performance"
+      ],
+      "functions": [
+        "financial_data"
+      ],
+      "query": "How has the fund performed compared with its benchmark?"
+    },
+    {
+      "id": "fund_document.holdings_and_allocation",
+      "label": "Holdings and allocation",
+      "description": "What the fund holds as of a date: its top or full holdings, the number of holdings, and breakdowns by asset class, sector, region, credit quality, or maturity.",
+      "topics": [
+        "fund_document.holdings_and_allocation"
+      ],
+      "functions": [
+        "financial_data"
+      ],
+      "query": "What does the fund hold, and how is it allocated across asset classes, sectors, and regions?"
+    },
+    {
+      "id": "fund_document.management",
+      "label": "Management",
+      "description": "Who runs the fund: the investment adviser and any sub-advisers, the portfolio managers with their tenure and experience, and the management company. Not the fees paid to them (fees_and_expenses).",
+      "topics": [
+        "fund_document.management"
+      ],
+      "query": "Who manages the fund, and how long have its portfolio managers run it?"
+    },
+    {
+      "id": "fund_document.purchase_and_sale",
+      "label": "Purchase and sale",
+      "description": "How investors buy, sell, exchange, or redeem shares: minimum investments, the share classes offered, how orders are placed and priced, and exchange trading. Not the charges on those transactions (fees_and_expenses).",
+      "topics": [
+        "fund_document.purchase_and_sale"
+      ],
+      "functions": [
+        "procedure"
+      ],
+      "query": "How do I buy or sell shares of the fund, and what is the minimum investment?"
+    },
+    {
+      "id": "fund_document.tax_information",
+      "label": "Tax information",
+      "description": "How the fund's distributions and the sale of its shares are taxed, and its policy for paying dividends and capital gain distributions.",
+      "topics": [
+        "fund_document.tax_information"
+      ],
+      "query": "How are the fund's distributions taxed, and when does it pay them?"
+    },
+    {
+      "id": "fund_document.investment_approach",
+      "label": "Investment approach",
+      "description": "What the fund is trying to achieve and how: its stated objective together with the strategies, securities, and selection process or index it uses to pursue it.",
+      "topics": [
+        "fund_document.investment_objective",
+        "fund_document.principal_investment_strategies"
+      ],
+      "query": "What is the fund trying to achieve, and how does it invest to get there?"
+    },
+    {
+      "id": "fund_document.costs_and_returns",
+      "label": "Costs and returns",
+      "description": "What an investor pays and what the fund has delivered: fees, the expense ratio, and the expense example alongside past returns against the benchmark, the figures used to compare one fund with another.",
+      "topics": [
+        "fund_document.fees_and_expenses",
+        "fund_document.performance"
+      ],
+      "functions": [
+        "financial_data"
+      ],
+      "query": "What does the fund cost, and what has it returned?"
+    },
+    {
+      "id": "fund_document.buying_selling_and_taxes",
+      "label": "Buying, selling, and taxes",
+      "description": "The practical side of owning the fund's shares: how to buy, sell, exchange, or redeem them, minimum investments and share classes, and how distributions and sales are taxed.",
+      "topics": [
+        "fund_document.purchase_and_sale",
+        "fund_document.tax_information"
+      ],
+      "functions": [
+        "procedure"
+      ],
+      "query": "How do I buy and sell shares of the fund, and how will I be taxed?"
+    }
+  ]
+}

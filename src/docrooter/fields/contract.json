@@ -1,0 +1,168 @@
+{
+  "family": "contract",
+  "fields": [
+    {
+      "id": "contract.parties_recitals",
+      "label": "Parties and recitals",
+      "description": "Who the agreement is between and why: the preamble that names the parties and the effective date, and the background recitals (the whereas clauses) that explain its purpose.",
+      "topics": [
+        "contract.parties_recitals"
+      ],
+      "query": "Who are the parties to the agreement, and what is its purpose?"
+    },
+    {
+      "id": "contract.definitions",
+      "label": "Definitions",
+      "description": "The clauses that define the agreement's capitalized terms and set its rules of interpretation.",
+      "topics": [
+        "contract.definitions"
+      ],
+      "functions": [
+        "definition"
+      ],
+      "query": "How does the agreement define its key terms?"
+    },
+    {
+      "id": "contract.scope_services",
+      "label": "Scope and services",
+      "description": "What a party is to provide: the work, services, products, or deliverables, and the standards, specifications, and service levels for providing them.",
+      "topics": [
+        "contract.scope_services"
+      ],
+      "functions": [
+        "obligation"
+      ],
+      "query": "What services or deliverables must be provided under the agreement?"
+    },
+    {
+      "id": "contract.term_and_termination",
+      "label": "Term and termination",
+      "description": "How long the agreement lasts and how it ends: its effective period and renewal or extension, the rights to end it early for cause or for convenience, the notice required, and what happens after it ends.",
+      "topics": [
+        "contract.term",
+        "contract.termination"
+      ],
+      "query": "How long does the agreement last, and how can it be terminated?"
+    },
+    {
+      "id": "contract.payment",
+      "label": "Payment",
+      "description": "The money terms: fees and prices, invoicing, when payment is due, expenses, taxes, and the consequences of late payment.",
+      "topics": [
+        "contract.payment"
+      ],
+      "functions": [
+        "obligation"
+      ],
+      "query": "What must be paid, when, and on what terms?"
+    },
+    {
+      "id": "contract.confidentiality",
+      "label": "Confidentiality",
+      "description": "The duties to protect the other party's non-public information: what counts as confidential, the permitted uses and disclosures and their exceptions, and how long the duty lasts.",
+      "topics": [
+        "contract.confidentiality"
+      ],
+      "functions": [
+        "obligation"
+      ],
+      "query": "What confidentiality obligations do the parties have?"
+    },
+    {
+      "id": "contract.intellectual_property",
+      "label": "Intellectual property",
+      "description": "Who owns, assigns, or licenses intellectual property such as inventions, work product, trademarks, and software, and on what terms.",
+      "topics": [
+        "contract.intellectual_property"
+      ],
+      "query": "Who owns the intellectual property, and what licenses are granted?"
+    },
+    {
+      "id": "contract.warranties",
+      "label": "Warranties",
+      "description": "The facts each party represents and the quality or performance standards it promises, together with the disclaimers of all other warranties.",
+      "topics": [
+        "contract.warranties"
+      ],
+      "query": "What representations and warranties do the parties make?"
+    },
+    {
+      "id": "contract.indemnification",
+      "label": "Indemnification",
+      "description": "Which party must compensate the other for specified third-party claims, losses, or damages, and how such claims are notified and defended.",
+      "topics": [
+        "contract.indemnification"
+      ],
+      "functions": [
+        "obligation"
+      ],
+      "query": "Who must indemnify whom, and for which claims?"
+    },
+    {
+      "id": "contract.limitation_of_liability",
+      "label": "Limitation of liability",
+      "description": "The caps on and exclusions of damages: the liability limits, the kinds of loss that cannot be recovered, such as indirect or consequential damages, and the exceptions to those limits.",
+      "topics": [
+        "contract.limitation_of_liability"
+      ],
+      "query": "How is each party's liability limited or capped?"
+    },
+    {
+      "id": "contract.governing_law_disputes",
+      "label": "Governing law and disputes",
+      "description": "Which law governs the agreement, which courts or venue hear disputes, and how disputes are resolved, such as by arbitration or mediation.",
+      "topics": [
+        "contract.governing_law_disputes"
+      ],
+      "query": "Which law governs the agreement, and how are disputes resolved?"
+    },
+    {
+      "id": "contract.general_provisions",
+      "label": "General provisions",
+      "description": "The boilerplate clauses: notices, assignment, amendment, waiver, severability, entire agreement, force majeure, and counterparts.",
+      "topics": [
+        "contract.general_provisions"
+      ],
+      "query": "What do the general provisions say about notices, assignment, amendment, and force majeure?"
+    },
+    {
+      "id": "contract.signatures_exhibits",
+      "label": "Signatures and exhibits",
+      "description": "Who signed the agreement and what is attached to it: the signature blocks, and the schedules, exhibits, and annexes that complete it.",
+      "topics": [
+        "contract.signatures_exhibits"
+      ],
+      "functions": [
+        "signature"
+      ],
+      "query": "Who signed the agreement, and which schedules and exhibits are attached?"
+    },
+    {
+      "id": "contract.obligations",
+      "label": "Obligations of the parties",
+      "description": "The duties each party takes on: what it must deliver, pay, keep confidential, warrant, and indemnify, stated as covenants with shall, must, or agrees to.",
+      "topics": [
+        "contract.scope_services",
+        "contract.payment",
+        "contract.confidentiality",
+        "contract.warranties",
+        "contract.indemnification"
+      ],
+      "functions": [
+        "obligation"
+      ],
+      "query": "What is each party obliged to do under the agreement?"
+    },
+    {
+      "id": "contract.risk_allocation",
+      "label": "Risk allocation",
+      "description": "How the agreement shares the risk of things going wrong: the warranties given and disclaimed, the indemnities, and the limits on and exclusions of liability.",
+      "topics": [
+        "contract.warranties",
+        "contract.indemnification",
+        "contract.limitation_of_liability"
+      ],
+      "query": "How does the agreement allocate risk between the parties if something goes wrong?"
+    }
+  ]
+}

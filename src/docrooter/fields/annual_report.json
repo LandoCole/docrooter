@@ -1,0 +1,171 @@
+{
+  "family": "annual_report",
+  "fields": [
+    {
+      "id": "annual_report.shareholder_letter",
+      "label": "Shareholder letter",
+      "description": "The chairman's or CEO's letter to shareholders: management's own narrative of the year, its highlights and setbacks, and the outlook. Not the formal description of the business (business_overview) or management's discussion and analysis (management_discussion).",
+      "topics": [
+        "annual_report.shareholder_letter"
+      ],
+      "query": "What does the letter to shareholders say about the year and the outlook?"
+    },
+    {
+      "id": "annual_report.business_overview",
+      "label": "Business overview",
+      "description": "What the company does: its businesses and segments, products and services, markets, customers, competition, and strategy (Form 10-K Item 1).",
+      "topics": [
+        "annual_report.business_overview"
+      ],
+      "query": "What does the company do, and how does it compete?"
+    },
+    {
+      "id": "annual_report.risk_factors",
+      "label": "Risk factors",
+      "description": "The risks and uncertainties that the company says could materially harm its business, results, or the value of its securities (Item 1A), each usually a headed paragraph that names the risk and its possible consequences.",
+      "topics": [
+        "annual_report.risk_factors"
+      ],
+      "functions": [
+        "risk_disclosure"
+      ],
+      "query": "What are the main risks the company faces?"
+    },
+    {
+      "id": "annual_report.management_discussion",
+      "label": "Management discussion and analysis",
+      "description": "Management's explanation of the results of operations, segment performance, liquidity and capital resources, critical accounting estimates, known trends, and market-risk exposures (MD&A, Items 7 and 7A), with the figures it discusses.",
+      "topics": [
+        "annual_report.management_discussion"
+      ],
+      "functions": [
+        "financial_data"
+      ],
+      "query": "How does management explain the company's results, liquidity, and trends?"
+    },
+    {
+      "id": "annual_report.financial_statements",
+      "label": "Financial statements",
+      "description": "The primary financial statements (balance sheet, income statement, statement of cash flows, and statement of changes in equity) and the auditor's report on them. Not the explanatory notes (notes_to_financial_statements).",
+      "topics": [
+        "annual_report.financial_statements"
+      ],
+      "functions": [
+        "financial_data"
+      ],
+      "query": "What do the balance sheet, income statement, and cash flow statement report?"
+    },
+    {
+      "id": "annual_report.notes_to_financial_statements",
+      "label": "Notes to financial statements",
+      "description": "The numbered notes that accompany the financial statements: accounting policies, significant estimates, and the detail behind line items such as revenue, debt, leases, income taxes, and segments.",
+      "topics": [
+        "annual_report.notes_to_financial_statements"
+      ],
+      "functions": [
+        "accounting_policy",
+        "financial_data"
+      ],
+      "query": "What do the notes to the financial statements say about accounting policies and the detail behind the reported amounts?"
+    },
+    {
+      "id": "annual_report.corporate_governance",
+      "label": "Corporate governance",
+      "description": "How the company is governed: the board of directors and its committees, director independence and nominations, the executive officers, and governance policies such as the code of conduct. Not what directors and officers are paid (executive_compensation).",
+      "topics": [
+        "annual_report.corporate_governance"
+      ],
+      "query": "Who is on the board, and how is the company governed?"
+    },
+    {
+      "id": "annual_report.executive_compensation",
+      "label": "Executive compensation",
+      "description": "What senior executives and directors are paid and how pay is decided: salary, bonuses, equity awards, the compensation tables, and pay-versus-performance disclosure.",
+      "topics": [
+        "annual_report.executive_compensation"
+      ],
+      "functions": [
+        "financial_data"
+      ],
+      "query": "How much are the executives and directors paid, and how is their pay decided?"
+    },
+    {
+      "id": "annual_report.controls_and_procedures",
+      "label": "Controls and procedures",
+      "description": "Management's evaluation of the company's disclosure controls and internal control over financial reporting, including any material weaknesses and their remediation (Item 9A).",
+      "topics": [
+        "annual_report.controls_and_procedures"
+      ],
+      "query": "Are the company's internal controls over financial reporting effective, and are there any material weaknesses?"
+    },
+    {
+      "id": "annual_report.legal_proceedings",
+      "label": "Legal proceedings",
+      "description": "Pending or threatened litigation, regulatory and government actions, and other legal matters involving the company, with their status and possible exposure (Item 3).",
+      "topics": [
+        "annual_report.legal_proceedings"
+      ],
+      "functions": [
+        "risk_disclosure"
+      ],
+      "query": "What lawsuits or regulatory actions is the company involved in?"
+    },
+    {
+      "id": "annual_report.properties",
+      "label": "Properties",
+      "description": "The company's principal physical facilities, such as plants, offices, stores, and other real estate, and whether it owns or leases them (Item 2).",
+      "topics": [
+        "annual_report.properties"
+      ],
+      "query": "What facilities and real estate does the company own or lease?"
+    },
+    {
+      "id": "annual_report.market_for_equity",
+      "label": "Market for equity",
+      "description": "The market for the company's common stock: where it is listed, the number of holders, dividends, share repurchases, and stock performance (Item 5).",
+      "topics": [
+        "annual_report.market_for_equity"
+      ],
+      "functions": [
+        "financial_data"
+      ],
+      "query": "Where does the stock trade, and what dividends and share buybacks has the company made?"
+    },
+    {
+      "id": "annual_report.sustainability",
+      "label": "Sustainability",
+      "description": "Environmental and social matters: climate commitments, emissions and energy use, the workforce and human capital, and community impact. Not the governance of the board (corporate_governance).",
+      "topics": [
+        "annual_report.sustainability"
+      ],
+      "query": "What does the company report about climate, emissions, its workforce, and its social impact?"
+    },
+    {
+      "id": "annual_report.financial_results",
+      "label": "Financial results",
+      "description": "The company's reported financial performance and position across the formal report: the primary financial statements, their notes, and management's discussion and analysis of the results, wherever they state revenue, profit, cash flow, assets, or debt.",
+      "topics": [
+        "annual_report.financial_statements",
+        "annual_report.notes_to_financial_statements",
+        "annual_report.management_discussion"
+      ],
+      "functions": [
+        "financial_data"
+      ],
+      "query": "What were the company's revenue, profit, cash flow, and financial position?"
+    },
+    {
+      "id": "annual_report.risks_and_uncertainties",
+      "label": "Risks and uncertainties",
+      "description": "The threats to the company that the report sets out: the risk factors together with pending or threatened litigation and regulatory actions, each with its possible consequences.",
+      "topics": [
+        "annual_report.risk_factors",
+        "annual_report.legal_proceedings"
+      ],
+      "functions": [
+        "risk_disclosure"
+      ],
+      "query": "What could go wrong for the company, including its risks and its pending litigation?"
+    }
+  ]
+}

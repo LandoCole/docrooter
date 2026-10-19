@@ -9,12 +9,20 @@ A gutter only counts as a column boundary when each side holds at least two boxe
 list) is a table, not two text columns, and is left in the extractor's order. This guard is an
 addition to the §5.2 rules, made so that single-column pages with tables stay unchanged.
 
+A gutter between row-aligned sides is not a column boundary either (E11b controller ruling):
+when at least half the boxes of the side with fewer boxes have a box on the other side whose
+vertical centre is within :data:`_ROW_ALIGN` of the median line height, and one side is made of
+cells (its median box is narrower than 10% of the text width), the gutter separates the label
+and number columns of an unruled table, whose rows must stay together. Text columns set on a
+common baseline grid are row-aligned too, but both sides hold full text lines, so they are cut.
+
 A page with no column gutter anywhere keeps the extractor's order exactly: the cut only
-reorders when it finds columns, so single-column pages never change.
+reorders when it finds columns, so pages without a gutter never change.
 """
 
 from __future__ import annotations
 
+import bisect
 import statistics
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
@@ -32,6 +40,9 @@ _GUTTER_COVERAGE = 0.6  # share of the band height the two sides must share
 _GAP_FACTOR = 1.5  # a horizontal cut needs a gap of this many median line gaps
 _COLUMN_WIDTH = 0.2  # a column holds text boxes at least this share of the text width wide
 _COLUMN_MIN_BOXES = 2  # ... at least this many of them, on each side of a gutter
+_ROW_ALIGN = 0.2  # a partner's vertical centre is within this share of the median line height
+_ROW_ALIGNED_SHARE = 0.5  # ... for at least this share of the boxes of the smaller side
+_CELL_WIDTH = 0.1  # a side whose median box is narrower than this share of the text width is cells
 
 
 def xy_cut_order(
@@ -142,13 +153,44 @@ def _column_cut(
             and suf_wide[k] >= _COLUMN_MIN_BOXES
         ):
             shared = min(pre_hi[k - 1], suf_hi[k]) - max(pre_lo[k - 1], suf_lo[k])
-            if height <= 0 or shared >= _GUTTER_COVERAGE * height:
+            if (height <= 0 or shared >= _GUTTER_COVERAGE * height) and not _table_rows(
+                boxes, by_x[:k], by_x[k:], text_width
+            ):
                 cuts.append(k)
         reach = max(reach, boxes[i][2])
     if not cuts:
         return None
     bounds = [0, *cuts, n]
     return [sorted(by_x[a:b]) for a, b in zip(bounds, bounds[1:], strict=False)]
+
+
+def _median(values: list[float]) -> float:
+    return statistics.median(values) if values else 0.0
+
+
+def _table_rows(
+    boxes: Sequence[Box], left: Sequence[int], right: Sequence[int], text_width: float
+) -> bool:
+    """Whether a gutter between ``left`` and ``right`` runs through an unruled table: the sides
+    are row-aligned (at least :data:`_ROW_ALIGNED_SHARE` of the smaller side's boxes have a box
+    on the other side whose vertical centre is within :data:`_ROW_ALIGN` x the median line
+    height) and one side is made of cells (median box width under 10% of the text width)."""
+    cell = _CELL_WIDTH * text_width
+    if not (
+        _median([boxes[i][2] - boxes[i][0] for i in left]) < cell
+        or _median([boxes[i][2] - boxes[i][0] for i in right]) < cell
+    ):
+        return False
+    small, big = (left, right) if len(left) <= len(right) else (right, left)
+    line_height = _median([boxes[i][3] - boxes[i][1] for i in (*left, *right)])
+    tolerance = _ROW_ALIGN * line_height
+    centres = sorted((boxes[i][1] + boxes[i][3]) / 2 for i in big)
+    aligned = 0
+    for i in small:
+        c = (boxes[i][1] + boxes[i][3]) / 2
+        j = bisect.bisect_left(centres, c - tolerance)
+        aligned += j < len(centres) and centres[j] <= c + tolerance
+    return aligned >= _ROW_ALIGNED_SHARE * len(small)
 
 
 def _row_cut(boxes: Sequence[Box], group: list[int], min_gap: float) -> list[list[int]] | None:

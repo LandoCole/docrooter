@@ -177,3 +177,54 @@ def test_order_lines_empty_and_single_column_identity():
     assert order_lines([], set()) == []
     lines = [mk(1, 0, 50, 100 + 14 * k, 550, 110 + 14 * k) for k in range(30)]
     assert order_lines(lines, set()) == list(range(30))
+
+
+def unruled_table(rows=10):
+    """A label column and two number columns in rows, under two column-header lines that span
+    the number columns, emitted row by row as an extractor does (headers first)."""
+    boxes = [(300.0, 90.0, 460.0, 100.0), (300.0, 104.0, 460.0, 114.0)]
+    for k in range(rows):
+        y = 120.0 + 14 * k
+        boxes += [(50.0, y, 250.0, y + 10), (300.0, y, 330.0, y + 10), (430.0, y, 460.0, y + 10)]
+    return boxes
+
+
+def test_unruled_table_keeps_row_order():
+    # without the row-alignment rule the label/number gutter is cut: every label, then every
+    # number (doc_004 p27); the rows of a table must stay together
+    boxes = unruled_table()
+    assert cut(boxes) == list(range(len(boxes)))
+    # the same table below a two-column article: the article is still read column by column
+    article = [b for pair in zip(column(LEFT, 300, 6), column(RIGHT, 300, 6), strict=True)
+               for b in pair]  # fmt: skip
+    order = cut([*boxes, *article])
+    n = len(boxes)
+    assert order[:n] == list(range(n))
+    assert order[n:] == [n + k for k in range(0, 12, 2)] + [n + k for k in range(1, 12, 2)]
+
+
+def test_two_column_article_with_independent_baselines_reads_by_column():
+    left = column(LEFT, 100, 8)
+    right = column(RIGHT, 107, 8)  # baselines half a line pitch off the left column's
+    boxes = [b for pair in zip(left, right, strict=True) for b in pair]
+    assert cut(boxes) == list(range(0, 16, 2)) + list(range(1, 16, 2))
+
+
+def test_text_columns_on_one_baseline_grid_are_still_columns():
+    # row-aligned, but both sides hold full text lines: columns, not a table
+    left, right = column(LEFT, 100, 8), column(RIGHT, 100, 8)
+    boxes = [b for pair in zip(left, right, strict=True) for b in pair]
+    assert cut(boxes) == list(range(0, 16, 2)) + list(range(1, 16, 2))
+
+
+def test_narrow_text_columns_on_one_grid_are_still_columns():
+    # three brochure columns of a fifth of the text width (680 pt), on one baseline grid, with
+    # every other line short (median line 18% of the text width): narrow text, not table cells
+    starts = (40.0, 310.0, 580.0)
+    boxes = [
+        (x, 100.0 + 14 * k, x + (140.0 if k % 2 == 0 else 110.0), 110.0 + 14 * k)
+        for k in range(8)
+        for x in starts
+    ]
+    order = cut(boxes, page_width=760.0)
+    assert order == [i for c in range(3) for i in range(c, 24, 3)]

@@ -679,6 +679,21 @@ def captured_order(sink: list[tuple[list[Any], set[int], list[int]]]) -> Iterato
         element_mode.order_lines = real
 
 
+def moved_lines(order: Sequence[int]) -> int:
+    """How many items of a permutation must move to restore increasing order: its length
+    minus its longest increasing subsequence (patience sorting)."""
+    import bisect
+
+    tails: list[int] = []
+    for value in order:
+        k = bisect.bisect_left(tails, value)
+        if k == len(tails):
+            tails.append(value)
+        else:
+            tails[k] = value
+    return len(order) - len(tails)
+
+
 def page_orders(fast_lines: Sequence[Any], lines: Sequence[Any], furniture: set[int],
                 order: Sequence[int]) -> list[dict[str, Any]]:  # fmt: skip
     """Per page: the XY-cut analysis of its body lines and whether its line order (checksum of
@@ -710,6 +725,8 @@ def page_orders(fast_lines: Sequence[Any], lines: Sequence[Any], furniture: set[
             "unchanged": order_digest([lines[i].text for i in out_idx])
             == order_digest(fast_texts),
             "body_unchanged": [i for i in out_idx if i not in furniture] == body,
+            "body_lines": len(body),
+            "moved_lines": moved_lines([i for i in out_idx if i not in furniture]),
         })  # fmt: skip
     return rows
 
@@ -776,6 +793,19 @@ def summarise_reading_order(docs: Mapping[str, Any], engine: str) -> dict[str, A
         for d, p in columns if p["shifted_bands"]
     ]  # fmt: skip
     bookmark_docs = {d: e["bookmarks"] for d, e in docs.items() if "bookmarks" in e}
+    mostly_single = {}
+    for d, e in docs.items():
+        if not e["pages"] or e["column_pages"] / e["pages"] >= TWO_COLUMN_SHARE:
+            continue
+        cut = [p for p in e["pages_detail"] if p["columns"]]
+        mostly_single[d] = {
+            "pages": e["pages"],
+            "cut_pages": len(cut),
+            "body_lines_on_cut_pages": sum(p["body_lines"] for p in cut),
+            "moved_lines": sum(p["moved_lines"] for p in cut),
+            "pages_moved": [[p["page"], p["moved_lines"], p["body_lines"]] for p in cut
+                            if p["moved_lines"]],
+        }  # fmt: skip
     two_column = [
         d for d, e in docs.items() if e["pages"] and e["column_pages"] / e["pages"]
         >= TWO_COLUMN_SHARE
@@ -787,7 +817,20 @@ def summarise_reading_order(docs: Mapping[str, Any], engine: str) -> dict[str, A
         "engine": engine,
         "env": collect_env(),
         "pages": len(pages),
+        "mostly_single_column_documents": {
+            "rule": f"< {TWO_COLUMN_SHARE:.0%} of pages with a column gutter",
+            "documents": len(mostly_single),
+            "cut_pages": sum(v["cut_pages"] for v in mostly_single.values()),
+            "moved_lines": sum(v["moved_lines"] for v in mostly_single.values()),
+            "body_lines_on_cut_pages": sum(
+                v["body_lines_on_cut_pages"] for v in mostly_single.values()
+            ),
+            "per_document": mostly_single,
+        },
         "single_column_check": {
+            "definition": "pages where XY-cut cuts no gutter: their body order equals the "
+            "input by construction (the identity guard); the check is that the input equals "
+            "fast's lines and what furniture placement changes",
             "pages": len(single),
             "unchanged": len(single) - len(changed_single),
             "changed": changed_single,

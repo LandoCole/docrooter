@@ -315,7 +315,8 @@ def collect_env() -> dict[str, Any]:
 
 
 def git_revision() -> str | None:
-    """Short commit of the checkout, with ``+dirty`` when ``src/`` has uncommitted changes."""
+    """Short commit of the checkout, with ``+dirty`` when ``src/`` or ``benchmarks/`` (results
+    excluded) has uncommitted changes: the measuring code counts as much as the measured."""
     root = Path(__file__).parent.parent
     try:
         sha = subprocess.run(
@@ -323,8 +324,9 @@ def git_revision() -> str | None:
             check=True,
         ).stdout.strip()  # fmt: skip
         dirty = subprocess.run(
-            ["git", "status", "--porcelain", "--", "src"], cwd=root, capture_output=True,
-            text=True, check=True,
+            ["git", "status", "--porcelain", "--", "src", "benchmarks",
+             ":(exclude)benchmarks/results"],
+            cwd=root, capture_output=True, text=True, check=True,
         ).stdout.strip()  # fmt: skip
     except (OSError, subprocess.CalledProcessError):
         return None

@@ -242,3 +242,12 @@ def test_order_digest():
     assert order_digest(["a", "b"]) == order_digest(["a", "b"])
     assert order_digest(["a", "b"]) != order_digest(["b", "a"])
     assert order_digest(["ab"]) != order_digest(["a", "b"])
+
+
+def test_moved_lines_counts_lines_out_of_place():
+    from benchmarks.elements_bench import moved_lines
+
+    assert moved_lines([0, 1, 2, 3]) == 0
+    assert moved_lines([3, 0, 1, 2]) == 1  # one line moved to the front
+    assert moved_lines([0, 2, 4, 1, 3, 5]) == 2  # two columns interleaved back
+    assert moved_lines([]) == 0

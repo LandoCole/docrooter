@@ -335,7 +335,7 @@ def image_routing(pages: Sequence[dict[str, Any]], cache: Path) -> dict[str, Any
     for p in pages:
         objs = extract_page_objects(cache / p["image_pdf"], engine="pymupdf", tables="none")[0]
         task, regions, decision = route_page(objs)
-        rows.append({"id": p["id"], "decided": "text" if task == "text" else task,
+        rows.append({"id": p["id"], "decided": task,
                      "regions": len(regions), "reason": decision.reason})  # fmt: skip
     return {
         "confusion": routing_confusion(("ocr", r["decided"]) for r in rows),

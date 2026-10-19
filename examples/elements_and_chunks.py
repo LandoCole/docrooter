@@ -17,8 +17,7 @@ from docrooter import chunk, process
 
 LEFT = (
     "Our sensors measure pressure, temperature and flow in factories and power plants. "
-    "Demand grew in every region during the fiscal year, "
-    "and we added two production lines to keep up. "
+    "Demand grew in every region during the year, and we added two production lines to keep up. "
     "Orders from new customers rose by a third."
 )
 RIGHT = (

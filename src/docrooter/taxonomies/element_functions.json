@@ -26,7 +26,7 @@
         "Interest rate risk: when interest rates rise, the value of the bonds the fund holds is likely to fall.",
         "We rely on a small number of suppliers for key components, and losing any of them could raise our costs.",
         "Changes in foreign exchange rates may reduce the reported value of our international sales.",
-        "An investor may lose some or all of the money invested in these shares."
+        "Because the fund invests mainly in companies of one region, a recession or currency crisis there would hurt its returns more than a broadly diversified fund's."
       ],
       "children": []
     },
@@ -114,7 +114,7 @@
       "description": "Administrative or identifying details about the document or its parties rather than its substance: addresses, phone numbers, email and web addresses, filing and form headers, registration and identification numbers, tickers and share-class codes, and version or date metadata. Not a signature block or attestation (signature), and not a standard legal notice (legal_boilerplate).",
       "examples": [
         "Investor Relations, 100 Example Plaza, Springfield, IL 62701 | (555) 010-0199 | ir@example.com",
-        "Example Industries, Inc. | Form 10-Q for the quarter ended June 30, 2026 | Incorporated in Delaware",
+        "Example Industries, Inc. | Quarterly filing on Form 10-Q, period ended June 30, 2026 | Incorporated in Delaware",
         "Commission File Number: 001-00000 | IRS Employer Identification No.: 00-0000000",
         "Class A: EXMPX | Class I: EXMIX | Inception date: 03/15/2012",
         "Document version 2.3, revised 14 March 2026"

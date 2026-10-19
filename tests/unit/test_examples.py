@@ -162,7 +162,7 @@ def test_elements_and_chunks_example_runs(capsys, monkeypatch):
     chunk_lines = lines.index("c0: 4 tokens, Annual Report 2025 ['heading_only']")
     assert lines[chunk_lines : chunk_lines + 4] == [
         "c0: 4 tokens, Annual Report 2025 ['heading_only']",
-        "c1: 95 tokens, 1. Business []",
+        "c1: 94 tokens, 1. Business []",
         "c2: 65 tokens, 2. Financial results []",
         "c3: 25 tokens, 3. Outlook []",
     ]

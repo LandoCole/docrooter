@@ -25,6 +25,12 @@ from docrooter.taxonomies import (
 
 OUTPUT = Path(__file__).resolve().parents[1] / "src/docrooter/taxonomies/element_topics.json"
 
+ROOT_DESCRIPTION = (
+    "What a document element is about. Hierarchical and single-label: the family is the kind of "
+    "document, given by its document type, and the leaf is the part of that document the element "
+    "belongs to, or other."
+)
+
 FAMILY_LABELS = {
     "annual_report": "Annual report",
     "fund_document": "Fund document",
@@ -145,7 +151,7 @@ def build() -> dict:
                 "children": leaves,
             }
         )
-    return {"nodes": families}
+    return {"root": {"description": ROOT_DESCRIPTION}, "nodes": families}
 
 
 def render() -> str:

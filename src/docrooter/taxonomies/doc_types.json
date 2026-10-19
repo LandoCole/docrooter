@@ -44,7 +44,7 @@
         {
           "id": "financial.fact_sheet",
           "label": "Fact sheet",
-          "description": "A short (typically 1–4 page) periodic summary of a single fund or share class: objective, key facts, fees, performance table and chart, top holdings and allocation, as of a date. Not a full prospectus and not an annual report.",
+          "description": "A short (typically one- to four-page) periodic summary of a single fund or share class: objective, fund facts, fees, performance table and chart, top holdings and allocation, as of a date. Not a full prospectus and not an annual_report.",
           "children": []
         }
       ]

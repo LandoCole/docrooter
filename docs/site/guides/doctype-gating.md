@@ -14,7 +14,7 @@ docrooter doctype inbox/ --jsonl types.jsonl             # also one JSON record 
 
 - Folders are searched recursively for `.pdf`, `.md` and `.txt` files, skipping hidden folders,
   `node_modules` and `__pycache__`.
-- `--keep` takes a type id or a group id and can be repeated: `--keep financial` keeps all six
+- `--keep` takes a type id or a group id and can be repeated: `--keep financial` keeps all seven
   financial types, `--keep legal.contract --keep legal.terms_policy` keeps two leaves.
 - `--paths-only` prints only the kept paths, so the type gates whatever comes next:
 

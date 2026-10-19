@@ -86,6 +86,7 @@ def test_element_topics_is_generated_from_section_taxonomies():
     assert generator.render() == on_disk  # re-running the generator reproduces the file
 
     topics = builtin_taxonomy("element_topics")
+    assert topics.node(Taxonomy.ROOT_ID).description  # the facet is described at the root
     assert [n.id for n in topics.children()] == list(ELEMENT_FAMILIES)
     assert topics.depth() == 2
     for family in ELEMENT_FAMILIES:
@@ -146,15 +147,45 @@ def test_every_node_has_description_and_function_tags_have_examples_and_not_clau
                 assert seen.setdefault(example.casefold(), leaf.id) == leaf.id, example
 
 
+def _words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", text.casefold())
+
+
+def _shared_run(example: str, texts: list[str], n: int) -> str | None:
+    """The first run of ``n`` consecutive words of ``example`` found in any of ``texts``."""
+    corpus = {" " + " ".join(_words(t)) + " " for t in texts}
+    words = _words(example)
+    for i in range(len(words) - n + 1):
+        run = " " + " ".join(words[i : i + n]) + " "
+        if any(run in text for text in corpus):
+            return run.strip()
+    return None
+
+
 def test_function_examples_are_not_copied_from_eval_documents():
-    """The examples are written for the taxonomy: none may appear in the dev section gold."""
-    gold = REPO / "benchmarks" / "corpus" / "section_gold.jsonl"
-    if not gold.exists():
+    """The examples are written for the taxonomy: none shares a run of 6 words with the dev
+    corpus's section gold (titles and notes) or its manifest (titles and label rationales).
+    ``benchmarks/heldout/`` is never read."""
+    corpus = REPO / "benchmarks" / "corpus"
+    files = [corpus / "section_gold.jsonl", corpus / "manifest.jsonl"]
+    if not all(f.exists() for f in files):
         pytest.skip("benchmark corpus not present")
-    text = gold.read_text(encoding="utf-8").casefold()
+    assert all("heldout" not in f.parts for f in files)
+    texts: list[str] = []
+    for line in files[0].read_text(encoding="utf-8").splitlines():
+        row = json.loads(line)
+        texts += [row.get("section_title") or "", row.get("note") or ""]
+    for line in files[1].read_text(encoding="utf-8").splitlines():
+        row = json.loads(line)
+        texts += [row.get("title") or "", row.get("label_rationale") or ""]
+    texts = [t for t in texts if t]
+    assert len(texts) > 100
+    # the check can fail: a dev title quoted inside an example is caught
+    title = next(t for t in texts if len(_words(t)) >= 6)
+    assert _shared_run(f"As stated in {title}, results vary.", texts, 6)
     for node in builtin_taxonomy("element_functions").nodes.values():
         for example in node.examples:
-            assert example.casefold() not in text, example
+            assert _shared_run(example, texts, 6) is None, (node.id, example)
 
 
 def test_fund_document_leaves_per_spec():
@@ -177,9 +208,9 @@ def test_fact_sheet_doc_type_and_maps():
     assert fact_sheet.parent_id == "financial"
     assert fact_sheet.label == "Fact sheet"
     assert fact_sheet.description == (
-        "A short (typically 1–4 page) periodic summary of a single fund or share class: "
-        "objective, key facts, fees, performance table and chart, top holdings and allocation, "
-        "as of a date. Not a full prospectus and not an annual report."
+        "A short (typically one- to four-page) periodic summary of a single fund or share class: "
+        "objective, fund facts, fees, performance table and chart, top holdings and allocation, "
+        "as of a date. Not a full prospectus and not an annual_report."
     )
     assert len(doc_types.leaves()) == 19
     for doc_type in ("financial.prospectus", "financial.fact_sheet"):

@@ -1,4 +1,7 @@
 {
+  "root": {
+    "description": "What a document element is about. Hierarchical and single-label: the family is the kind of document, given by its document type, and the leaf is the part of that document the element belongs to, or other."
+  },
   "nodes": [
     {
       "id": "annual_report",
@@ -338,7 +341,7 @@
         {
           "id": "fund_document.tax_information",
           "label": "Tax information",
-          "description": "How the fund's distributions and the sale of its shares are taxed, together with its dividend and capital gain distribution policy.",
+          "description": "How the fund's distributions and the sale of its shares are taxed, together with its dividend and capital gain distribution policy; distribution rates and yields as measures of return belong to performance.",
           "examples": [
             "Tax Information",
             "Taxes",
@@ -352,7 +355,7 @@
         {
           "id": "fund_document.other",
           "label": "Other",
-          "description": "Content that fits none of the other categories, such as cover pages, tables of contents, key fund facts (tickers, inception date, net assets), glossaries, payments to financial intermediaries, service providers, and legal notices.",
+          "description": "Content that fits none of the other categories, such as cover pages, tables of contents, fund identifiers from a key-facts block (tickers, inception date, net assets), glossaries, payments to financial intermediaries, service providers, and legal notices; a key-facts block's expense ratio belongs to fees_and_expenses and its number of holdings to holdings_and_allocation.",
           "examples": [
             "Table of Contents",
             "Key Facts",

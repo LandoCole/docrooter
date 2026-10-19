@@ -36,6 +36,8 @@ config_app = typer.Typer(no_args_is_help=True, help="Inspect the rooter configur
 app.add_typer(config_app, name="config")
 corpus_app = typer.Typer(no_args_is_help=True, help="Build and inspect corpus stores.")
 app.add_typer(corpus_app, name="corpus")
+teach_app = typer.Typer(no_args_is_help=True, help="Label corpus elements with a teacher LLM.")
+app.add_typer(teach_app, name="teach")
 
 
 # What a command reports as "error: ..." with exit status 1; anything else is a bug and shows
@@ -1150,6 +1152,85 @@ def corpus_stats(
             raise DocrooterError(f"no corpus at {directory} (no manifest.jsonl)")
         stats = Corpus(directory).stats()
     typer.echo(json.dumps(stats, indent=2, sort_keys=True))
+
+
+# --- teach --------------------------------------------------------------------------------
+
+
+@teach_app.command("label")
+def teach_label(
+    directory: Annotated[Path, typer.Argument(file_okay=False, help="Corpus store directory.")],
+    teacher: Annotated[
+        str | None,
+        typer.Option(
+            help="Teacher spec, e.g. mlx:<repo>@<revision>[#dtype] (default: the pinned "
+            "Qwen3-4B-Instruct-2507 4-bit on mlx)."
+        ),
+    ] = None,
+    embedder: Annotated[
+        str | None,
+        typer.Option(help="Shortlist embedding model (default: UltraBERT-Embed-150M)."),
+    ] = None,
+    per_doc: Annotated[
+        int, typer.Option("--per-doc", min=1, help="Elements sampled per document, at most.")
+    ] = 60,
+    target: Annotated[int, typer.Option(min=1, help="Elements to label in all.")] = 12000,
+    floor: Annotated[
+        int, typer.Option(min=0, help="Fewest elements the run should label (reported).")
+    ] = 6000,
+    ceiling_hours: Annotated[
+        float, typer.Option("--ceiling-hours", min=0.001, help="Wall-clock ceiling, in hours.")
+    ] = 12.0,
+    functions_share: Annotated[
+        float,
+        typer.Option(
+            "--functions-share", min=0.0, max=1.0, help="Share of elements asked about functions."
+        ),
+    ] = 0.5,
+    batch_size: Annotated[
+        int, typer.Option("--batch-size", min=1, help="Elements per batch (and per write).")
+    ] = 256,
+) -> None:
+    """Label a corpus store's train and calib elements with a teacher LLM: topic among an
+    embedding shortlist, yes/no for the top functions, with weak labels and prescreen scores
+    recorded alongside (labels/teacher.jsonl, prescreen.jsonl, weak.jsonl).
+
+    Resumable: elements already labelled under the same teacher, prompt, taxonomy and embedder
+    are skipped. Gold documents are never labelled. Progress goes to stderr, the report (JSON)
+    to stdout. Run one model process at a time: this loads the teacher and the embedder.
+    """
+    from docrooter.backends.embedding import DEFAULT_EMBEDDING_MODEL, EmbeddingBackend
+    from docrooter.corpus import Corpus
+    from docrooter.teach import get_teacher
+    from docrooter.teach.label import SampleSpec, label_corpus
+    from docrooter.teach.mlx import DEFAULT_TEACHER
+
+    with _errors_exit_1():
+        if not (directory / "manifest.jsonl").is_file():
+            raise DocrooterError(f"no corpus at {directory} (no manifest.jsonl)")
+        sample = SampleSpec(per_doc=per_doc, target=target, floor=min(floor, target))
+        engine = get_teacher(teacher or DEFAULT_TEACHER)
+        backend = EmbeddingBackend(embedder or DEFAULT_EMBEDDING_MODEL)
+        try:
+            report = label_corpus(
+                Corpus(directory),
+                engine,
+                backend,
+                sample=sample,
+                ceiling_hours=ceiling_hours,
+                functions_share=functions_share,
+                batch_size=batch_size,
+                on_progress=lambda done, total, r: typer.echo(
+                    f"[{done}/{total}] topic {r.topic_labelled}, function "
+                    f"{r.function_labelled}, {r.items_per_second or 0:.2f} items/s, "
+                    f"{r.seconds:.0f}s",
+                    err=True,
+                ),
+            )
+        finally:
+            engine.close()
+            backend.close()
+    typer.echo(report.model_dump_json(indent=2))
 
 
 # --- serve --------------------------------------------------------------------------------

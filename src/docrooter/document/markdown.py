@@ -259,6 +259,11 @@ class _ElementBuilder:
             table=TableData(rows=rows, header_rows=1),
         )
 
+    def _open_after_formula(self, after: str) -> None:
+        """Text after a closing ``$$`` on its line opens a paragraph, so it is in an element."""
+        if after.strip():
+            self._open = ("paragraph", [after.strip()], None, None)
+
     def _flush_formula(self) -> None:
         if self._formula is None:
             return
@@ -311,8 +316,10 @@ class _ElementBuilder:
             return False
         if self._formula is not None:
             if "$$" in line:
-                self._formula.append(line.split("$$", 1)[0])
+                body, after = line.split("$$", 1)
+                self._formula.append(body)
                 self._flush_formula()
+                self._open_after_formula(after)
             else:
                 self._formula.append(line)
             return False
@@ -345,8 +352,10 @@ class _ElementBuilder:
             self._flush_open()
             rest = stripped[2:]
             if "$$" in rest:
-                self._formula = [rest.split("$$", 1)[0]]
+                body, after = rest.split("$$", 1)
+                self._formula = [body]
                 self._flush_formula()
+                self._open_after_formula(after)
             else:
                 self._formula = [rest]
             return False

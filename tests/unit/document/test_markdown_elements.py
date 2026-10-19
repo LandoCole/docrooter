@@ -149,3 +149,19 @@ def test_paragraph_interrupted_by_blocks_and_inline_image_stays_text():
 def test_empty_and_blank_documents_have_no_elements():
     assert load("", elements=True).elements == []
     assert load("\n\n  \n", elements=True).elements == []
+
+
+def test_text_after_a_closing_formula_delimiter_is_a_paragraph():
+    # Final review I4: the words after "$$" on the closing line are kept as element text
+    md = "# T\n\n$$ x = 1 $$ where x is the answer\n\n$$\na+b\n$$ and then more text\nstill more\n"
+    doc = parse_markdown(md, source="<string>", elements=True)
+    assert [(e.kind, e.text) for e in doc.elements] == [
+        ("heading", "T"),
+        ("formula", "x = 1"),
+        ("paragraph", "where x is the answer"),
+        ("formula", "a+b"),
+        ("paragraph", "and then more text still more"),
+    ]
+    # a bare closing delimiter opens nothing
+    plain = parse_markdown("# T\n\n$$\na+b\n$$\n\n$$ y $$\n", source="<string>", elements=True)
+    assert [e.kind for e in plain.elements] == ["heading", "formula", "formula"]

@@ -33,7 +33,8 @@ MPS_CAP_VARS = (runtime.MPS_HIGH_WATERMARK_ENV, runtime.MPS_LOW_WATERMARK_ENV)
 # Processes that load models: the model benchmarks (``python -m benchmarks.<name>`` or
 # ``benchmarks/<name>.py``), the playground server and teacher labelling (``teach label``).
 _MODEL_PROCESS = re.compile(
-    r"benchmarks[./](run|pdf_bench|normalize_bench|memory_check|profile_pipeline|elements_bench|ocr_bench)\b"
+    r"benchmarks[./](run|pdf_bench|normalize_bench|memory_check|profile_pipeline|elements_bench|ocr_bench"
+    r"|element_tags_bench)\b"
     r"|\bdocrooter serve\b"
     r"|\bteach label\b"
 )

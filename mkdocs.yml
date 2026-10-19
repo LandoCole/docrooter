@@ -142,6 +142,7 @@ nav:
       - PDF benchmarks (dev corpus): benchmarks/pdf.md
       - Held-out evaluation: benchmarks/heldout.md
       - Element kinds (DocLayNet): benchmarks/elements.md
+      - Element tags (gold set): benchmarks/element-tags.md
       - Public datasets: benchmarks/public-datasets.md
       - Performance and memory: benchmarks/performance.md
   - FAQ: faq.md

@@ -31,17 +31,28 @@ documents.
 
 **Budget.** With ``budget`` (tokens), elements are taken by p, each with its expansion, while
 the total stays within the budget; one that does not fit is skipped and smaller ones are tried.
-If nothing fits, the most relevant element alone is returned, with ``over_budget=True`` when
-even it exceeds the budget. ``expected_recall`` is the estimated share of sum(p) selected.
+If the most relevant element alone exceeds the budget, it is returned alone with
+``over_budget=True``; if it fits alone but nothing fits with its expansion, it is returned
+alone too. ``expected_recall`` is the estimated share of sum(p) selected.
 
 **Nothing relevant.** ``relevant_expected`` is sum(p) over the content elements. Below 0.5 the
-document is taken to hold nothing relevant: ``expected_recall`` is ``None`` (undefined, not 0
-or 1), and the selection is what the dial's threshold keeps (usually nothing), never the whole
-document; the estimate and budget cuts select nothing.
+document is taken to hold nothing relevant. On the guarantee path nothing changes: the dial's
+threshold is applied (it usually keeps nothing), ``expected_recall`` is still c (what is
+promised), and a capped dial still returns the whole document with ``expected_recall=1.0``.
+Without the guarantee, ``expected_recall`` is ``None`` (undefined, not 0 or 1) and the
+estimate and budget cuts select nothing, never the whole document.
 
 **Expansion** (spec §6), after the cut: each selected element brings the element just before it
 when that is in the same section, its section's heading and first paragraph, and, for a table
-or a caption, its caption or table. Headings are read and counted, though never scored.
+or a caption, its caption or table. Then every table or caption brought in brings its partner,
+so tables always arrive whole with their captions. Headings are read and counted, though never
+scored.
+
+**Features.** :func:`prepare` reads one document once (its index, tags, section labels and
+element embeddings) into a :class:`DocContext`, and :func:`need_features` gives the spec §5
+feature matrix for a need from it. :func:`select` scores exactly these features, and fitting
+(``docrooter.select.fit``) must build its training rows with the same two functions, so the
+combiners and dials see at select time what they were fitted on.
 
 **Tokens and chunks.** ``tokens`` is :func:`~docrooter.views.estimate_tokens` over the selected
 elements, and ``token_share`` its share of the content and heading tokens of the document.
@@ -84,9 +95,12 @@ __all__ = [
     "FALLBACK_FEATURES",
     "NEED_INSTRUCTION",
     "SELECTOR_FILE",
+    "DocContext",
     "Selection",
     "Selector",
+    "need_features",
     "need_texts",
+    "prepare",
     "select",
     "similarities",
 ]
@@ -109,8 +123,9 @@ class Selection(BaseModel):
 
     ``need`` is the field id (ids joined with ``,`` for a list) or the query. ``threshold`` is
     the relevance cut (``None`` for c = 1.0, a capped dial or a budget). ``expected_recall`` is
-    the CRC target when ``guarantee``, else the model's estimate, and ``None`` when no relevant
-    content is expected (``relevant_expected`` < 0.5). ``relevant_expected`` is the expected
+    the CRC target when ``guarantee`` (1.0 when capped), else the model's estimate, and
+    ``None`` without the guarantee when no relevant content is expected (``relevant_expected``
+    < 0.5). ``relevant_expected`` is the expected
     number of relevant elements, sum(p) (``None`` at c = 1.0, where nothing is scored).
     """
 
@@ -140,6 +155,9 @@ class Selector:
     :data:`FALLBACK_FEATURES` only; ``query`` scores free-text queries. ``embedder`` is the
     spec of the embedding backend ``sim`` was fitted with (``None`` when not recorded):
     :func:`select` loads it when the caller passes no embedder.
+
+    The attributes are read-only, so a dial cannot be paired with another combiner after the
+    check in the constructor; :func:`select` checks the pairing again before it guarantees.
     """
 
     def __init__(
@@ -170,12 +188,37 @@ class Selector:
             if dial.family != family:
                 raise ValueError(f"the dial under {family!r} is for family {dial.family!r}")
             dial.check_combiner(field)
-        self.field = field
-        self.field_fallback = field_fallback
-        self.query = query
-        self.query_fallback = query_fallback
-        self.dials = dict(dials)
-        self.embedder = embedder
+        self._field = field
+        self._field_fallback = field_fallback
+        self._query = query
+        self._query_fallback = query_fallback
+        self._dials = dict(dials)
+        self._embedder = embedder
+
+    @property
+    def field(self) -> Combiner:
+        return self._field
+
+    @property
+    def field_fallback(self) -> Combiner:
+        return self._field_fallback
+
+    @property
+    def query(self) -> Combiner:
+        return self._query
+
+    @property
+    def query_fallback(self) -> Combiner:
+        return self._query_fallback
+
+    @property
+    def dials(self) -> dict[str, DialTable]:
+        """Family -> its dial (a copy of the mapping)."""
+        return dict(self._dials)
+
+    @property
+    def embedder(self) -> str | None:
+        return self._embedder
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -271,6 +314,25 @@ def _unit_rows(vectors: Any, rows: int) -> np.ndarray:
     return array / np.where(norms > 0.0, norms, 1.0)
 
 
+def _text_vectors(texts: Sequence[str], encoder: Any) -> np.ndarray:
+    """The texts encoded bare (as :func:`docrooter.embed` encodes documents), unit rows."""
+    return _unit_rows(encoder.encode(list(texts), prompt=""), len(texts))
+
+
+def _need_sims(docs: np.ndarray, need: Field | Sequence[Field] | str, encoder: Any) -> np.ndarray:
+    """The cosine of each row of ``docs`` to the need text (encoded with the recipe's query
+    prompt); for a list of fields, the highest over them."""
+    if docs.shape[0] == 0:
+        return np.zeros(0)
+    wanted = need_texts(need)
+    needs = _unit_rows(encoder.encode(wanted, prompt=_query_prompt(encoder)), len(wanted))
+    if docs.shape[1] != needs.shape[1]:
+        raise DocrooterError(
+            f"the embedder gave {docs.shape[1]}-d texts but {needs.shape[1]}-d needs"
+        )
+    return np.asarray((docs @ needs.T).max(axis=1), dtype=np.float64)
+
+
 def similarities(
     texts: Sequence[str], need: Field | Sequence[Field] | str, encoder: Any
 ) -> np.ndarray:
@@ -279,14 +341,7 @@ def similarities(
     of fields, the highest over them."""
     if not texts:
         return np.zeros(0)
-    wanted = need_texts(need)
-    docs = _unit_rows(encoder.encode(list(texts), prompt=""), len(texts))
-    needs = _unit_rows(encoder.encode(wanted, prompt=_query_prompt(encoder)), len(wanted))
-    if docs.shape[1] != needs.shape[1]:
-        raise DocrooterError(
-            f"the embedder gave {docs.shape[1]}-d texts but {needs.shape[1]}-d needs"
-        )
-    return np.asarray((docs @ needs.T).max(axis=1), dtype=np.float64)
+    return _need_sims(_text_vectors(texts, encoder), need, encoder)
 
 
 # --- the document index ------------------------------------------------------------------------
@@ -336,7 +391,9 @@ class _Index:
                 linked.append(y)
 
     def expansion(self, pos: int) -> list[int]:
-        """``pos`` and what it brings (module docstring: expansion)."""
+        """``pos`` and what it brings (module docstring: expansion), closed under the
+        table-caption pairing so that a table never arrives without its caption, or a caption
+        without its table."""
         section = self.doc.elements[pos].section_id
         out = [pos]
         if pos in self.previous:
@@ -345,7 +402,8 @@ class _Index:
             out.append(self.heading[section])
         if section in self.first_paragraph:
             out.append(self.first_paragraph[section])
-        out.extend(self.partners.get(pos, ()))
+        for item in list(out):  # a partner's partner is the item itself: one step closes it
+            out.extend(self.partners.get(item, ()))
         return out
 
     def expand(self, core: Sequence[int]) -> set[int]:
@@ -403,6 +461,111 @@ class _Index:
         return rows, texts
 
 
+# --- features: one path for select() and for fitting ------------------------------------------
+
+
+class DocContext:
+    """One document read once for scoring many needs (:func:`prepare`): its index, the tags
+    and section labels of its content elements, and their embeddings.
+
+    ``element_ids`` are the content elements in reading order, the rows of
+    :func:`need_features`. ``family`` is the element family the tags belong to, ``doc_family``
+    the one the document's type maps to. ``tagged`` says whether every content element has a
+    topic tag, and ``has_sims`` whether an encoder gave the element embeddings (else ``sim``
+    is 0); the full combiners need both.
+    """
+
+    def __init__(
+        self,
+        *,
+        index: _Index,
+        family: str,
+        doc_family: str,
+        tags: list[dict[str, TagResult] | None],
+        tagged: bool,
+        sections: list[str | None],
+        vectors: np.ndarray | None,
+        rows: list[int],
+        encoder: Any,
+    ) -> None:
+        self.index = index
+        self.family = family
+        self.doc_family = doc_family
+        self.tags = tags
+        self.tagged = tagged
+        self.sections = sections
+        self.vectors = vectors  # unit rows, one per entry of ``rows``
+        self.rows = rows  # indices into the content elements that have text
+        self.encoder = encoder
+        self.element_ids = [index.doc.elements[pos].id for pos in index.content]
+
+    @property
+    def has_sims(self) -> bool:
+        return self.vectors is not None
+
+
+def prepare(
+    analysis: Analysis | Document,
+    *,
+    tagger: Any = None,
+    encoder: Any = None,
+    family: str | None = None,
+) -> DocContext:
+    """Read ``analysis`` once for :func:`need_features`.
+
+    ``family`` is the element family the tags must belong to; by default, the one the
+    analysis's doc type maps to (``generic`` without one). The analysis's own tags are used
+    when every content element has one and ``family`` is the document's family. Otherwise
+    ``tagger`` (an ``element_tags`` spec, loaded and closed here, or an object with
+    ``tag(elements, family)``) tags the content elements within ``family``; without a tagger,
+    tags of another family are dropped. ``encoder`` (an object with ``encode``, which the
+    caller keeps open until its last :func:`need_features` call) embeds each content element's
+    heading path and body once. The analysis is never modified.
+    """
+    doc = document_of(analysis)
+    index = _Index(doc)
+    doc_family = family_for_doc_type(_doc_type(analysis) or "")
+    family = family or doc_family
+    tags, tagged = _content_tags(doc, index, tagger, retag=family != doc_family, family=family)
+    vectors: np.ndarray | None = None
+    rows: list[int] = []
+    if encoder is not None:
+        rows, texts = index.sim_texts()
+        vectors = _text_vectors(texts, encoder) if texts else np.zeros((0, 0))
+    return DocContext(
+        index=index,
+        family=family,
+        doc_family=doc_family,
+        tags=tags,
+        tagged=tagged,
+        sections=index.section_labels(analysis),
+        vectors=vectors,
+        rows=rows,
+        encoder=encoder,
+    )
+
+
+def need_features(
+    ctx: DocContext, need: Field | Sequence[Field] | str
+) -> tuple[list[str], np.ndarray]:
+    """``(content element ids, the full spec §5 feature matrix)`` for ``need`` on a prepared
+    document, one row per content element in reading order. ``sim`` is 0 when the context has
+    no embeddings (or the element has no text)."""
+    fields, _ = _parse_need(need)
+    index = ctx.index
+    sims = np.zeros(len(index.content))
+    if ctx.vectors is not None and ctx.rows:
+        sims[ctx.rows] = _need_sims(ctx.vectors, need, ctx.encoder)
+    X = features(
+        [index.doc.elements[pos] for pos in index.content],
+        ctx.tags,
+        sims,
+        ctx.sections,
+        fields if fields else need,
+    )
+    return list(ctx.element_ids), X
+
+
 # --- select ------------------------------------------------------------------------------------
 
 
@@ -446,17 +609,15 @@ def select(
             )
     fields, query = _parse_need(need)
     label = query if query is not None else ",".join(f.id for f in fields)
-    doc = document_of(analysis)
-    index = _Index(doc)
     doc_family = family_for_doc_type(_doc_type(analysis) or "")
     field_family = fields[0].family if fields else None
     mismatch = field_family is not None and field_family != doc_family
 
     if c == 1.0:
-        everything = set(index.selectable)
+        index = _Index(document_of(analysis))
         return _selection(
             index,
-            everything,
+            set(index.selectable),
             label,
             c,
             threshold=None,
@@ -465,16 +626,10 @@ def select(
             mismatch=mismatch,
         )
 
-    tagger_owned = isinstance(tagger, (str, Path))
-    resolved_tagger: Any = None
     encoder: Any = None
     encoder_owned = False
     try:
         chosen = _resolve_selector(selector, tagger)
-        tags, tagged, resolved_tagger = _content_tags(
-            doc, index, tagger, retag=mismatch, family=field_family or doc_family
-        )
-        sims: np.ndarray | None = None
         spec = embedder if embedder is not None else chosen.embedder
         if spec is not None:
             encoder_owned = isinstance(spec, str)
@@ -484,29 +639,19 @@ def select(
                 encoder = resolve_backend(spec)
             else:
                 encoder = spec
-            rows, texts = index.sim_texts()
-            sims = np.zeros(len(index.content))
-            sims[rows] = similarities(texts, need, encoder)
+        ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=field_family or doc_family)
+        _, X = need_features(ctx, need)
     finally:
-        if tagger_owned and resolved_tagger is not None:
-            close_backend(resolved_tagger)
         if encoder_owned and encoder is not None:
             close_backend(encoder)
 
-    full = tagged and sims is not None
+    index = ctx.index
+    full = ctx.tagged and ctx.has_sims
     if fields:
         combiner = chosen.field if full else chosen.field_fallback
     else:
         combiner = chosen.query if full else chosen.query_fallback
-    content = [doc.elements[pos] for pos in index.content]
-    X = features(
-        content,
-        tags,
-        sims if sims is not None else np.zeros(len(content)),
-        index.section_labels(analysis),
-        fields if fields else need,
-    )
-    p = combiner.predict_proba(X) if content else np.zeros(0)
+    p = combiner.predict_proba(X) if index.content else np.zeros(0)
     relevant = float(p.sum())
     nothing = relevant < NO_RELEVANT_BELOW
     dial = chosen.dials.get(field_family) if field_family is not None else None
@@ -518,16 +663,14 @@ def select(
     if budget is not None:
         picked, over_budget = _fill_budget(index, p, budget, nothing)
         guarantee = False
-        expected = _share(index, p, picked, relevant)
+        expected = None if nothing else _share(index, p, picked, relevant)
     elif guaranteed:
         assert dial is not None
+        dial.check_combiner(chosen.field)  # raises: never a guarantee from a stale dial
         mask, capped = dial.select(p, c)
         threshold, _ = dial.threshold(c)
         guarantee = True
-        expected = 1.0 if capped else c
-        if capped and nothing:  # never the whole document for nothing relevant
-            mask = np.zeros(len(p), dtype=bool)
-            guarantee = False
+        expected = 1.0 if capped else c  # what is promised, whatever sum(p) is
         picked = index.expand([index.content[j] for j in np.flatnonzero(mask)])
     else:
         guarantee = False
@@ -539,7 +682,7 @@ def select(
         label,
         c,
         threshold=threshold,
-        expected=None if nothing else expected,
+        expected=expected,
         guarantee=guarantee,
         mismatch=mismatch,
         capped=capped,
@@ -575,35 +718,35 @@ def _resolve_selector(selector: Selector | str | Path | None, tagger: Any) -> Se
 
 def _content_tags(
     doc: Document, index: _Index, tagger: Any, *, retag: bool, family: str
-) -> tuple[list[dict[str, TagResult] | None], bool, Any]:
-    """The tags of each content element, whether all have a topic, and the tagger resolved
-    (to close when the caller passed a spec). The analysis's own tags are used unless some
-    are missing or ``retag``; then ``tagger`` tags the elements within ``family``. Without a
+) -> tuple[list[dict[str, TagResult] | None], bool]:
+    """The tags of each content element and whether all have a topic. The analysis's own tags
+    are used unless some are missing or ``retag``; then ``tagger`` tags the elements within
+    ``family`` (a tagger loaded here from a spec is closed here, whatever happens). Without a
     tagger on a re-tag, the old tags (of another family) are dropped."""
     elements = doc.elements
     existing: list[dict[str, TagResult] | None] = [elements[pos].tags for pos in index.content]
     complete = all(t is not None and "topic" in t for t in existing)
     if (complete and not retag) or not index.content:
-        return existing, complete or not index.content, None
+        return existing, complete or not index.content
     if tagger is None:
-        return ([None] * len(existing) if retag else existing), False, None
+        return ([None] * len(existing) if retag else existing), False
     from docrooter.tagger.element_tags import content_elements, resolve_tagger
 
-    resolved = resolve_tagger(str(tagger)) if isinstance(tagger, (str, Path)) else tagger
-    items = content_elements(doc)
+    owned = isinstance(tagger, (str, Path))
+    resolved = resolve_tagger(str(tagger)) if owned else tagger
     try:
+        items = content_elements(doc)
         results = resolved.tag(items, family)
-    except BaseException:
-        if resolved is not tagger:  # loaded here from a spec: the caller cannot close it
+        if len(results) != len(items):
+            raise DocrooterError(
+                f"the element tagger returned {len(results)} results for {len(items)} elements"
+            )
+    finally:
+        if owned:
             close_backend(resolved)
-        raise
-    if len(results) != len(items):
-        raise DocrooterError(
-            f"the element tagger returned {len(results)} results for {len(items)} elements"
-        )
     by_id = {item.element_id: dict(result) for item, result in zip(items, results, strict=True)}
     tags = [by_id.get(elements[pos].id) for pos in index.content]
-    return tags, all(t is not None and "topic" in t for t in tags), resolved
+    return tags, all(t is not None and "topic" in t for t in tags)
 
 
 def _estimate_cut(p: np.ndarray, c: float) -> tuple[list[int], float | None, float]:
@@ -626,6 +769,9 @@ def _fill_budget(index: _Index, p: np.ndarray, budget: int, nothing: bool) -> tu
     if nothing or len(p) == 0:
         return set(), False
     order = np.argsort(-p, kind="stable")
+    best = index.content[int(order[0])]
+    if index.tokens[best] > budget:  # R5: the best alone, flagged; never filler instead
+        return {best}, True
     picked: set[int] = set()
     used = 0
     for j in order:
@@ -638,8 +784,7 @@ def _fill_budget(index: _Index, p: np.ndarray, budget: int, nothing: bool) -> tu
             used += cost
     if picked:
         return picked, False
-    best = index.content[int(order[0])]
-    return {best}, index.tokens[best] > budget
+    return {best}, False  # it fits alone, but nothing fits with its expansion
 
 
 def _share(index: _Index, p: np.ndarray, picked: set[int], relevant: float) -> float:

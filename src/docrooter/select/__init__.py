@@ -1,4 +1,12 @@
-"""Selection: which elements a downstream LLM should read for a need (spec v0.6)."""
+"""Selection: which elements a downstream LLM should read for a need (spec v0.6).
+
+**Importing.** ``docrooter.select`` on the top-level package is the :func:`select` function,
+which shadows this subpackage there (as ``docrooter.embed`` and ``docrooter.summarize`` do).
+Use ``from docrooter.select.selection import ...`` (or ``from docrooter.select import ...``);
+``import docrooter.select.selection as m`` fails, and so does monkeypatching by a dotted string
+such as ``"docrooter.select.selection.name"``. Patch the module object, from ``sys.modules``
+or a ``from`` import, instead.
+"""
 
 from docrooter.select.crc import (
     DEFAULT_GRID,

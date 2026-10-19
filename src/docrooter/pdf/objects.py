@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -97,8 +97,13 @@ def extract_page_objects(
     max_pages: int | None = None,
     progress: Progress | None = None,
     tables: Literal["lines", "none"] = "lines",
+    pages: Sequence[int] | None = None,
 ) -> list[PageObjects]:
     """Extract the :class:`PageObjects` of every page (of the first ``max_pages``) of ``path``.
+
+    ``pages`` (1-based page numbers) reads only those pages instead, in page order: duplicates
+    are dropped, numbers past the end are ignored, and ``max_pages`` then caps how many of
+    them are read. A number below 1 is a ``ValueError``.
 
     ``progress(done, total)`` is called after every 10th page, as in ``extract_lines``.
     ``tables="none"`` skips the ruled-table search (the slowest part of the pass): every page
@@ -109,12 +114,30 @@ def extract_page_objects(
     """
     if tables not in ("lines", "none"):
         raise ValueError(f"tables must be 'lines' or 'none', got {tables!r}")
+    if pages is not None:
+        check_pages(pages)
     find = tables == "lines"
     if engine == "pymupdf":
-        return _extract_pymupdf(path, max_pages, progress, find)
+        return _extract_pymupdf(path, max_pages, progress, find, pages)
     if engine == "pdfplumber":
-        return _extract_pdfplumber(path, max_pages, progress, find)
+        return _extract_pdfplumber(path, max_pages, progress, find, pages)
     raise DocrooterError(f"unknown PDF engine {engine!r}; use 'pymupdf' or 'pdfplumber'")
+
+
+def check_pages(pages: Sequence[int]) -> None:
+    """Raise ``ValueError`` unless every item of ``pages`` is a 1-based page number."""
+    if isinstance(pages, (str, bytes)):
+        raise ValueError("pages must be a sequence of 1-based page numbers")
+    for number in pages:
+        if isinstance(number, bool) or not isinstance(number, int) or number < 1:
+            raise ValueError(f"pages must be 1-based page numbers, got {number!r}")
+
+
+def _selected_pages(pages: Sequence[int], n_pages: int, max_pages: int | None) -> list[int]:
+    """``pages`` in order without duplicates or numbers past ``n_pages``, at most
+    ``max_pages`` of them."""
+    selected = sorted({number for number in pages if number <= n_pages})
+    return selected if max_pages is None else selected[:max_pages]
 
 
 # --- shared helpers ------------------------------------------------------------------------
@@ -478,7 +501,11 @@ def _pdfplumber_rulings(page: Any) -> tuple[list[_Rule], list[_Rule]]:
 
 
 def _extract_pymupdf(
-    path: str | Path, max_pages: int | None, progress: Progress | None, find_tables: bool = True
+    path: str | Path,
+    max_pages: int | None,
+    progress: Progress | None,
+    find_tables: bool = True,
+    numbers: Sequence[int] | None = None,
 ) -> list[PageObjects]:
     pymupdf = _import_pymupdf()
     try:
@@ -493,6 +520,17 @@ def _extract_pymupdf(
         table_kwargs = _table_kwargs(pymupdf)
         out: list[PageObjects] = []
         try:
+            if numbers is not None:
+                wanted = _selected_pages(numbers, doc.page_count, max_pages)
+                for done, number in enumerate(wanted, 1):
+                    out.append(
+                        _pymupdf_page(
+                            doc[number - 1], number - 1, pymupdf, flags, table_kwargs, find_tables
+                        )
+                    )
+                    if progress is not None and done % PROGRESS_EVERY == 0:
+                        progress(done, len(wanted))
+                return out
             for page_index, page in enumerate(doc):
                 if max_pages is not None and page_index >= max_pages:
                     break
@@ -697,7 +735,11 @@ def _moved(frag: dict[str, Any], matrix: Any) -> dict[str, Any]:
 
 
 def _extract_pdfplumber(
-    path: str | Path, max_pages: int | None, progress: Progress | None, find_tables: bool = True
+    path: str | Path,
+    max_pages: int | None,
+    progress: Progress | None,
+    find_tables: bool = True,
+    numbers: Sequence[int] | None = None,
 ) -> list[PageObjects]:
     pdfplumber = _import_pdfplumber()
     try:
@@ -706,8 +748,12 @@ def _extract_pdfplumber(
         raise DocrooterError(f"cannot open PDF {path}: {exc}") from exc
     out: list[PageObjects] = []
     try:
-        pages = pdf.pages[:max_pages]
-        for page_index, page in enumerate(pages):
+        if numbers is None:
+            chosen = list(enumerate(pdf.pages[:max_pages]))
+        else:
+            wanted = _selected_pages(numbers, len(pdf.pages), max_pages)
+            chosen = [(number - 1, pdf.pages[number - 1]) for number in wanted]
+        for done, (page_index, page) in enumerate(chosen, 1):
             try:
                 out.append(_pdfplumber_page(page, page_index, find_tables))
             finally:
@@ -715,8 +761,8 @@ def _extract_pdfplumber(
                 close = getattr(page, "close", None) or getattr(page, "flush_cache", None)
                 if close is not None:
                     close()
-            if progress is not None and (page_index + 1) % PROGRESS_EVERY == 0:
-                progress(page_index + 1, len(pages))
+            if progress is not None and done % PROGRESS_EVERY == 0:
+                progress(done, len(chosen))
     except DocrooterError:
         raise
     except Exception as exc:

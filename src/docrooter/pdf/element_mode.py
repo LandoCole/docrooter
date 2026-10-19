@@ -65,7 +65,7 @@ from docrooter.pdf.load import (
     _heading_counts,
     _metadata_title,
 )
-from docrooter.pdf.objects import PageObjects, extract_page_objects
+from docrooter.pdf.objects import PageObjects, check_pages, extract_page_objects
 from docrooter.pdf.reading_order import order_lines
 from docrooter.pdf.routing import Route, RouteDecision, _union_share, route_page
 from docrooter.pdf.signals import compute_signals, read_bookmarks
@@ -113,6 +113,7 @@ def load_elements(
     use_printed_toc: bool = True,
     max_pages: int | None = None,
     tables: Literal["lines", "none"] = "lines",
+    pages: Sequence[int] | None = None,
 ) -> Document:
     """Load a PDF with typed elements; see :func:`docrooter.pdf.load.load_pdf`.
 
@@ -129,6 +130,11 @@ def load_elements(
 
     ``tables="none"`` skips table finding, for speed: no ruled-table search in the object
     pass and no "text" table strategy in layout Table regions.
+
+    ``pages`` (1-based page numbers) reads only those pages, in page order, at most
+    ``max_pages`` of them; numbers past the end are ignored. ``meta["n_pages"]`` stays the
+    whole document's count, ``"truncated_pages"`` is warned when pages were left out, and
+    bookmarks pointing to pages not read are ignored.
     """
     if engine in ("both", "pymupdf4llm"):
         raise DocrooterError(
@@ -145,6 +151,8 @@ def load_elements(
         raise ValueError(f"tables must be 'lines' or 'none', got {tables!r}")
     if max_pages is not None and max_pages < 1:
         raise ValueError(f"max_pages must be >= 1, got {max_pages}")
+    if pages is not None:
+        check_pages(pages)
     if ocr is not None and not isinstance(ocr, str) and not isinstance(ocr, OcrEngine):
         raise TypeError("ocr must be None, an engine name or an OcrEngine")
     if isinstance(ocr, str) and ocr not in ("none", "auto"):
@@ -168,7 +176,7 @@ def load_elements(
         return _load_elements(
             Path(path), engine=engine, ocr=ocr, layout_engine=layout_engine, release=release,
             ocr_dpi=ocr_dpi, min_heading_score=min_heading_score, use_bookmarks=use_bookmarks,
-            use_printed_toc=use_printed_toc, max_pages=max_pages, tables=tables,
+            use_printed_toc=use_printed_toc, max_pages=max_pages, tables=tables, wanted=pages,
         )  # fmt: skip
     finally:
         release()
@@ -187,9 +195,10 @@ def _load_elements(
     use_printed_toc: bool,
     max_pages: int | None,
     tables: Literal["lines", "none"],
+    wanted: Sequence[int] | None = None,
 ) -> Document:
     """:func:`load_elements` after its argument checks; ``release`` closes an owned layout
-    engine (called once detection is done)."""
+    engine (called once detection is done); ``wanted`` is the ``pages`` argument."""
     if engine == "auto":
         engine = _auto_engine()
     min_score = _DEFAULT_SCORE if min_heading_score is None else min_heading_score
@@ -205,9 +214,13 @@ def _load_elements(
         if stage.active
         else None,
         tables=tables,
+        pages=wanted,
     )
     n_read = len(pages)
-    n_pages = _page_count(path, engine) if max_pages is not None and n_read >= max_pages else n_read
+    if wanted is not None or (max_pages is not None and n_read >= max_pages):
+        n_pages = _page_count(path, engine)
+    else:
+        n_pages = n_read
     stage.end(lines=sum(len(p.lines) for p in pages), pages=n_read)
     clock = _tick(timings, "extract", clock)
 
@@ -283,7 +296,10 @@ def _load_elements(
 
     stage = events.start("signals", engine=engine)
     bookmarks = read_bookmarks(path)
-    if n_read < n_pages:
+    if wanted is not None:
+        read = {objs.page for objs in pages}
+        bookmarks = [b for b in bookmarks if b[2] in read]
+    elif n_read < n_pages:
         bookmarks = [b for b in bookmarks if b[2] <= n_read]
     signals = compute_signals(lines, n_read, bookmarks=bookmarks)
     groups: dict[int, tuple[float, float, float, float]] = {}
@@ -494,7 +510,7 @@ def _tick(timings: dict[str, float], key: str, since: float) -> float:
 
 
 def _page_count(path: Path, engine: str) -> int:
-    """The whole document's page count (``extract_page_objects`` reads only ``max_pages``)."""
+    """The whole document's page count (``extract_page_objects`` may read fewer pages)."""
     if engine == "pymupdf":
         with _lines_module._import_pymupdf().open(str(path), filetype="pdf") as doc:
             return int(doc.page_count)

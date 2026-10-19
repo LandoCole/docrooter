@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -76,6 +76,7 @@ def process(
     config: RouterConfig | str | os.PathLike[str] | None = None,
     profile: str | None = None,
     on_event: events.EventSink | None = None,
+    pages: Sequence[int] | None = None,
     **overrides: Any,
 ) -> Analysis:
     """Load, classify and summarise one document as the configuration says.
@@ -110,12 +111,21 @@ def process(
     ``on_event`` receives the stages of :func:`~docrooter.load`,
     :func:`~docrooter.classify_document` and :func:`~docrooter.normalize_sections`, plus
     ``route``, ``escalate``, ``summarize`` and ``embed``, then one ``done``.
+
+    ``pages`` (1-based page numbers, a PDF in element mode only) reads just those pages, at
+    most ``max_pages`` of them; see :func:`~docrooter.load_pdf`. It is not part of the
+    configuration: it says which part of this one document to read.
     """
     cfg, given = _resolve(config, profile, overrides)
+    if pages is not None and cfg.layout == "none":
+        raise ValueError(
+            "pages needs element mode, and layout='none' (the fast profile) reads whole "
+            "documents: set layout='heuristic' or a layout engine name"
+        )
     with events.pipeline_run(on_event):
         engines = _Engines(cfg, given)
         try:
-            return _run(source, cfg, engines)
+            return _run(source, cfg, engines, pages)
         finally:
             engines.close()  # before ``done``: released by the time a listener sees it
 
@@ -391,11 +401,18 @@ def _is_pdf(source: str | os.PathLike[str]) -> bool:
     return Path(source).suffix.lower() == ".pdf"
 
 
-def _run(source: str | os.PathLike[str], cfg: RouterConfig, engines: _Engines) -> Analysis:
+def _run(
+    source: str | os.PathLike[str],
+    cfg: RouterConfig,
+    engines: _Engines,
+    pages: Sequence[int] | None = None,
+) -> Analysis:
     started = time.perf_counter()
     timings: dict[str, float] = {}
     is_pdf = _is_pdf(source)
     element_mode = cfg.layout != "none"
+    if pages is not None and not is_pdf:
+        raise TypeError("pages: only valid when loading a PDF")
 
     decisions: list[RouteDecision] = []
     options: dict[str, Any] = {}
@@ -404,6 +421,8 @@ def _run(source: str | os.PathLike[str], cfg: RouterConfig, engines: _Engines) -
             options["engine"] = cfg.text
         if cfg.max_pages is not None:
             options["max_pages"] = cfg.max_pages
+        if pages is not None:
+            options["pages"] = pages
         if element_mode:
             ocr, ocr_decision = engines.ocr()
             layout, layout_decision = engines.layout()

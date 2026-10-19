@@ -552,6 +552,31 @@ def test_max_pages_progress_and_errors(engine, tmp_path):
         extract_page_objects(path, engine="nope")  # type: ignore[arg-type]
 
 
+def test_pages_reads_only_the_listed_pages(engine, tmp_path):
+    doc = pymupdf.open()
+    for k in range(1, 13):
+        page = doc.new_page(width=200, height=200)
+        page.insert_text((20, 40), f"page {k} text", fontsize=11)
+    path = _save(doc, tmp_path)
+    calls = []
+    got = extract_page_objects(
+        path,
+        engine=engine,
+        pages=[12, 3, 3, 1, 40, 2, 5, 6, 7, 8, 9, 10, 11],
+        progress=lambda done, total: calls.append((done, total)),
+    )
+    assert [p.page for p in got] == [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12]  # sorted, deduped, ≤ 12
+    assert [line.text for line in got[2].lines] == ["page 3 text"]
+    assert all(line.page == p.page for p in got for line in p.lines)
+    assert calls == [(10, 11)]
+    capped = extract_page_objects(path, engine=engine, pages=[9, 4, 2], max_pages=2)
+    assert [p.page for p in capped] == [2, 4]
+    assert extract_page_objects(path, engine=engine, pages=[]) == []
+    for bad in ([0], [-1], [True], ["2"], "12"):
+        with pytest.raises(ValueError, match="pages"):
+            extract_page_objects(path, engine=engine, pages=bad)
+
+
 def _spy_table_finder(monkeypatch, engine):
     """Record every call of the engine's table finder (pymupdf ``Page.find_tables`` or
     pdfplumber ``Page.find_tables``) and still run it."""

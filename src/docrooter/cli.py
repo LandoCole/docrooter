@@ -34,6 +34,8 @@ models_app = typer.Typer(no_args_is_help=True, help="Download and inspect model 
 app.add_typer(models_app, name="models")
 config_app = typer.Typer(no_args_is_help=True, help="Inspect the rooter configuration.")
 app.add_typer(config_app, name="config")
+corpus_app = typer.Typer(no_args_is_help=True, help="Build and inspect corpus stores.")
+app.add_typer(corpus_app, name="corpus")
 
 
 # What a command reports as "error: ..." with exit status 1; anything else is a bug and shows
@@ -1039,6 +1041,97 @@ def config_show(
     for key, value in resolved.model_dump().items():
         if value is not None:  # max_pages unset: TOML has no null
             typer.echo(f"{key} = {_toml_value(value)}")
+
+
+# --- corpus -------------------------------------------------------------------------------
+
+
+@corpus_app.command("build")
+def corpus_build(
+    directory: Annotated[
+        Path, typer.Argument(file_okay=False, help="Corpus store directory (created if needed).")
+    ],
+    from_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--from-manifest",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Manifest of the documents (JSON lines); default: every PDF in --pdf-dir.",
+        ),
+    ] = None,
+    pdf_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--pdf-dir",
+            exists=True,
+            file_okay=False,
+            help="Folder holding <id>.pdf for every document (default: DIRECTORY/pdfs).",
+        ),
+    ] = None,
+    profile: Annotated[
+        str, typer.Option(help="Rooter profile whose engines read the pages.")
+    ] = "accurate",
+    max_pages: Annotated[
+        int, typer.Option("--max-pages", min=1, help="Pages read per document, at most.")
+    ] = 30,
+    first_pages: Annotated[
+        int,
+        typer.Option(
+            "--first-pages", min=0, help="Leading pages always read; the rest are sampled."
+        ),
+    ] = 10,
+    seed: Annotated[int, typer.Option(help="Seed of the page sample.")] = 0,
+) -> None:
+    """Read PDFs into a corpus store: elements of the first and sampled pages, without page
+    furniture or contents.
+
+    Resumable: documents already in the store are skipped, and each document is saved as soon
+    as it is read. Progress goes to stderr, the summary to stdout.
+    """
+    from docrooter.corpus import Corpus, build_corpus, read_manifest
+
+    checked = _check_profile(profile) or "accurate"
+    folder = pdf_dir if pdf_dir is not None else directory / "pdfs"
+    with _errors_exit_1():
+        if not folder.is_dir():
+            raise DocrooterError(f"no PDF folder at {folder}; pass --pdf-dir")
+        records = read_manifest(from_manifest) if from_manifest is not None else None
+        report = build_corpus(
+            Corpus(directory),
+            folder,
+            records=records,
+            profile=checked,
+            max_pages=max_pages,
+            first_pages=first_pages,
+            seed=seed,
+            on_progress=lambda done, total, doc_id, status: typer.echo(
+                f"[{done}/{total}] {doc_id}: {status}", err=True
+            ),
+        )
+    typer.echo(
+        f"{len(report.added)} added, {len(report.skipped)} skipped, {len(report.missing)} "
+        f"missing, {len(report.mismatched)} mismatched, {len(report.failed)} failed; "
+        f"{report.pages_read} pages, {report.elements} elements, {report.seconds:.1f}s; "
+        f"store {directory}"
+    )
+    for doc_id, error in report.failed.items():
+        typer.echo(f"failed {doc_id}: {error}")
+
+
+@corpus_app.command("stats")
+def corpus_stats(
+    directory: Annotated[Path, typer.Argument(file_okay=False, help="Corpus store directory.")],
+) -> None:
+    """Print a corpus store's counts as JSON (and refresh its stats.json)."""
+    from docrooter.corpus import Corpus
+
+    with _errors_exit_1():
+        if not (directory / "manifest.jsonl").is_file():
+            raise DocrooterError(f"no corpus at {directory} (no manifest.jsonl)")
+        stats = Corpus(directory).stats()
+    typer.echo(json.dumps(stats, indent=2, sort_keys=True))
 
 
 # --- serve --------------------------------------------------------------------------------

@@ -435,6 +435,32 @@ def test_meta_timings_and_max_pages(tmp_path):
     assert max(e.boxes[0].page for e in doc.elements) == 2
 
 
+def test_pages_reads_a_page_subset(tmp_path):
+    doc = pymupdf.open()
+    for k in range(1, 7):
+        page = doc.new_page(width=612, height=792)
+        page.insert_text((72, 100), f"Part {k}", fontsize=16, fontname="hebo")
+        page.insert_text((72, 130), f"Body text of part {k} in plain words.", fontsize=11)
+    doc.set_toc([[1, f"Part {k}", k] for k in range(1, 7)])
+    path = _save(doc, tmp_path / "parts.pdf")
+    got = load_pdf(path, elements=True, pages=[5, 1, 3])
+    assert sorted({e.boxes[0].page for e in got.elements}) == [1, 3, 5]
+    assert [s.title for s in got.walk() if s.level > 0] == ["Part 1", "Part 3", "Part 5"]
+    assert got.meta["n_pages"] == 6 and got.meta["warnings"] == ["truncated_pages"]
+    assert len(got.meta["routes"]) == 3 and got.meta["bookmarks"] == 3  # bookmarks of pages read
+    capped = load_pdf(path, elements=True, pages=[2, 4, 6], max_pages=2)
+    assert sorted({e.boxes[0].page for e in capped.elements}) == [2, 4]
+    whole = load_pdf(path, elements=True, pages=range(1, 7))
+    assert whole.meta["warnings"] == [] and whole.meta["n_pages"] == 6
+    assert whole.model_dump(exclude={"meta"}) == load_pdf(path, elements=True).model_dump(
+        exclude={"meta"}
+    )
+    with pytest.raises(TypeError, match="pages: only valid with elements=True"):
+        load_pdf(path, pages=[1])
+    with pytest.raises(ValueError, match="pages"):
+        load_pdf(path, elements=True, pages=[0])
+
+
 def test_arguments_are_checked():
     path = GOLDEN / "single_column.pdf"
     with pytest.raises(TypeError, match="only valid with elements=True"):

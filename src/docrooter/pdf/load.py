@@ -74,6 +74,7 @@ def load_pdf(
     layout: str | LayoutEngine = "heuristic",
     ocr_dpi: int = 200,
     tables: Literal["lines", "none"] = "lines",
+    pages: Sequence[int] | None = None,
 ) -> Document:
     """Load a PDF into a :class:`Document` using native text extraction (no OCR).
 
@@ -121,13 +122,17 @@ def load_pdf(
     ``layout``, ``signals``, ``headings``, ``elements`` (with counts by kind) and ``assemble``.
     ``tables="none"`` skips table finding in element mode, for speed (most of element mode's
     extra cost): ruled tables are not searched and their lines are typed by the other rules.
+    ``pages`` (element mode only) reads just those 1-based pages, in page order, at most
+    ``max_pages`` of them; ``n_pages`` stays the whole document's count.
     ``repair`` does not apply. Without ``elements`` the result is exactly as before, and
-    ``ocr``, ``layout``, ``ocr_dpi`` and ``tables`` must keep their defaults.
+    ``ocr``, ``layout``, ``ocr_dpi``, ``tables`` and ``pages`` must keep their defaults.
     """
     if not elements and (
         ocr is not None or not _is_heuristic(layout) or ocr_dpi != 200 or tables != "lines"
     ):
         raise TypeError("ocr, layout, ocr_dpi and tables: only valid with elements=True")
+    if not elements and pages is not None:
+        raise TypeError("pages: only valid with elements=True")
     with events.pipeline_run(on_event):
         if elements:
             from docrooter.pdf.element_mode import load_elements
@@ -143,6 +148,7 @@ def load_pdf(
                 use_printed_toc=use_printed_toc,
                 max_pages=max_pages,
                 tables=tables,
+                pages=pages,
             )
         return _load_pdf(
             path,

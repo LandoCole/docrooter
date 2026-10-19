@@ -824,6 +824,24 @@ def test_embeddings_need_element_mode():
         process_many([MARKDOWN], profile="fast", embeddings="embedding:some/model")
 
 
+def test_pages_reads_a_page_subset_in_element_mode(tmp_path):
+    doc = pymupdf.open()
+    for k in range(1, 5):
+        doc.new_page(width=612, height=792).insert_text((72, 100), f"Page {k} words.")
+    path = tmp_path / "four.pdf"
+    doc.save(str(path))
+    doc.close()
+    keyword = {"doc_type": "keyword", "sections": "keyword", "ocr": "none"}
+    analysis = process(path, profile="balanced", pages=[4, 2], max_pages=5, **keyword)
+    assert sorted({e.boxes[0].page for e in analysis.document.elements}) == [2, 4]
+    assert analysis.document.meta["n_pages"] == 4
+    assert "pages" not in analysis.config.model_dump()  # not part of the configuration
+    with pytest.raises(ValueError, match="pages needs element mode"):
+        process(path, profile="fast", pages=[1], **keyword)
+    with pytest.raises(TypeError, match="pages: only valid when loading a PDF"):
+        process(MARKDOWN, profile="balanced", pages=[1], **keyword)
+
+
 def test_analysis_json(tmp_path):
     analysis = process(_paper(tmp_path), doc_type="keyword", sections="keyword")
     data = json.loads(analysis.to_json())

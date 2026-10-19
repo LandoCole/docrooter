@@ -17,6 +17,8 @@ htmlcov/
 # Benchmark artifacts that are downloaded, not committed
 benchmarks/corpus/pdfs/
 benchmarks/.cache/
+benchmarks/.cache
+benchmarks/.cache.nosync/
 # The gold-set sample holds full text of never-redistributed documents (its default path is in
 # benchmarks/.cache/); this guards a copy written next to the committed gold files.
 benchmarks/training_corpus/gold_sample*.jsonl

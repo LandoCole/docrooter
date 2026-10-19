@@ -460,8 +460,9 @@ class _Builder:
         rule's prose test) and its cells hold whole paragraphs (``FRAME_MIN_LINES_PER_CELL``
         lines per non-empty cell). A table whose lines are mostly (``FIGURE_GRID_LINE_SHARE``)
         in statement rows (a word label, then two or more numbers: "2024 Notes | 37 | 443") is
-        a table whatever it holds, a title row set as a heading included, and a heading
-        candidate that labels a statement row is a cell, not a heading.
+        a table whatever it holds, a title row set as a heading included; and a heading
+        candidate that shares its row with another line of the table (a statement-row label,
+        a value beside its field) is a cell, not a heading.
         Prose alone does not make a frame: a statement table's long row labels, or a register
         table's descriptions, stack like a paragraph, so ``FIGURE_GRID_MIN_LABELLED_ROWS``
         statement rows, or fewer lines per cell, keep a page-sized table a table."""
@@ -470,8 +471,13 @@ class _Builder:
         cells = {id(line) for row in statements for line in row}
         if len(cells) >= FIGURE_GRID_LINE_SHARE * len(lines):
             return False  # a statement table, with its title row or a bold label row
-        if any(i in protected and id(self.lines[i]) not in cells for i in idxs):
-            return True
+        for i in idxs:
+            if (
+                i in protected
+                and id(self.lines[i]) not in cells
+                and not any(k != i and same_row(self.lines[i], self.lines[k]) for k in idxs)
+            ):
+                return True  # a heading alone on its row: page content, not a cell
         if area(r) < FIGURE_BACKGROUND_PAGE_SHARE * obj.width * obj.height:
             return False
         if len(statements) >= FIGURE_GRID_MIN_LABELLED_ROWS:

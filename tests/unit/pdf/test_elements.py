@@ -620,6 +620,18 @@ def test_statement_table_with_a_heading_title_row_stays_a_table():
     assert kinds(doc.build()) == ["table"]
 
 
+def test_heading_candidate_beside_another_cell_is_a_cell():
+    # dev doc_042 p159: a register value ("0000 to 0101 - 0.80V") is a false heading candidate
+    rows = [
+        row(1, "Bits", 72, 150), row(1, "Description", 150, 150), row(1, "Type", 450, 150),
+        row(1, "7:4", 72, 170), row(1, "0000 to 0101 - 0.80V", 150, 170, bold=True),
+        row(1, "RW", 450, 170),
+    ]  # fmt: skip
+    cells = [["Bits", "Description", "Type"], ["7:4", "0000 to 0101 - 0.80V", "RW"]]
+    doc = Doc(rows, tables={1: [((60, 145, 540, 190), cells)]}, headings=[heading(rows, 4)])
+    assert kinds(doc.build()) == ["table"]
+
+
 def test_ruled_table_with_no_lines_of_its_own_is_not_emitted():
     doc = table_doc()
     inner = ((300, 168, 520, 190), [["12", "10"]])  # nested in the first; its lines are taken

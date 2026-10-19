@@ -460,6 +460,54 @@ details[open] > summary .toc-twisty { transform: rotate(90deg); }
 .chip.mid { background: var(--model-soft); color: var(--model); }
 .chip.lo { background: var(--bad-soft); color: var(--bad); }
 
+/* Summaries under a TOC entry or an element */
+.toc-summary {
+  margin: 0.1rem 0 0.45rem 1.5rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--doc-soft);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  max-width: 72ch;
+}
+.toc-summary p + p { margin-top: 0.25rem; }
+.toc-summary .toc-phrases { font-size: 0.75rem; color: var(--doc); }
+
+/* Elements */
+.el-page { margin-bottom: 0.5rem; }
+.el-page > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.35rem 0.25rem;
+  border-bottom: 1px solid var(--grid);
+  list-style: none;
+}
+.el-page > summary::-webkit-details-marker { display: none; }
+.el-page > summary::before { content: "▶"; display: inline-block; font-size: 0.7rem; color: var(--muted); margin-right: 0.5rem; transition: transform 120ms; }
+.el-page[open] > summary::before { transform: rotate(90deg); }
+.el-page small { color: var(--muted); font-weight: 400; margin-left: 0.6rem; }
+.el-list { display: flex; flex-direction: column; margin-top: 0.25rem; }
+.el summary { cursor: pointer; list-style: none; }
+.el summary::-webkit-details-marker { display: none; }
+.el-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; padding: 0.3rem 0.25rem; border-radius: 4px; }
+.el:hover > .el-row, .el summary:hover .el-row { background: var(--ground); }
+.el-text { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; font-size: 0.875rem; }
+.el-more { color: var(--model); font-size: 0.75rem; margin-left: 0.25rem; }
+.kind {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--io-soft);
+  color: var(--muted);
+  min-width: 4.5rem;
+  text-align: center;
+}
+.kind-head { background: var(--model-soft); color: var(--model); }
+.kind-data { background: var(--doc-soft); color: var(--doc); }
+.kind-furniture { background: var(--grid); color: var(--muted); font-weight: 500; }
+.badge.ocr { background: var(--bad-soft); color: var(--warn); font-weight: 600; }
+
 /* Document type */
 .type-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 1.5rem; margin-bottom: 1.25rem; }
 .crumbs { display: flex; flex-wrap: wrap; gap: 0.35rem; font-size: 1.25rem; font-weight: 650; letter-spacing: -0.01em; }
@@ -509,5 +557,5 @@ pre.json {
 
 @media (prefers-reduced-motion: reduce) {
   .stage.is-running .stage-bar { animation: none; }
-  .toc-twisty, .drop { transition: none; }
+  .toc-twisty, .drop, .el-page > summary::before { transition: none; }
 }

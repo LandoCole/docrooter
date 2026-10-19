@@ -9,6 +9,11 @@ const STAGES = {
   signals: { name: "Page signals", fam: "doc" },
   headings: { name: "Find headings", fam: "doc" },
   assemble: { name: "Build tree", fam: "doc" },
+  route: { name: "Route pages", fam: "doc" },
+  ocr: { name: "OCR", fam: "model" },
+  layout: { name: "Find layout", fam: "doc" },
+  elements: { name: "Build elements", fam: "doc" },
+  summarize: { name: "Summarise", fam: "doc" },
   view: { name: "Render view", fam: "model" },
   model_load: { name: "Load model", fam: "model" },
   classify: { name: "Classify type", fam: "model" },
@@ -23,6 +28,12 @@ const ENGINE_LABELS = {
   pymupdf4llm: "pymupdf4llm (legacy, slow)",
 };
 const PREFS_KEY = "docrooter.playground.options";
+const KIND_NAMES = { page_header: "page header", page_footer: "page footer", page_number: "page number", list_item: "list item" };
+const ELEMENT_KIND_FAMILY = {
+  title: "head", heading: "head", contents: "head",
+  table: "data", figure: "data", formula: "data", caption: "data",
+  page_header: "furniture", page_footer: "furniture", page_number: "furniture", footnote: "furniture",
+};
 
 const state = {
   backends: null,
@@ -107,6 +118,7 @@ function savePrefs() {
     localStorage.setItem(
       PREFS_KEY,
       JSON.stringify({
+        profile: $("profile").value,
         backend: $("backend").value,
         engine: $("engine").value,
         mode: $("mode").value,
@@ -124,6 +136,14 @@ async function loadOptions() {
   const info = await getJSON("/api/backends");
   state.backends = info;
   const prefs = loadPrefs();
+  const profile = $("profile");
+  profile.replaceChildren(
+    ...info.profiles.map((p) =>
+      h("option", { value: p.name }, p.installed ? p.label : `${p.label} (not installed)`),
+    ),
+  );
+  const names = info.profiles.map((p) => p.name);
+  profile.value = names.includes(prefs.profile) ? prefs.profile : info.default_profile;
   const backend = $("backend");
   backend.replaceChildren(
     ...info.backends.map((b) =>
@@ -138,6 +158,16 @@ async function loadOptions() {
   if (info.modes.includes(prefs.mode)) $("mode").value = prefs.mode;
   if (typeof prefs.normalize === "boolean") $("normalize").checked = prefs.normalize;
   describeBackend();
+  describeProfile();
+}
+
+function describeProfile() {
+  const chosen = state.backends?.profiles.find((p) => p.name === $("profile").value);
+  const note = $("profile-note");
+  note.replaceChildren();
+  if (!chosen) return;
+  note.append(chosen.description);
+  if (!chosen.installed) note.append(" ", h("strong", {}, `Needs pip install 'docrooter[${chosen.extra}]'.`));
 }
 
 function describeBackend() {
@@ -177,6 +207,7 @@ async function submit(file) {
   savePrefs();
   const form = new FormData();
   form.append("file", file);
+  form.append("profile", $("profile").value);
   form.append("backend", $("backend").value);
   form.append("engine", $("engine").value);
   form.append("mode", $("mode").value);
@@ -232,7 +263,8 @@ function setupDrop() {
   window.addEventListener("dragover", (event) => event.preventDefault());
   window.addEventListener("drop", (event) => event.preventDefault());
   $("rerun").addEventListener("click", () => state.lastFile && submit(state.lastFile));
-  for (const id of ["backend", "engine", "mode", "normalize"]) $(id).addEventListener("change", savePrefs);
+  for (const id of ["profile", "backend", "engine", "mode", "normalize"]) $(id).addEventListener("change", savePrefs);
+  $("profile").addEventListener("change", describeProfile);
   $("backend").addEventListener("change", describeBackend);
 }
 
@@ -263,7 +295,9 @@ function now() {
 }
 
 function addRow(event) {
-  const meta = STAGES[event.stage] ?? { name: event.stage.replace(/_/g, " "), fam: "io" };
+  let meta = STAGES[event.stage] ?? { name: event.stage.replace(/_/g, " "), fam: "io" };
+  // The rooter's engine choices come first, as their own "route" stage; the page decisions follow.
+  if (event.stage === "route" && event.data?.scope === "document") meta = { name: "Choose engines", fam: "doc" };
   const bar = h("div", { class: "stage-bar" });
   const dur = h("span", { class: "stage-dur" });
   const detail = h("div", { class: "stage-detail" });
@@ -326,6 +360,38 @@ function describe(row, event) {
       break;
     case "assemble":
       if (status === "end" && d.sections !== undefined) parts.push(`${num(d.sections)} sections`);
+      break;
+    case "route":
+      if (status === "end") {
+        if (d.pages !== undefined) {
+          parts.push(`${num(d.pages)} pages`);
+          if (d.ocr) parts.push(`${num(d.ocr)} need OCR`);
+          if (d.merge) parts.push(`${num(d.merge)} scans with text`);
+          if (d.regions) parts.push(`${num(d.regions)} image regions`);
+        } else if (d.decisions !== undefined) {
+          parts.push(`${num(d.decisions)} engine decisions`);
+        }
+      }
+      break;
+    case "ocr":
+      if (d.engine) parts.push(d.engine);
+      if (status === "end") parts.push(`${num(d.pages ?? 0)} pages and ${num(d.regions ?? 0)} regions read`, `${num(d.lines ?? 0)} lines`);
+      else if (d.pages || d.regions) parts.push(`${num(d.pages ?? 0)} pages and ${num(d.regions ?? 0)} regions to read`);
+      if (status === "end" && d.skipped) parts.push("needed OCR but no engine ran");
+      break;
+    case "layout":
+      if (d.engine) parts.push(d.engine);
+      if (status === "end") parts.push(`${num(d.regions ?? 0)} regions`);
+      break;
+    case "elements":
+      if (status === "end") {
+        parts.push(`${num(d.elements)} elements`);
+        parts.push(...Object.entries(d.kinds ?? {}).slice(0, 4).map(([kind, n]) => `${num(n)} ${kindName(kind)}`));
+      }
+      break;
+    case "summarize":
+      if (d.method) parts.push(d.method);
+      if (status === "end") parts.push(`${num(d.summaries)} summaries`);
       break;
     case "view":
       if (d.mode) parts.push(`from ${d.mode === "view" ? "the whole document" : d.mode === "sections" ? "its sections" : "both"}`);
@@ -475,6 +541,7 @@ async function showResult(runId) {
   if (state.runId !== runId) return;
   renderFacts(run);
   renderToc(run);
+  renderElements(run);
   renderType(run);
   renderSections(run);
   renderJson(run);
@@ -486,10 +553,14 @@ function renderFacts(run) {
   const facts = [
     ["Pages", meta.n_pages !== undefined ? num(meta.n_pages) : null],
     ["Headings", run.toc ? num(run.toc_total ?? run.toc.length) : null],
+    ["Elements", run.elements_total ? num(run.elements_total) : null],
+    ["Profile", run.options?.profile],
     ["Engine", meta.engine ?? (run.kind === "pdf" ? null : "Markdown")],
     ["Model", run.options?.backend],
     ["Wall time", secs(run.seconds)],
   ];
+  const ocrPages = (run.routes?.tasks?.ocr ?? 0) + (run.routes?.tasks?.["text+ocr"] ?? 0);
+  if (ocrPages) facts.push(["OCR pages", num(ocrPages)]);
   if (meta.warnings?.length) facts.push(["Warnings", meta.warnings.join(", ").replace(/_/g, " ")]);
   $("facts").replaceChildren(
     ...facts.filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => h("div", {}, h("dt", {}, k), h("dd", {}, v))),
@@ -499,6 +570,17 @@ function renderFacts(run) {
 function scoreChip(score) {
   const level = score >= 0.8 ? "hi" : score >= 0.55 ? "mid" : "lo";
   return h("span", { class: `chip ${level}`, title: `Heading score ${score.toFixed(2)}` }, score.toFixed(2));
+}
+
+// The key sentences of a section, as a quiet block under its TOC row.
+function summaryBlock(summary) {
+  if (!summary?.key_sentences?.length) return null;
+  return h(
+    "div",
+    { class: "toc-summary" },
+    summary.key_sentences.map((sentence) => h("p", {}, sentence)),
+    summary.keyphrases?.length ? h("p", { class: "toc-phrases" }, summary.keyphrases.join(" · ")) : null,
+  );
 }
 
 function tocRow(entry, hasChildren) {
@@ -516,7 +598,7 @@ function tocRow(entry, hasChildren) {
 }
 
 // Build the nested TOC from the flat, depth-annotated entries, with a stack (no recursion).
-function buildTree(entries) {
+function buildTree(entries, summaries = {}) {
   const root = h("ul", { class: "toc" });
   const stack = [{ depth: -1, list: root }];
   entries.forEach((entry, i) => {
@@ -525,10 +607,10 @@ function buildTree(entries) {
     const hasChildren = i + 1 < entries.length && entries[i + 1].depth > entry.depth;
     if (hasChildren) {
       const list = h("ul");
-      parent.append(h("li", {}, h("details", { open: true }, h("summary", {}, tocRow(entry, true)), list)));
+      parent.append(h("li", {}, h("details", { open: true }, h("summary", {}, tocRow(entry, true)), summaryBlock(summaries[entry.id]), list)));
       stack.push({ depth: entry.depth, list });
     } else {
-      parent.append(h("li", {}, tocRow(entry, false)));
+      parent.append(h("li", {}, tocRow(entry, false), summaryBlock(summaries[entry.id])));
     }
   });
   return root;
@@ -552,7 +634,7 @@ function renderToc(run) {
     panel.replaceChildren(h("p", { class: "empty-note" }, "No headings were found. A scanned PDF without a text layer looks like this; try another engine."));
     return;
   }
-  const tree = buildTree(entries);
+  const tree = buildTree(entries, run.summaries ?? {});
   const setAll = (open) => tree.querySelectorAll("details").forEach((d) => (d.open = open));
   panel.replaceChildren(
     ...[
@@ -564,6 +646,84 @@ function renderToc(run) {
         h("button", { type: "button", class: "secondary", onclick: () => setAll(false) }, "Collapse all"),
       ),
       tree,
+    ].filter(Boolean),
+  );
+}
+
+const kindName = (kind) => KIND_NAMES[kind] ?? kind;
+
+function elementRow(el) {
+  const family = ELEMENT_KIND_FAMILY[el.kind] ?? "body";
+  const more = el.text_chars > el.text.length;
+  const head = h(
+    "span",
+    { class: "el-row" },
+    h("span", { class: `kind kind-${family}`, title: `Element ${el.id}` }, kindName(el.kind)),
+    el.source === "ocr" ? h("span", { class: "badge ocr", title: "Read by OCR" }, "OCR") : null,
+    el.flags.map((f) => h("span", { class: "badge" }, f.replace(/_/g, " "))),
+    h("span", { class: "el-text" }, el.text || "(no text)", more ? "…" : ""),
+  );
+  if (!el.summary.length) return h("li", { class: "el" }, head);
+  return h(
+    "li",
+    { class: "el" },
+    h(
+      "details",
+      {},
+      h("summary", {}, head, h("span", { class: "el-more" }, "summary")),
+      h("div", { class: "toc-summary" }, el.summary.map((sentence) => h("p", {}, sentence))),
+    ),
+  );
+}
+
+// Elements grouped by page, in reading order; a long document's pages start collapsed.
+function renderElements(run) {
+  const panel = $("panel-elements");
+  const items = run.elements ?? [];
+  if (!items.length) {
+    const fast = run.options?.profile === "fast";
+    panel.replaceChildren(
+      h("p", { class: "empty-note" }, fast
+        ? "The fast profile builds headings only. Pick Balanced or Accurate and run the file again to see elements."
+        : "No elements were found in this document."),
+    );
+    return;
+  }
+  const pages = new Map();
+  for (const el of items) {
+    const key = el.page ?? 0;
+    if (!pages.has(key)) pages.set(key, []);
+    pages.get(key).push(el);
+  }
+  const groups = [...pages].map(([page, list], index) =>
+    h(
+      "details",
+      { class: "el-page", open: pages.size <= 3 || index === 0 },
+      h("summary", {}, page ? `Page ${page}` : "Whole document", h("small", {}, `${num(list.length)} elements`)),
+      h("ol", { class: "el-list" }, list.map(elementRow)),
+    ),
+  );
+  const counts = Object.entries(run.element_counts ?? {}).map(([kind, n]) => `${num(n)} ${kindName(kind)}`);
+  const setAll = (state) => groups.forEach((g) => (g.open = state));
+  const note = run.elements_truncated
+    ? h(
+        "p",
+        { class: "note", style: { "margin-bottom": "0.75rem" } },
+        h("strong", {}, `Showing the first ${num(items.length)} of ${num(run.elements_total)} elements.`),
+        " The playground keeps that many per run; use the library or the CLI for the full list.",
+      )
+    : null;
+  panel.replaceChildren(
+    ...[
+      note,
+      h("p", { class: "note", style: { "margin-bottom": "0.75rem" } }, counts.join(", ")),
+      h(
+        "div",
+        { class: "toolbar" },
+        h("button", { type: "button", class: "secondary", onclick: () => setAll(true) }, "Expand all"),
+        h("button", { type: "button", class: "secondary", onclick: () => setAll(false) }, "Collapse all"),
+      ),
+      ...groups,
     ].filter(Boolean),
   );
 }

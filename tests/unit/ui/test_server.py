@@ -3,6 +3,7 @@ cleanup, history, backend switching and the static page. Torch-free: keyword bac
 generated PDFs."""
 
 import asyncio
+import importlib
 import json
 import logging
 import os
@@ -23,7 +24,12 @@ from typer.testing import CliRunner  # noqa: E402
 
 from docrooter import cli  # noqa: E402
 from docrooter.backends import KeywordBackend, registry  # noqa: E402
+from docrooter.layout import registry as layout_registry  # noqa: E402
+from docrooter.ocr import registry as ocr_registry  # noqa: E402
+from docrooter.rooter import PROFILES, RouterConfig  # noqa: E402
 from docrooter.ui import server  # noqa: E402
+
+rooter_process = importlib.import_module("docrooter.rooter.process")  # not the function
 
 BODY = "This sentence is ordinary body text that stays small and keeps the body size at eleven."
 MARKDOWN = (
@@ -44,6 +50,13 @@ def pdf_bytes(pages: int = 3) -> bytes:
     data = doc.tobytes()
     doc.close()
     return data
+
+
+@pytest.fixture(autouse=True)
+def _no_real_ocr(monkeypatch):
+    """``ocr="auto"`` must never pick an installed engine here (ocrmac is forbidden in unit
+    tests); tests that want one patch this again."""
+    monkeypatch.setattr(ocr_registry, "resolve_auto_ocr", lambda: None)
 
 
 def make_client(backend="keyword", host="127.0.0.1", port=8765):
@@ -108,7 +121,7 @@ def run(client, name="doc.pdf", data=None, **options):
 
 
 def test_events_stream_in_order_and_end_with_the_job_sentinel(client):
-    _, events = run(client, normalize="true", mode="view")
+    _, events = run(client, normalize="true", mode="view", profile="fast")
     starts = [e["stage"] for e in events if e["status"] == "start"]
     assert starts == [
         "upload",
@@ -162,9 +175,12 @@ def test_failed_run_reports_error_then_job_end(client, temp_paths):
 
 
 def test_markdown_upload_runs_without_pdf_stages(client):
-    run_id, events = run(client, "paper.md", MARKDOWN)
+    _, events = run(client, "paper.md", MARKDOWN, profile="fast")
     starts = [e["stage"] for e in events if e["status"] == "start"]
     assert starts == ["upload", "assemble", "view", "classify"]
+    run_id, events = run(client, "paper.md", MARKDOWN)  # balanced: summaries, still no PDF stages
+    starts = [e["stage"] for e in events if e["status"] == "start"]
+    assert starts == ["upload", "assemble", "summarize", "view", "classify"]
     detail = client.get(f"/api/runs/{run_id}").json()
     assert [e["title"] for e in detail["toc"]] == ["Abstract", "Methods", "Results"]
     assert detail["sections"] is None
@@ -183,6 +199,7 @@ def test_result_schema(client):
         "engine": "pymupdf",
         "mode": "hybrid",
         "normalize": True,
+        "profile": "balanced",
     }
     assert detail["document"]["source"] == "doc.pdf"  # never the temp path
     assert detail["meta"]["n_pages"] == 3 and detail["meta"]["engine"] == "pymupdf"
@@ -303,7 +320,8 @@ def test_temp_file_is_deleted_after_the_run(client, temp_paths):
     assert not os.path.exists(temp_paths[0])
 
 
-def test_pdfs_are_read_with_a_page_cap(client, monkeypatch):
+@pytest.mark.parametrize("profile", ["fast", "balanced"])
+def test_pdfs_are_read_with_a_page_cap(client, monkeypatch, profile):
     seen = {}
     real = server.load
 
@@ -312,7 +330,8 @@ def test_pdfs_are_read_with_a_page_cap(client, monkeypatch):
         return real(path, **kwargs)
 
     monkeypatch.setattr(server, "load", spy)
-    run(client, engine="pdfplumber")
+    monkeypatch.setattr(rooter_process, "load", spy)  # the other profiles load through the rooter
+    run(client, engine="pdfplumber", profile=profile)
     assert seen["max_pages"] == server.MAX_PAGES == 2000
     assert seen["engine"] == "pdfplumber"
 
@@ -689,6 +708,7 @@ def blocking_load(monkeypatch):
         return real(path, **kwargs)
 
     monkeypatch.setattr(server, "load", slow)
+    monkeypatch.setattr(rooter_process, "load", slow)
     return started, release
 
 
@@ -889,3 +909,250 @@ def test_page_shows_the_truncation_and_the_text_cap(client):
     script = client.get("/static/app.js").text
     assert "run.truncated" in script and "toc_total" in script
     assert "max_text_upload_bytes" in script
+
+
+# --- profiles, elements, summaries and routes -----------------------------------------------
+
+
+def test_server_profile_field_and_elements_payload(client):
+    run_id, events = run(client, profile="balanced", normalize="true")
+    starts = [e["stage"] for e in events if e["status"] == "start"]
+    for stage in ("route", "elements", "summarize"):
+        assert stage in starts
+    assert starts.index("route") < starts.index("summarize") < starts.index("classify")
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert detail["options"]["profile"] == "balanced" and detail["status"] == "done"
+
+    elements = detail["elements"]
+    assert detail["elements_total"] == len(elements) > 0
+    assert detail["elements_truncated"] is False
+    assert set(elements[0]) == {
+        "id",
+        "kind",
+        "order",
+        "page",
+        "section_id",
+        "text",
+        "text_chars",
+        "source",
+        "confidence",
+        "flags",
+        "level",
+        "summary",
+    }
+    assert [e["order"] for e in elements] == sorted(e["order"] for e in elements)
+    assert {e["kind"] for e in elements} >= {"heading", "paragraph"}
+    assert {e["page"] for e in elements} == {1, 2, 3}
+    assert all(e["source"] == "text" for e in elements)
+    assert sum(detail["element_counts"].values()) == detail["elements_total"]
+    counts = detail["element_counts"]
+    assert counts["heading"] + counts.get("title", 0) == 3  # the first chapter may be the title
+
+    toc_ids = {e["id"] for e in detail["toc"]}
+    assert detail["summaries"] and set(detail["summaries"]) <= toc_ids
+    summary = next(iter(detail["summaries"].values()))
+    assert set(summary) == {"key_sentences", "keyphrases"} and summary["key_sentences"]
+
+    routes = detail["routes"]
+    assert routes["pages"] == 3 and routes["tasks"] == {"text": 3} and routes["regions"] == 0
+    assert {d["task"] for d in routes["decisions"]} >= {"text", "ocr", "layout"}
+    assert all(set(d) == {"task", "engine", "reason"} for d in routes["decisions"])
+    assert "routes" not in detail["meta"]  # the per-page log is summarised, not repeated
+    route_end = [e for e in events if e["stage"] == "route" and e["status"] == "end"]
+    assert [e["data"].get("pages") for e in route_end] == [None, 3]
+
+
+def test_server_fast_profile_has_no_elements_or_routes(client):
+    run_id, events = run(client, profile="fast")
+    assert not {"route", "elements", "summarize"} & {e["stage"] for e in events}
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert detail["options"]["profile"] == "fast"
+    assert detail["elements"] == [] and detail["elements_total"] == 0
+    assert detail["summaries"] == {} and detail["routes"] is None
+    assert detail["toc"]  # the headings are those of v0.3
+
+
+def test_server_markdown_gets_elements_without_routes(client):
+    run_id, _ = run(client, "paper.md", MARKDOWN)
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert [e["kind"] for e in detail["elements"]][:2] == ["heading", "paragraph"]
+    assert {e["page"] for e in detail["elements"]} == {None}
+    assert detail["routes"]["pages"] == 0
+
+
+def test_server_elements_capped(client, monkeypatch):
+    assert server.MAX_TOC_ENTRIES == 5000
+    run_id, _ = run(client)
+    total = client.get(f"/api/runs/{run_id}").json()["elements_total"]
+    assert total > 3
+
+    monkeypatch.setattr(server, "MAX_TOC_ENTRIES", 3)
+    run_id, _ = run(client)
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert len(detail["elements"]) == 3 and detail["elements_total"] == total
+    assert detail["elements_truncated"] is True
+    assert [e["order"] for e in detail["elements"]] == [0, 1, 2]
+    assert detail["element_counts"]  # counts cover the whole document
+
+    monkeypatch.setattr(server, "MAX_TOC_ENTRIES", total)
+    run_id, _ = run(client)
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert len(detail["elements"]) == total and detail["elements_truncated"] is False
+
+
+def test_server_element_text_is_cut_to_200_characters(client):
+    long_line = "word " * 120
+    body = f"# Heading\n\n{long_line.strip()}. Second sentence here.\n"
+    run_id, _ = run(client, "long.md", body.encode())
+    paragraph = next(
+        e for e in client.get(f"/api/runs/{run_id}").json()["elements"] if e["kind"] == "paragraph"
+    )
+    assert len(paragraph["text"]) <= 200 and paragraph["text_chars"] > 200
+
+
+def test_server_rejects_unknown_profile_400(client):
+    response = post(client, profile="turbo")
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "Unknown profile" in detail and "balanced" in detail
+    assert client.get("/api/runs").json() == []
+
+
+def test_server_engines_without_element_mode_need_the_fast_profile(client):
+    for engine in ("both", "pymupdf4llm"):
+        response = post(client, engine=engine, profile="balanced")
+        assert response.status_code == 400 and "fast" in response.json()["detail"]
+    assert post(client, engine="both", profile="fast").status_code == 202
+    assert post(client, "paper.md", MARKDOWN, engine="both", profile="balanced").status_code == 202
+
+
+def test_backends_listing_has_profiles(client):
+    info = client.get("/api/backends").json()
+    assert info["default_profile"] == "balanced"
+    assert [p["name"] for p in info["profiles"]] == list(PROFILES)
+    for entry in info["profiles"]:
+        assert entry["label"] and entry["description"] and isinstance(entry["installed"], bool)
+    installed = {p["name"]: p["installed"] for p in info["profiles"]}
+    assert installed["fast"] and installed["balanced"]
+
+
+def test_accurate_profile_is_unavailable_without_the_layout_extra(client, monkeypatch):
+    real = server.importlib.util.find_spec
+
+    def find_spec(name, *args, **kwargs):
+        return None if name == "onnxruntime" else real(name, *args, **kwargs)
+
+    monkeypatch.setattr(server.importlib.util, "find_spec", find_spec)
+    profiles = {p["name"]: p for p in client.get("/api/backends").json()["profiles"]}
+    assert profiles["accurate"]["installed"] is False
+    assert profiles["balanced"]["installed"] is True
+    response = post(client, profile="accurate")
+    assert response.status_code == 400
+    assert "docrooter[layout]" in response.json()["detail"]
+    assert client.get("/api/runs").json() == []
+
+
+class FakeLayout:
+    name = "fakelayout"
+    made = 0
+    closed = 0
+
+    def __init__(self):
+        type(self).made += 1
+
+    def detect(self, path, pages, *, dpi=None):
+        return []
+
+    def close(self):
+        type(self).closed += 1
+
+
+@pytest.fixture
+def fake_layout(monkeypatch):
+    monkeypatch.setattr(layout_registry, "_FACTORIES", dict(layout_registry._FACTORIES))
+    layout_registry.register_layout_engine("fakelayout", FakeLayout)
+    monkeypatch.setattr(FakeLayout, "made", 0)
+    monkeypatch.setattr(FakeLayout, "closed", 0)
+
+
+def test_engine_pool_keeps_one_set_per_profile_and_backend(fake_layout, monkeypatch):
+    monkeypatch.setattr(ocr_registry, "resolve_auto_ocr", lambda: "rapidocr")
+    cfg = RouterConfig(profile="accurate", layout="fakelayout")
+    pool = server.EnginePool()
+    first = pool.get("accurate", "keyword", cfg)
+    assert isinstance(first["layout"], FakeLayout) and first["ocr"].name == "rapidocr"
+    assert pool.get("accurate", "keyword", cfg) == first
+    assert (FakeLayout.made, FakeLayout.closed) == (1, 0)
+
+    other = pool.get("balanced", "keyword", RouterConfig(profile="balanced"))
+    assert (FakeLayout.made, FakeLayout.closed) == (1, 1)  # the profile changed
+    assert "layout" not in other and other["ocr"] is not first["ocr"]
+
+    pool.get("accurate", "keyword", cfg)
+    assert (FakeLayout.made, FakeLayout.closed) == (2, 1)
+    pool.get("accurate", "other-backend", cfg)
+    assert (FakeLayout.made, FakeLayout.closed) == (3, 2)  # the backend changed
+    pool.close()
+    pool.close()  # safe twice
+    assert FakeLayout.closed == 3 and pool.key is None
+
+
+def test_engine_pool_makes_no_ocr_engine_for_none_or_without_one_installed():
+    pool = server.EnginePool()
+    assert pool.get("fast", "keyword", RouterConfig(profile="fast")) == {}
+    assert pool.get("balanced", "keyword", RouterConfig(profile="balanced")) == {}  # none installed
+
+
+def test_playground_reuses_engines_across_runs_and_closes_them_at_shutdown(
+    fake_layout, monkeypatch
+):
+    real = RouterConfig.resolve
+
+    def resolve(profile=None, file=None, **overrides):
+        # the "accurate" profile with the fake engine standing in for heron
+        if profile == "accurate":
+            overrides = {**overrides, "layout": "fakelayout"}
+        return real(profile=profile, file=file, **overrides)
+
+    monkeypatch.setattr(server.RouterConfig, "resolve", staticmethod(resolve))
+    monkeypatch.setattr(
+        server,
+        "PROFILE_INFO",
+        tuple(i for i in server.PROFILE_INFO if i.name != "accurate")
+        + (server.ProfileInfo("accurate", "Accurate", "test", ()),),
+    )
+    with make_client() as client:
+        for _ in range(2):
+            _, events = run(client, profile="accurate")
+            assert events[-1]["data"]["status"] == "done"
+        assert (FakeLayout.made, FakeLayout.closed) == (1, 0)
+        _, events = run(client, profile="balanced")
+        assert events[-1]["data"]["status"] == "done"
+        assert FakeLayout.closed == 1
+        run(client, profile="accurate")
+        assert (FakeLayout.made, FakeLayout.closed) == (2, 1)
+    assert FakeLayout.closed == 2
+
+
+def test_app_js_uses_textcontent_only(client):
+    script = client.get("/static/app.js").text
+    for sink in (
+        "innerHTML",
+        "outerHTML",
+        "insertAdjacentHTML",
+        "document.write",
+        "eval(",
+        "new Function",
+    ):
+        assert sink not in script, sink
+    page = client.get("/").text
+    assert "<script>" not in page and " onclick=" not in page
+
+
+def test_page_has_the_profile_selector_and_the_elements_tab(client):
+    page = client.get("/").text
+    assert 'id="profile"' in page and 'id="tab-elements"' in page
+    assert 'id="panel-elements"' in page
+    script = client.get("/static/app.js").text
+    for name in ("elements_total", "elements_truncated", "summaries", "routes", "profile"):
+        assert name in script

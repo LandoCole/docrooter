@@ -22,6 +22,11 @@
         <h2 id="new-run-heading">New run</h2>
         <form id="run-form" novalidate>
           <div class="field">
+            <label for="profile">Profile</label>
+            <select id="profile" name="profile" aria-describedby="profile-note"></select>
+            <p id="profile-note" class="note"></p>
+          </div>
+          <div class="field">
             <label for="backend">Model</label>
             <select id="backend" name="backend" aria-describedby="backend-note"></select>
             <p id="backend-note" class="note"></p>
@@ -91,11 +96,13 @@
         <dl id="facts" class="facts"></dl>
         <div class="tabs" role="tablist" aria-label="Results">
           <button type="button" role="tab" id="tab-toc" aria-controls="panel-toc" aria-selected="true">Contents</button>
+          <button type="button" role="tab" id="tab-elements" aria-controls="panel-elements" aria-selected="false" tabindex="-1">Elements</button>
           <button type="button" role="tab" id="tab-type" aria-controls="panel-type" aria-selected="false" tabindex="-1">Document type</button>
           <button type="button" role="tab" id="tab-sections" aria-controls="panel-sections" aria-selected="false" tabindex="-1">Section labels</button>
           <button type="button" role="tab" id="tab-json" aria-controls="panel-json" aria-selected="false" tabindex="-1">Raw JSON</button>
         </div>
         <div role="tabpanel" id="panel-toc" aria-labelledby="tab-toc" tabindex="0" class="panel"></div>
+        <div role="tabpanel" id="panel-elements" aria-labelledby="tab-elements" tabindex="0" class="panel" hidden></div>
         <div role="tabpanel" id="panel-type" aria-labelledby="tab-type" tabindex="0" class="panel" hidden></div>
         <div role="tabpanel" id="panel-sections" aria-labelledby="tab-sections" tabindex="0" class="panel" hidden></div>
         <div role="tabpanel" id="panel-json" aria-labelledby="tab-json" tabindex="0" class="panel" hidden></div>

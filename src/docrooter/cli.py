@@ -32,6 +32,8 @@ taxonomy_app = typer.Typer(no_args_is_help=True, help="Work with taxonomy files.
 app.add_typer(taxonomy_app, name="taxonomy")
 models_app = typer.Typer(no_args_is_help=True, help="Download and inspect model weights.")
 app.add_typer(models_app, name="models")
+config_app = typer.Typer(no_args_is_help=True, help="Inspect the rooter configuration.")
+app.add_typer(config_app, name="config")
 
 
 # What a command reports as "error: ..." with exit status 1; anything else is a bug and shows
@@ -836,6 +838,182 @@ def normalize(
         else:
             table.add_row(Text(norm.title), Text(norm.label or norm.canonical), f"{norm.score:.2f}")
     console.print(table)
+
+
+# --- elements, process and config ------------------------------------------------------------
+
+_PROFILE_HELP = "Rooter profile: fast, balanced or accurate (default: balanced, or the file's)."
+_CONFIG_HELP = "A TOML or JSON router configuration (see 'docrooter config show')."
+_TEXT_COLUMN_CHARS = 80
+
+
+def _check_profile(profile: str | None) -> str | None:
+    if profile is None:
+        return None
+    from docrooter.rooter.profiles import PROFILES
+
+    if profile not in PROFILES:
+        raise typer.BadParameter(
+            f"invalid profile {profile!r}; use one of {', '.join(PROFILES)}", param_hint="--profile"
+        )
+    return profile
+
+
+def _parse_kinds(value: str | None) -> frozenset[str] | None:
+    """The ``--kinds`` list as a set of element kinds; anything unknown is a usage error."""
+    if value is None:
+        return None
+    from typing import get_args
+
+    from docrooter.elements.models import ElementKind
+
+    known = get_args(ElementKind)
+    kinds = [k.strip().lower() for k in value.split(",") if k.strip()]
+    unknown = [k for k in kinds if k not in known]
+    if not kinds or unknown:
+        raise typer.BadParameter(
+            f"invalid kinds {', '.join(unknown) or value!r}; use any of {', '.join(known)}",
+            param_hint="--kinds",
+        )
+    return frozenset(kinds)
+
+
+def _first_chars(text: str, limit: int) -> str:
+    flat = " ".join(text.split())
+    return flat if len(flat) <= limit else flat[: limit - 1] + "…"
+
+
+@app.command()
+def elements(
+    file: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Document to read.")
+    ],
+    profile: Annotated[str | None, typer.Option(help=_PROFILE_HELP)] = None,
+    config: Annotated[
+        Path | None,
+        typer.Option(exists=True, dir_okay=False, readable=True, help=_CONFIG_HELP),
+    ] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Print the elements as a JSON list.")
+    ] = False,
+    kinds: Annotated[
+        str | None,
+        typer.Option(help="Only these element kinds, comma-separated, e.g. heading,table."),
+    ] = None,
+) -> None:
+    """Print a document's elements (headings, paragraphs, tables, ...) in reading order.
+
+    The profile and file choose the text, OCR and layout engines; nothing is classified.
+    """
+    from docrooter.rooter import process
+
+    wanted = _parse_kinds(kinds)
+    with _errors_exit_1():
+        analysis = process(
+            file,
+            config=config,
+            profile=_check_profile(profile),
+            doc_type="none",
+            sections="none",
+            summaries="none",
+            escalate="none",
+            embeddings="none",
+        )
+        doc = analysis.document
+        if analysis.config.layout == "none":
+            raise DocrooterError(
+                f"profile {analysis.config.profile!r} builds no elements (layout is 'none'); "
+                "use --profile balanced or accurate"
+            )
+    found = [el for el in doc.elements if wanted is None or el.kind in wanted]
+    if as_json:
+        typer.echo(json.dumps([el.model_dump(mode="json") for el in found], indent=2))
+        return
+    console = Console(highlight=False)
+    table = Table("#", "Page", "Kind", "Text", "Section")
+    for el in found:
+        page = el.boxes[0].page if el.boxes else None
+        section = doc.sections.get(el.section_id) if el.section_id else None
+        table.add_row(
+            str(el.order),
+            "-" if page is None else str(page),
+            Text(el.kind),
+            Text(_first_chars(el.text, _TEXT_COLUMN_CHARS)),
+            Text(section.title if section is not None else "-"),
+        )
+    console.print(table)
+    console.print(Text(f"{len(found)} of {len(doc.elements)} elements"), style="dim")
+
+
+@app.command("process")
+def process_(
+    file: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Document to read.")
+    ],
+    profile: Annotated[str | None, typer.Option(help=_PROFILE_HELP)] = None,
+    config: Annotated[
+        Path | None,
+        typer.Option(exists=True, dir_okay=False, readable=True, help=_CONFIG_HELP),
+    ] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", "-o", dir_okay=False, help="Write the analysis JSON here."),
+    ] = None,
+    chunks: Annotated[
+        bool,
+        typer.Option("--chunks", help="Add section-aware chunks (for indexing) under 'chunks'."),
+    ] = False,
+) -> None:
+    """Run the rooter on a document and write the whole analysis as JSON.
+
+    Loads the document (OCR and layout as the profile says), classifies its type and sections,
+    and summarises it. The JSON goes to stdout unless --out is given.
+    """
+    from docrooter.chunking import chunk
+    from docrooter.rooter import process
+
+    with _errors_exit_1():
+        started = time.perf_counter()
+        analysis = process(file, config=config, profile=_check_profile(profile))
+        if chunks:
+            data = json.loads(analysis.to_json())
+            data["chunks"] = [c.model_dump(mode="json") for c in chunk(analysis)]
+            text = json.dumps(data, indent=2)
+        else:
+            text = analysis.to_json(indent=2)
+        if out is not None:
+            out.write_text(text + "\n", encoding="utf-8")
+    if out is None:
+        typer.echo(text)
+    doc = analysis.document
+    typer.echo(
+        f"{analysis.config.profile}: {len(doc.sections)} sections, {len(doc.elements)} elements, "
+        f"{time.perf_counter() - started:.2f}s" + (f", wrote {out}" if out is not None else ""),
+        err=True,
+    )
+
+
+def _toml_value(value: object) -> str:
+    return json.dumps(value) if isinstance(value, str) else str(value)
+
+
+@config_app.command("show")
+def config_show(
+    profile: Annotated[
+        str | None, typer.Option(help="Profile to resolve (default: balanced).")
+    ] = None,
+) -> None:
+    """Print the resolved rooter configuration as TOML you can save and edit.
+
+    The accurate profile escalates to Jev only when TYPESAFE_API_KEY is set.
+    """
+    from docrooter.rooter import RouterConfig
+
+    with _errors_exit_1():
+        resolved = RouterConfig.resolve(profile=_check_profile(profile))
+    for key, value in resolved.model_dump().items():
+        if value is not None:  # max_pages unset: TOML has no null
+            typer.echo(f"{key} = {_toml_value(value)}")
 
 
 # --- serve --------------------------------------------------------------------------------

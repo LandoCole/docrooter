@@ -1,15 +1,17 @@
 """The playground server: a FastAPI app that runs uploaded documents through the pipeline and
-streams its events to the page as Server-Sent Events.
+streams its events to the page as Server-Sent Events. A run's ``profile`` (``fast``,
+``balanced`` or ``accurate``) picks the rooter profile; the worker keeps one set of OCR and
+layout engines for it (:class:`EnginePool`) and closes them when the profile or backend changes.
 
 One worker thread takes jobs from a :class:`queue.Queue`, so runs are processed one at a time
 and memory stays bounded. Each job enters :func:`~docrooter.events.pipeline_run` inside the
 worker; its sink hands every event to the event loop with ``loop.call_soon_threadsafe``. All
 run state is changed on the loop thread only, so the HTTP handlers need no locks.
 
-Endpoints: ``POST /api/runs`` (multipart ``file`` plus ``backend``, ``engine``, ``mode`` and
-``normalize``), ``GET /api/runs``, ``GET /api/runs/{id}``, ``GET /api/runs/{id}/events``
-(SSE, ending with a ``{"stage": "job", "status": "end"}`` event the server always sends),
-``GET /api/backends``, and the page itself at ``/``.
+Endpoints: ``POST /api/runs`` (multipart ``file`` plus ``backend``, ``engine``, ``mode``,
+``normalize`` and ``profile``), ``GET /api/runs``, ``GET /api/runs/{id}``,
+``GET /api/runs/{id}/events`` (SSE, ending with a ``{"stage": "job", "status": "end"}`` event
+the server always sends), ``GET /api/backends``, and the page itself at ``/``.
 """
 
 from __future__ import annotations
@@ -61,7 +63,12 @@ from docrooter.classify.normalize import (  # noqa: E402
 from docrooter.classify.results import DocTypeResult  # noqa: E402
 from docrooter.document import Document  # noqa: E402
 from docrooter.document.load import load  # noqa: E402
+from docrooter.layout import registry as layout_registry  # noqa: E402
+from docrooter.ocr import registry as ocr_registry  # noqa: E402
 from docrooter.pdf.load import ENGINES  # noqa: E402
+from docrooter.rooter import DEFAULT_PROFILE, PROFILES, RouterConfig, process  # noqa: E402
+from docrooter.rooter.process import _LazyOcr  # noqa: E402
+from docrooter.summarize import Summary  # noqa: E402
 from docrooter.taxonomies import builtin_taxonomy  # noqa: E402
 from docrooter.taxonomy import Taxonomy  # noqa: E402
 
@@ -69,6 +76,7 @@ __all__ = [
     "MAX_TEXT_UPLOAD_BYTES",
     "MAX_TOC_ENTRIES",
     "MAX_UPLOAD_BYTES",
+    "EnginePool",
     "check_backend_spec",
     "create_app",
     "load_env_file",
@@ -89,6 +97,11 @@ MAX_TOC_ENTRIES = 5000
 result says ``truncated``. A long filing has a few hundred; 5,000 entries are about 0.6 MB of
 JSON per run (1.2 MB with section labels), so :data:`HISTORY` runs stay small and the page
 builds a bounded tree."""
+MAX_ELEMENT_TEXT_CHARS = 200
+"""Characters of an element's text the page gets; ``text_chars`` says how long it was."""
+MAX_SUMMARY_SENTENCE_CHARS = 300
+"""Characters kept of each key sentence in the result (the sentence splitter can return a very
+long one from text without full stops)."""
 MAX_PAGES = 2000
 HISTORY = 20
 """Runs kept in memory; the oldest is dropped when a new one arrives."""
@@ -212,6 +225,101 @@ class BackendPool:
             classifier.close()
 
 
+# --- profiles -----------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ProfileInfo:
+    name: str
+    label: str
+    description: str
+    modules: tuple[str, ...]  # what its extra provides; all importable means available
+    extra: str | None = None
+
+    def entry(self) -> dict[str, Any]:
+        installed = all(importlib.util.find_spec(m) is not None for m in self.modules)
+        return {
+            "name": self.name,
+            "label": self.label,
+            "description": self.description,
+            "installed": installed,
+            "extra": self.extra,
+        }
+
+
+PROFILE_INFO: tuple[ProfileInfo, ...] = (
+    ProfileInfo(
+        "fast",
+        "Fast",
+        "Headings and labels only, as in v0.3: no elements, no OCR, no summaries.",
+        (),
+    ),
+    ProfileInfo(
+        "balanced",
+        "Balanced",
+        "Elements by the layout rules, OCR for scanned pages when an engine is installed, "
+        "and summaries.",
+        (),
+    ),
+    ProfileInfo(
+        "accurate",
+        "Accurate",
+        "Elements typed by the heron layout model (fetches its weights on first use), OCR and "
+        "summaries.",
+        ("onnxruntime", "pypdfium2", "huggingface_hub"),
+        "layout",
+    ),
+)
+# PDF engines that have no element mode: only the fast profile can use them.
+_FAST_ONLY_ENGINES = frozenset({"both", "pymupdf4llm"})
+
+
+class EnginePool:
+    """The OCR and layout engines of the most recent run, for its profile and backend. A run
+    with the same profile and backend reuses them; a different profile or backend closes them
+    first, which frees the layout model before another model loads. The OCR engine is created
+    on the first page that needs it. Used from the worker thread only."""
+
+    def __init__(self) -> None:
+        self.key: tuple[str, str] | None = None
+        self._engines: dict[str, Any] = {}
+
+    def get(self, profile: str, backend: str, config: RouterConfig) -> dict[str, Any]:
+        """The engines for ``config`` as :func:`~docrooter.process` keywords (``ocr``,
+        ``layout``); a task with no engine to share is left out and ``process`` handles it
+        (``ocr="auto"`` with none installed becomes a warning in the route log)."""
+        if self.key != (profile, backend):
+            self.close()
+            self._engines = self._build(config)
+            self.key = (profile, backend)
+        return dict(self._engines)
+
+    @staticmethod
+    def _build(config: RouterConfig) -> dict[str, Any]:
+        engines: dict[str, Any] = {}
+        ocr = config.ocr
+        if ocr == "auto":
+            ocr = ocr_registry.resolve_auto_ocr() or "none"
+        if ocr != "none":
+            engines["ocr"] = _LazyOcr(ocr, config.ocr_lang)
+        if config.layout not in ("none", "heuristic"):
+            try:
+                engines["layout"] = layout_registry.get_layout_engine(config.layout)
+            except BaseException:
+                if "ocr" in engines:
+                    engines["ocr"].close()
+                raise
+        return engines
+
+    def close(self) -> None:
+        engines, self._engines, self.key = self._engines, {}, None
+        for engine in engines.values():
+            try:
+                engine.close()
+            except Exception:  # one failing close must not keep the other engine open
+                logger.warning("closing %s failed", type(engine).__name__, exc_info=True)
+
+
 # --- runs ---------------------------------------------------------------------------------
 
 
@@ -299,6 +407,12 @@ class Run:
             "truncated": result.get("truncated", False),
             "doc_type": result.get("doc_type"),
             "sections": result.get("sections"),
+            "summaries": result.get("summaries"),
+            "elements": result.get("elements"),
+            "elements_total": result.get("elements_total"),
+            "elements_truncated": result.get("elements_truncated", False),
+            "element_counts": result.get("element_counts"),
+            "routes": result.get("routes"),
         }
 
 
@@ -331,14 +445,88 @@ class Job:
         return message
 
 
+def _cut(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _summary_out(summary: Summary) -> dict[str, Any]:
+    return {
+        "key_sentences": [
+            _cut(sentence, MAX_SUMMARY_SENTENCE_CHARS) for sentence in summary.key_sentences
+        ],
+        "keyphrases": list(summary.keyphrases),
+    }
+
+
+def _elements_out(
+    doc: Document, summaries: dict[str, Summary]
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """The first :data:`MAX_TOC_ENTRIES` elements as the page shows them, and the count of
+    every kind in the whole document."""
+    counts: dict[str, int] = {}
+    for el in doc.elements:
+        counts[el.kind] = counts.get(el.kind, 0) + 1
+    out: list[dict[str, Any]] = []
+    for el in doc.elements[:MAX_TOC_ENTRIES]:
+        summary = summaries.get(el.id)
+        out.append(
+            {
+                "id": el.id,
+                "kind": el.kind,
+                "order": el.order,
+                "page": el.boxes[0].page if el.boxes else None,
+                "section_id": el.section_id,
+                "text": _cut(el.text, MAX_ELEMENT_TEXT_CHARS),
+                "text_chars": len(el.text),
+                "source": el.source,
+                "confidence": round(el.confidence, 4) if el.confidence is not None else None,
+                "flags": list(el.flags),
+                "level": el.level,
+                "summary": _summary_out(summary)["key_sentences"] if summary else [],
+            }
+        )
+    return out, counts
+
+
+def _routes_out(doc: Document) -> dict[str, Any] | None:
+    """The route log in short: pages by how they were read, region OCR, and each
+    configuration decision (the engines chosen). ``None`` when the run routed nothing (the
+    fast profile)."""
+    log = doc.meta.get("routes")
+    if log is None:
+        return None
+    tasks: dict[str, int] = {}
+    regions = 0
+    decisions: list[dict[str, str]] = []
+    for item in log:
+        if item["scope"] == "page":
+            tasks[item["task"]] = tasks.get(item["task"], 0) + 1
+        elif item["scope"] == "region":
+            regions += 1
+        else:
+            decisions.append(
+                {"task": item["task"], "engine": item["engine"], "reason": item["reason"]}
+            )
+    return {
+        "pages": sum(tasks.values()),
+        "tasks": tasks,
+        "regions": regions,
+        "decisions": decisions,
+        "needs_ocr": doc.meta.get("needs_ocr"),
+    }
+
+
 def build_result(
     doc: Document,
     filename: str,
     doc_type: DocTypeResult,
     norm: NormalizationResult | None,
     doc_types: Taxonomy,
+    summaries: dict[str, Summary] | None = None,
 ) -> dict[str, Any]:
-    """The JSON the page shows: TOC entries, the document type and the section labels."""
+    """The JSON the page shows: TOC entries, the document type, the section labels, and, for
+    runs in element mode, the elements, the summaries of the listed sections and the routes."""
+    summaries = summaries or {}
 
     def label(node_id: str) -> str:
         return doc_types.node(node_id).label if node_id in doc_types else node_id
@@ -389,7 +577,10 @@ def build_result(
                 }
             )
         sections = {"taxonomy": norm.taxonomy, "doc_type": norm.doc_type, "entries": entries}
-    meta = json.loads(json.dumps(doc.meta, default=str))  # JSON-safe whatever a loader put in
+    routes = _routes_out(doc)
+    # JSON-safe whatever a loader put in; the per-page route log is summarised under "routes"
+    meta = json.loads(json.dumps({k: v for k, v in doc.meta.items() if k != "routes"}, default=str))
+    elements, element_counts = _elements_out(doc, summaries)
     return {
         "document": {"title": doc.title, "source": filename, "sections": len(doc.sections)},
         "meta": meta,
@@ -398,6 +589,16 @@ def build_result(
         "truncated": len(all_entries) > len(toc),
         "doc_type": type_out,
         "sections": sections,
+        "summaries": {
+            item["id"]: _summary_out(summaries[item["id"]])
+            for item in toc
+            if item["id"] in summaries
+        },
+        "elements": elements,
+        "elements_total": len(doc.elements),
+        "elements_truncated": len(doc.elements) > len(elements),
+        "element_counts": element_counts,
+        "routes": routes,
     }
 
 
@@ -408,6 +609,7 @@ class Playground:
         self.default_backend = default_backend
         self.doc_types = builtin_taxonomy(DOC_TYPES)
         self.backends = BackendPool(self.doc_types)
+        self.engines = EnginePool()
         self.runs: OrderedDict[str, Run] = OrderedDict()
         self.jobs: queue.Queue[Job | None] = queue.Queue(maxsize=MAX_PENDING)
         self._worker: threading.Thread | None = None
@@ -471,7 +673,31 @@ class Playground:
                 finally:
                     self._current = None
         finally:
+            self.engines.close()
             self.backends.close()
+
+    def _load(self, job: Job, options: dict[str, Any]) -> tuple[Document, dict[str, Summary]]:
+        """Read the document as the profile says and, in element mode, summarise it. The
+        ``fast`` profile is :func:`~docrooter.load` as before; the others run the rooter's
+        ``process`` for the loading, routing and summaries, and the playground then classifies
+        with its pooled backend, so ``mode`` still applies. Document types are not escalated
+        here (``escalate="none"``)."""
+        is_pdf = job.run.kind == "pdf"
+        if options["profile"] == "fast":
+            pdf_options = {"engine": options["engine"], "max_pages": MAX_PAGES} if is_pdf else {}
+            return load(Path(job.path), on_event=job.push, **pdf_options), {}
+        overrides: dict[str, Any] = {
+            "doc_type": "none",
+            "sections": "none",
+            "escalate": "none",
+            "embeddings": "none",
+        }
+        if is_pdf:
+            overrides.update(text=options["engine"], max_pages=MAX_PAGES)
+        config = RouterConfig.resolve(profile=options["profile"], **overrides)
+        engines = self.engines.get(options["profile"], options["backend"], config)
+        analysis = process(Path(job.path), config=config, on_event=job.push, **engines)
+        return analysis.document, analysis.summaries
 
     def _execute(self, job: Job) -> None:
         run, options = job.run, job.run.options
@@ -487,12 +713,7 @@ class Playground:
                     received_s=round(job.received_s, 4),
                     queued_s=round(started - job.queued_at, 4),
                 )
-                pdf_options = (
-                    {"engine": options["engine"], "max_pages": MAX_PAGES}
-                    if run.kind == "pdf"
-                    else {}
-                )
-                doc = load(Path(job.path), on_event=job.push, **pdf_options)
+                doc, summaries = self._load(job, options)
                 backend = self.backends.get(options["backend"])
                 doc_type = classify_document(
                     doc, self.doc_types, backend=backend, mode=options["mode"], on_event=job.push
@@ -508,7 +729,7 @@ class Playground:
                         backend=backend,
                         on_event=job.push,
                     )
-            result = build_result(doc, run.filename, doc_type, norm, self.doc_types)
+            result = build_result(doc, run.filename, doc_type, norm, self.doc_types, summaries)
             status = "done"
         except Exception as exc:
             message = job.redact(str(exc)) or type(exc).__name__
@@ -643,21 +864,44 @@ def _flag(value: object) -> bool:
     return str(value).strip().lower() in ("1", "true", "on", "yes")
 
 
-def _options(form: Any, allowed: list[str], default_backend: str) -> dict[str, Any]:
+def _check_profile(profile: str, engine: str, kind: str) -> None:
+    """Refuse (400) a profile that is unknown, whose extra is not installed, or that cannot
+    read this upload with this PDF engine."""
+    if profile not in PROFILES:
+        raise HTTPException(400, f"Unknown profile {profile!r}; use one of {', '.join(PROFILES)}.")
+    info = next(i for i in PROFILE_INFO if i.name == profile)
+    if not info.entry()["installed"]:
+        raise HTTPException(
+            400,
+            f"The {profile} profile needs the {info.extra} extra: "
+            f"pip install 'docrooter[{info.extra}]'.",
+        )
+    if profile != "fast" and kind == "pdf" and engine in _FAST_ONLY_ENGINES:
+        raise HTTPException(
+            400,
+            f"The {engine} PDF engine builds no elements; use it with the fast profile, or "
+            "choose auto, pymupdf or pdfplumber.",
+        )
+
+
+def _options(form: Any, allowed: list[str], default_backend: str, kind: str) -> dict[str, Any]:
     backend = str(form.get("backend") or default_backend)
     engine = str(form.get("engine") or "auto")
     mode = str(form.get("mode") or "view")
+    profile = str(form.get("profile") or DEFAULT_PROFILE)
     if backend not in allowed:
         raise HTTPException(400, f"Unknown backend {backend!r}; use one of {', '.join(allowed)}.")
     if engine not in ENGINES:
         raise HTTPException(400, f"Unknown engine {engine!r}; use one of {', '.join(ENGINES)}.")
     if mode not in MODES:
         raise HTTPException(400, f"Unknown mode {mode!r}; use one of {', '.join(MODES)}.")
+    _check_profile(profile, engine, kind)
     return {
         "backend": backend,
         "engine": engine,
         "mode": mode,
         "normalize": _flag(form.get("normalize", "false")),
+        "profile": profile,
     }
 
 
@@ -789,6 +1033,8 @@ def create_app(
             "backends": [info.entry() for info in available_backends(backend_spec)],
             "engines": list(ENGINES),
             "modes": list(MODES),
+            "default_profile": DEFAULT_PROFILE,
+            "profiles": [info.entry() for info in PROFILE_INFO],
             "max_upload_bytes": MAX_UPLOAD_BYTES,
             "max_text_upload_bytes": MAX_TEXT_UPLOAD_BYTES,
         }
@@ -822,7 +1068,7 @@ def create_app(
             if suffix not in _ACCEPTED:
                 raise HTTPException(415, "Upload a .pdf, .md or .txt file.")
             allowed = [info.spec for info in available_backends(backend_spec)]
-            options = _options(form, allowed, backend_spec)
+            options = _options(form, allowed, backend_spec, suffix[1:])
             path, size = await _receive(upload, suffix, limit)
         finally:
             await form.close()

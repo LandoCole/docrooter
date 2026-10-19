@@ -3,7 +3,9 @@
 Everything below is importable from the top-level package (`from docrooter import ...`) and
 listed in `docrooter.__all__`, except the result, event and backend types at the end, which
 are returned by these functions or needed to extend them. This page is generated from the
-docstrings.
+docstrings. (`process`, `summarize` and `embed` are documented from the modules that define
+them, `docrooter.rooter.process`, `docrooter.summarize` and `docrooter.embed`, whose names they
+share; import them from `docrooter`.)
 
 ## Loading documents
 
@@ -29,7 +31,7 @@ docstrings.
 
 ## The rooter
 
-::: docrooter.process
+::: docrooter.rooter.process.process
 
 ::: docrooter.process_many
 
@@ -43,7 +45,7 @@ docstrings.
 
 ## Summaries
 
-::: docrooter.summarize
+::: docrooter.summarize.summarize
 
 ::: docrooter.Summary
 
@@ -53,7 +55,7 @@ docstrings.
 
 ::: docrooter.Chunk
 
-::: docrooter.embed
+::: docrooter.embed.embed
 
 ::: docrooter.EmbeddingSet
 

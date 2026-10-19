@@ -22,14 +22,14 @@ With [uv](https://docs.astral.sh/uv/): `uv add 'docrooter[pdf,models]'`.
 | `llm` | `httpx` | BSD | The `openai` backend (any OpenAI-compatible server) |
 | `jev` | `typesafe-sdk` | MIT client; the Jev API is a hosted service with its own terms | The `jev` backend (TypeSafe Jev, a hosted API) |
 | `ui` | `fastapi`, `uvicorn`, `python-multipart` | MIT / BSD / Apache-2.0 | `docrooter serve`, the local [playground](../guides/playground.md) |
-| `ocr` | `rapidocr`, `onnxruntime`, `pypdfium2` | Apache-2.0 / MIT / BSD-3 and Apache-2.0 | The `rapidocr` engine in element mode, and page rendering without PyMuPDF |
+| `ocr` | `rapidocr`, `onnxruntime`, `pypdfium2` | Apache-2.0 / MIT / BSD-3 and Apache-2.0; rapidocr also pulls in `opencv-python-headless` (Apache-2.0, bundles **FFmpeg, LGPL-2.1**) and `shapely` (BSD-3, bundles **GEOS, LGPL-2.1**) | The `rapidocr` engine in element mode, and page rendering without PyMuPDF |
 | `ocr-mac` | `ocrmac` (macOS only) | MIT | The `ocrmac` engine (Apple Vision) |
 | `layout` | `onnxruntime`, `pypdfium2`, `huggingface_hub` | MIT / BSD-3 and Apache-2.0 / Apache-2.0 | The `heron` layout model of the `accurate` profile (no torch) |
 | `bench` | `datasets`, `pandas` | Apache-2.0 / BSD | The benchmark scripts, `DocumentResult.to_dataframe()` |
 | `all` | `models`, `pdf`, `pdf-mit`, `llm`, `jev`, `ui`, `ocr`, `ocr-mac`, `layout` | as above | Everything except `bench` |
 
 docrooter itself is Apache-2.0. The Tesseract engine needs no extra: docrooter calls the system
-`tesseract` binary. The licence column summarises the main packages each extra pulls in, as declared in their package metadata; it is not legal advice. Model weights carry
+`tesseract` binary. The licence column summarises the main packages each extra pulls in, as declared in their package metadata; it is not legal advice. No default install and no `ocr`, `ocr-mac` or `layout` extra pulls in a GPL or AGPL package, but the `ocr` extra installs two LGPL-2.1 libraries inside other wheels (FFmpeg in OpenCV, GEOS in Shapely), whose terms apply if you redistribute them. Model weights carry
 their own licences, listed on their Hugging Face pages. Check both before you distribute
 anything.
 

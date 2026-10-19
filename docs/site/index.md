@@ -13,7 +13,7 @@ taxonomy you supply.
 
 docrooter takes a PDF or Markdown file and gives you three things:
 
-1. **A table of contents.** It reads PDFs natively (no OCR) and finds the headings from
+1. **A table of contents.** It reads PDFs natively (OCR is optional, in element mode) and finds the headings from
    typography, numbering, the printed contents page and the PDF's bookmarks, then builds a
    section tree with levels and page numbers.
 2. **The document's type.** A built-in taxonomy of 18 types in 6 groups (annual report,

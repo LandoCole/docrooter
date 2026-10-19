@@ -137,3 +137,48 @@ def test_doc_types_example_loads_a_pdf_with_pdfplumber(capsys, monkeypatch, tmp_
     monkeypatch.setattr("sys.argv", ["doc_types.py", str(path)])
     runpy.run_path(str(EXAMPLES / "doc_types.py"), run_name="__main__")
     assert len(capsys.readouterr().out.splitlines()) >= 2
+
+
+def test_elements_and_chunks_example_runs(capsys, monkeypatch):
+    """Without a path the example writes a two-page report (two columns, a ruled table with a
+    caption) and reads it with the rooter, no OCR engine and no model; the README shows it."""
+    pytest.importorskip("pymupdf")
+    monkeypatch.setattr("sys.argv", ["elements_and_chunks.py"])
+    runpy.run_path(str(EXAMPLES / "elements_and_chunks.py"), run_name="__main__")
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "balanced: 11 elements, 4 sections"
+    assert lines[1] == "type: Financial > Annual report"
+    kinds = [line.split()[2] for line in lines[2:13]]
+    assert kinds == [
+        *("title", "heading", "paragraph", "paragraph", "heading", "table"),
+        *("caption", "page_number", "heading", "paragraph", "page_number"),
+    ]
+    # two columns are read left, then right; the page number sits at the end of its page
+    assert lines[4].split(maxsplit=3)[3].startswith("Our sensors")
+    assert lines[5].split(maxsplit=3)[3].startswith("Competition")
+    assert lines[9].endswith("Page 1") and lines[10].split()[1] == "p2"
+    chunk_lines = lines.index("c0: 4 tokens, Annual Report 2025 ['heading_only']")
+    assert lines[chunk_lines : chunk_lines + 5] == [
+        "c0: 4 tokens, Annual Report 2025 ['heading_only']",
+        "c1: 94 tokens, 1. Business []",
+        "c2: 65 tokens, 2. Financial results []",
+        "c3: 12 tokens, 2. Financial results []",
+        "c4: 25 tokens, 3. Outlook []",
+    ]
+    assert lines[chunk_lines + 5 :][:3] == [
+        "2. Financial results",
+        "",
+        "Table: Table 1. Revenue by segment (millions).; 4×3",
+    ]
+    readme = README.read_text(encoding="utf-8")
+    assert "\n".join(lines[2:13]) in readme  # the README shows the elements
+    assert "\n".join(lines[chunk_lines + 5 :]) in readme  # and the table's chunk
+
+
+def test_readme_documents_profiles_with_the_measured_numbers():
+    section = README.read_text(encoding="utf-8").split("## Elements and profiles", 1)[1]
+    section = section.split("\n## ", 1)[0]
+    for fact in ("0.257", "0.736", "0.927", "0.99 s", "4.64 s", "64.6 s", 'tables="none"'):
+        assert fact in section, fact
+    assert "by design" in section
+    assert "examples/elements_and_chunks.py" in section

@@ -12,7 +12,8 @@ pip install 'docrooter[pdf]'       # PyMuPDF engine (AGPL-3.0)
 ```
 
 Any text-based PDF works: an annual report, a paper, a contract, a manual. Scanned PDFs
-without a text layer do not (there is no OCR).
+without a text layer need element mode and an OCR engine: see
+[OCR and layout models](../guides/ocr-and-layout.md).
 
 ## 2. Run the script
 

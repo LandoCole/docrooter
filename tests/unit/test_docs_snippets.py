@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 import runpy
 import shlex
@@ -301,6 +302,41 @@ def test_toc_example_on_a_pdf(capsys, monkeypatch, tmp_path):
     lines = _run("toc.py", capsys, monkeypatch, str(path))
     assert lines[1].startswith("Abstract [level 1, p. 1")
     assert any("headings without bookmarks" in line for line in lines)
+
+
+def test_elements_and_chunks_example_matches_the_pages(capsys, monkeypatch):
+    pytest.importorskip("pymupdf")
+    lines = _run("elements_and_chunks.py", capsys, monkeypatch)
+    last = lines.index("c4: 25 tokens, 3. Outlook []")
+    assert "\n".join(lines[2:13]) in _page("concepts/elements.md")
+    assert "\n".join(lines[last - 4 :]) in _page("guides/chunking-for-rag.md")
+
+
+def test_new_pages_quote_the_committed_results():
+    """Every measured number on the v0.4 pages is read from a committed results file."""
+    results = ROOT / "benchmarks" / "results" / "2026-10-18"
+    doclaynet = json.loads((results / "elements-doclaynet.json").read_text(encoding="utf-8"))
+    systems = doclaynet["systems"]
+    pymupdf, heron = systems["heuristic-pymupdf"], systems["heron"]
+    facts = {
+        "macro F1 heuristic": f"{pymupdf['macro']:.3f}",
+        "macro F1 heron": f"{heron['macro']:.3f}",
+        "text coverage heuristic": f"{pymupdf['text_coverage']['Text']['share']:.3f}",
+        "text coverage heron": f"{heron['text_coverage']['Text']['share']:.3f}",
+        "table F1 heuristic": f"{pymupdf['per_class']['Table']['f1']:.3f}",
+        "table F1 heron": f"{heron['per_class']['Table']['f1']:.3f}",
+    }
+    speed = json.loads((results / "profile-elements.json").read_text(encoding="utf-8"))["systems"]
+    for name, per_100 in (("fast", "0.99"), ("heuristic-pymupdf", "4.64"), ("heron", "64.6")):
+        assert abs(speed[name]["s_per_100_pages"] - float(per_100)) <= 0.006, name  # 0.995 -> 0.99
+        facts[f"s per 100 pages {name}"] = per_100
+    elements = _page("concepts/elements.md")
+    for label, value in facts.items():
+        assert value in elements, f"concepts/elements.md lacks {label} = {value}"
+    ocr = json.loads((results / "ocr.json").read_text(encoding="utf-8"))["engines"]
+    guide = _page("guides/ocr-and-layout.md")
+    for engine in ("tesseract", "rapidocr", "ocrmac"):
+        assert f"{ocr[engine]['cer']:.3f}" in guide, engine
 
 
 def test_playground_favicon_is_the_brand_favicon():

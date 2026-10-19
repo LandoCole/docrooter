@@ -46,10 +46,12 @@ not legal advice.
 
 ## Does it work on scanned PDFs?
 
-No. docrooter reads the PDF's text layer and does no OCR. A scan without a text layer loads as
-one empty section, `doc.meta["warnings"]` contains `"no_text_layer"`, and document typing
-reports `stopped_reason="empty_text"`. Run an OCR tool (for example OCRmyPDF) first to add a
-text layer, then load the result.
+Yes, in element mode; no, on the default path. `load()` and the `fast` profile read only the
+PDF's text layer: a scan without one loads as one empty section, `doc.meta["warnings"]` contains
+`"no_text_layer"`, and document typing reports `stopped_reason="empty_text"`. The `balanced` and
+`accurate` profiles of [`process()`](concepts/rooter.md) route each page to its text layer or to
+OCR, and install-wise OCR is an extra (`docrooter[ocr]`, `docrooter[ocr-mac]` or the Tesseract
+binary). See [OCR and layout models](guides/ocr-and-layout.md).
 
 ## Why does the keyword backend give such low confidences?
 
@@ -82,7 +84,8 @@ need remote code are refused until you opt in. See
 
 ## Limitations
 
-- **No OCR**; scanned PDFs give empty documents.
+- **OCR is optional and only in element mode** (`balanced`, `accurate`); `load()` and `fast` give
+  scanned PDFs as empty documents.
 - **TOC extraction is weaker on unusual layouts**: earnings releases with bold body-size
   headings, slide decks, bilingual parallel-column documents, and documents whose cover title
   spans two heading lines. On the held-out set the default engine's F1 at depth ≤ 2 was 0.576.

@@ -25,6 +25,12 @@ docrooter is a short pipeline. Each stage is a plain function or class you can u
 
 - **[The TOC engine](toc-engine.md)** turns a file into a `Document`: a tree of `Section`s with
   titles, levels, page numbers, heading scores and flags.
+- **[Elements](elements.md)** are the typed blocks of a document in reading order: paragraphs,
+  list items, tables, figures, captions, footnotes and page furniture. They are optional and
+  built only in element mode.
+- **[The rooter](rooter.md)** is the configurable pipeline, `process()`: per page it chooses the
+  text layer or OCR, per task an engine, in one of three profiles (`fast`, `balanced`,
+  `accurate`), and it logs why.
 - **[Taxonomies](taxonomies.md)** are the categories: a tree of labelled nodes with descriptions
   and examples, written in JSON or CSV. Two families are built in: document types and section
   types.

@@ -73,8 +73,11 @@ pip install 'docrooter[models]'    # + local models (embedding, NLI, MLM) and tr
 | `llm` | `httpx` | The `openai` backend (any OpenAI-compatible server) |
 | `jev` | `typesafe-sdk` | The `jev` backend (TypeSafe Jev) |
 | `ui` | `fastapi`, `uvicorn`, `python-multipart` | `docrooter serve`, the local [playground](#playground) |
+| `ocr` | `rapidocr`, `onnxruntime`, `pypdfium2` | The `rapidocr` engine for scanned pages (element mode) |
+| `ocr-mac` | `ocrmac` (macOS only) | The `ocrmac` engine (Apple Vision) |
+| `layout` | `onnxruntime`, `pypdfium2`, `huggingface_hub` | The heron layout model of the `accurate` profile (no torch) |
 | `bench` | `datasets`, `pandas` | The benchmarks, `DocumentResult.to_dataframe()` |
-| `all` | `models` + `pdf` + `pdf-mit` + `llm` + `jev` + `ui` | Everything above except `bench` |
+| `all` | `models` + `pdf` + `pdf-mit` + `llm` + `jev` + `ui` + `ocr` + `ocr-mac` + `layout` | Everything above except `bench` |
 
 Python 3.10 or newer. Asking for something an extra provides without installing it fails with
 the exact command to run, e.g. `pip install 'docrooter[models]'`.
@@ -226,6 +229,66 @@ This uses the default local model (`docrooter[models]`, and `docrooter[pdf]` for
 `-b keyword` to try it without one, or `-b jev` for the most accurate backend. With
 `--threshold T`, a file whose confidence is below `T` gets no type and is never kept.
 
+## Elements and profiles (v0.4)
+
+`process()` is one pipeline with three profiles. `fast` is the v0.3 behaviour, byte for byte.
+`balanced` (the default) also builds **elements**: the paragraphs, list items, tables, figures,
+captions, footnotes and page furniture of a document, in reading order (two-column pages read
+column by column), each with its page box and its section. It OCRs scanned pages when an engine
+is installed, and writes summaries. `accurate` swaps the heuristic rules for the heron layout
+model (extra `layout`). Then `chunk()` cuts the elements into section-aware chunks for retrieval.
+This runs with the keyword backend and no OCR engine; it lives in
+[`examples/elements_and_chunks.py`](examples/elements_and_chunks.py):
+
+```python
+from docrooter import chunk, process
+
+analysis = process(path, profile="balanced", ocr="none", doc_type="keyword", sections="keyword")
+doc = analysis.document
+for element in doc.elements:
+    label = element.text[:36].replace("\n", " ")
+    print(f"{element.order:>2} p{element.boxes[0].page} {element.kind:<12}{label}")
+chunks = chunk(analysis, max_tokens=100)
+print(chunks[2].text)  # a table is never split: a description line, then its rows
+```
+
+```text
+ 0 p1 title       Annual Report 2025
+ 1 p1 heading     1. Business
+ 2 p1 paragraph   Our sensors measure pressure, temper
+ 3 p1 paragraph   Competition remains strong, and our 
+ 4 p1 heading     2. Financial results
+ 5 p1 table       Segment | 2024 | 2025 Sensors | 412 
+ 6 p1 caption     Table 1. Revenue by segment (million
+ 7 p1 page_number Page 1
+ 8 p2 heading     3. Outlook
+ 9 p2 paragraph   We expect revenue to keep growing as
+10 p2 page_number Page 2
+2. Financial results
+
+Table: Table 1. Revenue by segment (millions).; 4×3
+|  |  |  |
+| --- | --- | --- |
+| Segment | 2024 | 2025 |
+| Sensors | 412 | 468 |
+| Controls | 198 | 215 |
+| Services | 96 | 121 |
+```
+
+- **Heuristic or heron.** On 400 DocLayNet test pages the heuristic layout scores a macro F1 of
+  0.257 against heron's 0.736, and its text coverage for body text is 0.927. `balanced` is fast
+  with good text coverage; `accurate` is for structure quality.
+- **Speed**, per 100 pages: `fast` 0.99 s, `balanced` 4.64 s (PyMuPDF), `accurate` 64.6 s.
+  `tables="none"` skips the search for ruled tables and is the speed switch.
+- **Page furniture.** In element mode, running headers, footers and page numbers move to the start
+  or end of their page, by design.
+- **OCR.** `ocr="auto"` picks Tesseract (if the binary is on PATH), then Apple Vision (macOS),
+  then RapidOCR, in order of measured character error rate (0.058, 0.102 and 0.089).
+
+From the shell: `docrooter elements report.pdf`, `docrooter process report.pdf --profile
+accurate --chunks --out analysis.json` and `docrooter config show --profile balanced`. See the
+[element benchmarks](docs/benchmarks-elements.md) for the numbers and their commits.
+
 ## Command line
 
 ```bash
@@ -246,6 +309,10 @@ docrooter doctype docs/ --jsonl types.jsonl --workers 4  # parse PDFs in 4 proce
 docrooter doctype big/ --chunk-size 16 --max-pages 200   # bound memory on large corpora
 docrooter normalize report.md                            # canonical label for each section title
 docrooter normalize report.md --doc-type research.research_paper --json
+
+docrooter elements report.pdf --kinds heading,table     # typed elements in reading order
+docrooter process report.pdf --profile accurate --chunks -o analysis.json   # the rooter
+docrooter config show --profile balanced                 # the resolved configuration, as TOML
 
 docrooter eval -t taxonomy.json -d labelled.jsonl -b keyword          # accuracy, hierarchical F1
 docrooter eval -t taxonomy.json -d labelled.jsonl --format md

@@ -30,7 +30,8 @@ The full script is [`examples/toc.py`](../../../examples/toc.py).
 ## How PDF headings are found
 
 **1. Lines.** The engine extracts each text line with its size, boldness, page and position.
-No OCR is involved: a page without a text layer yields nothing.
+No OCR is involved in `load()`: a page without a text layer yields nothing. (Element mode
+can OCR such pages; see [the rooter](rooter.md).)
 
 **2. Document signals.** Before looking at headings, the engine measures the document:
 
@@ -116,7 +117,8 @@ strict = load(path, min_heading_score=0.7)
 These come from the benchmarks; the [held-out analysis](../benchmarks/heldout.md) has the
 details.
 
-- **No OCR.** Scanned PDFs give an empty document (`meta["warnings"]` has `"no_text_layer"`).
+- **No OCR in `load()`.** Scanned PDFs give an empty document (`meta["warnings"]` has
+  `"no_text_layer"`); element mode with an OCR engine reads them.
 - **Headings set at body size that are neither bold nor numbered** are not candidates, and
   headings set *below* body size (some small-caps styles) never are. Earnings releases whose
   section titles are bold body text are a known weak spot.

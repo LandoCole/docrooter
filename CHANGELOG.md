@@ -14,10 +14,41 @@ in the release after it.
 ## [Unreleased]
 
 Work towards the next release: memory containment, pipeline events, a local playground, a
-held-out evaluation and the repository essentials.
+held-out evaluation, the repository essentials, and (v0.4) elements, OCR and the rooter.
 
 ### Added
 
+- **Elements.** Every visible part of a document is a typed `Element`: title, heading,
+  paragraph, list item, table, figure, caption, footnote, formula, contents and page furniture,
+  each with page boxes, a place in reading order and its section. `load_pdf(path,
+  elements=True)` and `load(path, elements=True)` build them (Markdown too), and
+  `Document.elements`, `Section.element_ids` and `Document.meta["routes"]` carry them. Two-column
+  pages are read column by column (XY-cut), and a gutter between the row-aligned labels and
+  numbers of an unruled table is not cut. In element mode running headers, footers and page
+  numbers move to the start or end of their page, by design. See
+  [docs/site/concepts/elements.md](docs/site/concepts/elements.md).
+- **The rooter.** `process()` and `process_many()` run one pipeline under a `RouterConfig` (Python,
+  TOML or JSON, with the precedence call arguments, file, profile) and return an `Analysis`. Three
+  profiles: `fast` (the v0.3 pipeline, byte-identical and within 5% of its speed), `balanced`
+  (the default: heuristic elements, OCR, summaries) and `accurate` (the heron layout model, with
+  escalation to Jev when `TYPESAFE_API_KEY` is set). Each page is routed to its text layer or to
+  OCR, and every decision is recorded in the route log.
+- **OCR.** Three engines behind one protocol: `tesseract` (the system binary), `ocrmac` (extra
+  `ocr-mac`) and `rapidocr` (extra `ocr`); `register_ocr_engine` adds your own. Measured
+  character error rates: tesseract 0.058, rapidocr 0.089, ocrmac 0.102.
+- **Layout model.** Extra `layout`: Docling's heron model on onnxruntime, no torch
+  (`layout="heron"`; `register_layout_engine` adds others). On DocLayNet test pages its macro F1
+  is 0.736 against 0.257 for the heuristic rules.
+- **Summaries, chunks and embeddings.** `docrooter.summarize` (key sentences and key phrases, no model),
+  `chunk()` (section-aware chunks that keep tables whole and start with their heading path) and
+  `embed()` (element or chunk embeddings, with the model and revision recorded).
+- **Surfaces.** `docrooter elements`, `docrooter process [--profile] [--config] [--chunks]` and
+  `docrooter config show`; a profile selector and an Elements tab in the playground; guides for
+  [OCR and layout models](docs/site/guides/ocr-and-layout.md) and
+  [chunking for RAG](docs/site/guides/chunking-for-rag.md); `examples/elements_and_chunks.py`.
+- **Element benchmarks.** DocLayNet element kinds, reading order, OCR and routing, and speed:
+  [docs/benchmarks-elements.md](docs/benchmarks-elements.md). Per 100 pages, `fast` takes 0.99 s,
+  `balanced` 4.64 s (PyMuPDF) and `accurate` 64.6 s; `tables="none"` is the speed switch.
 - **Memory budget.** `docrooter.configure(memory_budget_gb=..., threads=..., device=...)` and the
   `DOCROOTER_MEMORY_BUDGET_GB`, `DOCROOTER_THREADS` and `DOCROOTER_DEVICE` variables set
   process-wide limits (8 GiB by default). On Apple silicon, Metal gets the budget minus 1.5 GiB of
@@ -76,6 +107,12 @@ held-out evaluation and the repository essentials.
 
 ### Changed
 
+- **`ocr="auto"` resolves to `tesseract` (the binary on PATH), then `ocrmac` (macOS), then
+  `rapidocr`.** It follows the measured character error rate: tesseract 0.058, rapidocr 0.089,
+  ocrmac 0.102, and ocrmac fails on legal pages and table columns. The first draft of the rooter
+  preferred ocrmac on macOS.
+- New extras `layout`, `ocr` and `ocr-mac`, all included in `all`; Python 3.10 gains `tomli` in
+  the core dependencies (router config files).
 - The UltraBERT recipes read at most 1024 tokens (was 8192), and `train()` truncates to 512 tokens
   (`max_seq_len`) and fine-tunes with gradient checkpointing (`gradient_checkpointing=False`
   restores the old behaviour). Fine-tuning on MPS used to fail (it reached 19.5 GB in a

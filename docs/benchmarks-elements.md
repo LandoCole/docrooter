@@ -4,6 +4,8 @@
 
 **Data.** [DocLayNet](https://github.com/DS4SD/DocLayNet) (Pfitzmann et al., KDD 2022), licence [CDLA-Permissive-1.0](https://cdla.io/permissive-1-0/): 80,863 human-annotated pages from six document categories, with 11 layout classes. The benchmark reads the Hugging Face re-packaging `docling-project/DocLayNet-v1.2` at revision `0daf93102e2efce76c3e11a274a5e0d0969391d3`. It holds each page's born-digital single-page PDF in a binary column, beside the gold boxes and the PDF text cells inside each box. `benchmarks/doclaynet.py` pins every parquet shard by SHA-256 (the LFS object id at that revision). It downloads every shard of a split, because the shards are sorted by category, checks each one, samples, writes the sampled PDFs to the git-ignored `benchmarks/.cache/doclaynet/`, and then deletes the shards.
 
+**Provenance: these results predate the XY-cut table fix.** Every DocLayNet number in this section (§10.1: the test and train tables, the tuning log and the disclosure) was produced at or before commit `213979e`, with `ee2a829` checked against it, and so before `c09b9f7` ("XY-cut keeps row-aligned tables together"). That fix changed element building: over the 51 dev PDFs, pymupdf's element count went from 90,908 to 89,410 (the lines are the same, 316,617). The DocLayNet scores may therefore move, and they were not re-scored, because the test split has already been scored twice (see the disclosure below) and a third scoring would no longer be a held-out measurement. Treat them as describing the code at `213979e`. The dev-corpus checks and the reading-order, OCR and speed sections below say which commit they were made at.
+
 **Sample.** 400 test-split pages and 400 train-split pages, stratified over the six categories with an equal share each (67 pages for each of the first four categories in name order, 66 for patents and scientific articles), drawn with seed `20261018`. DocLayNet's train and test splits share no documents. Thresholds were tuned on the train pages only. The test pages have been scored twice, both times after tuning. The second scoring was made for correctness, not for score: see the disclosure below.
 
 **Scoring.**
@@ -303,12 +305,12 @@ Each kept change is worth +0.001 to +0.01 on 400 pages, so the smaller ones are 
 
 Every other constant keeps its starting value, including `FIGURE_MIN_AREA` 0.02, `FIGURE_MAX_TEXT_COVERAGE` 0.3 and `FIGURE_PROSE_MIN_WORDS` 5, by ruling. Each results JSON records the effective values under `thresholds`.
 
-### Dev-corpus checks (final constants, commit `213979e`)
+### Dev-corpus checks (final constants; commit given per line)
 
-- **TOC no-regression (spec §10.3):** `benchmarks.toc --engines pymupdf --elements` on the 24 bookmarked dev PDFs gives depth <= 2 micro F1 **0.7074** in element mode, against 0.7031 for `fast`. That is unchanged by tuning and meets the 0.703 target (`benchmarks/results/2026-10-18/toc-elements.json`).
+- **TOC no-regression (spec §10.3):** `benchmarks.toc --engines pymupdf --elements` on the 24 bookmarked dev PDFs gives depth <= 2 micro F1 **0.7071** in element mode, against 0.7031 for `fast`. That meets the 0.703 target (`benchmarks/results/2026-10-19/toc-elements.json`, commit `c09b9f7`). The value at `213979e`, before the XY-cut table fix, was 0.7074 (`2026-10-18/toc-elements.json`). Tuning did not change it.
 - **Ownership invariant:** on all 51 dev PDFs, every line with text is in exactly one element. There were 0 failures and no empty non-figure element.
-  - pymupdf: 316,617 lines, 90,908 elements.
-  - pdfplumber, with the visible-box fix (`ee2a829`): 331,104 lines, 95,779 elements.
+  - pymupdf, after the XY-cut table fix (`c09b9f7`): 316,617 lines, 89,410 elements (it was 90,908 elements at `213979e`).
+  - pdfplumber: 331,104 lines, 95,779 elements, counted at `ee2a829`, before the XY-cut table fix. It was not re-counted.
 
 ## Reading order (spec §10.2)
 
@@ -420,7 +422,7 @@ Both shifted bands are in doc_036 (Future of Jobs Report): a chart's source note
 
 **Kendall's tau on two-column documents.** A document counts as two-column when a gutter is cut on at least half of its pages. Only one dev research paper qualifies: doc_028 (Deep Residual Learning, 12 of 12 pages). It has no bookmarks.
 
-Ruling: its gold is its own section numbering. The numbered headings ("3.1 ...") are taken in predicted order, and tau is computed against the order of their numbers. The two modes find different heading sets (9 numbered headings in `fast`, 11 in element mode), so the two taus are not over the same items. Two other documents qualify and do have bookmarks (before the fix, doc_045 was one of them).
+Ruling: its gold is its own section numbering. The numbered headings ("3.1 ...") are taken in predicted order, and tau is computed against the order of their numbers. The two modes find different heading sets (9 numbered headings in `fast`, 11 in element mode), so the two taus are not over the same items. One other document qualifies and has bookmarks: doc_049. Before the fix doc_045 qualified too (it has a gutter on 36 of 73 pages after it); its row stays in the table for comparison.
 
 | Document | Column pages (after the fix) | Gold | `fast` tau | Element-mode tau |
 | --- | --- | --- | --- | --- |
@@ -470,7 +472,7 @@ Rendering a page at 200 dpi takes 0.10 s on top of the OCR time. Peak RSS is the
   - doc_007 p5 and doc_013 p49 (dense tables) score 0.22-0.34.
 - ocrmac fails on the three CHIPS Act pages (doc_024, CER 0.51-0.65; the other engines get 0.04-0.06). Its word recall on those pages is 0.35 pooled (0.30-0.39 per page), and it outputs unrelated words. On doc_050 p23 (an income-statement slide), it reads 2 of 5 number columns.
 - rapidocr's median page CER is about 4%, against about 1% for the others: its errors are small but spread over most pages. It is also the slowest engine and the largest in memory.
-- `ocr=auto` picks ocrmac on macOS. It is the fastest engine and fine on prose, but it is the least reliable on legal text and tables.
+- `ocr=auto` picks tesseract when its binary is on PATH, then ocrmac on macOS, then rapidocr. That is the order of the CER column: tesseract 0.058, rapidocr 0.089, ocrmac 0.102. ocrmac is the fastest engine and fine on prose, but it is the least reliable on legal text and tables. (Before this ordering, `auto` picked ocrmac first; the `balanced` document-type run in `docs/benchmarks-pdf.md` was made with ocrmac.)
 
 **Routing confusion.** Expected labels: every page of the 51 dev PDFs is born-digital (`text`), and every image-only page needs `ocr`. A region decision keeps the page's text layer, so it counts as `text`. The dev rows are `routing-dev.json` from E5c (commit `8913b7a`). The pymupdf routing path has not changed since: the later `objects.py` changes are the pdfplumber geometry fix and the `tables` switch.
 

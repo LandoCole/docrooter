@@ -115,6 +115,8 @@ nav:
   - Concepts:
       - concepts/index.md
       - TOC engine: concepts/toc-engine.md
+      - Elements: concepts/elements.md
+      - The rooter: concepts/rooter.md
       - Taxonomies: concepts/taxonomies.md
       - Views: concepts/views.md
       - Backends: concepts/backends.md
@@ -126,6 +128,8 @@ nav:
       - Section normalisation: guides/section-normalisation.md
       - Custom taxonomies: guides/custom-taxonomies.md
       - Training and evaluation: guides/training-evaluation.md
+      - OCR and layout models: guides/ocr-and-layout.md
+      - Chunking for RAG: guides/chunking-for-rag.md
       - Jev and OpenAI-compatible LLMs: guides/llm-backends.md
       - Memory and performance: guides/memory-performance.md
       - The playground: guides/playground.md

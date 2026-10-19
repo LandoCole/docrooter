@@ -22,11 +22,14 @@ With [uv](https://docs.astral.sh/uv/): `uv add 'docrooter[pdf,models]'`.
 | `llm` | `httpx` | BSD | The `openai` backend (any OpenAI-compatible server) |
 | `jev` | `typesafe-sdk` | MIT client; the Jev API is a hosted service with its own terms | The `jev` backend (TypeSafe Jev, a hosted API) |
 | `ui` | `fastapi`, `uvicorn`, `python-multipart` | MIT / BSD / Apache-2.0 | `docrooter serve`, the local [playground](../guides/playground.md) |
+| `ocr` | `rapidocr`, `onnxruntime`, `pypdfium2` | Apache-2.0 / MIT / BSD-3 and Apache-2.0 | The `rapidocr` engine in element mode, and page rendering without PyMuPDF |
+| `ocr-mac` | `ocrmac` (macOS only) | MIT | The `ocrmac` engine (Apple Vision) |
+| `layout` | `onnxruntime`, `pypdfium2`, `huggingface_hub` | MIT / BSD-3 and Apache-2.0 / Apache-2.0 | The `heron` layout model of the `accurate` profile (no torch) |
 | `bench` | `datasets`, `pandas` | Apache-2.0 / BSD | The benchmark scripts, `DocumentResult.to_dataframe()` |
-| `all` | `models`, `pdf`, `pdf-mit`, `llm`, `jev`, `ui` | as above | Everything except `bench` |
+| `all` | `models`, `pdf`, `pdf-mit`, `llm`, `jev`, `ui`, `ocr`, `ocr-mac`, `layout` | as above | Everything except `bench` |
 
-docrooter itself is Apache-2.0. The licence column summarises the main packages each extra
-pulls in, as declared in their package metadata; it is not legal advice. Model weights carry
+docrooter itself is Apache-2.0. The Tesseract engine needs no extra: docrooter calls the system
+`tesseract` binary. The licence column summarises the main packages each extra pulls in, as declared in their package metadata; it is not legal advice. Model weights carry
 their own licences, listed on their Hugging Face pages. Check both before you distribute
 anything.
 
@@ -45,7 +48,8 @@ service that includes it. For a permissive stack install `pdf-mit` instead:
   failed silently on one very large PDF in the held-out set; see the
   [FAQ](../faq.md#agpl-or-mit-which-pdf-engine).
 
-Neither engine does OCR: a scanned PDF without a text layer gives an empty document.
+Neither engine does OCR: a scanned PDF without a text layer gives an empty document from
+`load()`. OCR belongs to element mode (see [OCR and layout models](../guides/ocr-and-layout.md)).
 
 ## Models and the first run
 

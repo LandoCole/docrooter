@@ -52,7 +52,10 @@ def _internal_nodes(taxonomy: Taxonomy) -> list[str]:
 
 
 def _trainable(
-    taxonomy: Taxonomy, groups: dict[str, list[tuple[str, str]]], min_examples_per_child: int
+    taxonomy: Taxonomy,
+    groups: dict[str, list[tuple[str, str]]],
+    min_examples_per_child: int,
+    allow_partial: bool = False,
 ) -> dict[str, dict[str, int]]:
     out: dict[str, dict[str, int]] = {}
     for node_id in _internal_nodes(taxonomy):
@@ -62,21 +65,35 @@ def _trainable(
         counts = dict.fromkeys(child_ids, 0)
         for _, child in groups[node_id]:
             counts[child] += 1
-        if min(counts.values()) >= min_examples_per_child:
+        if allow_partial:
+            counts = {c: n for c, n in counts.items() if n >= min_examples_per_child}
+            if len(counts) >= 2:
+                out[node_id] = counts
+        elif min(counts.values()) >= min_examples_per_child:
             out[node_id] = counts
     return out
 
 
 def trainable_nodes(
-    taxonomy: Taxonomy, dataset: Dataset, min_examples_per_child: int = 4
+    taxonomy: Taxonomy,
+    dataset: Dataset,
+    min_examples_per_child: int = 4,
+    *,
+    allow_partial: bool = False,
 ) -> dict[str, dict[str, int]]:
     """``node -> child -> example count`` for the nodes that get a head.
 
     A node qualifies when it has at least 2 children and every child has at least
     ``min_examples_per_child`` examples: the classifier offers a head all of a node's children,
     so a head must know them all. Other nodes are left to the zero-shot fallback.
+
+    With ``allow_partial`` a node qualifies when at least 2 of its children have
+    ``min_examples_per_child`` examples, and the counts hold those children only: the others
+    are left out of its head (see :func:`train`).
     """
-    return _trainable(taxonomy, node_groups(taxonomy, dataset), min_examples_per_child)
+    return _trainable(
+        taxonomy, node_groups(taxonomy, dataset), min_examples_per_child, allow_partial
+    )
 
 
 def _node_triplets(pairs: list[tuple[str, str]], rng: random.Random) -> list[Triplet]:
@@ -256,6 +273,7 @@ def train(
     instruction: str | None = None,
     max_seq_len: int = 512,
     gradient_checkpointing: bool = True,
+    allow_partial: bool = False,
 ) -> TrainedModel:
     """Train a :class:`TrainedModel`: a shared embedding body and one head per trainable node.
 
@@ -274,6 +292,15 @@ def train(
     ``gradient_checkpointing`` (default on) recomputes activations during fine-tuning instead
     of storing them, which bounds its memory (about 6 GB instead of 10 GB on CPU for
     UltraBERT at batch 16); turn it off for speed when memory is plentiful.
+
+    ``allow_partial`` (default off) trains a node's head over the children that have
+    ``min_examples_per_child`` examples, when at least 2 do, instead of requiring all of them:
+    the other children are left out of the head (their examples there are not used, and the
+    manifest lists them under the head's ``untrained``), so they are only ever predicted at
+    the node itself. Such a head scores exactly its ``classes``; a :class:`Classifier` over
+    the full taxonomy offers it every child and refuses, so score a partial model against its
+    heads' classes (as :class:`docrooter.tagger.ElementTagger` does). Without it, nothing in
+    the training or the manifest changes.
     """
     from docrooter import __version__
     from docrooter.backends.embedding import EmbeddingBackend
@@ -289,7 +316,7 @@ def train(
     instruction = instruction or recipe.default_instruction
     prompt = recipe.query_prompt.format(instruction=instruction)
     groups = node_groups(taxonomy, dataset)
-    trainable = _trainable(taxonomy, groups, min_examples_per_child)
+    trainable = _trainable(taxonomy, groups, min_examples_per_child, allow_partial)
     if not trainable:
         warnings.warn(
             f"no node has at least 2 children with {min_examples_per_child}+ examples each; "
@@ -331,8 +358,10 @@ def train(
 
     heads: dict[str, Any] = {}
     manifest_heads: dict[str, dict[str, Any]] = {}
-    for node_id in trainable:
+    for node_id, trained in trainable.items():
         pairs = groups[node_id]
+        if allow_partial:
+            pairs = [(text, child) for text, child in pairs if child in trained]
         X = body.encode([text for text, _ in pairs], prompt=prompt)
         head = linear_model.LogisticRegression(max_iter=1000, random_state=seed)
         head.fit(X, [child for _, child in pairs])
@@ -342,6 +371,9 @@ def train(
             "classes": [str(c) for c in head.classes_],
             "n": len(pairs),
         }
+        untrained = [c.id for c in taxonomy.children(node_id) if c.id not in trained]
+        if untrained:
+            manifest_heads[node_id]["untrained"] = untrained
 
     node_counts = {}
     for node_id in _internal_nodes(taxonomy):

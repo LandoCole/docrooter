@@ -100,7 +100,7 @@ For each calibration document *d* and threshold λ, define the loss
 
 L_d(λ) = 1 − |selected_λ ∩ relevant_d| / |relevant_d|
 
-over the documents with at least one relevant element. L_d is non-increasing in λ, because a lower λ includes more elements.
+over the documents with at least one relevant element. L_d is non-decreasing in λ (selection is p ≥ λ, so a lower λ includes more elements and loses less). Erratum 2026-10-19: earlier text said "non-increasing".
 
 For target completeness c (α = 1 − c), choose
 

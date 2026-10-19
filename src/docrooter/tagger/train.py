@@ -35,6 +35,7 @@ from docrooter.corpus.store import Corpus, CorpusElement, LabelKey, LabelRow, Ma
 from docrooter.tagger.bundle import (
     CHARS_PER_TOKEN,
     ElementTagger,
+    student_input,
     temper_binary,
 )
 from docrooter.tagger.functions import (
@@ -75,10 +76,12 @@ logger = logging.getLogger("docrooter.tagger")
 
 MIN_EXAMPLES = MIN_PER_CLASS  # 20 confident examples for a leaf to be trained (spec §8)
 TOPIC_INSTRUCTION = "Classify the topic of this document element"
-# Estimated seconds per fine-tuning step (a batch of 16 triplets, 256 tokens, gradient
-# checkpointing) on a base M1 under the 8 GB budget, from research §4.1's throughput estimate
-# (about 0.3k tokens/s). Replace it with the measured value: pass ``seconds_per_step``.
-SECONDS_PER_STEP = 30.0
+# Estimated seconds per fine-tuning step on a base M1 under the 8 GB budget: a batch of 16
+# triplets is 16 x 3 x 256 = 12,288 tokens, at research §4.1's estimate of about 0.3k tokens/s
+# that is about 41 s (before gradient checkpointing's ~30% extra). An estimate only: pass the
+# measured value as ``seconds_per_step``.
+SECONDS_PER_STEP = 41.0
+_NO_CUT = 2**62  # a SectionView token limit no text reaches
 AL_N = 3000
 AL_SHORTLIST_K = SHORTLIST_K  # the student's top leaves offered, as the first pass offers 5
 
@@ -87,7 +90,9 @@ AL_SHORTLIST_K = SHORTLIST_K  # the student's top leaves offered, as the first p
 
 
 def _capped(dataset: Dataset, max_chars: int) -> Dataset:
-    return Dataset([e.model_copy(update={"text": e.text[:max_chars]}) for e in dataset])
+    return Dataset(
+        [e.model_copy(update={"text": student_input(e.text, max_chars)}) for e in dataset]
+    )
 
 
 def _budget_cap(
@@ -189,7 +194,7 @@ def train_tagger(
     functions: dict[str, Any] = {}
     counts: dict[str, dict[str, int]] = {}
     if function_rows:
-        texts = [row.text[:max_chars] for row in function_rows]
+        texts = [student_input(row.text, max_chars) for row in function_rows]
         vectors = tagger.embed(texts)
         tags = default_tags()
         counts = target_counts(function_targets(function_rows, tags))
@@ -202,12 +207,19 @@ def train_tagger(
         "min_examples": min_examples,
         "examples": len(data),
         "untrained_leaves": tagger.untrained,
+        "untrained_families": tagger.untrained_families,
         "budget": budget,
         "topic_train_metrics": topic.manifest["train_metrics"],
         "function_counts": counts,
         "function_heads": list(functions),
         "seconds": round(time.perf_counter() - started, 3),
     }
+    if tagger.untrained_families:
+        logger.warning(
+            "topic families the root head never saw (reported at family level, near-zero "
+            "probability): %s",
+            ", ".join(tagger.untrained_families),
+        )
     if tagger.untrained:
         logger.warning(
             "topic leaves without a head (predicted only via their family): %s",
@@ -220,13 +232,22 @@ def train_tagger(
 
 
 def trained_tree(taxonomy: Taxonomy, heads: Mapping[str, Mapping[str, Any]]) -> Taxonomy:
-    """``taxonomy`` without the leaves no head predicts: the tree a partial model can score with
-    a :class:`~docrooter.classify.Classifier` (each head then sees exactly its classes). A
-    family left with no leaves becomes a leaf itself."""
-    covered = {c for info in heads.values() for c in info["classes"]}
-    keep = [
-        n for n in taxonomy.nodes.values() if n.children or n.id in covered or n.parent_id is None
-    ]
+    """The part of ``taxonomy`` a partial model can score with a
+    :class:`~docrooter.classify.Classifier`, each head then seeing exactly its classes.
+
+    A node stays when its parent has a head that knows it, or (its parent having no head) when
+    it is an internal node; its ancestors must stay too. So a family the root head left out
+    goes with its whole subtree, an untrained leaf goes, and a headless family whose leaves all
+    went becomes a leaf itself."""
+
+    def stays(node_id: str) -> bool:
+        parent = taxonomy.nodes[node_id].parent_id or Taxonomy.ROOT_ID
+        head = heads.get(parent)
+        if head is not None:
+            return node_id in head["classes"]
+        return bool(taxonomy.nodes[node_id].children)
+
+    keep = [n for n in taxonomy.nodes.values() if all(stays(a.id) for a in taxonomy.path(n.id))]
     return Taxonomy([n.model_copy(update={"children": []}) for n in keep])
 
 
@@ -269,6 +290,7 @@ def calibrate_tagger(
     """
     from docrooter.classify.classifier import Classifier
     from docrooter.train.calibrate import DEFAULT_GRID, MIN_DECISIONS, calibrate
+    from docrooter.views import SectionView
 
     grid = list(grid) if grid is not None else list(DEFAULT_GRID)
     report: dict[str, Any] = {}
@@ -278,7 +300,9 @@ def calibrate_tagger(
     with warnings.catch_warnings():
         # the trained tree's hash differs from the full tree's the model was trained on
         warnings.filterwarnings("ignore", message=".*trained on a different taxonomy.*")
-        clf = Classifier(tree, backend=topic, threshold=0.0)
+        # No view cut: calibrate() scores exactly the student inputs tag() scores (the
+        # classifier's word-level cut would rejoin a long text's words with single spaces).
+        clf = Classifier(tree, backend=topic, threshold=0.0, view=SectionView(max_tokens=_NO_CUT))
     calibrated = calibrate(clf, data, grid=grid)
     entry = (calibrated.calibration_report or {}).get(topic.name)
     if entry is not None and "temperature" in entry:
@@ -291,14 +315,12 @@ def calibrate_tagger(
         index = sorted({i for pairs in targets.values() for i, _ in pairs})
         raw: dict[int, dict[str, float]] = {}
         if index:
-            vectors = tagger.embed([function_rows[i].text[: tagger.max_chars] for i in index])
-            for tag in tags:
-                head = tagger.functions[tag]
-                column = np.asarray(head.predict_proba(vectors), dtype=float)[
-                    :, list(head.classes_).index(1)
-                ]
-                for i, p in zip(index, column.tolist(), strict=True):
-                    raw.setdefault(i, {})[tag] = p
+            vectors = tagger.embed(
+                [student_input(function_rows[i].text, tagger.max_chars) for i in index]
+            )
+            table = tagger.raw_function_probs(vectors)
+            for row, i in zip(table.tolist(), index, strict=True):
+                raw[i] = dict(zip(tags, row, strict=True))
         probs = np.array([raw[i][tag] for tag in tags for i, _ in targets[tag]])
         ys = np.array([y for tag in tags for _, y in targets[tag]], dtype=float)
         if len(ys) < MIN_DECISIONS:

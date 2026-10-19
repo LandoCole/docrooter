@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -50,6 +51,7 @@ __all__ = [
     "FORMAT",
     "FUNCTION_THRESHOLD",
     "ElementTagger",
+    "student_input",
     "student_text",
 ]
 
@@ -68,10 +70,17 @@ _SAFE_TAG = re.compile(r"[A-Za-z0-9_.-]+")
 _DIGITS = 6
 
 
+def student_input(text: str, max_chars: int) -> str:
+    """A built student input (an :func:`~docrooter.teach.dataset.input_text`) cut to
+    ``max_chars`` characters: the one cut applied wherever the student sees text (training,
+    function rows, calibration, tagging), so all of them see the same bytes."""
+    return text[:max_chars]
+
+
 def student_text(element: CorpusElement, max_chars: int) -> str:
     """The student's input for ``element``: :func:`~docrooter.teach.dataset.input_text` (heading
-    path, kind, text; a table as its Markdown) cut to ``max_chars`` characters."""
-    return input_text(element)[:max_chars]
+    path, kind, text; a table as its Markdown) cut by :func:`student_input`."""
+    return student_input(input_text(element), max_chars)
 
 
 def _temper(probs: np.ndarray, temperature: float) -> np.ndarray:
@@ -139,6 +148,16 @@ class ElementTagger:
         return f"bundle:{self._path.name}" if self._path is not None else "element-tagger"
 
     @property
+    def untrained_families(self) -> list[str]:
+        """Families the root head never saw (too few examples), in taxonomy order: an element
+        of one is reported at the family level with its (near-zero) family probability. Empty
+        when there is no root head."""
+        root = self.topic.manifest["heads"].get(Taxonomy.ROOT_ID)
+        if root is None:
+            return []
+        return [f for f in self._families if f not in root["classes"]]
+
+    @property
     def untrained(self) -> list[str]:
         """Topic leaves no head predicts, in taxonomy order: each is only ever reported at the
         level of its family (Review Focus 4)."""
@@ -160,11 +179,12 @@ class ElementTagger:
         **Topic.** With a ``family`` (the document's, from its doc type), the labels are the
         best leaf within that family and ``probs`` its family head's distribution over its
         trained leaves (P(leaf | family)); ``confidence`` is the best one's probability. A
-        family without a head (fewer than two trained leaves) is reported as the family itself,
-        with the family's unconstrained probability. Without a ``family`` the tree is scored
-        with Beam(3): ``probs`` holds the joint probability of each surviving path's end node
-        and the best path's end node is the label. ``family_probs`` is always the unconstrained
-        family distribution (0.0 for a family the root head never saw).
+        family without a head (fewer than two trained leaves, or one the root head never saw:
+        :attr:`untrained_families`) is reported as the family itself, with the family's
+        unconstrained probability as its probability and confidence. Without a ``family`` the
+        tree is scored with Beam(3): ``probs`` holds the joint probability of each surviving
+        path's end node and the best path's end node is the label. ``family_probs`` is always
+        the unconstrained family distribution (0.0 for a family the root head never saw).
 
         **Function.** ``probs`` holds every tag with a head (calibrated), ``labels`` those at
         :data:`FUNCTION_THRESHOLD` or above in taxonomy order, ``confidence`` the least certain
@@ -280,16 +300,20 @@ class ElementTagger:
             ),
         )
 
+    def raw_function_probs(self, vectors: np.ndarray) -> np.ndarray:
+        """Untempered P(yes), one column per :attr:`function_tags` entry."""
+        columns = []
+        for tag in self.function_tags:
+            head = self.functions[tag]
+            positive = list(head.classes_).index(1)
+            columns.append(np.asarray(head.predict_proba(vectors), dtype=float)[:, positive])
+        return np.stack(columns, axis=1)
+
     def _functions(self, vectors: np.ndarray) -> list[TagResult] | None:
         if not self.functions:
             return None
         tags = self.function_tags
-        columns = []
-        for tag in tags:
-            head = self.functions[tag]
-            positive = list(head.classes_).index(1)
-            columns.append(np.asarray(head.predict_proba(vectors), dtype=float)[:, positive])
-        probs = temper_binary(np.stack(columns, axis=1), self._t("function"))
+        probs = temper_binary(self.raw_function_probs(vectors), self._t("function"))
         out = []
         for row in probs:
             values = dict(zip(tags, row.tolist(), strict=True))
@@ -321,15 +345,26 @@ class ElementTagger:
         self.close()
 
     def save(self, path: str | Path) -> None:
-        """Write the bundle (module docstring); ``tagger.json`` last, atomically."""
+        """Write the bundle (module docstring); ``tagger.json`` last, atomically.
+
+        Over an existing bundle, everything the bundle manages (``tagger.json`` first, then the
+        taxonomy, ``topic/`` and ``functions/``) is removed before writing, so no stale file
+        survives and an interrupted save leaves no ``tagger.json``. The body and heads are read
+        into memory first, so a tagger loaded from ``path`` can be saved back over it.
+        """
         joblib = require("joblib", "models")
+        for tag in self.functions:
+            if not _SAFE_TAG.fullmatch(tag):
+                raise ValueError(f"function tag {tag!r} is not a safe file name")
         out = Path(path).resolve()
+        self.topic.as_zero_shot()._load()  # the weights, before their files are removed
+        for node_id in self.topic.manifest["heads"]:
+            self.topic._head(node_id)
+        _clear(out)
         (out / FUNCTIONS_DIR).mkdir(parents=True, exist_ok=True)
         self.topic.save(out / TOPIC_DIR)
         files = {}
         for tag, head in self.functions.items():
-            if not _SAFE_TAG.fullmatch(tag):
-                raise ValueError(f"function tag {tag!r} is not a safe file name")
             files[tag] = f"{FUNCTIONS_DIR}/{tag}.joblib"
             joblib.dump(head, out / files[tag])
         _write_json(out / TAXONOMY_FILE, self.taxonomy.to_dict())
@@ -380,6 +415,15 @@ class ElementTagger:
             info=manifest.get("info") or {},
             path=root,
         )
+
+
+def _clear(root: Path) -> None:
+    """Remove the files a bundle manages under ``root`` (``tagger.json`` first); others stay."""
+    for name in (TAGGER_MANIFEST, TAGGER_MANIFEST + ".tmp", TAXONOMY_FILE, TAXONOMY_FILE + ".tmp"):
+        (root / name).unlink(missing_ok=True)
+    for name in (TOPIC_DIR, FUNCTIONS_DIR):
+        if (root / name).is_dir():
+            shutil.rmtree(root / name)
 
 
 def _write_json(path: Path, data: Any) -> None:

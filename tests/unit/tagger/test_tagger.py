@@ -515,3 +515,97 @@ def test_doc_family_is_the_teachers_rule():
         assert doc_family(record) == teacher_doc_family(record)
     record = ManifestRecord(id="x", sha256="3" * 64, family_hint="tiny")
     assert doc_family(record, ["report", "tiny"]) == "tiny"
+
+
+# --- fix round 1 ------------------------------------------------------------------------------
+
+LONE = Taxonomy.from_dict(
+    {
+        "nodes": [
+            *TAX.to_dict()["nodes"],
+            {"id": "lone", "label": "Lone"},
+            {"id": "lone.gamma", "label": "Gamma", "parent_id": "lone"},
+            {"id": "lone.delta", "label": "Delta", "parent_id": "lone"},
+        ]
+    }
+)
+
+
+def test_partial_root_calibrates_and_reports_the_untrained_family():
+    # "lone" has 8 examples in all: under the 20 the root head needs, so it has no family node
+    spec = {**SPEC, "lone.gamma": ("gamma", 4), "lone.delta": ("delta", 4)}
+    tagger = train_tagger(_dataset(spec), [], stage="A", base_model=BASE, taxonomy=LONE)
+    assert tagger.topic.manifest["heads"][Taxonomy.ROOT_ID]["classes"] == [
+        "paper",
+        "report",
+        "tiny",
+    ]
+    assert tagger.untrained_families == ["lone"]
+    assert tagger.info["untrained_families"] == ["lone"]
+    tree = trained_tree(LONE, tagger.topic.manifest["heads"])
+    assert "lone" not in tree and "lone.gamma" not in tree
+    assert [n.id for n in tree.children()] == ["report", "paper", "tiny"]
+
+    report = calibrate_tagger(tagger, _dataset(spec))  # used to raise BackendError
+    assert "temperature" in report["topic"]
+
+    gamma = _element("gamma item")
+    (known,) = tagger.tag([gamma], "lone")
+    topic = known["topic"]
+    assert topic.labels == ["lone"] and topic.confidence < 0.05
+    assert topic.probs == {"lone": topic.family_probs["lone"]}
+    assert set(topic.family_probs) == {"report", "paper", "tiny", "lone"}
+    (free,) = tagger.tag([gamma])
+    assert not free["topic"].labels[0].startswith("lone")
+
+
+def test_calibration_scores_the_texts_tag_scores():
+    long = _element("risk line\n" * 2000, path=("Risk", "Detail"))
+    extra = [Example(text=input_text(long), path=["report", "report.risk"])]
+    tagger = train_tagger(
+        Dataset(list(_dataset()) + extra), [], stage="A", base_model=BASE, taxonomy=TAX
+    )
+    body = FakeEmbedding.instances[-1]
+    body.seen.clear()
+    calibrate_tagger(tagger, Dataset(list(_dataset()) + extra))
+    calibrated = [t for t in body.seen if t.startswith("Risk > Detail")]
+    body.seen.clear()
+    tagger.tag([long], "report")
+    (tagged,) = body.seen
+    assert "\n\n[paragraph] risk line\nrisk line" in tagged
+    assert calibrated and set(calibrated) == {tagged}
+
+
+def test_resave_leaves_no_stale_files(tmp_path, monkeypatch):
+    bundle = tmp_path / "element-tagger-v1"
+    tagger = train_tagger(_dataset(), _function_rows(), stage="A", base_model=BASE, taxonomy=TAX)
+    tagger.save(bundle)
+    (bundle / "topic" / "heads" / "stale.joblib").write_bytes(b"old")
+    (bundle / "notes.txt").write_text("not the bundle's")
+
+    # a tagger loaded from the bundle can be saved back over it, without its function heads
+    loaded = ElementTagger.load(bundle)
+    loaded.functions = {}
+    loaded.temperatures["topic"] = 0.7
+    elements = [_element("risk item"), _element("cite item", eid="e1")]
+    expected = loaded.tag(elements, "report")
+    loaded.save(bundle)
+    assert not (bundle / "topic" / "heads" / "stale.joblib").exists()
+    assert list((bundle / "functions").iterdir()) == []
+    assert (bundle / "notes.txt").exists()
+    again = ElementTagger.load(bundle)
+    assert again.function_tags == [] and again.temperatures["topic"] == 0.7
+    assert [t["topic"].probs for t in again.tag(elements, "report")] == [
+        t["topic"].probs for t in expected
+    ]
+
+    # an interrupted save leaves no tagger.json: the bundle reads as incomplete
+    def boom(path):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(again.topic, "save", boom)
+    with pytest.raises(OSError, match="disk full"):
+        again.save(bundle)
+    assert not (bundle / "tagger.json").exists()
+    with pytest.raises(Exception, match="no element-tagger bundle"):
+        ElementTagger.load(bundle)

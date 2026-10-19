@@ -22,8 +22,10 @@ with Newton's method in numpy (no scikit-learn). It is fitted on calib-fit docum
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import warnings
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol
@@ -61,6 +63,8 @@ COMBINER_FORMAT = "docrooter-relevance-combiner"
 COMBINER_VERSION = 1
 _MAX_NEWTON_STEPS = 100
 _STEP_TOL = 1e-10
+_MIN_STEP_SIZE = 1e-8  # backtracking floor
+_GRAD_TOL = 1e-6
 _MIN_SCALE = 1e-12
 
 
@@ -95,7 +99,8 @@ def features(
     ``tags[i]`` is element i's facet -> :class:`~docrooter.elements.models.TagResult` map
     (``None`` when untagged), ``sims[i]`` its cosine to the need text, and ``sections[i]`` the
     normalised label of its section (``None`` when unlabelled). All are aligned with
-    ``elements``.
+    ``elements``, which must all be :data:`CONTENT_KINDS` (anything else raises
+    ``ValueError``: a heading or page furniture is not scored).
     """
     m = len(elements)
     sim_values = np.asarray(sims, dtype=np.float64)
@@ -123,8 +128,12 @@ def features(
         if section is not None and section in section_keys:
             X[i, 3] = 1.0
         column = kind_column.get(element.kind)
-        if column is not None:
-            X[i, column] = 1.0
+        if column is None:
+            raise ValueError(
+                f"features: element {i} is a {element.kind!r}, not a content kind "
+                f"({', '.join(CONTENT_KINDS)}); filter elements to content kinds first"
+            )
+        X[i, column] = 1.0
         X[i, -1] = math.log1p(estimate_tokens(element.text))
     return X
 
@@ -133,32 +142,83 @@ def _sigmoid(z: np.ndarray) -> np.ndarray:
     return 0.5 * (1.0 + np.tanh(0.5 * z))  # overflow-free
 
 
+def _check_feature_names(names: Sequence[str]) -> tuple[str, ...]:
+    """Feature names must be a non-empty subset of :data:`FEATURE_NAMES`, in its order (so a
+    combiner on a subset, such as the spec §5 fallback ``("sim", "section_hit")``, knows which
+    columns of :func:`features` are its own)."""
+    names = tuple(names)
+    unknown = [name for name in names if name not in FEATURE_NAMES]
+    if not names or unknown:
+        raise ValueError(
+            f"feature names must be a non-empty subset of {FEATURE_NAMES}; got {names} "
+            f"(unknown: {unknown})"
+        )
+    positions = [FEATURE_NAMES.index(name) for name in names]
+    if any(a >= b for a, b in zip(positions, positions[1:], strict=False)):
+        raise ValueError(f"feature names must be unique and in FEATURE_NAMES order: {names}")
+    return names
+
+
 class Combiner:
     """P(relevant | features): logistic regression on standardised features, with an L2
-    penalty ``l2`` on the weights (not the intercept)."""
+    penalty ``l2`` on the weights (not the intercept).
 
-    def __init__(self, *, l2: float = 1.0, feature_names: Sequence[str] = FEATURE_NAMES) -> None:
+    ``feature_names`` picks the columns it uses from :func:`features` (all of them by default;
+    ``("sim", "section_hit")`` is the spec §5 fallback without a tagger). :meth:`fit` and
+    :meth:`predict_proba` take either the full :func:`features` matrix, from which the
+    combiner takes its own columns (:meth:`project`), or a matrix of just those columns.
+
+    Newton's method stops after ``max_iter`` steps. A step that would raise the loss, even
+    after backtracking to the smallest step size, is rejected and ends the fit. ``converged``
+    says whether the fit reached a stationary point; when it did not, :meth:`fit` warns
+    (``RuntimeWarning``).
+    """
+
+    def __init__(
+        self,
+        *,
+        l2: float = 1.0,
+        feature_names: Sequence[str] = FEATURE_NAMES,
+        max_iter: int = _MAX_NEWTON_STEPS,
+    ) -> None:
         if not l2 > 0.0:
             raise ValueError(f"l2 must be positive, got {l2}")
+        if max_iter < 1:
+            raise ValueError(f"max_iter must be at least 1, got {max_iter}")
         self.l2 = float(l2)
-        self.feature_names = tuple(feature_names)
-        self.mean = np.zeros(len(self.feature_names))
-        self.scale = np.ones(len(self.feature_names))
-        self.coef = np.zeros(len(self.feature_names))  # on the standardised features
+        self.max_iter = int(max_iter)
+        self.feature_names = _check_feature_names(feature_names)
+        self._columns = [FEATURE_NAMES.index(name) for name in self.feature_names]
+        d = len(self.feature_names)
+        self.mean = np.zeros(d)
+        self.scale = np.ones(d)
+        self.coef = np.zeros(d)  # on the standardised features
         self.intercept = 0.0
         self.n_train = 0
         self.n_docs = 0
+        self.converged = False
         self.fitted = False
+
+    def project(self, X: np.ndarray) -> np.ndarray:
+        """The combiner's own columns of ``X``: picked from a full :func:`features` matrix, or
+        ``X`` itself when it already has exactly those columns."""
+        X = np.asarray(X, dtype=np.float64)
+        if X.ndim == 2 and X.shape[1] == len(FEATURE_NAMES):
+            return X[:, self._columns]
+        if X.ndim == 2 and X.shape[1] == len(self.feature_names):
+            return X
+        raise ValueError(
+            f"X must be (rows, {len(FEATURE_NAMES)}) from features() or "
+            f"(rows, {len(self.feature_names)}) for {self.feature_names}, got {X.shape}"
+        )
 
     def fit(self, X: np.ndarray, y: np.ndarray, *, doc_ids: Sequence[str]) -> Combiner:
         """Fit on rows ``X`` with labels ``y`` (0/1). ``doc_ids[i]`` is row i's document, and
         every one must be in calib-fit (:func:`~docrooter.corpus.calib_half`): the combiner
         never sees a calib-crc document, which the dial calibrates on (spec §0.1)."""
-        X = np.asarray(X, dtype=np.float64)
+        X = self.project(X)
         y = np.asarray(y, dtype=np.float64)
         d = len(self.feature_names)
-        if X.ndim != 2 or X.shape[1] != d:
-            raise ValueError(f"X must be (rows, {d}) for {self.feature_names}, got {X.shape}")
         if y.shape != (X.shape[0],) or len(doc_ids) != X.shape[0]:
             raise ValueError(
                 f"{X.shape[0]} rows but {y.shape} labels and {len(doc_ids)} document ids"
@@ -189,35 +249,65 @@ class Combiner:
             return float(np.sum(np.logaddexp(0.0, z) - y * z) + 0.5 * np.sum(penalty * v * v))
 
         current = objective(w)
-        for _ in range(_MAX_NEWTON_STEPS):
+        converged = False
+        for _ in range(self.max_iter):
             p = _sigmoid(A @ w)
             gradient = A.T @ (p - y) + penalty * w
             hessian = (A.T * (p * (1.0 - p))) @ A + np.diag(penalty)
             step = np.linalg.solve(hessian + 1e-12 * np.eye(d + 1), gradient)
+            if np.abs(step).max() < _STEP_TOL:
+                converged = True
+                break
             t = 1.0
             candidate = objective(w - step)
-            while candidate > current and t > 1e-8:  # backtrack: the objective never rises
+            while candidate > current and t > _MIN_STEP_SIZE:  # backtrack
                 t *= 0.5
                 candidate = objective(w - t * step)
+            if candidate > current:
+                # Even the smallest step raises the loss: reject it and stop. That is only a
+                # stationary point when the gradient is already ~0 (rounding near the optimum).
+                converged = bool(np.abs(gradient).max() < _GRAD_TOL)
+                break
             w = w - t * step
             current = candidate
-            if np.abs(t * step).max() < _STEP_TOL:
-                break
+        if not converged:
+            warnings.warn(
+                f"the relevance combiner did not converge (max_iter={self.max_iter}); its "
+                "weights are the best found, not the optimum",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         self.intercept = float(w[0])
         self.coef = w[1:].copy()
         self.n_train = int(X.shape[0])
         self.n_docs = len(documents)
+        self.converged = converged
         self.fitted = True
         return self
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        """P(relevant) per row of ``X``, shape ``(rows,)``."""
+        """P(relevant) per row of ``X`` (see :meth:`project`), shape ``(rows,)``."""
         if not self.fitted:
             raise ValueError("the combiner is not fitted")
-        X = np.asarray(X, dtype=np.float64)
-        if X.ndim != 2 or X.shape[1] != len(self.feature_names):
-            raise ValueError(f"X must be (rows, {len(self.feature_names)}), got {X.shape}")
+        X = self.project(X)
         return _sigmoid(((X - self.mean) / self.scale) @ self.coef + self.intercept)
+
+    def fingerprint(self) -> str:
+        """A sha256 of everything that determines the probabilities: the feature names, the
+        standardisation, the weights and the intercept (there is no temperature). A dial
+        calibrated on this combiner's probabilities stores it, so a refit is detected."""
+        if not self.fitted:
+            raise ValueError("the combiner is not fitted")
+        payload = {
+            "format": COMBINER_FORMAT,
+            "feature_names": list(self.feature_names),
+            "mean": self.mean.tolist(),
+            "scale": self.scale.tolist(),
+            "coef": self.coef.tolist(),
+            "intercept": self.intercept,
+        }
+        text = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     def to_dict(self) -> dict[str, Any]:
         if not self.fitted:
@@ -227,12 +317,14 @@ class Combiner:
             "version": COMBINER_VERSION,
             "feature_names": list(self.feature_names),
             "l2": self.l2,
+            "max_iter": self.max_iter,
             "mean": self.mean.tolist(),
             "scale": self.scale.tolist(),
             "coef": self.coef.tolist(),
             "intercept": self.intercept,
             "n_train": self.n_train,
             "n_docs": self.n_docs,
+            "converged": self.converged,
         }
 
     @classmethod
@@ -242,7 +334,11 @@ class Combiner:
                 f"not a {COMBINER_FORMAT} v{COMBINER_VERSION}: "
                 f"{data.get('format')!r} v{data.get('version')!r}"
             )
-        model = cls(l2=float(data["l2"]), feature_names=data["feature_names"])
+        model = cls(
+            l2=float(data["l2"]),
+            feature_names=data["feature_names"],
+            max_iter=int(data["max_iter"]),
+        )
         d = len(model.feature_names)
         model.mean = np.asarray(data["mean"], dtype=np.float64)
         model.scale = np.asarray(data["scale"], dtype=np.float64)
@@ -252,6 +348,7 @@ class Combiner:
         model.intercept = float(data["intercept"])
         model.n_train = int(data["n_train"])
         model.n_docs = int(data["n_docs"])
+        model.converged = bool(data["converged"])
         model.fitted = True
         return model
 

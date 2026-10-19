@@ -38,6 +38,14 @@ fall as c rises) and keeps the guarantee, which a straight line between grid poi
 **Data separation (spec §0.1).** Only calib-crc documents
 (:func:`~docrooter.corpus.calib_half` ``== "crc"``) may calibrate the dial;
 :func:`calibrate_dial` refuses any other unit.
+
+**Which combiner.** The guarantee holds only for the probabilities the dial was calibrated on.
+Each table stores the scoring :class:`~docrooter.select.relevance.Combiner`'s fingerprint, and
+:meth:`DialTable.check_combiner` refuses any other combiner (a refit without recalibrating).
+
+**Loading.** A table's risk curve is validated (λ in [0, 1], strictly ascending and starting at
+0; risk in [0, 1] and non-decreasing; n ≥ 1), so a corrupt or hand-edited file cannot yield a
+non-monotone or unsafe threshold.
 """
 
 from __future__ import annotations
@@ -49,6 +57,7 @@ from typing import Any
 import numpy as np
 
 from docrooter.corpus.store import calib_half
+from docrooter.select.relevance import Combiner
 
 __all__ = ["DEFAULT_GRID", "CalibUnit", "DialTable", "calibrate_dial", "crc_threshold"]
 
@@ -148,17 +157,16 @@ class DialTable:
         grid: Sequence[float],
         curve_lambdas: Sequence[float] | np.ndarray,
         curve_risk: Sequence[float] | np.ndarray,
+        combiner_fingerprint: str | None,
     ) -> None:
         self.family = family
+        self.combiner_fingerprint = combiner_fingerprint
         self.n = int(n)
         self.n_docs = int(n_docs)
         self.n_excluded = int(n_excluded)  # (document, field) pairs with no relevant element
-        self.curve_lambdas = np.asarray(curve_lambdas, dtype=np.float64)
-        self.curve_risk = np.asarray(curve_risk, dtype=np.float64)
         if self.n < 1:
-            raise ValueError(f"{family}: a dial needs at least one unit")
-        if self.curve_lambdas.ndim != 1 or self.curve_lambdas.shape != self.curve_risk.shape:
-            raise ValueError(f"{family}: the risk curve's thresholds and risks do not align")
+            raise ValueError(f"{family}: a dial needs at least one unit, got n={self.n}")
+        self.curve_lambdas, self.curve_risk = _check_curve(family, curve_lambdas, curve_risk)
         self.grid = tuple(_check_grid(grid))
         self.grid_lambdas: tuple[float | None, ...] = tuple(self.threshold(c)[0] for c in self.grid)
 
@@ -173,6 +181,18 @@ class DialTable:
             return 0.0, False
         lam = _max_qualifying(self.curve_lambdas, self.curve_risk, self.n, 1.0 - c)
         return lam, lam is None
+
+    def check_combiner(self, combiner: Combiner) -> None:
+        """Raise ``ValueError`` unless ``combiner`` is the one whose probabilities this dial was
+        calibrated on (same :meth:`~docrooter.select.relevance.Combiner.fingerprint`)."""
+        if self.combiner_fingerprint is None:
+            raise ValueError(f"{self.family}: this dial is not bound to a combiner")
+        if combiner.fingerprint() != self.combiner_fingerprint:
+            raise ValueError(
+                f"{self.family}: the dial was calibrated on another combiner "
+                f"({self.combiner_fingerprint[:12]}…, given {combiner.fingerprint()[:12]}…); "
+                "recalibrate it after refitting"
+            )
 
     def select(self, probs: np.ndarray, c: float) -> tuple[np.ndarray, bool]:
         """``(mask, capped)``: which elements to keep at target ``c``, given their relevance
@@ -191,6 +211,7 @@ class DialTable:
             "n": self.n,
             "n_docs": self.n_docs,
             "n_excluded": self.n_excluded,
+            "combiner_fingerprint": self.combiner_fingerprint,
             "grid": list(self.grid),
             "grid_lambdas": list(self.grid_lambdas),  # for readers; recomputed on load
             "curve": {"lambdas": self.curve_lambdas.tolist(), "risk": self.curve_risk.tolist()},
@@ -211,7 +232,35 @@ class DialTable:
             grid=data["grid"],
             curve_lambdas=data["curve"]["lambdas"],
             curve_risk=data["curve"]["risk"],
+            combiner_fingerprint=data["combiner_fingerprint"],
         )
+
+
+def _check_curve(
+    family: str,
+    lambdas: Sequence[float] | np.ndarray,
+    risk: Sequence[float] | np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """The risk curve as arrays, or ``ValueError``: λ finite in [0, 1], strictly ascending,
+    starting at 0; risk aligned, finite in [0, 1] and non-decreasing."""
+    lam = np.asarray(lambdas, dtype=np.float64)
+    r = np.asarray(risk, dtype=np.float64)
+    problem = None
+    if lam.ndim != 1 or lam.shape != r.shape or lam.size == 0:
+        problem = f"thresholds {lam.shape} and risks {r.shape} must be aligned, non-empty 1-D"
+    elif not (np.isfinite(lam).all() and np.isfinite(r).all()):
+        problem = "values must be finite"
+    elif lam[0] != 0.0 or not ((lam >= 0.0) & (lam <= 1.0)).all():
+        problem = "thresholds must lie in [0, 1] and include 0"
+    elif not (np.diff(lam) > 0.0).all():
+        problem = "thresholds must be strictly ascending"
+    elif not ((r >= 0.0) & (r <= 1.0)).all():
+        problem = "risks must lie in [0, 1]"
+    elif not (np.diff(r) >= 0.0).all():
+        problem = "risk must be non-decreasing in the threshold"
+    if problem is not None:
+        raise ValueError(f"{family}: invalid risk curve: {problem}")
+    return lam, r
 
 
 def _check_grid(grid: Iterable[float]) -> list[float]:
@@ -241,9 +290,16 @@ def _risk_curve(units: Sequence[CalibUnit]) -> tuple[np.ndarray, np.ndarray]:
 
 
 def calibrate_dial(
-    units: Iterable[CalibUnit], grid: Sequence[float] = DEFAULT_GRID
+    units: Iterable[CalibUnit],
+    grid: Sequence[float] = DEFAULT_GRID,
+    *,
+    combiner: Combiner | None,
 ) -> dict[str, DialTable]:
     """One :class:`DialTable` per family, from calib-crc (document, field) units.
+
+    ``combiner`` is the fitted combiner that scored the units' ``probs``; each table stores its
+    fingerprint for :meth:`DialTable.check_combiner`. ``None`` (probabilities from elsewhere,
+    e.g. a simulation) leaves the tables unbound, and ``check_combiner`` then always refuses.
 
     Every unit must come from a calib-crc document (spec §0.1); a calib-fit one raises
     ``ValueError``. Units without a relevant element are not CRC units (recall is undefined
@@ -267,6 +323,7 @@ def calibrate_dial(
             f"calib-fit, e.g. {sorted(outside)[:3]}"
         )
     grid = _check_grid(grid)
+    fingerprint = None if combiner is None else combiner.fingerprint()
     tables: dict[str, DialTable] = {}
     for family in sorted(by_family):
         family_units = by_family[family]
@@ -279,5 +336,6 @@ def calibrate_dial(
             grid=grid,
             curve_lambdas=lambdas,
             curve_risk=risk,
+            combiner_fingerprint=fingerprint,
         )
     return tables

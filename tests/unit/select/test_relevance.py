@@ -193,3 +193,91 @@ def test_combiner_fits_only_calib_fit():
     ids[17] = crc_ids[0]  # one calib-crc row is enough to refuse
     with pytest.raises(ValueError, match="calib-fit"):
         Combiner().fit(X, y, doc_ids=ids)
+
+
+def test_features_reject_non_content_kind():
+    elements = [
+        SimpleNamespace(kind="paragraph", text="x"),
+        SimpleNamespace(kind="heading", text="Risk factors"),
+    ]
+    with pytest.raises(ValueError, match="heading"):
+        features(elements, [None, None], [0.1, 0.2], [None, None], RISK)
+
+
+def test_newton_rejects_a_step_that_raises_the_loss(monkeypatch):
+    rng = np.random.default_rng(4)
+    X, y = _synthetic(rng, 300)
+    ids = [_ids("fit", 3)[i % 3] for i in range(len(y))]
+    # A solver that returns an ascent direction: every step size raises the loss.
+    monkeypatch.setattr(np.linalg, "solve", lambda H, g: -1e3 * g)
+    with pytest.warns(RuntimeWarning, match="converge"):
+        model = Combiner().fit(X, y, doc_ids=ids)
+    assert not model.converged
+    assert np.all(model.coef == 0.0) and model.intercept == 0.0  # the start, never worsened
+
+
+def test_combiner_flags_non_convergence():
+    rng = np.random.default_rng(5)
+    X, y = _synthetic(rng, 500)
+    ids = [_ids("fit", 5)[i % 5] for i in range(len(y))]
+    with pytest.warns(RuntimeWarning, match="converge"):
+        short = Combiner(max_iter=1).fit(X, y, doc_ids=ids)
+    assert short.converged is False
+    assert Combiner.from_dict(short.to_dict()).converged is False
+    full = Combiner().fit(X, y, doc_ids=ids)
+    assert full.converged is True
+    assert Combiner.from_dict(full.to_dict()).converged is True
+
+
+def test_combiner_fingerprint_is_stable():
+    rng = np.random.default_rng(6)
+    X, y = _synthetic(rng, 400)
+    ids = [_ids("fit", 4)[i % 4] for i in range(len(y))]
+    a = Combiner().fit(X, y, doc_ids=ids)
+    b = Combiner().fit(X, y, doc_ids=ids)
+    fp = a.fingerprint()
+    assert len(fp) == 64 and fp == b.fingerprint()
+    assert Combiner.from_dict(json.loads(json.dumps(a.to_dict()))).fingerprint() == fp
+    assert Combiner(l2=3.0).fit(X, y, doc_ids=ids).fingerprint() != fp
+    fallback = Combiner(feature_names=("sim", "section_hit")).fit(X, y, doc_ids=ids)
+    assert fallback.fingerprint() != fp
+    with pytest.raises(ValueError):
+        Combiner().fingerprint()  # not fitted
+
+
+def test_fallback_combiner_on_feature_subset():
+    # Spec §5: without a tagger, relevance falls back to sim and section_hit only. The
+    # combiner takes the full features() matrix and picks its own columns.
+    rng = np.random.default_rng(8)
+    X, y = _synthetic(rng, 2000)
+    ids = [_ids("fit", 10)[i % 10] for i in range(len(y))]
+    fallback = Combiner(feature_names=("sim", "section_hit")).fit(X, y, doc_ids=ids)
+    assert fallback.coef.shape == (2,)
+    columns = [FEATURE_NAMES.index("sim"), FEATURE_NAMES.index("section_hit")]
+    assert np.array_equal(fallback.project(X), X[:, columns])
+    p = fallback.predict_proba(X)
+    assert np.array_equal(p, fallback.predict_proba(X[:, columns]))
+    assert fallback.coef[0] > 0.0  # sim carries signal in the synthetic data
+    order = np.argsort(-p)
+    assert y[order[:300]].mean() > y.mean()
+    again = Combiner.from_dict(json.loads(json.dumps(fallback.to_dict())))
+    assert np.array_equal(again.predict_proba(X), p)
+    with pytest.raises(ValueError):
+        fallback.predict_proba(X[:, :5])  # neither its own width nor features()'s
+
+
+@pytest.mark.parametrize(
+    "names",
+    [("sim", "page_rank"), (), ("sim", "sim"), ("section_hit", "sim")],
+    ids=["unknown", "empty", "repeated", "out-of-order"],
+)
+def test_feature_names_must_be_known(names):
+    with pytest.raises(ValueError):
+        Combiner(feature_names=names)
+    rng = np.random.default_rng(10)
+    X, y = _synthetic(rng, 200)
+    ids = [_ids("fit", 2)[i % 2] for i in range(len(y))]
+    data = Combiner(feature_names=("sim", "section_hit")).fit(X, y, doc_ids=ids).to_dict()
+    data["feature_names"] = list(names)
+    with pytest.raises(ValueError):
+        Combiner.from_dict(data)

@@ -134,7 +134,9 @@ Flat and multi-label. An element may carry zero or more functions. Each tag need
 
 Add `financial.fact_sheet` to `doc_types.json`, with a definition in the existing style:
 
-> A short (typically 1–4 page) periodic summary of a single fund or share class: objective, key facts, fees, performance table and chart, top holdings and allocation, as of a date. Not a full prospectus and not an annual report.
+> A short (typically one- to four-page) periodic summary of a single fund or share class: objective, fund facts, fees, performance table and chart, top holdings and allocation, as of a date. Not a full prospectus and not an annual_report.
+
+Amended after the L1 review (ruling). The first wording won keyword matches through artifact tokens: "key" matched the view's "Key phrases" label, "1–4" matched page numbers, and "annual report" came from the exclusion clause. Measured on dev with the keyword backend, it scored 21/51 with 4 wrong fact-sheet predictions; this wording scores 22/51 with 0 wrong.
 
 The v0.3 held-out doc-type numbers predate this change. The docs say so. The held-out corpus is not re-run until the program's final evaluation.
 

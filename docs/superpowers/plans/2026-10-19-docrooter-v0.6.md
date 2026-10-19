@@ -72,7 +72,7 @@
 ### Task S2: Full teacher labelling of calib and gold documents
 
 **Files:**
-- Modify: `src/docrooter/teach/label.py` (a `full` sample mode), `src/docrooter/cli.py` (`teach label --full --splits calib gold`)
+- Modify: `src/docrooter/teach/label.py` (a `full` sample mode), `src/docrooter/cli.py` (`teach label --full --splits calib,gold`)
 - Test: `tests/unit/teach/test_label_full.py`
 
 **Interfaces:**
@@ -89,7 +89,7 @@
 - [ ] **Step 3:** Implement. The ceiling is per pass, measured.
 - [ ] **Step 4:** Run the tests. Expected: PASS.
 - [ ] **Step 5:** Commit `feat(teach): full topic labelling for calibration and evaluation splits`.
-- [ ] **Controller run, after review:** `docrooter teach label --full --splits calib gold`, in the background, after the v0.5 pipeline.
+- [ ] **Controller run, after review:** `docrooter teach label --full --splits calib,gold`, in the background, after the v0.5 pipeline.
 
 ### Task S3: Relevance combiner and CRC calibration
 

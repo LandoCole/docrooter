@@ -1,0 +1,172 @@
+{
+  "seed": 0,
+  "max_doc_share": 0.2,
+  "min_per_kind": 5,
+  "double_fraction": 0.2,
+  "quota": 900,
+  "selected": 900,
+  "shortfall": 0,
+  "double_annotated": 180,
+  "gold_documents": 113,
+  "unassigned_gold_documents_by_source": {},
+  "groups": {
+    "annual_report": {
+      "quota": 300,
+      "selected": 300,
+      "shortfall": 0
+    },
+    "fund_document": {
+      "quota": 150,
+      "selected": 150,
+      "shortfall": 0
+    },
+    "research_paper": {
+      "quota": 150,
+      "selected": 150,
+      "shortfall": 0
+    },
+    "government_legal": {
+      "quota": 150,
+      "selected": 150,
+      "shortfall": 0
+    },
+    "technical": {
+      "quota": 150,
+      "selected": 150,
+      "shortfall": 0
+    }
+  },
+  "cells": {
+    "annual_report": {
+      "group": "annual_report",
+      "quota": 300,
+      "gold_documents": 25,
+      "documents_used": 25,
+      "candidate_elements": 9364,
+      "per_document_cap": 60,
+      "max_from_one_document": 13,
+      "selected": 300,
+      "shortfall": 0,
+      "double_annotated": 60,
+      "by_kind": {
+        "caption": 7,
+        "figure": 10,
+        "footnote": 7,
+        "heading": 60,
+        "list_item": 41,
+        "paragraph": 150,
+        "table": 20,
+        "title": 5
+      }
+    },
+    "fund_document": {
+      "group": "fund_document",
+      "quota": 150,
+      "gold_documents": 17,
+      "documents_used": 17,
+      "candidate_elements": 559,
+      "per_document_cap": 30,
+      "max_from_one_document": 10,
+      "selected": 150,
+      "shortfall": 0,
+      "double_annotated": 30,
+      "by_kind": {
+        "caption": 2,
+        "figure": 10,
+        "footnote": 1,
+        "heading": 14,
+        "list_item": 15,
+        "paragraph": 84,
+        "table": 22,
+        "title": 2
+      }
+    },
+    "research_paper": {
+      "group": "research_paper",
+      "quota": 150,
+      "gold_documents": 14,
+      "documents_used": 14,
+      "candidate_elements": 3018,
+      "per_document_cap": 30,
+      "max_from_one_document": 11,
+      "selected": 150,
+      "shortfall": 0,
+      "double_annotated": 30,
+      "by_kind": {
+        "caption": 11,
+        "figure": 7,
+        "footnote": 7,
+        "formula": 19,
+        "heading": 15,
+        "list_item": 26,
+        "paragraph": 52,
+        "table": 8,
+        "title": 5
+      }
+    },
+    "government_legal.generic": {
+      "group": "government_legal",
+      "quota": 100,
+      "gold_documents": 37,
+      "documents_used": 37,
+      "candidate_elements": 4214,
+      "per_document_cap": 20,
+      "max_from_one_document": 3,
+      "selected": 100,
+      "shortfall": 0,
+      "double_annotated": 20,
+      "by_kind": {
+        "caption": 6,
+        "figure": 5,
+        "footnote": 13,
+        "heading": 11,
+        "list_item": 12,
+        "paragraph": 40,
+        "table": 8,
+        "title": 5
+      }
+    },
+    "government_legal.contract": {
+      "group": "government_legal",
+      "quota": 50,
+      "gold_documents": 14,
+      "documents_used": 14,
+      "candidate_elements": 1451,
+      "per_document_cap": 10,
+      "max_from_one_document": 5,
+      "selected": 50,
+      "shortfall": 0,
+      "double_annotated": 10,
+      "by_kind": {
+        "formula": 1,
+        "heading": 7,
+        "list_item": 12,
+        "paragraph": 20,
+        "table": 5,
+        "title": 5
+      }
+    },
+    "technical": {
+      "group": "technical",
+      "quota": 150,
+      "gold_documents": 6,
+      "documents_used": 6,
+      "candidate_elements": 799,
+      "per_document_cap": 30,
+      "max_from_one_document": 26,
+      "selected": 150,
+      "shortfall": 0,
+      "double_annotated": 30,
+      "by_kind": {
+        "caption": 11,
+        "figure": 7,
+        "formula": 5,
+        "heading": 28,
+        "list_item": 20,
+        "paragraph": 67,
+        "table": 7,
+        "title": 5
+      }
+    }
+  }
+}

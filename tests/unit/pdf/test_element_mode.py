@@ -1,6 +1,7 @@
 """Element mode in ``load_pdf(elements=True)``: routing, OCR with a fake engine, XY-cut order,
 elements and the sections built from them."""
 
+import itertools
 from collections import Counter
 from pathlib import Path
 
@@ -775,3 +776,69 @@ def test_short_columns_under_a_heading_read_left_then_right(tmp_path, leading, c
     body = " ".join(e.text for e in doc.elements if e.kind not in ("title", "heading"))
     assert 0 <= body.find("LEFT") < body.find("RIGHT")
     assert body.count("LEFT") == columns[0] and body.count("RIGHT") == columns[1]
+
+
+GRID_WORDS = (
+    "our sensors measure pressure temperature and flow in factories and power plants demand "
+    "grew in every region during the year and we added two production lines to keep up orders "
+    "from new customers rose by a third"
+).split()
+GRID_HEADINGS = {
+    "short": "1. Business",
+    "medium": "1. Business and operating results",  # ends inside the gutter
+    "wide": "1. Business and operating results of the group in the year",
+}
+
+
+def _grid_pdf(path, *, title, heading, left, right, leading, gap, lower):
+    """The page of the example: an optional title, a heading, two 10 pt columns (``left`` and
+    ``right`` lines) and optionally the next section's heading and a line under them."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    y = 80
+    if title:
+        page.insert_text((72, y), "Annual Report 2025", fontsize=24, fontname="hebo")
+        y += 45
+    page.insert_text((72, y), GRID_HEADINGS[heading], fontsize=16, fontname="hebo")
+    top = y + gap
+    for tag, x, n in (("Left", 72, left), ("Right", 330, right)):
+        for k in range(n):
+            words = " ".join(GRID_WORDS[(5 * k + j) % len(GRID_WORDS)] for j in range(6))
+            page.insert_text(
+                (x, top + k * leading), (f"{tag} " if k == 0 else "") + words, fontsize=10
+            )
+    if lower:
+        below = top + max(left, right) * leading + 30
+        page.insert_text((72, below), "2. Financial results", fontsize=16, fontname="hebo")
+        page.insert_text(
+            (72, below + 25), "Revenue rose in every segment during the year.", fontsize=10
+        )
+    return _save(doc, path)
+
+
+def test_columns_read_left_then_right_over_a_grid_of_layouts(tmp_path):
+    """960 layouts: with and without a title, three heading widths (one ends inside the gutter),
+    column lengths from 5/4 to 12/3, leading from 11 to 15 pt, two heading-to-column spacings,
+    with and without a section under the columns. At most 2% may read the right column first;
+    at the time of writing none do (the previous release failed 300 of them)."""
+    grid = itertools.product(
+        [True, False],
+        GRID_HEADINGS,
+        [(5, 4), (6, 5), (4, 3), (6, 4), (5, 6), (7, 5), (6, 6), (12, 3)],
+        [11, 12, 13, 14, 15],
+        [18, 30],
+        [False, True],
+    )
+    failures = []
+    for n, (title, heading, (left, right), leading, gap, lower) in enumerate(grid):
+        path = _grid_pdf(
+            tmp_path / f"grid{n % 4}.pdf",
+            title=title, heading=heading, left=left, right=right, leading=leading, gap=gap,
+            lower=lower,
+        )  # fmt: skip
+        doc = load_pdf(path, elements=True)
+        body = " ".join(e.text for e in doc.elements if e.kind not in ("title", "heading"))
+        if not 0 <= body.find("Left") < body.find("Right"):
+            failures.append((title, heading, left, right, leading, gap, lower))
+    assert n + 1 == 960
+    assert len(failures) <= 19, failures[:5]  # 2% of 960

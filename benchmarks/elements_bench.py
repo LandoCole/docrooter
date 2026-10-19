@@ -582,28 +582,6 @@ def order_digest(texts: Sequence[str]) -> str:
 XyBox = tuple[float, float, float, float]
 
 
-def _cuts_columns(boxes: Sequence[XyBox], text_width: float, min_gutter: float,
-                  min_gap: float) -> bool:  # fmt: skip
-    """Whether :func:`docrooter.pdf.reading_order.xy_cut_order` cuts a column gutter anywhere
-    in ``boxes``: its band, column and row cuts, replayed (it does not report this)."""
-    from docrooter.pdf import reading_order as ro
-
-    if len(boxes) < 2:
-        return False
-    runs = ro._bands(boxes, text_width)
-    stack = runs[::-1] if len(runs) > 1 else [list(range(len(boxes)))]
-    while stack:
-        group = stack.pop()
-        if len(group) < 2:
-            continue
-        if ro._column_cut(boxes, group, min_gutter, text_width) is not None:
-            return True
-        parts = ro._row_cut(boxes, group, min_gap)
-        if parts is not None:
-            stack.extend(parts[::-1])
-    return False
-
-
 def order_analysis(
     boxes: Sequence[XyBox], *, page_width: float, median_char_width: float,
     median_line_gap: float,
@@ -611,10 +589,11 @@ def order_analysis(
     """How XY-cut treats one page's body lines (``boxes`` in extraction order).
 
     ``columns``: a gutter is cut somewhere, so the page-global identity guard is off;
-    ``changed``: the order differs from the input. On a page with columns, each band (run of
-    full-width or of narrower lines, as the cut forms them) that has no gutter of its own is a
-    single-column band; it is ``shifted`` when its lines' relative order differs from the input
-    order, which a band-local identity guard would have kept.
+    ``changed``: the order differs from the input. On a page with columns, the *single-column
+    bands* are the maximal parts of the cut that hold no gutter (a title, a table, a section
+    under the columns, a text region beside nothing); the other bands are the regions cut at a
+    gutter. A single-column band is ``shifted`` when its lines' relative order differs from the
+    input order, which a band-local identity guard would have kept.
     """
     from docrooter.pdf import reading_order as ro
 
@@ -623,26 +602,26 @@ def order_analysis(
     n = len(boxes)
     if n < 2:
         return out
-    text_width = max(b[2] for b in boxes) - min(b[0] for b in boxes)
-    if page_width > 0:
-        text_width = min(text_width, page_width)
-    min_gutter = max(ro._GUTTER_MIN, ro._GUTTER_CHARS * median_char_width)
-    min_gap = ro._GAP_FACTOR * median_line_gap
-    if not _cuts_columns(boxes, text_width, min_gutter, min_gap):
+    trace: list[tuple[int, int, list[int], str]] = []
+    order, columns = ro.xy_cut(boxes, page_width=page_width, median_char_width=median_char_width,
+                               median_line_gap=median_line_gap, trace=trace)  # fmt: skip
+    if not columns:
         return out
-    order = ro.xy_cut_order(boxes, page_width=page_width, median_char_width=median_char_width,
-                            median_line_gap=median_line_gap)  # fmt: skip
     position = {i: k for k, i in enumerate(order)}
     out["columns"], out["changed"] = True, order != list(range(n))
-    for band in ro._bands(boxes, text_width):
-        out["bands"] += 1
-        sub = [boxes[i] for i in band]
-        if _cuts_columns(sub, text_width, min_gutter, min_gap):
-            continue
-        out["single_column_bands"] += 1
-        if sorted(band, key=position.__getitem__) != band:
-            out["shifted_bands"] += 1
-            out["shifted_lines"] += len(band)
+    has_gutter = {rid: how == "columns" for rid, _, _, how in trace}
+    for rid, parent, _, _ in reversed(trace):  # children come after their parents
+        if has_gutter[rid] and parent >= 0:
+            has_gutter[parent] = True
+    for rid, parent, group, how in trace:
+        if how == "columns":
+            out["bands"] += 1
+        elif not has_gutter[rid] and parent >= 0 and has_gutter[parent]:
+            out["bands"] += 1
+            out["single_column_bands"] += 1
+            if sorted(group, key=position.__getitem__) != group:
+                out["shifted_bands"] += 1
+                out["shifted_lines"] += len(group)
     return out
 
 
@@ -650,9 +629,11 @@ def _page_stats(lines: Sequence[Any]) -> dict[str, float]:
     """``xy_cut_order``'s page statistics, as ``reading_order._order_page`` computes them."""
     import statistics
 
+    from docrooter.pdf import reading_order as ro
+
     widths = [ln.page_width for ln in lines if ln.page_width > 0]
     chars = [(ln.x1 - ln.x0) / len(ln.text) for ln in lines if ln.text and ln.x1 > ln.x0]
-    gaps = [ln.gap_above for ln in lines if 0 < ln.gap_above < float("inf")]
+    gaps = ro._line_gaps(lines)
     return {
         "page_width": max(widths, default=0.0),
         "median_char_width": statistics.median(chars) if chars else 0.0,

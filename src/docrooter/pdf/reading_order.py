@@ -1,23 +1,35 @@
-"""Reading order for a page's lines: iterative recursive XY-cut (spec §5.2).
+"""Reading order for a page's lines: column-first XY-cut (spec §5.2, E12 controller ruling).
 
-Full-width boxes split the page into horizontal bands; inside a band, vertical whitespace
-valleys (column gutters) are cut first, then horizontal gaps, and the pieces are visited
-left to right or top to bottom. The work is driven by an explicit stack (no recursion).
+The work is driven by an explicit stack (no recursion). A *region* starts as the whole page and
+is handled in this order:
 
-A gutter only counts as a column boundary when each side holds at least two boxes that are
-20% of the text width or wider: a label column beside a column of figures (a ledger, a contents
-list) is a table, not two text columns, and is left in the extractor's order. This guard is an
-addition to the §5.2 rules, made so that single-column pages with tables stay unchanged.
+1. **Spanning boxes.** A box at least :data:`_SPANNING` of the region's text width wide is a
+   separator.
+2. **A section break under columns.** The topmost horizontal gap that no box crosses, that is
+   at least :data:`_STRUCTURAL_GAP` median line heights (and not under ``1.5 x median line gap``)
+   and that has a gutter above it and, below it, a box across that gutter, cuts the region in
+   two first, so a table or a section under two columns is not taken for the continuation of
+   one of them. (A gap below which everything stays inside the columns is inside them, as
+   between their sections.)
+3. **A gutter.** Only the other boxes are projected onto x. A vertical valley between them is a
+   gutter when it is at least ``max(8 pt, 3 x median character width)`` wide, each side holds at
+   least two of those boxes (and two that are 20% of the text width or wider: a label column
+   beside a column of figures is a table, not two text columns), the two sides' y-ranges overlap
+   by at least 50% of the shorter one, and the sides are not the label and number columns of an
+   unruled table (the row-aligned guard, E11b: rows must stay together). A heading that crosses
+   the gutter (at most :data:`_CROSSING` boxes, none beside the columns' content) counts as a
+   separator.
+4. **With a gutter,** the separators, ordered by y, split the region into bands: what is above
+   the first separator, the separator, what is between two separators, and so on. Each band is
+   a region of its own; a band without separators is cut into its left side and its right side,
+   which are regions again. So the left column is read before the right one, whatever the
+   lengths of the columns and the headings above and below them.
+5. **Without a gutter,** the region is cut horizontally at its largest gap of at least
+   ``1.5 x median line gap`` (and above zero), and the two halves are regions. A region that
+   cannot be cut keeps the input order.
 
-A gutter between row-aligned sides is not a column boundary either (E11b controller ruling):
-when at least half the boxes of the side with fewer boxes have a box on the other side whose
-vertical centre is within :data:`_ROW_ALIGN` of the median line height, and one side is made of
-cells (its median box is narrower than 10% of the text width), the gutter separates the label
-and number columns of an unruled table, whose rows must stay together. Text columns set on a
-common baseline grid are row-aligned too, but both sides hold full text lines, so they are cut.
-
-A page with no column gutter anywhere keeps the extractor's order exactly: the cut only
-reorders when it finds columns, so pages without a gutter never change.
+A page with no gutter anywhere keeps the extractor's order exactly: the cut only reorders when
+it finds columns, so pages without a gutter never change.
 """
 
 from __future__ import annotations
@@ -32,18 +44,24 @@ from docrooter.pdf.lines import Line
 __all__ = ["order_lines", "xy_cut_order"]
 
 Box = tuple[float, float, float, float]  # x0, y0, x1, y1; points, origin top-left
+Item = tuple[bool, list[int], "float | None", int, int]  # region?, boxes, text width, id, parent
 
-_FULL_WIDTH = 0.75  # a box at least this share of the text width separates bands
+_SPANNING = 0.6  # a box at least this share of the region's text width separates bands
 _GUTTER_MIN = 8.0  # pt
 _GUTTER_CHARS = 3.0  # a gutter is at least this many median character widths wide
-_GUTTER_COVERAGE = 0.6  # share of the band height the two sides must share
+_GUTTER_OVERLAP = 0.5  # the sides' y-ranges overlap by this share of the shorter one
 _GAP_FACTOR = 1.5  # a horizontal cut needs a gap of this many median line gaps
 _COLUMN_WIDTH = 0.2  # a column holds text boxes at least this share of the text width wide
 _COLUMN_MIN_BOXES = 2  # ... at least this many of them, on each side of a gutter
 _ROW_ALIGN = 0.2  # a partner's vertical centre is within this share of the median line height
 _ROW_ALIGNED_SHARE = 0.5  # ... for at least this share of the boxes of the smaller side
+_NUMERIC_SHARE = (
+    0.6  # a side with at least this share of numeric boxes holds the figures of a table
+)
 _CELL_WIDTH = 0.1  # a side whose median box is narrower than this share of the text width is cells
-_HEADING_BOXES = 2  # up to this many boxes above the other side's top are a heading, not text
+_PRECHECK_BOXES = 24  # regions this big are first checked once, setting aside the most boxes
+_STRUCTURAL_GAP = 1.25  # a gap of this many median line heights under columns is a section break
+_CROSSING = 3  # boxes that cross a gutter (titles, headings) and still leave it a gutter
 
 
 def xy_cut_order(
@@ -53,143 +71,208 @@ def xy_cut_order(
     text_width: float | None = None,
     median_char_width: float,
     median_line_gap: float,
+    numeric: Sequence[bool] | None = None,
 ) -> list[int]:
-    """A permutation of ``range(len(boxes))`` in reading order.
+    """A permutation of ``range(len(boxes))`` in reading order (see the module docstring).
 
-    Boxes spanning at least 75% of ``text_width`` (default: the union width of the boxes,
-    capped at ``page_width``) split the page into bands. Inside a band, a vertical gutter is a
-    gap of at least ``max(8, 3 * median_char_width)`` between boxes whose two sides share at
-    least 60% of the band's height and that each hold at least two boxes 20% of the text width
-    or wider (so label/figure tables are not columns); failing that, a horizontal gap of at least
-    ``1.5 * median_line_gap`` is cut. Within a cell that cannot be cut, the input order is kept.
-    If no gutter is found anywhere the input order is returned unchanged.
+    ``text_width`` (default: the union width of the boxes, capped at ``page_width``) is the
+    width of the page's text: the first region's spanning boxes are measured against it, and so
+    are the column-width and table guards. If no gutter is found anywhere the input order is
+    returned unchanged.
     """
+    return xy_cut(
+        boxes,
+        page_width=page_width,
+        text_width=text_width,
+        median_char_width=median_char_width,
+        median_line_gap=median_line_gap,
+        numeric=numeric,
+    )[0]
+
+
+def xy_cut(
+    boxes: Sequence[Box],
+    *,
+    page_width: float,
+    text_width: float | None = None,
+    median_char_width: float,
+    median_line_gap: float,
+    numeric: Sequence[bool] | None = None,
+    trace: list[tuple[int, int, list[int], str]] | None = None,
+) -> tuple[list[int], bool]:
+    """:func:`xy_cut_order` and whether a gutter was found anywhere (when none was, the order
+    is the identity). ``trace``, if given, receives ``(region id, parent id, boxes, how)`` for
+    every region in the order they are handled; ``how`` is ``"columns"`` (cut at a gutter),
+    ``"rows"`` (cut at a gap), ``"leaf"``, or ``"separators"`` (the spanning and crossing boxes
+    of a gutter region, ids negative). The first region is 0 with parent -1."""
     n = len(boxes)
     if n < 2:
-        return list(range(n))
+        return list(range(n)), False
     if text_width is None:
         text_width = max(b[2] for b in boxes) - min(b[0] for b in boxes)
         if page_width > 0:
             text_width = min(text_width, page_width)
     min_gutter = max(_GUTTER_MIN, _GUTTER_CHARS * median_char_width)
     min_gap = _GAP_FACTOR * median_line_gap
+    heights = [b[3] - b[1] for b in boxes]
+    structural = max(min_gap, _STRUCTURAL_GAP * statistics.median(heights))
 
     order: list[int] = []
     cut_columns = False
-    stack: list[list[int]] = [list(range(n))]
-    runs = _bands(boxes, text_width)
-    if len(runs) > 1:
-        stack = runs[::-1]
+    next_id = 1
+    stack: list[Item] = [(True, list(range(n)), text_width, 0, -1)]
     while stack:
-        group = stack.pop()
-        if len(group) < 2:
+        is_region, group, width, rid, parent = stack.pop()
+        if not is_region or len(group) < 2:
             order.extend(group)
+            if trace is not None and is_region:
+                trace.append((rid, parent, group, "leaf"))
             continue
-        parts = _column_cut(boxes, group, min_gutter, text_width)
-        if parts is not None:
-            cut_columns = True
+        children: list[Item] = []
+        split = None
+        halves = _break_under_columns(boxes, group, structural, text_width, min_gutter, numeric)
+        if halves is not None:  # columns, then a gap that is a section break
+            how = "rows"
+            children = [(True, half, None, 0, rid) for half in halves]
         else:
-            parts = _row_cut(boxes, group, min_gap)
-        if parts is None:
-            order.extend(group)
-        else:
-            stack.extend(parts[::-1])
-    return order if cut_columns else list(range(n))
+            split = _find_gutter(boxes, group, width, text_width, min_gutter, numeric)
+            if split is not None:
+                cut_columns, how = True, "columns"
+                children = [(a, g, w, 0, rid) for a, g, w, _, _ in _bands(boxes, *split)]
+            else:
+                halves = _row_cut(boxes, group, min_gap)
+                how = "rows" if halves is not None else "leaf"
+                children = [(True, half, None, 0, rid) for half in halves or []]
+        if trace is not None:
+            trace.append((rid, parent, group, how))
+            if how == "columns" and split is not None and split[2]:
+                trace.append((-next_id, rid, sorted(split[2]), "separators"))
+        if not children:
+            order.extend(sorted(group))
+            continue
+        numbered = []
+        for a, g, w, _, par in children:
+            numbered.append((a, g, w, next_id, par))
+            next_id += 1
+        stack.extend(reversed(numbered))
+    return (order if cut_columns else list(range(n))), cut_columns
 
 
-def _bands(boxes: Sequence[Box], text_width: float) -> list[list[int]]:
-    """Runs of full-width and of narrower boxes, top to bottom (input order within a run)."""
-    limit = _FULL_WIDTH * text_width
-    by_height = sorted(range(len(boxes)), key=lambda i: (boxes[i][1] + boxes[i][3], i))
-    runs: list[list[int]] = []
-    wide: bool | None = None
-    for i in by_height:
-        is_wide = text_width > 0 and boxes[i][2] - boxes[i][0] >= limit
-        if is_wide != wide:
-            runs.append([])
-            wide = is_wide
-        runs[-1].append(i)
-    return [sorted(run) for run in runs]
+def _bands(
+    boxes: Sequence[Box], left: list[int], right: list[int], separators: list[int]
+) -> list[Item]:
+    """The stack items, in reading order, of a region with a gutter: the bands between its
+    separators and the separators themselves; with no separator, the two sides."""
+    if not separators:
+        return [(True, left, None, 0, 0), (True, right, None, 0, 0)]
+    seps = sorted(separators, key=lambda i: ((boxes[i][1] + boxes[i][3]) / 2, boxes[i][0], i))
+    centres = [(boxes[i][1] + boxes[i][3]) / 2 for i in seps]
+    bands: list[list[int]] = [[] for _ in range(len(seps) + 1)]
+    for i in sorted([*left, *right]):
+        bands[bisect.bisect_left(centres, (boxes[i][1] + boxes[i][3]) / 2)].append(i)
+    items: list[Item] = []
+    for k, sep in enumerate(seps):
+        if bands[k]:
+            items.append((True, bands[k], None, 0, 0))
+        items.append((False, [sep], None, 0, 0))
+    if bands[-1]:
+        items.append((True, bands[-1], None, 0, 0))
+    return items
 
 
-def _column_cut(
-    boxes: Sequence[Box], group: list[int], min_gutter: float, text_width: float
-) -> list[list[int]] | None:
-    """Cut ``group`` at every qualifying vertical gutter, or ``None`` if there is none."""
-    by_x = sorted(group, key=lambda i: (boxes[i][0], boxes[i][2], i))
-    n = len(by_x)
-    top = min(boxes[i][1] for i in group)
-    bottom = max(boxes[i][3] for i in group)
-    height = bottom - top
-    # y-extent of everything left of position k (prefix) and right of it (suffix)
-    pre_lo, pre_hi = [0.0] * n, [0.0] * n
-    suf_lo, suf_hi = [0.0] * n, [0.0] * n
-    lo, hi = float("inf"), float("-inf")
-    for k, i in enumerate(by_x):
-        lo, hi = min(lo, boxes[i][1]), max(hi, boxes[i][3])
-        pre_lo[k], pre_hi[k] = lo, hi
-    lo, hi = float("inf"), float("-inf")
-    for k in range(n - 1, -1, -1):
-        i = by_x[k]
-        lo, hi = min(lo, boxes[i][1]), max(hi, boxes[i][3])
-        suf_lo[k], suf_hi[k] = lo, hi
-    wide = _COLUMN_WIDTH * text_width
-    pre_wide, suf_wide = [0] * n, [0] * n
-    count = 0
-    for k, i in enumerate(by_x):
-        count += boxes[i][2] - boxes[i][0] >= wide
-        pre_wide[k] = count
-    count = 0
-    for k in range(n - 1, -1, -1):
-        i = by_x[k]
-        count += boxes[i][2] - boxes[i][0] >= wide
-        suf_wide[k] = count
-    cuts: list[int] = []
-    reach = boxes[by_x[0]][2]
-    for k in range(1, n):
-        i = by_x[k]
-        if (
-            boxes[i][0] - reach >= min_gutter
-            and pre_wide[k - 1] >= _COLUMN_MIN_BOXES
-            and suf_wide[k] >= _COLUMN_MIN_BOXES
-        ):
-            shared = min(pre_hi[k - 1], suf_hi[k]) - max(pre_lo[k - 1], suf_lo[k])
-            if (
-                height <= 0
-                or shared >= _GUTTER_COVERAGE * height
-                or _columns_under_heading(boxes, by_x[:k], by_x[k:])
-            ) and not _table_rows(boxes, by_x[:k], by_x[k:], text_width):
-                cuts.append(k)
-        reach = max(reach, boxes[i][2])
-    if not cuts:
-        return None
-    bounds = [0, *cuts, n]
-    return [sorted(by_x[a:b]) for a, b in zip(bounds, bounds[1:], strict=False)]
+def _find_gutter(
+    boxes: Sequence[Box],
+    group: list[int],
+    width: float | None,
+    text_width: float,
+    min_gutter: float,
+    numeric: Sequence[bool] | None = None,
+) -> tuple[list[int], list[int], list[int]] | None:
+    """``(left, right, separators)`` for the first valid gutter of the region, or ``None``.
 
-
-def _columns_under_heading(boxes: Sequence[Box], left: Sequence[int], right: Sequence[int]) -> bool:
-    """Whether the sides share enough height once a heading is set aside (E12 fix).
-
-    A heading over one column (up to :data:`_HEADING_BOXES` boxes that end above the top of the
-    other side) stretches that side upwards, so two columns of unequal length under it can share
-    less than :data:`_GUTTER_COVERAGE` of the band, and the extractor's order (shorter column
-    first) was kept. Without the heading boxes the coverage is measured again; a tall column
-    beside a short one (no boxes above the other's top) is not helped by this.
+    The spanning boxes are separators and are left out of the x-projection. Titles and headings
+    that cross a gutter are found by setting aside up to :data:`_CROSSING` of the topmost and of
+    the bottommost boxes before projecting; a set-aside box that does cross the valley becomes a
+    separator, one that does not stays on its side.
     """
-    for tall, other in ((left, right), (right, left)):
-        other_top = min(boxes[i][1] for i in other)
-        heading = {i for i in tall if boxes[i][3] <= other_top}
-        body = [i for i in tall if i not in heading]
-        if not heading or len(heading) > _HEADING_BOXES or not body:
+    if width is None:
+        width = max(boxes[i][2] for i in group) - min(boxes[i][0] for i in group)
+    limit = _SPANNING * width
+    spanning = [i for i in group if width > 0 and boxes[i][2] - boxes[i][0] >= limit]
+    spanning_set = set(spanning)
+    body = [i for i in group if i not in spanning_set]
+    if len(body) < 2 * _COLUMN_MIN_BOXES:
+        return None
+    by_y = sorted(body, key=lambda i: ((boxes[i][1] + boxes[i][3]) / 2, i))
+    if len(by_y) > _PRECHECK_BOXES and not _valleys(
+        boxes, by_y[_CROSSING : len(by_y) - _CROSSING], min_gutter
+    ):
+        return None  # a big region without a valley once the most boxes are set aside has none
+    combos = sorted(
+        ((p, q) for p in range(_CROSSING + 1) for q in range(_CROSSING + 1)),
+        key=lambda pq: (sum(pq), pq),
+    )
+    for p, q in combos:
+        if len(by_y) - p - q < 2:
             continue
-        lo = min(boxes[i][1] for i in (*body, *other))
-        hi = max(boxes[i][3] for i in (*body, *other))
-        shared = min(max(boxes[i][3] for i in body), max(boxes[i][3] for i in other)) - max(
-            min(boxes[i][1] for i in body), other_top
-        )
-        if hi > lo and shared >= _GUTTER_COVERAGE * (hi - lo):
-            return True
-    return False
+        for lo, hi in _valleys(boxes, by_y[p : len(by_y) - q], min_gutter):
+            found = _validate(boxes, body, lo, hi, text_width, numeric)
+            if found is not None:
+                left, right, crossing = found
+                return left, right, [*spanning, *crossing]
+    return None
+
+
+def _valleys(
+    boxes: Sequence[Box], members: list[int], min_gutter: float
+) -> list[tuple[float, float]]:
+    """The x-intervals of at least ``min_gutter`` that no box of ``members`` covers, left to
+    right."""
+    by_x = sorted(members, key=lambda i: (boxes[i][0], boxes[i][2], i))
+    out: list[tuple[float, float]] = []
+    if not by_x:
+        return out
+    reach = boxes[by_x[0]][2]
+    for i in by_x[1:]:
+        if boxes[i][0] - reach >= min_gutter:
+            out.append((reach, boxes[i][0]))
+        reach = max(reach, boxes[i][2])
+    return out
+
+
+def _validate(
+    boxes: Sequence[Box],
+    body: list[int],
+    lo: float,
+    hi: float,
+    text_width: float,
+    numeric: Sequence[bool] | None,
+) -> tuple[list[int], list[int], list[int]] | None:
+    """The sides and the crossing boxes if the valley ``(lo, hi)`` is a gutter, else ``None``."""
+    left = [i for i in body if boxes[i][2] <= lo]
+    right = [i for i in body if boxes[i][0] >= hi]
+    crossing = [i for i in body if boxes[i][2] > lo and boxes[i][0] < hi]
+    if len(crossing) > _CROSSING:
+        return None
+    wide = _COLUMN_WIDTH * text_width
+    for side in (left, right):
+        if len(side) < _COLUMN_MIN_BOXES:
+            return None
+        if sum(boxes[i][2] - boxes[i][0] >= wide for i in side) < _COLUMN_MIN_BOXES:
+            return None
+    l_top, l_bottom = min(boxes[i][1] for i in left), max(boxes[i][3] for i in left)
+    r_top, r_bottom = min(boxes[i][1] for i in right), max(boxes[i][3] for i in right)
+    shared_top, shared_bottom = max(l_top, r_top), min(l_bottom, r_bottom)
+    shorter = min(l_bottom - l_top, r_bottom - r_top)
+    if shared_bottom <= shared_top or shared_bottom - shared_top < _GUTTER_OVERLAP * shorter:
+        return None
+    for i in crossing:  # a title or heading, not a line between the columns' lines
+        centre = (boxes[i][1] + boxes[i][3]) / 2
+        if shared_top < centre < shared_bottom:
+            return None
+    if _table_rows(boxes, left, right, text_width, numeric):
+        return None
+    return left, right, crossing
 
 
 def _median(values: list[float]) -> float:
@@ -197,17 +280,29 @@ def _median(values: list[float]) -> float:
 
 
 def _table_rows(
-    boxes: Sequence[Box], left: Sequence[int], right: Sequence[int], text_width: float
+    boxes: Sequence[Box],
+    left: Sequence[int],
+    right: Sequence[int],
+    text_width: float,
+    numeric: Sequence[bool] | None = None,
 ) -> bool:
     """Whether a gutter between ``left`` and ``right`` runs through an unruled table: the sides
     are row-aligned (at least :data:`_ROW_ALIGNED_SHARE` of the smaller side's boxes have a box
     on the other side whose vertical centre is within :data:`_ROW_ALIGN` x the median line
-    height) and one side is made of cells (median box width under 10% of the text width)."""
+    height) and one side is made of cells: its median box is under 10% of the text width, or
+    (``numeric`` flags the boxes that hold figures) at least :data:`_NUMERIC_SHARE` of its boxes
+    are figures. A row of figures can be as wide as a line of text, so width alone misses the
+    tables of a financial statement once they are cut out of the page."""
     cell = _CELL_WIDTH * text_width
-    if not (
+    cells = (
         _median([boxes[i][2] - boxes[i][0] for i in left]) < cell
         or _median([boxes[i][2] - boxes[i][0] for i in right]) < cell
-    ):
+    )
+    if numeric is not None and not cells:
+        cells = any(
+            sum(numeric[i] for i in side) >= _NUMERIC_SHARE * len(side) for side in (left, right)
+        )
+    if not cells:
         return False
     small, big = (left, right) if len(left) <= len(right) else (right, left)
     line_height = _median([boxes[i][3] - boxes[i][1] for i in (*left, *right)])
@@ -221,20 +316,51 @@ def _table_rows(
     return aligned >= _ROW_ALIGNED_SHARE * len(small)
 
 
-def _row_cut(boxes: Sequence[Box], group: list[int], min_gap: float) -> list[list[int]] | None:
-    """Cut ``group`` at every horizontal gap of at least ``min_gap`` (and above zero)."""
-    by_y = sorted(group, key=lambda i: (boxes[i][1], boxes[i][3], i))
-    parts: list[list[int]] = [[by_y[0]]]
-    reach = boxes[by_y[0]][3]
-    for i in by_y[1:]:
-        gap = boxes[i][1] - reach
-        if gap > 0 and gap >= min_gap:
-            parts.append([])
-        parts[-1].append(i)
+def _break_under_columns(
+    boxes: Sequence[Box],
+    group: list[int],
+    structural: float,
+    text_width: float,
+    min_gutter: float,
+    numeric: Sequence[bool] | None = None,
+) -> list[list[int]] | None:
+    """The region cut in two at its topmost section break with columns above it and a box
+    across their gutter below it, or ``None``. A section break is a gap of at least
+    ``structural`` that no box crosses."""
+    members = sorted(group, key=lambda i: (boxes[i][1], boxes[i][3], i))
+    core = members[_CROSSING : len(members) - _CROSSING]
+    if not (_valleys(boxes, members, min_gutter) or _valleys(boxes, core, min_gutter)):
+        return None  # nothing like columns: skip the scan
+    reach = boxes[members[0]][3]
+    for k in range(1, len(members)):
+        i = members[k]
+        if boxes[i][1] - reach >= structural > 0:
+            head, tail = sorted(members[:k]), sorted(members[k:])
+            found = _find_gutter(boxes, head, None, text_width, min_gutter, numeric)
+            if found is not None:
+                lo = max(boxes[i][2] for i in found[0])
+                hi = min(boxes[i][0] for i in found[1])
+                if any(boxes[i][2] > lo and boxes[i][0] < hi for i in tail):
+                    return [head, tail]  # what follows is not confined to the columns
         reach = max(reach, boxes[i][3])
-    if len(parts) == 1:
+    return None
+
+
+def _row_cut(boxes: Sequence[Box], group: list[int], min_gap: float) -> list[list[int]] | None:
+    """Cut ``group`` in two at its largest horizontal gap of at least ``min_gap`` (and above
+    zero), or ``None`` if there is none. The topmost of equal gaps wins."""
+    by_y = sorted(group, key=lambda i: (boxes[i][1], boxes[i][3], i))
+    reach = boxes[by_y[0]][3]
+    best_gap, best_at = 0.0, 0
+    for k in range(1, len(by_y)):
+        i = by_y[k]
+        gap = boxes[i][1] - reach
+        if gap > best_gap and gap >= min_gap:
+            best_gap, best_at = gap, k
+        reach = max(reach, boxes[i][3])
+    if best_at == 0:
         return None
-    return [sorted(part) for part in parts]
+    return [sorted(by_y[:best_at]), sorted(by_y[best_at:])]
 
 
 def order_lines(
@@ -288,11 +414,37 @@ def _order_page(lines: Sequence[Line], indexes: list[int], groups: Mapping[int, 
     page = [lines[i] for i in indexes]
     widths = [ln.page_width for ln in page if ln.page_width > 0]
     char_widths = [(ln.x1 - ln.x0) / len(ln.text) for ln in page if ln.text and ln.x1 > ln.x0]
-    gaps = [ln.gap_above for ln in page if 0 < ln.gap_above < float("inf")]
+    gaps = _line_gaps(page)
     local = xy_cut_order(
         boxes,
         page_width=max(widths, default=0.0),
         median_char_width=statistics.median(char_widths) if char_widths else 0.0,
         median_line_gap=statistics.median(gaps) if gaps else 0.0,
+        numeric=[all(_is_figures(lines[i].text) for i in unit) for unit in members],
     )
     return [i for k in local for i in members[k]]
+
+
+def _is_figures(text: str) -> bool:
+    """Whether a line holds figures, not words: it has a digit and at most one letter in five
+    of its letters and digits (``$ (13,870)``, ``41% 31% 13%``, ``2024``)."""
+    digits = sum(ch.isdigit() for ch in text)
+    letters = sum(ch.isalpha() for ch in text)
+    return digits > 0 and letters <= 0.2 * (digits + letters)
+
+
+def _line_gaps(page: Sequence[Line]) -> list[float]:
+    """The gaps between consecutive lines of one extractor block, zeros included.
+
+    Lines of a block are in one column, so these are the line-to-line gaps of running text. At
+    tight leading the line boxes touch or overlap and the gap is 0: leaving the zeros out made
+    the median a structural gap (title to heading, heading to text), above every gap that
+    separates a heading from its columns. A gap across blocks jumps between columns and is left
+    out. A page without two lines in one block falls back to its positive gaps.
+    """
+    inside = [
+        ln.gap_above
+        for prev, ln in zip(page, page[1:], strict=False)
+        if ln.block == prev.block and ln.gap_above < float("inf")
+    ]
+    return inside or [ln.gap_above for ln in page if 0 < ln.gap_above < float("inf")]

@@ -76,11 +76,12 @@ def test_gutter_rules():
     a, b = column((50.0, 294.0), 100, 5), column((300.0, 550.0), 100, 5)
     boxes = [x for pair in zip(a, b, strict=True) for x in pair]
     assert cut(boxes, median_char_width=1.0) == list(range(10))
-    # a right column covering only a third of the left column's height is not a gutter
+    # a right column covering only a third of the left column's height is a gutter too: its
+    # y-range lies inside the left column's (E12 ruling: the sides overlap by 50% of the shorter)
     left, right = column(LEFT, 100, 12), column(RIGHT, 100, 4)
     boxes = [x for pair in zip(left[:4], right, strict=True) for x in pair] + left[4:]
-    assert cut(boxes) == list(range(len(boxes)))
-    # ...while one covering most of it is
+    assert cut(boxes) == [*range(0, 8, 2), *range(8, 16), *range(1, 8, 2)]
+    # ...and so is one covering most of it
     left, right = column(LEFT, 100, 12), column(RIGHT, 100, 10)
     boxes = [x for pair in zip(left[:10], right, strict=True) for x in pair] + left[10:]
     order = cut(boxes)
@@ -111,15 +112,16 @@ def test_label_and_number_table_is_not_split_into_columns():
 
 
 def test_text_width_override_changes_what_is_full_width():
-    # the 350 pt heading is full width only when the text width is <= 466 pt (default: 500)
+    # the 290 pt heading is full width (60%) only when the text width is <= 483 pt (default: 500)
     def rows(x, y0):
         return column(x, y0, 3)
 
     top = [b for pair in zip(rows(LEFT, 100), rows(RIGHT, 100), strict=True) for b in pair]
-    heading = [(50.0, 140.0, 400.0, 150.0)]  # 2 pt below / above its neighbours: no gap cut
+    heading = [(50.0, 140.0, 340.0, 150.0)]  # 2 pt below / above its neighbours: no gap cut
     bottom = [b for pair in zip(rows(LEFT, 152), rows(RIGHT, 152), strict=True) for b in pair]
     boxes = [*top, *heading, *bottom]
-    assert cut(boxes) == list(range(13))  # the heading spans the gutter: no columns found
+    # the heading crosses the gutter between the columns' lines: no gutter, no columns
+    assert cut(boxes) == list(range(13))
     assert cut(boxes, text_width=400.0) == [0, 2, 4, 1, 3, 5, 6, 7, 9, 11, 8, 10, 12]
 
 
@@ -231,19 +233,54 @@ def test_narrow_text_columns_on_one_grid_are_still_columns():
 
 
 def test_columns_of_unequal_length_under_a_heading_read_left_then_right():
-    # a heading over the left column only, then 5 lines left and 4 right: the heading stretches
-    # the left side upwards, and the sides share 56% of the band, under the 60% needed
+    # a heading over the left column only, then 5 lines left and 4 right at tight leading, with
+    # the right column first in the input (an extractor sorts blocks by their bottom edge)
     heading = (50.0, 60.0, 140.0, 78.0)
     left, right = column(LEFT, 82, 5, step=12.0, h=13.8), column(RIGHT, 82, 4, step=12.0, h=13.8)
-    boxes = [heading, *left, *right]
-    order = cut(boxes, median_line_gap=12.4)
-    assert order == list(range(len(boxes)))  # the extractor's order here is right then left
-    shuffled = [heading, *right, *left]
-    assert cut(shuffled, median_line_gap=12.4) == [0, 5, 6, 7, 8, 9, 1, 2, 3, 4]
+    assert cut([heading, *right, *left], median_line_gap=12.4) == [0, 5, 6, 7, 8, 9, 1, 2, 3, 4]
+    assert cut([heading, *left, *right], median_line_gap=12.4) == list(range(10))
 
 
-def test_a_tall_column_beside_a_short_one_is_still_not_a_gutter_under_a_heading():
+def test_a_short_column_beside_a_tall_one_is_read_after_it_whatever_is_around():
+    title = (50.0, 20.0, 330.0, 50.0)  # ends inside the gutter: it crosses it
     heading = (50.0, 60.0, 140.0, 78.0)
+    below = (50.0, 300.0, 340.0, 312.0)  # the next section's heading, across the gutter
     left, right = column(LEFT, 82, 12), column(RIGHT, 82, 3)
-    boxes = [heading, *left, *right]
-    assert cut(boxes) == list(range(len(boxes)))  # no cut: the input order is kept
+    boxes = [title, heading, *right, *left, below]
+    # the title and heading, the long left column, the short right one, then the section below
+    assert cut(boxes) == [0, 1, *range(5, 17), 2, 3, 4, 17]
+
+
+def test_a_table_of_wide_figures_keeps_its_rows():
+    # labels beside rows of percentages as wide as a line of text (doc_001 p122): the figures
+    # are the cells of a table, whatever their width, so the rows stay together
+    rows = [
+        b
+        for k in range(8)
+        for b in (
+            (50.0, 300.0 + 14 * k, 250.0, 310.0 + 14 * k),
+            (300.0, 300.0 + 14 * k, 500.0, 310.0 + 14 * k),
+        )
+    ]
+    assert cut(rows) == list(range(0, 16, 2)) + list(range(1, 16, 2))  # geometry alone: columns
+    assert cut(rows, numeric=[k % 2 == 1 for k in range(16)]) == list(range(16))
+
+
+def test_order_lines_keeps_the_rows_of_a_table_of_figures():
+    def line(i, x0, x1, y, text):
+        return mk(1, i, x0, y, x1, y + 10, text=text)
+
+    rows = []
+    for k in range(6):
+        rows += [
+            line(2 * k, 50, 250, 300 + 14 * k, f"Segment number {k} of the business"),
+            line(2 * k + 1, 300, 500, 300 + 14 * k, "41% 31% 13% 7% 4% 2% 1% 1%"),
+        ]
+    assert order_lines(rows, set()) == list(range(12))
+    words = [
+        line(i, 300, 500, y, "Words that make a second column of text")
+        if i % 2
+        else line(i, 50, 250, y, "The first column of ordinary text")
+        for i, y in zip(range(12), (300 + 14 * (k // 2) for k in range(12)), strict=True)
+    ]
+    assert order_lines(words, set()) == list(range(0, 12, 2)) + list(range(1, 12, 2))

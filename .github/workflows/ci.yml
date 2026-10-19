@@ -57,13 +57,15 @@ jobs:
       - run: uv sync --locked --extra pdf --extra pdf-mit --extra ui --extra llm
       - name: Test with coverage
         run: uv run --no-sync pytest --cov=docrooter --cov-report=term --cov-report=xml
-      # Line coverage must stay at or above 80% in each of the core packages (the overall figure
+      # Line coverage must stay at or above 80% in each gated package (the core ones and the v0.4
+      # elements, rooter, ocr, layout, summarize, chunking and embed; the overall figure
       # is reported, not gated). Every package is reported, in the log and the job summary,
       # before the step fails on the ones under the bar.
       - name: Coverage gate
         run: |
           failed=""
-          for target in document taxonomy classify pdf views.py; do
+          for target in document taxonomy classify pdf elements rooter ocr layout views.py \
+              summarize.py chunking.py embed.py; do
             case "$target" in
               *.py) include="src/docrooter/$target" ;;
               *) include="src/docrooter/$target/*" ;;

@@ -726,21 +726,50 @@ def _extract_pdfplumber(
     return out
 
 
-def _crop_offset(page: Any) -> tuple[Any, float, float]:
-    """The page cut to its CropBox, and the CropBox's top-left corner in pdfplumber's (MediaBox)
-    coordinates. pymupdf reports everything relative to the CropBox (the displayed page), so a
-    page whose CropBox differs from its MediaBox is cropped (objects outside it, such as printer
-    marks, are dropped) and every box is then shifted by that corner. Otherwise the page as is.
-    The fast path (``extract_lines``) is not changed by this."""
-    crop = tuple(float(v) for v in getattr(page, "cropbox", page.bbox))
-    if all(abs(a - b) < 0.01 for a, b in zip(crop, page.bbox, strict=True)):
-        return page, 0.0, 0.0
+def _visible_frame(page: Any) -> tuple[float, float, float, float]:
+    """The visible page (CropBox ∩ MediaBox, as viewers and pymupdf show it) in pdfplumber's
+    object coordinates, as ``(dx, dy, width, height)``: subtracting ``(dx, dy)`` from a
+    pdfplumber box gives display coordinates (top-left origin, /Rotate applied), the space of
+    pymupdf's boxes. Derived from pdfminer's page matrix (its ``process_page``) and
+    pdfplumber's flip, for each rotation; pdfplumber's own ``cropbox`` is not used because it
+    ignores a MediaBox origin under rotation."""
+    obj = page.page_obj
+    mx0, mx1 = sorted(float(v) for v in (obj.mediabox[0], obj.mediabox[2]))
+    my0, my1 = sorted(float(v) for v in (obj.mediabox[1], obj.mediabox[3]))
+    cx0, cx1 = sorted(float(v) for v in (obj.cropbox[0], obj.cropbox[2]))
+    cy0, cy1 = sorted(float(v) for v in (obj.cropbox[1], obj.cropbox[3]))
+    vx0, vy0, vx1, vy1 = max(mx0, cx0), max(my0, cy0), min(mx1, cx1), min(my1, cy1)
+    if vx1 - vx0 < _MIN_SIDE or vy1 - vy0 < _MIN_SIDE:  # no overlap: the MediaBox
+        vx0, vy0, vx1, vy1 = mx0, my0, mx1, my1
+    rotation = int(getattr(page, "rotation", 0) or 0) % 360
+    if rotation == 90:
+        return vy0, vx0 - 2 * mx0, vy1 - vy0, vx1 - vx0
+    if rotation == 180:
+        return mx1 + mx0 - vx1, vy0 - 2 * my0, vx1 - vx0, vy1 - vy0
+    if rotation == 270:
+        return my1 + my0 - vy1, mx1 - mx0 - vx1, vy1 - vy0, vx1 - vx0
+    return vx0, (my1 - my0) - vy1, vx1 - vx0, vy1 - vy0
+
+
+def visible_page(page: Any) -> tuple[Any, float, float]:
+    """The pdfplumber page cut to its visible box (objects outside it, such as printer marks,
+    are dropped), and the ``(dx, dy)`` to subtract from its boxes for display coordinates.
+    A page whose visible box is its whole pdfplumber page is not cropped, but may still need
+    the shift (a MediaBox whose origin is not 0). Used by element mode only; the fast path
+    (``extract_lines``) is not changed by this."""
     try:
-        cropped = page.crop(crop, relative=False, strict=False)
-    except Exception:  # a malformed CropBox: keep the MediaBox
-        _log.debug("cannot crop page %s to %s", page.page_number, crop, exc_info=True)
+        dx, dy, width, height = _visible_frame(page)
+    except Exception:  # malformed page boxes: keep pdfplumber's page
+        _log.debug("cannot read the page boxes of page %s", page.page_number, exc_info=True)
         return page, 0.0, 0.0
-    return cropped, crop[0], crop[1]
+    frame = (dx, dy, dx + width, dy + height)
+    if all(abs(a - b) < 0.01 for a, b in zip(frame, page.bbox, strict=True)):
+        return page, dx, dy
+    try:
+        return page.crop(frame, relative=False, strict=False), dx, dy
+    except Exception:
+        _log.debug("cannot crop page %s to %s", page.page_number, frame, exc_info=True)
+        return page, 0.0, 0.0
 
 
 def _shifted(raw: Iterable[float], dx: float, dy: float) -> _RawBox:
@@ -750,7 +779,7 @@ def _shifted(raw: Iterable[float], dx: float, dy: float) -> _RawBox:
 
 def _pdfplumber_page(page: Any, page_index: int, find_tables: bool = True) -> PageObjects:
     number = page_index + 1
-    page, dx, dy = _crop_offset(page)
+    page, dx, dy = visible_page(page)
     width, height = float(page.width), float(page.height)  # displayed size; /Rotate applied
     text_rows = _pdfplumber_page_rows(page, page_index)
     for row in text_rows:

@@ -14,7 +14,7 @@ from typing import Any
 
 from docrooter.elements.models import Box
 from docrooter.pdf.lines import Engine, _import_pdfplumber, _import_pymupdf
-from docrooter.pdf.objects import _is_table, _table_kwargs, _table_rows
+from docrooter.pdf.objects import _is_table, _table_kwargs, _table_rows, visible_page
 
 __all__ = ["find_text_tables"]
 
@@ -81,12 +81,14 @@ def _pdfplumber(path: str | Path, regions: Mapping[int, Sequence[Box]]) -> _Foun
         for number, boxes in regions.items():
             if not 1 <= number <= len(pdf.pages):
                 continue
-            page = pdf.pages[number - 1]
+            # Region boxes are in display space (the visible box, as pymupdf); pdfplumber's
+            # objects are offset from it on cropped or offset-origin pages.
+            page, dx, dy = visible_page(pdf.pages[number - 1])
             for k, box in enumerate(boxes):
                 try:
                     width, height = float(page.width), float(page.height)
-                    bbox = (max(box.x0, 0.0), max(box.y0, 0.0), min(box.x1, width),
-                            min(box.y1, height))  # fmt: skip
+                    bbox = (max(box.x0, 0.0) + dx, max(box.y0, 0.0) + dy,
+                            min(box.x1, width) + dx, min(box.y1, height) + dy)  # fmt: skip
                     region = page.crop(bbox, strict=False)
                     rows = _best(region.find_tables(table_settings=_PDFPLUMBER_TEXT))
                 except Exception:

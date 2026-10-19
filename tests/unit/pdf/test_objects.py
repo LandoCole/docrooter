@@ -5,6 +5,7 @@ import pytest
 from docrooter.errors import DocrooterError
 from docrooter.pdf import objects
 from docrooter.pdf.lines import extract_lines
+from docrooter.pdf.load import load_pdf
 from docrooter.pdf.objects import MAX_DRAWING_PATHS, extract_page_objects
 
 pymupdf = pytest.importorskip("pymupdf")
@@ -262,6 +263,127 @@ def test_cropped_page_boxes_are_in_cropbox_space(engine, tmp_path, rotation):
     assert (ibox.x0, ibox.y0, ibox.x1, ibox.y1) == pytest.approx(image, abs=1)
     (dbox,) = p.drawings
     assert (dbox.x0, dbox.y0, dbox.x1, dbox.y1) == pytest.approx(chart, abs=1)
+
+
+_BOXES = {  # page boxes in PDF user space (bottom-left origin), set after drawing the content
+    "plain": ("[0 0 600 800]", None),
+    "offset_media": ("[18 18 612 792]", None),
+    "crop_in_offset_media": ("[18 18 612 792]", "[60 60 560 740]"),
+    "crop_beyond_media": ("[18 18 612 792]", "[0 0 630 810]"),
+}
+
+
+def _boxed_pdf(tmp_path, case, rotation):
+    """Upright text, an image, a filled rect and a corner slug on a 600 x 800 page, then the
+    MediaBox / CropBox of ``case`` and ``/Rotate rotation``."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=600, height=800)
+    page.set_rotation(rotation)
+    page.insert_text(
+        pymupdf.Point(150, 200) * page.derotation_matrix, "Visible heading text",
+        fontsize=14, rotate=rotation,
+    )  # fmt: skip
+    page.insert_text((4, 14), "SLUG 30/3/05", fontsize=8)  # unrotated top-left corner
+    page.insert_image(pymupdf.Rect(150, 250, 270, 310), stream=_png(), keep_proportion=False)
+    page.draw_rect(pymupdf.Rect(300, 330, 460, 410), color=(0, 0, 0), fill=(0.5, 0.5, 0.9))
+    media, crop = _BOXES[case]
+    doc.xref_set_key(page.xref, "MediaBox", media)
+    if crop:
+        doc.xref_set_key(page.xref, "CropBox", crop)
+    return _save(doc, tmp_path, f"{case}-{rotation}.pdf")
+
+
+def _rect(b):
+    return (b.x0, b.y0, b.x1, b.y1)
+
+
+@pytest.mark.parametrize("rotation", [0, 90, 180, 270])
+@pytest.mark.parametrize("case", ["offset_media", "crop_in_offset_media", "crop_beyond_media"])
+def test_pdfplumber_boxes_are_in_the_visible_box(tmp_path, case, rotation):
+    """pdfplumber's element-mode boxes are in the visible page's display space (CropBox ∩
+    MediaBox, /Rotate applied), as pymupdf's are: a MediaBox with a non-zero origin, a CropBox
+    inside it, and a CropBox larger than it. Page sizes and image, drawing and table boxes are
+    compared with pymupdf directly; line boxes through each engine's offset on a plain page,
+    because the two engines draw glyph boxes a few points apart."""
+    pytest.importorskip("pdfplumber")
+    names = ("plain", "offset_media", case)
+    got, paths = {}, {}
+    for name in dict.fromkeys(names):
+        (tmp_path / name).mkdir()
+        paths[name] = path = _boxed_pdf(tmp_path / name, name, rotation)
+        got[name] = {e: extract_page_objects(path, engine=e)[0] for e in ("pymupdf", "pdfplumber")}
+    pl = got[case]["pdfplumber"]
+    # A CropBox beyond the MediaBox shows the same visible box as "offset_media". On a rotated
+    # page MuPDF misplaces its content by twice the MediaBox origin (pdfium renders it where
+    # "offset_media" has it), so there the reference is pymupdf on "offset_media".
+    reference = "offset_media" if case == "crop_beyond_media" and rotation else case
+    mu = got[reference]["pymupdf"]
+    assert (pl.width, pl.height) == pytest.approx((mu.width, mu.height), abs=0.01)
+    assert len(pl.images) == len(mu.images) == 1
+    assert _rect(pl.images[0]) == pytest.approx(_rect(mu.images[0]), abs=1)
+    assert len(pl.drawings) == len(mu.drawings) == 1
+    assert _rect(pl.drawings[0]) == pytest.approx(_rect(mu.drawings[0]), abs=1)
+
+    def heading(objs):
+        (line,) = [ln for ln in objs.lines if ln.text == "Visible heading text"]
+        return line
+
+    plain_mu, plain_pl = heading(got["plain"]["pymupdf"]), heading(got["plain"]["pdfplumber"])
+    glyph = [b - a for a, b in zip(_rect(plain_mu), _rect(plain_pl), strict=True)]
+    line_mu, line_pl = heading(mu), heading(pl)
+    assert [b - a for a, b in zip(_rect(line_mu), _rect(line_pl), strict=True)] == (
+        pytest.approx(glyph, abs=1)
+    )
+    assert (line_pl.page_width, line_pl.page_height) == pytest.approx((mu.width, mu.height))
+    # Element boxes: the same figures (the filled rect, and the image where it is 2% of the
+    # visible page) in both engines, at the same place.
+    figures = {
+        engine: [
+            _rect(e.boxes[0])
+            for e in load_pdf(paths[name], engine=engine, elements=True).elements
+            if e.kind == "figure"
+        ]
+        for engine, name in (("pymupdf", reference), ("pdfplumber", case))
+    }
+    assert 1 <= len(figures["pdfplumber"]) == len(figures["pymupdf"])
+    for got_box, want_box in zip(
+        sorted(figures["pdfplumber"]), sorted(figures["pymupdf"]), strict=True
+    ):
+        assert got_box == pytest.approx(want_box, abs=1)
+    if case == "crop_in_offset_media":  # the slug lies outside the visible box
+        assert not any("SLUG" in ln.text for ln in pl.lines + mu.lines)
+
+
+@pytest.mark.parametrize("case", ["offset_media", "crop_in_offset_media", "crop_beyond_media"])
+def test_pdfplumber_text_table_search_uses_the_visible_box(tmp_path, case):
+    """The layout-region "text" table search takes display-space boxes; with pdfplumber it
+    looks in the same place as pymupdf on offset and cropped pages."""
+    pytest.importorskip("pdfplumber")
+    from docrooter.elements.models import Box
+    from docrooter.pdf.text_tables import find_text_tables
+
+    doc = pymupdf.open()
+    page = doc.new_page(width=600, height=800)
+    cells = [["Item", "2023", "2024"], ["Revenue", "1,200", "1,350"],
+             ["Costs", "800", "870"], ["Margin", "400", "480"]]  # fmt: skip
+    for r, row in enumerate(cells):
+        for c, text in enumerate(row):
+            page.insert_text((200 + 110 * c, 330 + 22 * r), text, fontsize=11)
+    page.insert_text((200, 520), "A paragraph well below the table region.", fontsize=11)
+    media, crop = _BOXES[case]
+    doc.xref_set_key(page.xref, "MediaBox", media)
+    if crop:
+        doc.xref_set_key(page.xref, "CropBox", crop)
+    path = _save(doc, tmp_path)
+
+    (objs,) = extract_page_objects(path, engine="pymupdf")
+    table_lines = [ln for ln in objs.lines if ln.y0 < objs.lines[-1].y0 - 50]
+    region = Box(page=1, x0=min(ln.x0 for ln in table_lines) - 6,
+                 y0=min(ln.y0 for ln in table_lines) - 6,
+                 x1=max(ln.x1 for ln in table_lines) + 6,
+                 y1=max(ln.y1 for ln in table_lines) + 6)  # fmt: skip
+    found = find_text_tables(path, "pdfplumber", {1: [region]})
+    assert [[c.strip() for c in row] for row in found[(1, 0)]] == cells
 
 
 def _heavy_pdf(tmp_path, n_paths):

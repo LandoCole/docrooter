@@ -122,6 +122,17 @@ def test_other_model_processes_skip_self_ancestors_wrappers_and_non_model_runs()
     assert [pid for pid, _ in found] == [200, 500, 700, 800]
 
 
+def test_teacher_labelling_is_a_model_process():
+    table = [
+        (10, 1, "Python", "/usr/bin/Python /x/.venv/bin/docrooter teach label store --target 9"),
+        (11, 1, "docrooter", "docrooter teach label store"),
+        (12, 1, "zsh", "zsh -c docrooter teach label store"),  # a wrapping shell
+        (13, 1, "python3.12", f"{ROOT} -m pytest tests/unit/teach/test_label.py"),
+    ]
+    found = _guard.other_model_processes(table, pid=99, ppid=98)
+    assert [pid for pid, _ in found] == [10, 11]
+
+
 def test_parent_is_excluded_even_when_ps_missed_it():
     table = [(5, 1, "python3.12", f"{ROOT} -m benchmarks.run")]
     assert _guard.other_model_processes(table, pid=9, ppid=5) == []

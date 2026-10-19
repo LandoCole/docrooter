@@ -18,8 +18,10 @@ Labellers (``labels/<name>.jsonl`` in the store):
   and facet ``function`` (P(yes) for each asked tag; an element outside the subsample has no
   function row). Provenance: the label key, teacher name (engine, model, revision, dtype),
   embedder, prompt hash, taxonomy hash, timestamp, and the shortlist or the asked tags;
-- ``prescreen`` (:data:`PRESCREEN_LABELER`): facet ``function``, the embedder's score for
-  every function tag (ruling 6's implicit negatives are tags scoring < 0.2);
+- ``prescreen`` (:data:`PRESCREEN_LABELER`): facet ``function``, every function tag's
+  prescreen score: the percentile of the element's cosine to the tag among the whole
+  sample's cosines to it, independent of the other tags (ruling 6's implicit negatives are
+  tags scoring < 0.2). The raw cosines are in the provenance, and a resume reuses them;
 - ``weak`` (:data:`WEAK_LABELER`): facets ``section_norm`` and ``edgar_item``, one leaf each,
   with the ``source`` that produced it.
 
@@ -32,10 +34,12 @@ shortlist settings and embedder folded in) and taxonomy hash. An element is scor
 when its row is missing or its key differs, so an interrupted run resumes where it stopped and
 a changed prompt, taxonomy, teacher or embedder re-scores. A batch's rows are appended in one
 write after the batch, the teacher's last: the store's torn-line handling makes a killed run
-lose at most the batch in flight.
+lose at most the batch in flight. A resume does not append the weak and prescreen rows of an
+element again while its prescreen row is current (same embedder, taxonomies and versions).
 
 **Ceiling.** The wall clock is checked before each batch; at ``ceiling_hours`` the run stops
-and reports it. The sample is ordered so that any prefix of it is stratified: families take
+and reports it. It is the only limit on the run (§4.0 ruling 5 replaced the old 2 items/s
+rule). The sample is ordered so that any prefix of it is stratified: families take
 turns, documents take turns within a family, and each document's elements come in
 kind-stratified, spread-out order (:func:`sample_elements`).
 """
@@ -52,9 +56,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, get_args
 
+import numpy as np
 from pydantic import BaseModel, Field
 
 from docrooter.backends.base import close_backend
+from docrooter.backends.loading import release_memory
 from docrooter.corpus import SKIPPED_KINDS, SPLITS, Corpus, CorpusElement, LabelRow
 from docrooter.corpus.store import LabelKey, ManifestRecord
 from docrooter.elements.models import ElementKind
@@ -71,7 +77,9 @@ from docrooter.teach.shortlist import (
     doc_family,
     element_text,
     family_options,
-    function_scores,
+    function_cosines,
+    function_tags,
+    percentile_scores,
     shortlist_scores,
     top_functions,
 )
@@ -101,14 +109,13 @@ TOPIC_TEACHER_INSTRUCTION = (
     "You label the elements of a {family}, one at a time. Choose the section topic that the "
     "element belongs to, judging by its content and its section headings."
 )
-SHORTLIST_VERSION = "shortlist-v1"  # bump when the embedder's input or scoring changes
+SHORTLIST_VERSION = "shortlist-v2"  # bump when the embedder's input or scoring changes
+PRESCREEN_SCORE = "percentile"  # per-tag percentile of the cosine among the sample
+WEAK_VERSION = "weak-v1"  # bump when weak.py's matching changes
 # Teacher text is pre-cut to this many characters before the engine cuts it to 384 tokens, so
 # a huge element is never tokenised whole; 12 characters a token keeps the full 384 tokens of
 # any ordinary text.
 TEACHER_MAX_CHARS = 12 * prompts.MAX_TEXT_TOKENS
-# Spec §7.4: below 2 items/s the first pass is capped at 12,000 elements.
-MIN_ITEMS_PER_SECOND = 2.0
-SLOW_CAP = 12_000
 
 _KIND_ORDER = {kind: i for i, kind in enumerate(get_args(ElementKind))}
 
@@ -347,9 +354,23 @@ class _Prompts:
                 "k": prescreen_k,
                 "instruction": FUNCTION_INSTRUCTION,
                 "version": SHORTLIST_VERSION,
+                "score": PRESCREEN_SCORE,
+                "max_query_chars": MAX_QUERY_CHARS,
+                "max_teacher_chars": TEACHER_MAX_CHARS,
+            }
+        )
+        # what a prescreen row's cosines depend on, and what the element's weak rows do
+        self.prescreen_key = _sha256(
+            {
+                "embedder": self.embedder,
+                "taxonomy": self.function_hash,
+                "instruction": FUNCTION_INSTRUCTION,
+                "version": SHORTLIST_VERSION,
+                "score": PRESCREEN_SCORE,
                 "max_query_chars": MAX_QUERY_CHARS,
             }
         )
+        self.weak_key = _sha256({"taxonomy": self.topic_hash, "version": WEAK_VERSION})
         self.teacher_parts = _teacher_parts(teacher.name)
 
     def family(self, family: str) -> tuple[str, list[tuple[str, str]], str, str]:
@@ -413,9 +434,10 @@ class LabelReport(BaseModel):
       ``labelled_total``: sample elements with a current topic label after the run;
     - ``teacher_items``: teacher forward passes (one per topic choice or yes/no question);
       ``items_per_second``: ``teacher_items / teacher_seconds``;
+    - ``embedded``: sample elements whose function cosines were computed (the others' came
+      from their prescreen rows); ``prescreen_rows`` / ``weak_labels``: rows written;
     - ``stopped_by_ceiling``: the wall clock reached ``ceiling_hours`` before the sample was
-      done; ``capped_at``: the sample was cut to 12,000 because the teacher ran below
-      2 items/s (spec §7.4); ``below_floor``: fewer than ``floor`` elements are labelled.
+      done; ``below_floor``: fewer than ``floor`` elements are labelled.
     """
 
     teacher: str
@@ -429,6 +451,7 @@ class LabelReport(BaseModel):
     function_labelled: int = 0
     labelled_total: int = 0
     prescreen_rows: int = 0
+    embedded: int = 0
     weak_labels: int = 0
     teacher_items: int = 0
     teacher_seconds: float = 0.0
@@ -437,7 +460,6 @@ class LabelReport(BaseModel):
     items_per_second: float | None = None
     batches: int = 0
     stopped_by_ceiling: bool = False
-    capped_at: int | None = None
     below_floor: bool = False
     by_family: dict[str, int] = Field(default_factory=dict)
 
@@ -451,6 +473,8 @@ class _Task:
     shortlist: list[tuple[str, float]] = field(default_factory=list)
     prescreen: dict[str, float] = field(default_factory=dict)
     asked: list[tuple[str, float]] = field(default_factory=list)
+    cosine: dict[str, float] = field(default_factory=dict)
+    write_side: bool = True  # write its weak and prescreen rows (not current already)
 
 
 Progress = Callable[[int, int, LabelReport], None]
@@ -545,6 +569,7 @@ class _Run:
         )
         picks = sample_elements(self.corpus, sample, functions_share=functions_share)
         existing = self.corpus.labels(TEACHER_LABELER)
+        prescreened = self.corpus.labels(PRESCREEN_LABELER)
         tasks, topic_done = [], 0
         for position, pick in enumerate(picks):
             topic = not self._current(existing, pick, TOPIC_FACET)
@@ -555,37 +580,32 @@ class _Run:
         report.sampled = len(picks)
         report.skipped = len(picks) - len(tasks)
         ceiling = ceiling_hours * 3600
-        # Phase 1: shortlist and prescreen every task, then release the embedder, so it never
-        # holds memory while the teacher runs (together they peaked at 9.25 GB on the smoke).
-        for begin in range(0, len(tasks), batch_size):
+
+        def over() -> bool:
             if self.clock() - start >= ceiling:
                 report.stopped_by_ceiling = True
-                break
-            self._embed(tasks[begin : begin + batch_size])
+            return report.stopped_by_ceiling
+
+        # Phase 1: shortlist every task and embed the whole sample's function cosines (the
+        # prescreen percentiles need them all), then release the embedder, so it never holds
+        # memory while the teacher runs (together they peaked at 9.25 GB on the smoke).
+        if tasks:
+            self._phase_one(picks, tasks, prescreened, batch_size, over)
         if self.release_embedder:
             close_backend(self.embedder)
+            self.embedder = None  # this run's reference; the model is gone after close()
+            release_memory()  # gc, and the MPS cache when torch is loaded
         # Phase 2: the teacher, batch by batch; each batch's rows are written when it ends.
-        limit = len(picks)  # sample positions labelled; cut to 12,000 when the teacher is slow
         done = report.skipped
-        begin = 0
-        while begin < len(tasks) and not report.stopped_by_ceiling:
-            if self.clock() - start >= ceiling:
-                report.stopped_by_ceiling = True
+        for begin in range(0, len(tasks), batch_size):
+            if over():
                 break
-            batch = [t for t in tasks[begin : begin + batch_size] if t.position < limit]
-            if not batch:
-                break  # tasks are in sample order: the rest are past the cap too
-            begin += batch_size
+            batch = tasks[begin : begin + batch_size]
             self._batch(batch)
             report.batches += 1
             done += len(batch)
             if report.teacher_seconds > 0:
                 report.items_per_second = round(report.teacher_items / report.teacher_seconds, 4)
-            slow = report.items_per_second is not None and (
-                report.items_per_second < MIN_ITEMS_PER_SECOND
-            )
-            if slow and limit > SLOW_CAP:
-                limit, report.capped_at = SLOW_CAP, SLOW_CAP
             report.seconds = round(self.clock() - start, 3)
             if on_progress is not None:
                 on_progress(done, len(picks), report)
@@ -602,8 +622,9 @@ class _Run:
     # --- one batch ----------------------------------------------------------------------------
 
     def _batch(self, tasks: list[_Task]) -> None:
-        weak_rows = self._weak_rows(tasks)
-        prescreen_rows = [self._prescreen_row(t) for t in tasks]
+        side = [t for t in tasks if t.write_side]
+        weak_rows = self._weak_rows(side)
+        prescreen_rows = [self._prescreen_row(t) for t in side]
         self.corpus.write_labels(WEAK_LABELER, weak_rows)
         self.corpus.write_labels(PRESCREEN_LABELER, prescreen_rows)
         rows = self._topics(tasks) + self._functions(tasks)
@@ -611,12 +632,70 @@ class _Run:
         self.report.weak_labels += len(weak_rows)
         self.report.prescreen_rows += len(prescreen_rows)
 
-    def _embed(self, tasks: list[_Task]) -> None:
+    def _phase_one(
+        self,
+        picks: list[Pick],
+        tasks: list[_Task],
+        prescreened: dict[LabelKey, LabelRow],
+        batch_size: int,
+        over: Callable[[], bool],
+    ) -> None:
+        """Shortlists for the tasks that need a topic, function cosines for every sampled
+        element (reused from current prescreen rows), then each task's percentile scores and
+        asked tags. Stops early (leaving the tasks unscored) when ``over()``."""
         started = self.clock()
+        tags = function_tags(self.keys.functions)
+        cosines = np.zeros((len(picks), len(tags)))
+        stored: dict[int, LabelRow] = {}
+        missing: list[int] = []
+        for i, pick in enumerate(picks):
+            element = pick.element
+            row = prescreened.get(
+                LabelKey(element.doc_id, element.element_id, element.text_sha1, FUNCTION_FACET)
+            )
+            cosine = row.provenance.get("cosine") if row is not None else None
+            if (
+                row is not None
+                and row.provenance.get("prescreen_key") == self.keys.prescreen_key
+                and isinstance(cosine, dict)
+                and all(tag in cosine for tag in tags)
+            ):
+                stored[i] = row
+                cosines[i] = [float(cosine[tag]) for tag in tags]
+            else:
+                missing.append(i)
+        topic_tasks = [t for t in tasks if t.topic]
+        for begin in range(0, len(topic_tasks), batch_size):
+            if over():
+                return
+            self._shortlist(topic_tasks[begin : begin + batch_size])
+        for begin in range(0, len(missing), batch_size):
+            if over():
+                return
+            chunk = missing[begin : begin + batch_size]
+            cosines[chunk] = function_cosines(
+                [picks[i].element for i in chunk],
+                self.embedder,
+                taxonomy=self.keys.functions,
+                captions=[picks[i].caption for i in chunk],
+            )
+        self.report.embedded = len(missing)
+        ranks = percentile_scores(cosines)
+        for task in tasks:
+            i = task.position
+            task.cosine = {tag: float(c) for tag, c in zip(tags, cosines[i], strict=True)}
+            task.prescreen = {tag: float(r) for tag, r in zip(tags, ranks[i], strict=True)}
+            task.asked = (
+                top_functions(task.prescreen, self.keys.prescreen_k) if task.function else []
+            )
+            row = stored.get(i)
+            task.write_side = row is None or row.provenance.get("weak_key") != self.keys.weak_key
+        self.report.embed_seconds = round(self.report.embed_seconds + self.clock() - started, 3)
+
+    def _shortlist(self, tasks: list[_Task]) -> None:
         by_family: dict[str, list[_Task]] = {}
         for task in tasks:
-            if task.topic:
-                by_family.setdefault(task.pick.family, []).append(task)
+            by_family.setdefault(task.pick.family, []).append(task)
         for family, group in by_family.items():
             scored = shortlist_scores(
                 [t.pick.element for t in group],
@@ -628,16 +707,6 @@ class _Run:
             )
             for task, ranked in zip(group, scored, strict=True):
                 task.shortlist = ranked
-        scores = function_scores(
-            [t.pick.element for t in tasks],
-            self.embedder,
-            taxonomy=self.keys.functions,
-            captions=[t.pick.caption for t in tasks],
-        )
-        for task, row in zip(tasks, scores, strict=True):
-            task.prescreen = row
-            task.asked = top_functions(row, self.keys.prescreen_k) if task.function else []
-        self.report.embed_seconds = round(self.report.embed_seconds + self.clock() - started, 3)
 
     def _item(self, pick: Pick, options: list[tuple[str, str]]) -> TeachItem:
         element, record = pick.element, pick.record
@@ -731,9 +800,14 @@ class _Run:
 
     def _prescreen_row(self, task: _Task) -> LabelRow:
         provenance = {
+            "prescreen_key": self.keys.prescreen_key,
+            "weak_key": self.keys.weak_key,
             "embedder": self.keys.embedder,
             "instruction": FUNCTION_INSTRUCTION,
             "version": SHORTLIST_VERSION,
+            "score": PRESCREEN_SCORE,
+            "sample_size": self.report.sampled,
+            "cosine": {tag: round(c, 6) for tag, c in task.cosine.items()},
             "taxonomy_hash": self.keys.function_hash,
             "timestamp": _now(),
         }

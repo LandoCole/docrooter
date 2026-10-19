@@ -5,9 +5,12 @@ A cheap embedding model narrows each element's choices before the teacher LLM se
 - **topics:** the element (as ``heading path + text``) is scored against every leaf of its
   document family's topic taxonomy; the top ``k`` are kept, plus ``<family>.other`` when it is
   not among them (:func:`shortlist`);
-- **functions:** the element is scored against the 12 function definitions; the scores are a
-  softmax at the backend's temperature, as docrooter's zero-shot classifier reads embedding
-  similarities, and the top ``k`` are the questions the teacher is asked
+- **functions:** each element of the sample is scored against each of the 12 function
+  definitions on its own (:func:`function_cosines`). An element's prescreen score for a tag is
+  the percentile rank of its cosine among every sampled element's cosine to that tag
+  (:func:`percentile_scores`), so the tags never compete: two tags that both apply both score
+  high, and ruling 6's "< 0.2 = implicit negative" means "among the 20% of the sample least
+  like this tag". The top ``k`` tags by this score are the questions the teacher is asked
   (:func:`prescreen_functions`).
 
 The backend is anything with ``score(texts, candidates, *, instruction)`` returning cosine
@@ -23,7 +26,7 @@ from typing import Any
 
 import numpy as np
 
-from docrooter.backends.base import Candidate, candidate_text, to_probs
+from docrooter.backends.base import Candidate, candidate_text
 from docrooter.corpus import CorpusElement, ManifestRecord
 from docrooter.taxonomies import ELEMENT_FAMILIES, builtin_taxonomy, family_for_doc_type
 from docrooter.taxonomy import Taxonomy, TaxonomyNode
@@ -40,11 +43,15 @@ __all__ = [
     "element_text",
     "family_leaves",
     "family_options",
+    "function_cosines",
     "function_scores",
+    "function_tags",
+    "percentile_scores",
     "prescreen_functions",
     "shortlist",
     "shortlist_scores",
     "top_functions",
+    "topic_taxonomy",
 ]
 
 SHORTLIST_K = 5  # topic leaves kept per element (spec §7.3), plus ``other``
@@ -64,6 +71,11 @@ def _topics() -> Taxonomy:
 @functools.cache
 def _functions() -> Taxonomy:
     return builtin_taxonomy("element_functions")
+
+
+def topic_taxonomy() -> Taxonomy:
+    """The built-in ``element_topics`` taxonomy, parsed once (do not modify it)."""
+    return _topics()
 
 
 def doc_family(record: ManifestRecord) -> str:
@@ -170,6 +182,44 @@ def shortlist(
     ]
 
 
+def function_cosines(
+    elements: Sequence[CorpusElement],
+    backend: Any,
+    *,
+    taxonomy: Taxonomy | None = None,
+    captions: Sequence[str | None] | None = None,
+) -> np.ndarray:
+    """``(elements x tags)`` cosine similarities of each element to each function tag (its
+    ``label: description`` and examples), tags in taxonomy order. Each cell depends only on
+    its element and its tag."""
+    nodes = (taxonomy if taxonomy is not None else _functions()).leaves()
+    if not elements:
+        return np.zeros((0, len(nodes)))
+    scores = backend.score(
+        _queries(elements, captions), _candidates(nodes), instruction=FUNCTION_INSTRUCTION
+    )
+    return np.asarray(scores.values, dtype=float).reshape(len(elements), len(nodes))
+
+
+def percentile_scores(cosines: np.ndarray) -> np.ndarray:
+    """Per column (tag), each row's percentile rank among the column's values, in [0, 1]: 0 for
+    the lowest, 1 for the highest, ties sharing their average rank. A single row scores 0.5."""
+    values = np.asarray(cosines, dtype=float)
+    n = values.shape[0]
+    if n == 0:
+        return values.copy()
+    if n == 1:
+        return np.full_like(values, 0.5)
+    out = np.empty_like(values)
+    for j in range(values.shape[1]):
+        column = values[:, j]
+        ordered = np.sort(column)
+        below = np.searchsorted(ordered, column, side="left")
+        through = np.searchsorted(ordered, column, side="right")
+        out[:, j] = (below + through - 1) / 2 / (n - 1)
+    return out
+
+
 def function_scores(
     elements: Sequence[CorpusElement],
     backend: Any,
@@ -177,18 +227,18 @@ def function_scores(
     taxonomy: Taxonomy | None = None,
     captions: Sequence[str | None] | None = None,
 ) -> list[dict[str, float]]:
-    """Per element, a prescreen score in [0, 1] for every function tag, in taxonomy order: the
-    softmax of the cosine similarities at the backend's ``temperature``."""
-    nodes = (taxonomy if taxonomy is not None else _functions()).leaves()
-    if not elements:
-        return []
-    scores = backend.score(
-        _queries(elements, captions), _candidates(nodes), instruction=FUNCTION_INSTRUCTION
+    """Per element, its prescreen score for every function tag (taxonomy order): the
+    percentile of its cosine to the tag among ``elements`` (the sample)."""
+    ids = function_tags(taxonomy)
+    ranks = percentile_scores(
+        function_cosines(elements, backend, taxonomy=taxonomy, captions=captions)
     )
-    probs = to_probs(
-        scores, temperature=float(getattr(backend, "temperature", 1.0)), multi_label=True
-    )
-    return [{n.id: float(p) for n, p in zip(nodes, row, strict=True)} for row in probs]
+    return [{tag: float(p) for tag, p in zip(ids, row, strict=True)} for row in ranks]
+
+
+def function_tags(taxonomy: Taxonomy | None = None) -> list[str]:
+    """The function tag ids in taxonomy order."""
+    return [n.id for n in (taxonomy if taxonomy is not None else _functions()).leaves()]
 
 
 def top_functions(scores: dict[str, float], k: int = PRESCREEN_K) -> list[tuple[str, float]]:
@@ -206,8 +256,8 @@ def prescreen_functions(
     taxonomy: Taxonomy | None = None,
     captions: Sequence[str | None] | None = None,
 ) -> list[list[tuple[str, float]]]:
-    """Per element, its ``k`` most likely function tags with their prescreen scores, best
-    first: the questions the teacher is asked (§4.0 ruling 5)."""
+    """Per element, its ``k`` best function tags by prescreen score (percentile among
+    ``elements``), best first: the questions the teacher is asked (§4.0 ruling 5)."""
     if k < 1:
         raise ValueError(f"k must be at least 1, got {k}")
     return [

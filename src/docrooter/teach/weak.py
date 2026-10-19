@@ -23,7 +23,7 @@ from typing import Any
 
 from docrooter.corpus import CorpusElement, ManifestRecord
 from docrooter.taxonomy import Taxonomy
-from docrooter.teach.shortlist import _topics, doc_family, family_leaves
+from docrooter.teach.shortlist import doc_family, family_leaves, topic_taxonomy
 
 __all__ = [
     "EDGAR_10K_ITEMS",
@@ -169,7 +169,7 @@ def weak_labels(
     A kind is absent when its source gives nothing. ``taxonomy`` is the topic taxonomy
     (default: the built-in ``element_topics``).
     """
-    taxonomy = taxonomy if taxonomy is not None else _topics()
+    taxonomy = taxonomy if taxonomy is not None else topic_taxonomy()
     family = doc_family(doc)
     headings = [h for h in element.heading_path if h.strip()]
     if not headings and element.section_title:

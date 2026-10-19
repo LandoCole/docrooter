@@ -1210,8 +1210,9 @@ def teach_label(
             raise DocrooterError(f"no corpus at {directory} (no manifest.jsonl)")
         sample = SampleSpec(per_doc=per_doc, target=target, floor=min(floor, target))
         engine = get_teacher(teacher or DEFAULT_TEACHER)
-        backend = EmbeddingBackend(embedder or DEFAULT_EMBEDDING_MODEL)
+        backend = None
         try:
+            backend = EmbeddingBackend(embedder or DEFAULT_EMBEDDING_MODEL)
             report = label_corpus(
                 Corpus(directory),
                 engine,
@@ -1229,7 +1230,8 @@ def teach_label(
             )
         finally:
             engine.close()
-            backend.close()
+            if backend is not None:
+                backend.close()
     typer.echo(report.model_dump_json(indent=2))
 
 

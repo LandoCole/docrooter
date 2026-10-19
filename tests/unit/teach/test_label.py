@@ -32,6 +32,8 @@ from docrooter.teach.label import (
 from docrooter.teach.shortlist import (
     MAX_QUERY_CHARS,
     element_query,
+    function_scores,
+    percentile_scores,
     prescreen_functions,
     shortlist,
 )
@@ -316,14 +318,71 @@ def test_shortlist_includes_other_and_top_k():
     assert three == leaves[:2] + ["annual_report.other"]
 
 
-def test_prescreen_functions_top_k_with_scores():
-    element = _element("We expect revenue to grow; this procedure has steps.")
-    table = {element_query(element): {"forward_looking": 0.9, "procedure": 0.8, "marketing": 0.7}}
-    (top,) = prescreen_functions([element], TableEmbedder(table), k=3)
-    assert [tag for tag, _ in top] == ["forward_looking", "procedure", "marketing"]
-    scores = [s for _, s in top]
-    assert scores == sorted(scores, reverse=True) and all(0.0 <= s <= 1.0 for s in scores)
-    assert scores[0] > 0.5  # a softmax over the 12 tags at the backend's temperature
+def _sample_elements(n: int) -> list[CorpusElement]:
+    return [_element(f"element number {i}", path=(f"Section {i}",)) for i in range(n)]
+
+
+def test_prescreen_functions_top_k_by_percentile():
+    elements = _sample_elements(5)
+    queries = [element_query(e) for e in elements]
+    table = {
+        q: {"forward_looking": 0.1 * i, "procedure": 0.5 - 0.1 * i} for i, q in enumerate(queries)
+    }
+    table[queries[2]]["marketing"] = 0.9
+    tops = prescreen_functions(elements, TableEmbedder(table), k=3)
+    # element 4 has the sample's highest forward_looking cosine, element 0 the highest procedure
+    assert tops[4][0] == ("forward_looking", 1.0)
+    assert tops[0][0] == ("procedure", 1.0)
+    assert tops[2][0] == ("marketing", 1.0)
+    for top in tops:
+        scores = [score for _, score in top]
+        assert len(top) == 3 and scores == sorted(scores, reverse=True)
+        assert all(0.0 <= score <= 1.0 for score in scores)
+    assert percentile_scores(np.array([[0.3], [0.1], [0.3], [0.2]]))[:, 0].tolist() == [
+        pytest.approx(5 / 6),
+        0.0,
+        pytest.approx(5 / 6),
+        pytest.approx(1 / 3),
+    ]
+    assert percentile_scores(np.array([[0.4, 0.1]])).tolist() == [[0.5, 0.5]]
+
+
+def test_two_related_tags_both_score_high():
+    """An element that is both a risk disclosure and forward-looking scores high on both: the
+    tags do not share a probability mass (the old 12-way softmax put the second below 0.2)."""
+    elements = _sample_elements(10)
+    queries = [element_query(e) for e in elements]
+    table = {
+        q: {"risk_disclosure": 0.30 + 0.01 * i, "forward_looking": 0.31 - 0.01 * i}
+        for i, q in enumerate(queries)
+    }
+    both = queries[5]
+    table[both] = {"risk_disclosure": 0.80, "forward_looking": 0.72}
+    scores = function_scores(elements, TableEmbedder(table))
+    assert scores[5]["risk_disclosure"] == 1.0 and scores[5]["forward_looking"] == 1.0
+    (top,) = [prescreen_functions(elements, TableEmbedder(table), k=3)[5]]
+    assert {tag for tag, _ in top[:2]} == {"risk_disclosure", "forward_looking"}
+
+
+def test_prescreen_scores_are_independent_of_other_tags():
+    elements = _sample_elements(8)
+    queries = [element_query(e) for e in elements]
+    base = {q: {"citation": 0.05 * ((i * 3) % 8)} for i, q in enumerate(queries)}
+    noisy = {
+        q: {
+            **base[q],
+            **{
+                tag: 0.9 - 0.1 * ((i + j) % 8)
+                for j, tag in enumerate(FUNCTION_TAGS)
+                if tag != "citation"
+            },
+        }
+        for i, q in enumerate(queries)
+    }
+    quiet = function_scores(elements, TableEmbedder(base))
+    loud = function_scores(elements, TableEmbedder(noisy))
+    assert [row["citation"] for row in quiet] == [row["citation"] for row in loud]
+    assert sorted(row["citation"] for row in quiet) == pytest.approx([i / 7 for i in range(8)])
 
 
 # --- the family prefix (ruling 5) ----------------------------------------------------------------
@@ -473,9 +532,37 @@ def test_label_run_resumes(corpus):
     lines = (corpus.dir / "labels" / f"{TEACHER_LABELER}.jsonl").read_text().splitlines()
     assert len(lines) == total
 
+    # the weak and prescreen rows of the batch that died were written once and kept
+    labels_dir = corpus.dir / "labels"
+    prescreen_lines = (labels_dir / f"{PRESCREEN_LABELER}.jsonl").read_text().splitlines()
+    weak_lines = (labels_dir / f"{WEAK_LABELER}.jsonl").read_text().splitlines()
+    assert len(prescreen_lines) == total
+
     third = RecordingTeacher()
     again = label_corpus(corpus, third, WordEmbedder(), sample=_spec(), functions_share=0.0)
     assert third.items == 0 and again.skipped == total and again.topic_labelled == 0
+    assert (labels_dir / f"{PRESCREEN_LABELER}.jsonl").read_text().splitlines() == prescreen_lines
+    assert (labels_dir / f"{WEAK_LABELER}.jsonl").read_text().splitlines() == weak_lines
+
+
+def test_function_resume_reuses_stored_cosines(corpus):
+    total = _sampled_count(corpus)
+    label_corpus(corpus, RecordingTeacher(), WordEmbedder(), sample=_spec(), functions_share=0.0)
+    labels_dir = corpus.dir / "labels"
+    prescreen_lines = (labels_dir / f"{PRESCREEN_LABELER}.jsonl").read_text().splitlines()
+    embedder = WordEmbedder()
+    teacher = RecordingTeacher()
+    report = label_corpus(corpus, teacher, embedder, sample=_spec(), functions_share=1.0)
+    assert report.function_labelled == total and report.topic_labelled == 0
+    assert report.embedded == 0 and not embedder.calls  # cosines came from the prescreen rows
+    assert (labels_dir / f"{PRESCREEN_LABELER}.jsonl").read_text().splitlines() == prescreen_lines
+    prescreen = corpus.labels(PRESCREEN_LABELER)
+    for key, row in corpus.labels(TEACHER_LABELER).items():
+        if key.facet != "function":
+            continue
+        scores = prescreen[key].probs
+        top3 = sorted(scores, key=lambda t: (-scores[t], FUNCTION_TAGS.index(t)))[:3]
+        assert row.provenance["asked"] == top3
 
 
 # --- the gold split ----------------------------------------------------------------------------
@@ -706,28 +793,6 @@ def test_label_keys_are_distinct_per_facet(corpus):
         assert prov["timestamp"] and prov["taxonomy_hash"] and prov["prompt_hash"]
 
 
-def test_slow_teacher_caps_the_pass(corpus, monkeypatch):
-    from docrooter.teach import label as label_module
-
-    monkeypatch.setattr(label_module, "SLOW_CAP", 5)
-    clock = FakeClock()
-    teacher = RecordingTeacher(clock=clock, tick=60.0)  # far below 2 items/s
-    report = label_corpus(
-        corpus,
-        teacher,
-        WordEmbedder(),
-        sample=_spec(),
-        batch_size=3,
-        functions_share=0.0,
-        clock=clock,
-    )
-    assert report.capped_at == 5
-    assert report.items_per_second is not None and report.items_per_second < 2
-    # the first batch of 3 measured the rate; the second stops at sample position 5
-    assert report.topic_labelled == 5 and report.labelled_total == 5 and report.batches == 2
-    assert not report.stopped_by_ceiling
-
-
 class _ClosingEmbedder(WordEmbedder):
     closed = False
 
@@ -748,6 +813,7 @@ def test_cli_teach_label(corpus, monkeypatch):
     from docrooter.cli import app
     from docrooter.teach import mlx as mlx_module
 
+    monkeypatch.setattr(_ClosingEmbedder, "closed", False)
     specs: list[str] = []
 
     def fake_get_teacher(spec: str) -> RecordingTeacher:
@@ -804,3 +870,25 @@ def test_embedder_released_before_the_teacher_runs(corpus):
         corpus, LoggingTeacher(), LoggingEmbedder(), sample=_spec(), release_embedder=False
     )
     assert "close" not in log
+
+
+def test_cli_closes_the_teacher_when_the_embedder_fails(corpus, monkeypatch):
+    from typer.testing import CliRunner
+
+    from docrooter.backends import embedding as embedding_module
+    from docrooter.cli import app
+
+    closed: list[bool] = []
+
+    class ClosingTeacher(RecordingTeacher):
+        def close(self) -> None:
+            closed.append(True)
+
+    def broken_embedder(model: str) -> None:
+        raise ValueError("no such embedder")
+
+    monkeypatch.setattr("docrooter.teach.get_teacher", lambda spec: ClosingTeacher())
+    monkeypatch.setattr(embedding_module, "EmbeddingBackend", broken_embedder)
+    result = CliRunner().invoke(app, ["teach", "label", str(corpus.dir)])
+    assert result.exit_code == 1 and "no such embedder" in result.output
+    assert closed == [True]

@@ -5,7 +5,8 @@ a hybrid thinking model and is prompted with thinking disabled (``enable_thinkin
 :class:`~docrooter.teach.base.LogprobTeacher` always passes to the chat template).
 
 Metal memory is capped with ``mx.set_memory_limit`` at the runtime's Metal budget (the process
-budget minus host headroom, :mod:`docrooter.runtime`) unless ``memory_limit_gb`` is given.
+budget minus host headroom, :mod:`docrooter.runtime`) unless ``memory_limit_gb`` is given, and
+MLX's free-buffer cache with ``mx.set_cache_limit`` at :data:`MLX_CACHE_LIMIT_BYTES`.
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ FALLBACK_TEACHER = (
 # Architectures whose logits are exactly ``head(model.model(x))``, so the answer position's
 # logits can be computed alone instead of the full (positions x vocabulary) matrix.
 _LAST_POSITION_HEAD = {"qwen3"}
+MLX_CACHE_LIMIT_BYTES = 512 * 1024**2  # MLX's free-buffer cache, at most
 _CLEAR_EVERY = 256  # items between returns of MLX's buffer cache to the system
 
 
@@ -160,6 +162,10 @@ class MlxTeacher(LogprobTeacher):
         cache_module = require("mlx_lm.models.cache", "teach-mlx")
         limit = self.memory_limit_gb or runtime.settings().metal_budget_gb
         mx.set_memory_limit(int(limit * runtime.GB))
+        # MLX keeps freed buffers in a cache that may grow to the memory limit; varied suffix
+        # lengths fill it, and it counts in the process footprint (7.55 GiB peak on the L7
+        # smoke against 3.0 GiB active). 512 MiB cut that peak to 4.06 GiB at the same speed.
+        mx.set_cache_limit(MLX_CACHE_LIMIT_BYTES)
         model, tokenizer = mlx_lm.load(self.repo, revision=self.revision)
         if self.dtype is not None:
             model.set_dtype(getattr(mx, self.dtype))

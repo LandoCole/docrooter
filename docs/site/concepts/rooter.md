@@ -106,10 +106,11 @@ and text pages gets one continuous section tree. With `ocr="none"`, or when `aut
 engine, a page that needed OCR keeps its text layer, the route log says `needs_ocr`, and
 `meta["warnings"]` gets `"ocr_skipped"` (or `"ocr_unavailable"` for `auto`).
 
-How accurate is the routing? On the 51 development PDFs (5,069 born-digital pages), 5,055 pages
-were routed `text`, 13 were routed `text+ocr` (full-page images that carry 21 to 254 characters
-of text layer, such as covers and photo pages) and 1 was routed `ocr`: a page with no text layer
-at all. No page with a usable text layer was replaced. All 60 image-only test pages were routed
+How accurate is the routing? On the 51 development PDFs (5,069 born-digital pages; an
+in-sample result, since the routing thresholds were set on them), 5,055 pages were routed
+`text`, 13 were routed `text+ocr` (full-page images that carry 21 to 254 characters of text
+layer, such as covers and photo pages) and 1 was routed `ocr`: a page with no text layer at
+all. No page with a usable text layer was replaced. All 60 image-only test pages were routed
 `ocr`. Source: `benchmarks/results/2026-10-18/ocr.json`, section `routing`.
 
 ### The route log

@@ -225,7 +225,7 @@ PYTHONPATH=src .venv/bin/python -m benchmarks.profile_pipeline --elements
 - The set is the same ten dev PDFs as Q5 (1,439 pages, 1 to 642 pages each), with no classification and no OCR engine (`ocr=None`). OCR is measured separately, below.
 - Each system runs in its own worker process, one after the other, under the one-model-process guard, so each peak RSS is that system's own.
 - After an untimed warm-up on the smallest PDF (heron's ONNX session is created there: 3.2 s), each document is loaded once.
-- Measured 2026-10-18. The JSON stamp `aa729eb` is the `src` revision only; the stamp ignored uncommitted benchmark code at the time, which is now fixed. The measuring code is `benchmarks/profile_pipeline.py` as committed in `2f3825a`. The XY-cut table fix (`c09b9f7`) and the column-first rewrite of the reading order (`70dd2ca` to `1a02fcb`) came later, and these figures were not re-measured for them. The order step over the 642-page doc_042 (47,743 lines) went from 0.14 s to 3.3 s (measured with `order_lines` alone, best of two); the TOC benchmark's element mode took 5.08 s per document before and 5.24 s after. Apple M1, 16 GB, Python 3.12.13, pymupdf 1.28.2. The load average was 2.9 at the start and 7.4 at the end, so the later systems ran on a busier machine.
+- Measured 2026-10-18. The JSON stamp `aa729eb` is the `src` revision only; the stamp ignored uncommitted benchmark code at the time, which is now fixed. The measuring code is `benchmarks/profile_pipeline.py` as committed in `2f3825a`. The XY-cut table fix (`c09b9f7`) and the column-first rewrite of the reading order (`70dd2ca` to `1a02fcb`) came later, and these figures were not re-measured for them (the heuristic rows were re-measured after the final review; see below the table). The order step over the 642-page doc_042 (47,743 lines) went from 0.14 s to 3.3 s (measured with `order_lines` alone, best of two); the TOC benchmark's element mode took 5.08 s per document before and 5.24 s after. Apple M1, 16 GB, Python 3.12.13, pymupdf 1.28.2. The load average was 2.9 at the start and 7.4 at the end, so the later systems ran on a busier machine.
 - Raw rows: `benchmarks/results/2026-10-18/profile-elements.json`.
 
 | System | s / 100 pages | Total s (1,439 pages) | x `fast` | Peak RSS |
@@ -235,9 +235,20 @@ PYTHONPATH=src .venv/bin/python -m benchmarks.profile_pipeline --elements
 | element mode, heuristic, pdfplumber | 7.65 | 110.1 | 7.7 | 308 MiB |
 | element mode, heron (pymupdf + ONNX layout model) | 64.6 | 929.6 | 65 | 904 MiB |
 
-- **Heron** costs about 0.65 s per page on the CPU, rendering at the model's input size included. On DocLayNet's one-page PDFs it was 0.59 s (`elements-doclaynet.json`).
-- **The heuristic pymupdf ratio here (4.7x)** is above the 3.4x that E5c measured on all 51 dev PDFs (`element-speed.json`, commit `0e7c396`, 195 s against 56.6 s). This set contains doc_042, the 642-page RP2040 datasheet, which takes 43 s in element mode against 5.8 s in `fast`. That one document is 65% of the element-mode time. The ruled-table search is the slowest part of the object pass, and that datasheet is full of ruled register tables. E8's `RouterConfig(tables="none")` exists for that case.
-- The dev-corpus figure was not re-run. Since `0e7c396`, element mode has gained the bounded letter-spacing collapse (`8913b7a`), heron support, which leaves the heuristic path unchanged (`9ef25a5`), and E11a's tuned constants. None of these touches extraction, which is 94% of the element-mode time there.
+- **Heron** costs about 0.65 s per page on the CPU, rendering at the model's input size included. On DocLayNet's one-page PDFs it was 0.61 s (`elements-doclaynet.json`).
+- **The speed target was missed.** Plan task E5c set element mode (heuristic, pymupdf) at no more than **2.5x** `fast` on the 51 dev PDFs. E5c measured **3.44x** (`element-speed.json`, commit `0e7c396`, 195 s against 56.6 s): a miss, accepted by controller ruling and reported as is. `RouterConfig(tables="none")` is the mitigation: the ruled-table search is the slowest part of the object pass.
+- **The heuristic pymupdf ratio on this set (4.7x)** is above that 3.4x. This set contains doc_042, the 642-page RP2040 datasheet, which takes 43 s in element mode against 5.8 s in `fast`: 65% of the element-mode time. That datasheet is full of ruled register tables.
+- **Not re-measured on all 51 dev PDFs.** Since `0e7c396` element mode has gained the bounded letter-spacing collapse (`8913b7a`), heron support, which leaves the heuristic path unchanged (`9ef25a5`), E11a's tuned constants, the XY-cut table fix (`c09b9f7`), the column-first reading-order rewrite (`70dd2ca` to `1a02fcb`) and the final-review fixes (`82df469` to `3022c0a`). The reading-order changes add order-step time (doc_042: 0.14 s to 3.3 s), so the 3.44x of `element-speed.json` is now optimistic for the dev corpus.
+
+**Re-measured after the final review** (`3022c0a`, clean tree, 2026-10-19; `benchmarks/results/2026-10-19/profile-elements-final-wave.json`). The same command with `--systems fast,heuristic-pymupdf,heuristic-pdfplumber --tag final-wave`, on the same ten PDFs (heron, a model, was not re-run). The load average was 2.6 at the start and 3.0 at the end, lower than in the first run.
+
+| System | s / 100 pages | Total s (1,439 pages) | x `fast` | Peak RSS |
+| --- | ---: | ---: | ---: | ---: |
+| `fast` (`load()`) | 0.92 | 13.3 | 1.0 | 203 MiB |
+| element mode, heuristic, pymupdf | 4.29 | 61.7 | 4.6 | 282 MiB |
+| element mode, heuristic, pdfplumber | 7.33 | 105.4 | 7.9 | 335 MiB |
+
+Element mode is still 4.6x `fast` on this set (doc_042: 39.9 s against 5.2 s), well above the 2.5x ratio the target set for the dev corpus. The absolute times are a little lower than in the first run, at a lower load average, so the reading-order rewrite's added order-step time does not show at this precision.
 
 **OCR** (from `benchmarks.ocr_bench`; details in `docs/benchmarks-elements.md`). There are 60 pages at 200 dpi, with one worker process per engine.
 

@@ -341,6 +341,32 @@ def test_new_pages_quote_the_committed_results():
         assert f"{ocr[engine]['cer']:.3f}" in guide, engine
 
 
+def test_benchmarks_elements_quotes_the_reading_order_and_toc_results():
+    """The reading-order and TOC numbers of docs/benchmarks-elements.md are those of the
+    committed 2026-10-19 results (final review: two moved-line counts and a TOC value had
+    drifted from them)."""
+    results = ROOT / "benchmarks" / "results" / "2026-10-19"
+    order = json.loads((results / "elements-reading-order.json").read_text(encoding="utf-8"))
+    toc = json.loads((results / "toc-elements.json").read_text(encoding="utf-8"))
+    page = (ROOT / "docs" / "benchmarks-elements.md").read_text(encoding="utf-8")
+    single = order["mostly_single_column_documents"]
+    per_doc = single["per_document"]
+    for doc in ("doc_001", "doc_012", "doc_014", "doc_031", "doc_041", "doc_042", "doc_043"):
+        moved = per_doc[doc]["moved_lines"]
+        assert re.search(rf"{doc} [\d,]+ -> \**{moved:,}\**\b", page), (doc, moved)
+    assert f"{single['moved_lines']:,} (of {single['body_lines_on_cut_pages']:,})" in page
+    assert f"| {single['cut_pages']} |" in page
+    columns = order["column_pages"]
+    assert (
+        f"{columns['shifted_bands']} shifted bands with {columns['shifted_lines']:,} lines" in page
+    )
+    pairs = order["bookmark_pairs"]["elements"]
+    assert f"{pairs['agree']:,} of {pairs['pairs']:,}" in page
+    comparison = toc["comparison"]["pymupdf"]
+    assert f"**{comparison['elements_depth2_micro_f1']:.4f}**" in page
+    assert f"{comparison['fast_depth2_micro_f1']:.4f}" in page
+
+
 def test_playground_favicon_is_the_brand_favicon():
     brand = ROOT / "docs" / "assets" / "favicon.svg"
     playground = ROOT / "src" / "docrooter" / "ui" / "static" / "favicon.svg"

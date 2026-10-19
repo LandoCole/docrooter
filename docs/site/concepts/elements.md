@@ -101,10 +101,10 @@ Pages are read with a column-first XY-cut:
 
 - Boxes at least 60% of the text width wide (a single-column line, a wide heading) cut the page
   into bands.
-- Inside a band, a vertical gutter (at least 8 pt or three character widths wide, with two lines
-  on each side and the sides overlapping by half of the shorter one) makes columns. The left
-  column is read before the right one, whatever their lengths, and a title or heading over or
-  across the columns comes first.
+- Inside a band, a vertical gutter (at least 8 pt and at least three character widths wide,
+  with two lines on each side and the sides overlapping by half of the shorter one) makes
+  columns. The left column is read before the right one, whatever their lengths, and a title or
+  heading over or across the columns comes first.
 - Without a gutter the band is cut at its largest horizontal gap. A section or table under two
   columns is cut off from them.
 - A page with no column gutter keeps the extractor's order exactly.

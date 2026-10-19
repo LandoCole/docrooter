@@ -305,9 +305,9 @@ def _probs(cls, p):
 
 
 def test_keep_rule_core_or_prob_override():
-    # fund.fees: 11 elements at 0.50, 0.55, ..., 1.00 -> 90th percentile 0.95
+    # fund.fees: 11 elements at 0.50, 0.55, ..., 1.00 -> floor(10% of 11) = 1 may bypass
     fees = [_row("d", f"fees-{i}", f"f{i}", _probs("fund.fees", 0.5 + 0.05 * i)) for i in range(11)]
-    # fund.risks: a less sure class, 0.40 ... 0.60 -> 90th percentile 0.58, well below 0.8
+    # fund.risks: a less sure class, 0.40 ... 0.60 -> its top one, at 0.60, well below 0.8
     risks = [
         _row("d", f"risks-{i}", f"r{i}", _probs("fund.risks", 0.4 + 0.02 * i)) for i in range(11)
     ]
@@ -318,21 +318,26 @@ def test_keep_rule_core_or_prob_override():
     ts = confident_set(rows, cores, keep=1.0, min_per_class=1, taxonomy=_taxonomy())
 
     kept = sorted(e.element_id for e in ts.examples)
-    # in core whatever its probability; else only the class's top decile (>= its 0.9 quantile)
-    assert kept == ["fees-0", "fees-10", "fees-9", "risks-10", "risks-9"]
+    # in core whatever its probability; else only the class's top decile, rounded down
+    assert kept == ["fees-0", "fees-10", "risks-10"]
     report = ts.classes["fund.fees"]
-    assert (report.labelled, report.confident, report.kept, report.trained) == (11, 3, 3, True)
-    assert report.override_prob == pytest.approx(0.95)
-    assert ts.classes["fund.risks"].override_prob == pytest.approx(0.58)
+    assert (report.labelled, report.confident, report.kept, report.trained) == (11, 2, 2, True)
+    assert report.override_prob == pytest.approx(1.0)  # the last element admitted
+    assert ts.classes["fund.risks"].override_prob == pytest.approx(0.6)
+    assert ts.classes["fund.other"].override_prob is None
     assert ts.params["prob_override_quantile"] == 0.9
     in_core = next(e for e in ts.examples if e.element_id == "fees-0")
     assert in_core.in_core and in_core.path == ["fund", "fund.fees"]
     assert not next(e for e in ts.examples if e.element_id == "fees-10").in_core
-    # the quantile is a parameter: at 0.5, the upper half of each class bypasses the gap check
+    # the quantile is a parameter: at 0.5, floor(5.5) = 5 per class bypass the gap check
     half = confident_set(
         rows, cores, keep=1.0, min_per_class=1, prob_override_quantile=0.5, taxonomy=_taxonomy()
     )
-    assert len(half.examples) == 1 + 6 + 6
+    assert len(half.examples) == 1 + 5 + 5
+    assert half.classes["fund.fees"].override_prob == pytest.approx(0.8)
+    # fewer than 10 elements: floor(10% of n) = 0, nobody bypasses
+    few = confident_set(fees[1:9], cores, keep=1.0, min_per_class=1, taxonomy=_taxonomy())
+    assert few.examples == [] and few.classes["fund.fees"].override_prob is None
     # rows without a core (another split, or never scored) are not candidates
     assert len(confident_set(rows, {}, taxonomy=_taxonomy()).examples) == 0
 
@@ -353,16 +358,30 @@ def test_overconfident_teacher_does_not_bypass_the_gap():
     assert {e.element_id for e in ts.examples} == {f"core-{i}" for i in range(20)}
     report = ts.classes["fund.fees"]
     assert (report.labelled, report.confident) == (40, 20)
-    assert report.override_prob > max(r.probs["fund.fees"] for r in off_core)
+    assert report.override_prob == pytest.approx(0.986)  # 4 admitted, all already in core
 
-    # an off-core element in the class's top decile still gets through
+    # an off-core element in the class's top decile (4 of 45) still gets through
     top = [
         _row("d", f"top-{i}", f"t{i}", _probs("fund.fees", 0.9995 + 0.0001 * i)) for i in range(5)
     ]
     cores.update({row.key: (["fund.risks"], 0.3) for row in top})
     ts = confident_set(in_core + off_core + top, cores, keep=1.0, taxonomy=_taxonomy())
-    assert {e.element_id for e in ts.examples} >= {"top-1", "top-2", "top-3", "top-4"}
+    kept = {e.element_id for e in ts.examples}
+    assert {"top-1", "top-2", "top-3", "top-4"} <= kept and "top-0" not in kept
     assert not any(e.element_id.startswith("off-") for e in ts.examples)
+
+
+def test_saturated_teacher_ties_admit_exactly_the_top_decile():
+    # every probability is 1.0 and nothing is in core: exactly floor(10% of 30) = 3 bypass,
+    # the first three by element key
+    rows = [_row("d", f"x-{i:02d}", f"x{i}", {"fund.fees": 1.0}) for i in reversed(range(30))]
+    cores = {row.key: (["fund.risks"], 0.3) for row in rows}
+
+    ts = confident_set(rows, cores, keep=1.0, min_per_class=1, taxonomy=_taxonomy())
+
+    assert sorted(e.element_id for e in ts.examples) == ["x-00", "x-01", "x-02"]
+    report = ts.classes["fund.fees"]
+    assert (report.labelled, report.confident, report.override_prob) == (30, 3, 1.0)
 
 
 def test_top75_per_class_with_floor():

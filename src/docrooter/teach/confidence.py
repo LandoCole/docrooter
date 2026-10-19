@@ -4,12 +4,14 @@
   that contain one of its keywords (all of them when none does), L2-normalised.
 - **Core classes:** an element's classes sorted by cosine to their centroids; the core classes
   are those ranked above the largest drop between neighbours, and that drop is its gap.
-- **Keep rule:** an element stays when the teacher's choice is one of its core classes, or the
-  teacher's probability is at least the ``prob_override_quantile`` (0.9) quantile of the teacher
-  probabilities of the elements given that class (linear interpolation): only about the most
-  confident decile of each class bypasses the gap check. This amends spec §4.0 ruling 7 (an
-  absolute 0.8) by controller ruling: the teacher is overconfident (mean top probability 0.974
-  in the L7 smoke run), so an absolute threshold would keep nearly everything.
+- **Keep rule:** an element stays when the teacher's choice is one of its core classes, or it is
+  among the most confident ``1 - prob_override_quantile`` (10%) of the elements given that
+  class, by teacher probability: ``floor(0.1 · n)`` of the class's ``n`` (possibly none), ties
+  broken by element key (:class:`~docrooter.corpus.LabelKey` order). Exactly that many can
+  bypass the gap check, however many probabilities tie (a saturated teacher gives many 1.0s).
+  This amends spec §4.0 ruling 7 (an absolute 0.8) by controller ruling: the teacher is
+  overconfident (mean top probability 0.974 in the L7 smoke run), so an absolute threshold
+  would keep nearly everything.
 - **Combined confidence:** the teacher's probability times the element's gap rank percentile
   (the share of all scored elements whose gap is at most its own).
 - **Trim:** per class, the top ``keep`` (75%) by combined confidence, rounded up, and at least
@@ -132,8 +134,8 @@ class TrainingExample(BaseModel):
 class ClassReport(BaseModel):
     """Counts for one topic leaf: elements the teacher gave it (among those scored), those
     passing the keep rule, those kept after the trim, and whether it is trained.
-    ``override_prob`` is the class's teacher probability at or above which an element outside
-    its core classes is kept (``None`` when no element was given the class)."""
+    ``override_prob`` is the effective override threshold: the teacher probability of the last
+    element admitted by the rank-capped override (``None`` when it admits none)."""
 
     labelled: int = 0
     confident: int = 0
@@ -189,13 +191,17 @@ def confident_set(
         key: choice for key, choice in teacher_choices(labels, taxonomy).items() if key in cores
     }
     gaps = np.sort(np.array([cores[key][1] for key in choices], dtype=np.float64))
-    probs: dict[str, list[float]] = {}
-    for label, prob in choices.values():
-        probs.setdefault(label, []).append(prob)
-    override = {
-        label: float(np.quantile(np.array(values), prob_override_quantile))
-        for label, values in probs.items()
-    }
+    ranked_keys: dict[str, list[LabelKey]] = {}
+    for key in sorted(choices, key=lambda k: (-choices[k].prob, k)):  # ties: key order
+        ranked_keys.setdefault(choices[key].label, []).append(key)
+    admitted: set[LabelKey] = set()
+    override: dict[str, float | None] = {}
+    for label, by_prob in ranked_keys.items():
+        # rounded first: (1 - 0.9) · 10 is 0.9999999999999998 in floating point
+        n_override = math.floor(round((1.0 - prob_override_quantile) * len(by_prob), 9))
+        top = by_prob[:n_override]
+        admitted.update(top)
+        override[label] = choices[top[-1]].prob if top else None
 
     by_class: dict[str, list[TrainingExample]] = {}
     classes = {leaf.id: ClassReport() for leaf in taxonomy.leaves()}
@@ -205,7 +211,7 @@ def confident_set(
         report.labelled += 1
         report.override_prob = override[label]
         in_core = label in core
-        if not (in_core or prob >= override[label]):
+        if not (in_core or key in admitted):
             continue
         report.confident += 1
         percentile = np.searchsorted(gaps, gap, side="right") / len(gaps)

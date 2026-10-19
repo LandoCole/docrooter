@@ -56,7 +56,6 @@ import sys
 import time
 import unicodedata
 import urllib.parse
-import xml.etree.ElementTree as ET
 import zipfile
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
@@ -536,8 +535,9 @@ class Fetcher:
                 state.status, state.reason = "unavailable", f"listing refused: {exc}"
                 self.log(f"SKIP     {source.name}: {state.reason}")
                 return
-            except (FetchError, Rejected, ValueError, ET.ParseError, RecursionError) as exc:
-                state.exhausted, state.reason = True, f"listing failed: {type(exc).__name__} {exc}"
+            except Exception as exc:  # a broken listing ends this source's listing, not the run
+                why = f"{type(exc).__name__}: {str(exc)[:200]}"
+                state.exhausted, state.reason = True, f"listing failed: {why}"
                 self.log(f"STOP     {source.name}: {state.reason}")
                 return
             state.listed += 1
@@ -549,11 +549,11 @@ class Fetcher:
                 continue
             try:
                 outcome = self._take(candidate, report)
-            except RecursionError:  # defensive: one bad URL must never end the run
+            except Exception as exc:  # one document never ends a multi-hour run
+                # (KeyboardInterrupt and SystemExit are not Exceptions: they still stop it.)
                 (self.pdf_dir / f"{candidate.id}.pdf.part").unlink(missing_ok=True)
-                outcome = self._drop(
-                    candidate, "failed: RecursionError (transient)", report, permanent=False
-                )
+                why = f"failed: {type(exc).__name__}: {str(exc)[:200]} (transient)"
+                outcome = self._drop(candidate, why, report, permanent=False)
             if outcome == "ok":
                 state.have += 1
                 failures = 0

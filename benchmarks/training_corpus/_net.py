@@ -31,6 +31,7 @@ import hashlib
 import http.client
 import os
 import re
+import string
 import time
 import urllib.error
 import urllib.parse
@@ -206,6 +207,20 @@ class _NoRedirects(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def redirect_target(base_url: str, location: str) -> str:
+    """The absolute, percent-quoted URL a ``Location`` header points to, built as urllib's own
+    ``HTTPRedirectHandler`` builds it: an empty path becomes ``/``, the value is quoted with
+    ISO-8859-1 (http.client decodes header bytes that way, so UTF-8 bytes on the wire become
+    their own ``%XX`` escapes) keeping punctuation, and it is joined to the current URL."""
+    parts = urllib.parse.urlparse(location)
+    if not parts.path and parts.netloc:
+        parts = parts._replace(path="/")
+    quoted = urllib.parse.quote(
+        urllib.parse.urlunparse(parts), encoding="iso-8859-1", safe=string.punctuation
+    )
+    return urllib.parse.urljoin(base_url, quoted)
+
+
 def _netloc(url: str) -> str:
     return urllib.parse.urlsplit(url).netloc.lower()
 
@@ -278,7 +293,7 @@ class Net:
                 return response
             if hop == MAX_REDIRECTS:
                 break
-            new_url = urllib.parse.urljoin(request.full_url, location)
+            new_url = redirect_target(request.full_url, location)
             self.check_redirect(request.full_url, new_url, vet_robots=not robots_fetch)
             request = self._follow(request, new_url, status)
         raise FetchError(f"more than {MAX_REDIRECTS} redirects from {redact(request.full_url)}")
@@ -316,7 +331,7 @@ class Net:
             if exc.code in (404, 410):
                 raise Rejected(f"HTTP {exc.code}") from None
             raise FetchError(f"HTTP {exc.code} from {redact(url)}") from None
-        except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
+        except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError) as exc:
             raise FetchError(f"{type(exc).__name__}: {exc} ({redact(url)})") from None
         except RecursionError:  # defensive: never let one URL take the run down
             raise FetchError(f"RecursionError while fetching {redact(url)}") from None

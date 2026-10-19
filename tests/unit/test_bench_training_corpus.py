@@ -1017,6 +1017,14 @@ def local_servers():
                 return self._redirect(f"/short/{n + 1}") if n < 2 else self._pdf()
             elif path == "/plain.pdf":
                 return self._pdf(_pdf("plain"))
+            elif path == "/to-cafe":  # the Location carries UTF-8 bytes, as servers send them
+                return self._redirect("/café.pdf".encode().decode("latin-1"))
+            elif urllib.parse.unquote(path) == "/café.pdf":
+                return self._pdf(_pdf("cafe"))
+            elif path == "/to-space":
+                return self._redirect("/with space.pdf")
+            elif urllib.parse.unquote(path) == "/with space.pdf":
+                return self._pdf(_pdf("space"))
             else:
                 self.send_error(404)
                 return
@@ -1113,3 +1121,55 @@ def test_recursion_error_in_one_document_is_a_transient_failure(tmp_path):
     assert [r["id"] for r in report.records] == ["src-ok"]
     drops = [json.loads(x) for x in (tmp_path / "cache" / "drops.jsonl").read_text().splitlines()]
     assert [(d["id"], d["permanent"]) for d in drops] == [("src-boom", False)]
+
+
+# --- fix round 3: quoted redirect targets, per-document isolation ----------------------------
+
+
+def test_redirect_targets_are_quoted_like_urllib(tmp_path, local_servers):
+    server = local_servers[0]
+    clock = FakeClock()
+    net = _net.Net(
+        None, limiter=_net.RateLimiter(clock=clock, sleep=clock.sleep), log=lambda m: None
+    )
+    assert net.download_pdf(f"{server}/to-cafe", tmp_path / "cafe.pdf") == len(_pdf("cafe"))
+    assert (tmp_path / "cafe.pdf").read_bytes() == _pdf("cafe")
+    assert net.download_pdf(f"{server}/to-space", tmp_path / "space.pdf") == len(_pdf("space"))
+    assert (tmp_path / "space.pdf").read_bytes() == _pdf("space")
+    utf8_location = "/café.pdf".encode().decode("latin-1")  # as http.client decodes it
+    assert _net.redirect_target("https://h/x", utf8_location) == "https://h/caf%C3%A9.pdf"
+    assert _net.redirect_target("https://h/a/b", "c d.pdf") == "https://h/a/c%20d.pdf"
+    assert _net.redirect_target("https://h/x", "https://o.example") == "https://o.example/"
+
+
+def test_any_exception_in_one_document_is_recorded_and_the_run_continues(tmp_path):
+    candidates = [cand("src", "boom"), cand("src", "ok")]
+    net, _ = make_net(tmp_path, {candidates[1].url: _pdf("ok")})
+    fetcher = make_fetcher(tmp_path, [fake_source("src", candidates)], 2, net)
+    real_take = fetcher._take
+
+    def take(candidate, report):
+        if candidate.id == "src-boom":
+            raise UnicodeEncodeError("ascii", "café", 3, 4, "x" * 500)
+        return real_take(candidate, report)
+
+    fetcher._take = take
+    report = fetcher.run()
+    assert [r["id"] for r in report.records] == ["src-ok"]
+    drops = [json.loads(x) for x in (tmp_path / "cache" / "drops.jsonl").read_text().splitlines()]
+    assert [(d["id"], d["permanent"]) for d in drops] == [("src-boom", False)]
+    assert drops[0]["reason"].startswith("failed: UnicodeEncodeError: ")
+    assert len(drops[0]["reason"]) < 300  # the message is truncated
+
+    # KeyboardInterrupt and SystemExit still stop the run (and the manifest is still written).
+    for stop in (KeyboardInterrupt, SystemExit):
+        net2, _ = make_net(tmp_path, {})
+        fetcher2 = make_fetcher(tmp_path, [fake_source("src", [cand("src", "new")])], 3, net2)
+
+        def interrupt(candidate, report, stop=stop):
+            raise stop()
+
+        fetcher2._take = interrupt
+        with pytest.raises(stop):
+            fetcher2.run()
+        assert [r["id"] for r in read_manifest(tmp_path / "manifest.jsonl")] == ["src-ok"]

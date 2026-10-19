@@ -10,6 +10,7 @@ import io
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import Counter
 from email.message import Message
@@ -45,12 +46,17 @@ def _sha(data: bytes) -> str:
 
 @pytest.fixture(autouse=True)
 def _no_network(monkeypatch):
-    """Every test is offline: a real request would fail the test, not reach a server."""
+    """Every test is offline: a real request would fail the test, not reach a server. Only
+    loopback (a local ``http.server`` fixture on 127.0.0.1) is allowed."""
+    real_open = urllib.request.OpenerDirector.open
 
-    def refuse(self, *args, **kwargs):
+    def guarded(self, fullurl, *args, **kwargs):
+        url = fullurl if isinstance(fullurl, str) else fullurl.full_url
+        if urllib.parse.urlsplit(url).hostname == "127.0.0.1":
+            return real_open(self, fullurl, *args, **kwargs)
         raise AssertionError("unit tests must not use the network")
 
-    monkeypatch.setattr(urllib.request.OpenerDirector, "open", refuse)
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", guarded)
 
 
 class FakeClock:
@@ -99,8 +105,11 @@ class FakeTransport:
         if route is None:
             raise urllib.error.HTTPError(url, 404, "Not Found", Message(), None)
         status, body, headers = route if isinstance(route, tuple) else (200, route, {})
-        if status >= 400:
-            raise urllib.error.HTTPError(url, status, "error", Message(), None)
+        if status >= 300:
+            message = Message()
+            for key, value in headers.items():
+                message[key] = value
+            raise urllib.error.HTTPError(url, status, "error", message, None)
         return FakeResponse(body, headers)
 
     def urls(self) -> list[str]:
@@ -827,18 +836,26 @@ def test_redirects_are_vetted_like_first_requests(tmp_path):
     # robots.txt of the target host applies.
     with pytest.raises(_net.Rejected):
         net.check_redirect("https://a.example.org/x.pdf", "https://b.example.org/private/x.pdf")
-    # The target's rate limit and crawl delay apply before the hop.
-    net.check_redirect("https://a.example.org/x.pdf", "https://b.example.org/ok/1.pdf")
-    before = clock()
-    net.check_redirect("https://a.example.org/x.pdf", "https://b.example.org/ok/2.pdf")
-    assert clock() - before >= 5.0 - 1e-9
+    # Each hop is sent through the target's rate limit and crawl delay.
+    routes.update(
+        {
+            "https://a.example.org/x.pdf": (302, b"", {"Location": "https://b.example.org/ok/1"}),
+            "https://a.example.org/y.pdf": (302, b"", {"Location": "https://b.example.org/ok/2"}),
+            "https://b.example.org/ok/1": _pdf("1"),
+            "https://b.example.org/ok/2": _pdf("2"),
+        }
+    )
+    net.download_pdf("https://a.example.org/x.pdf", tmp_path / "1.pdf")
+    net.download_pdf("https://a.example.org/y.pdf", tmp_path / "2.pdf")
+    hops = [t for u, t, _, _ in transport.calls if u.startswith("https://b.example.org/ok/")]
+    assert hops[1] - hops[0] >= 5.0 - 1e-9
     # A blocked host stays blocked behind a redirect.
     net._blocked["c.example.org"] = "blocked"
     with pytest.raises(_net.HostBlocked):
         net.check_redirect("https://a.example.org/x.pdf", "https://c.example.org/x.pdf")
-    # The default opener carries the vetting handler.
+    # urllib never follows redirects itself: the fetcher's bounded loop does.
     real = _net.Net(None, log=lambda m: None)
-    assert any(isinstance(h, _net._PoliteRedirects) for h in real.opener.handlers)
+    assert any(isinstance(h, _net._NoRedirects) for h in real.opener.handlers)
 
 
 def test_unsafe_ids_are_refused_by_the_fetcher(tmp_path):
@@ -956,3 +973,143 @@ def test_ir_annual_reports_list_is_explicit_and_well_formed():
     assert "sec.gov" not in " ".join(c.url for c in found)
     # Interleaved by company, so a small quota still spans many companies.
     assert len({c.publisher for c in found[:30]}) >= 20
+
+
+# --- fix round 2: redirects against a real urllib opener -------------------------------------
+
+
+@pytest.fixture
+def local_servers():
+    """Two loopback ``http.server`` instances. The first has an allowing robots.txt, a
+    ``/loop/robots.txt`` that redirects to itself forever, a 6-hop page redirect chain, a
+    2-hop chain that ends in a PDF, and a plain PDF. The second is the same, except that its
+    own ``/robots.txt`` redirects to itself forever (the production crash)."""
+    import http.server
+    import threading
+
+    pdf = _pdf("local")
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):  # keep test output clean
+            pass
+
+        def _redirect(self, location):
+            self.send_response(302)
+            self.send_header("Location", location)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def do_GET(self):
+            path = self.path
+            if path.startswith("/loop/robots.txt"):  # robots.txt redirects to itself forever
+                n = int(path.rsplit("=", 1)[1]) + 1 if "=" in path else 1
+                return self._redirect(f"/loop/robots.txt?n={n}")
+            if path.startswith("/robots.txt") and self.server.robots_loop:  # type: ignore[attr-defined]
+                n = int(path.rsplit("=", 1)[1]) + 1 if "=" in path else 1
+                return self._redirect(f"/robots.txt?n={n}")
+            if path == "/robots.txt":
+                body = b"User-agent: *\nAllow: /\n"
+            elif path.startswith("/hop/"):
+                n = int(path.rsplit("/", 1)[1])
+                return self._redirect(f"/hop/{n + 1}") if n < 6 else self._pdf()
+            elif path.startswith("/short/"):
+                n = int(path.rsplit("/", 1)[1])
+                return self._redirect(f"/short/{n + 1}") if n < 2 else self._pdf()
+            elif path == "/plain.pdf":
+                return self._pdf(_pdf("plain"))
+            else:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _pdf(self, data=pdf):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+    servers = []
+    for robots_loop in (False, True):
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        server.robots_loop = robots_loop  # type: ignore[attr-defined]
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        servers.append(server)
+    try:
+        yield tuple(f"http://127.0.0.1:{srv.server_address[1]}" for srv in servers)
+    finally:
+        for server in servers:
+            server.shutdown()
+            server.server_close()
+
+
+def test_redirect_loops_end_in_recorded_failures_with_a_real_opener(tmp_path, local_servers):
+    local_server = local_servers[0]
+    import sys as _sys
+
+    clock = FakeClock()
+    limiter = _net.RateLimiter(clock=clock, sleep=clock.sleep)  # no real waiting
+    net = _net.Net(tmp_path / "listings", limiter=limiter, log=lambda m: None)  # real opener
+
+    # A robots.txt redirect loop: robots.txt for the host is unreadable after 5 hops, which
+    # is transient, and never recursive.
+    loop_net = _net.Net(None, limiter=limiter, log=lambda m: None)
+    robots = loop_net._fetch_robots(f"{local_server}/loop/robots.txt")
+    assert robots.error is not None and "redirects" in robots.error
+
+    # Pages: a 6-hop chain fails, a 2-hop chain and a plain file succeed, all with the real
+    # urllib opener and under a low recursion limit (vetting must not recurse).
+    pages = [
+        Candidate(**{**cand("loc", "six").__dict__, "url": f"{local_server}/hop/0"}),
+        Candidate(**{**cand("loc", "two").__dict__, "url": f"{local_server}/short/0"}),
+        Candidate(**{**cand("loc", "plain").__dict__, "url": f"{local_server}/plain.pdf"}),
+    ]
+    source = Source("loc", 3, 3, None, lambda n: iter(pages))
+    limit = _sys.getrecursionlimit()
+    _sys.setrecursionlimit(400)
+    try:
+        report = make_fetcher(tmp_path, [source], 3, net).run()
+    finally:
+        _sys.setrecursionlimit(limit)
+    assert sorted(r["id"] for r in report.records) == ["loc-plain", "loc-two"]
+    drops = [json.loads(x) for x in (tmp_path / "cache" / "drops.jsonl").read_text().splitlines()]
+    assert [(d["id"], d["permanent"]) for d in drops] == [("loc-six", False)]
+    assert "more than 5 redirects" in drops[0]["reason"]
+
+
+def test_robots_redirect_loop_makes_downloads_transient_failures(tmp_path, local_servers):
+    """The production crash: a host whose own robots.txt redirects in a loop. The download is
+    a recorded transient failure, a document on another host still arrives, the run ends."""
+    good_server, loop_server = local_servers
+    clock = FakeClock()
+    limiter = _net.RateLimiter(clock=clock, sleep=clock.sleep)
+    net = _net.Net(tmp_path / "listings", limiter=limiter, log=lambda m: None)  # real opener
+    bad = Candidate(**{**cand("loc", "bad").__dict__, "url": f"{loop_server}/plain.pdf"})
+    good = Candidate(**{**cand("loc", "good").__dict__, "url": f"{good_server}/plain.pdf"})
+    source = Source("loc", 2, 2, None, lambda n: iter([bad, good]))
+    report = make_fetcher(tmp_path, [source], 2, net).run()
+    assert [r["id"] for r in report.records] == ["loc-good"]
+    drops = [json.loads(x) for x in (tmp_path / "cache" / "drops.jsonl").read_text().splitlines()]
+    assert [(d["id"], d["permanent"]) for d in drops] == [("loc-bad", False)]
+    assert "robots.txt unavailable" in drops[0]["reason"] and "redirects" in drops[0]["reason"]
+
+
+def test_recursion_error_in_one_document_is_a_transient_failure(tmp_path):
+    candidates = [cand("src", "boom"), cand("src", "ok")]
+    net, _ = make_net(tmp_path, {candidates[1].url: _pdf("ok")})
+    fetcher = make_fetcher(tmp_path, [fake_source("src", candidates)], 2, net)
+    real_take = fetcher._take
+
+    def take(candidate, report):
+        if candidate.id == "src-boom":
+            raise RecursionError("maximum recursion depth exceeded")
+        return real_take(candidate, report)
+
+    fetcher._take = take
+    report = fetcher.run()
+    assert [r["id"] for r in report.records] == ["src-ok"]
+    drops = [json.loads(x) for x in (tmp_path / "cache" / "drops.jsonl").read_text().splitlines()]
+    assert [(d["id"], d["permanent"]) for d in drops] == [("src-boom", False)]

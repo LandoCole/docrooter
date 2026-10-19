@@ -536,8 +536,8 @@ class Fetcher:
                 state.status, state.reason = "unavailable", f"listing refused: {exc}"
                 self.log(f"SKIP     {source.name}: {state.reason}")
                 return
-            except (FetchError, Rejected, ValueError, ET.ParseError) as exc:
-                state.exhausted, state.reason = True, f"listing failed: {exc}"
+            except (FetchError, Rejected, ValueError, ET.ParseError, RecursionError) as exc:
+                state.exhausted, state.reason = True, f"listing failed: {type(exc).__name__} {exc}"
                 self.log(f"STOP     {source.name}: {state.reason}")
                 return
             state.listed += 1
@@ -547,7 +547,13 @@ class Fetcher:
                 report.drops["unsafe-id"] += 1
                 self.log(f"DROP     {candidate.source}: unsafe id {candidate.id[:100]!r}")
                 continue
-            outcome = self._take(candidate, report)
+            try:
+                outcome = self._take(candidate, report)
+            except RecursionError:  # defensive: one bad URL must never end the run
+                (self.pdf_dir / f"{candidate.id}.pdf.part").unlink(missing_ok=True)
+                outcome = self._drop(
+                    candidate, "failed: RecursionError (transient)", report, permanent=False
+                )
             if outcome == "ok":
                 state.have += 1
                 failures = 0

@@ -12,8 +12,10 @@ cached listings and capped, checked PDF downloads.
   host is fetched this run, and the failure is *transient* (:class:`HostBlocked` or
   :class:`FetchError`), so the next run asks again; only an explicit disallow is permanent.
   Documented API hosts are machine interfaces and are exempt.
-- **Redirects** are followed only to http(s), never from https down to http, and each hop is
-  checked like a first request: the target host's block list, robots.txt and rate limit.
+- **Redirects** are followed by this module, never by urllib, in a bounded loop: at most
+  :data:`MAX_REDIRECTS` hops, http(s) only, never from https down to http, and each hop checked
+  like a first request (the target host's block list, robots.txt and rate limit). A robots.txt
+  fetch follows its own redirects without robots vetting, so vetting never re-enters itself.
 - **No aggressive retries.** A 401, 403 or 429 blocks the host for the rest of the run; a network
   error or 5xx fails that one request (the next run retries it).
 - **Downloads are untrusted data.** A PDF is streamed to ``<dest>.part``, refused above
@@ -54,6 +56,8 @@ _API_DATA_GOV_HOSTS = frozenset({"api.govinfo.gov", "api.congress.gov"})
 # Documented machine interfaces: robots.txt is for crawlers, these are APIs meant for programs.
 _API_HOSTS = frozenset({"efts.sec.gov", "data.sec.gov", "oaipmh.arxiv.org"}) | _API_DATA_GOV_HOSTS
 _BLOCKING_STATUSES = frozenset({401, 403, 429})
+_REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+MAX_REDIRECTS = 5
 
 
 class FetchError(Exception):
@@ -192,17 +196,18 @@ def parse_robots(text: str, token: str = ROBOTS_TOKEN) -> Robots:
 Transport = Callable[[urllib.request.Request, float], Any]
 
 
-class _PoliteRedirects(urllib.request.HTTPRedirectHandler):
-    """Runs :meth:`Net.check_redirect` on every hop before urllib follows it."""
-
-    def __init__(self, net: Net) -> None:
-        self.net = net
+class _NoRedirects(urllib.request.HTTPRedirectHandler):
+    """Hands every 3xx back as an ``HTTPError``: :meth:`Net._open` follows redirects itself,
+    iteratively and bounded, so urllib never recurses into the fetcher."""
 
     def redirect_request(
         self, req: urllib.request.Request, fp: Any, code: int, msg: str, headers: Any, newurl: str
     ) -> urllib.request.Request | None:
-        self.net.check_redirect(req.full_url, newurl)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        return None
+
+
+def _netloc(url: str) -> str:
+    return urllib.parse.urlsplit(url).netloc.lower()
 
 
 def _strip_key(url: str) -> str:
@@ -235,13 +240,13 @@ class Net:
     ) -> None:
         self.cache_dir = cache_dir
         self.archive_dir = archive_dir  # where sources keep downloaded dataset archives
-        self.opener = urllib.request.build_opener(_PoliteRedirects(self))
+        self.opener = urllib.request.build_opener(_NoRedirects())
         self.transport: Transport = transport or (
             lambda request, timeout: self.opener.open(request, timeout=timeout)
         )
         self.limiter = limiter or RateLimiter()
         self.log = log
-        self._robots: dict[str, Robots] = {}
+        self._robots: dict[str, Robots] = {}  # by netloc: robots.txt is per host and port
         self._blocked: dict[str, str] = {}
         self.requests = 0
 
@@ -250,7 +255,7 @@ class Net:
     def _policy(self, url: str) -> HostPolicy:
         host = (urllib.parse.urlsplit(url).hostname or "").lower()
         policy = host_policy(host, demo_key=_uses_demo_key(url))
-        robots = self._robots.get(host)
+        robots = self._robots.get(_netloc(url))
         if robots is not None and robots.crawl_delay:
             policy = HostPolicy(
                 policy.bucket, max(policy.interval, robots.crawl_delay), policy.robots
@@ -262,7 +267,33 @@ class Net:
         host = (urllib.parse.urlsplit(url).hostname or "").lower()
         return self._blocked.get(host) or self._blocked.get(self._policy(url).bucket)
 
-    def _open(self, request: urllib.request.Request) -> Any:
+    def _open(self, request: urllib.request.Request, *, robots_fetch: bool = False) -> Any:
+        """Send ``request`` and follow up to :data:`MAX_REDIRECTS` redirects in a loop. Every
+        hop passes the block list and the rate limit; every redirect target is vetted by
+        :meth:`check_redirect`, except within a robots.txt fetch (``robots_fetch``), which must
+        not trigger robots vetting itself."""
+        for hop in range(MAX_REDIRECTS + 1):
+            response, status, location = self._send(request)
+            if location is None:
+                return response
+            if hop == MAX_REDIRECTS:
+                break
+            new_url = urllib.parse.urljoin(request.full_url, location)
+            self.check_redirect(request.full_url, new_url, vet_robots=not robots_fetch)
+            request = self._follow(request, new_url, status)
+        raise FetchError(f"more than {MAX_REDIRECTS} redirects from {redact(request.full_url)}")
+
+    def _follow(
+        self, request: urllib.request.Request, new_url: str, status: int
+    ) -> urllib.request.Request:
+        """The next request of a redirect: 307/308 keep the method and body, others GET."""
+        if status in (307, 308) and request.data is not None:
+            return self._request(new_url, request.data)  # type: ignore[arg-type]
+        return self._request(new_url)
+
+    def _send(self, request: urllib.request.Request) -> tuple[Any, int, str | None]:
+        """One HTTP exchange: ``(response, status, None)``, or ``(None, status, location)``
+        for a redirect."""
         url = request.full_url
         reason = self.blocked(url)
         if reason:
@@ -274,7 +305,10 @@ class Net:
         try:
             response = self.transport(request, TIMEOUT_SECONDS)
         except urllib.error.HTTPError as exc:
+            location = exc.headers.get("Location") if exc.headers is not None else None
             exc.close()
+            if exc.code in _REDIRECT_STATUSES and location:
+                return None, exc.code, str(location)
             if exc.code in _BLOCKING_STATUSES:
                 why = f"{host} answered HTTP {exc.code}; not asking it again this run"
                 self._blocked[host] = why
@@ -284,11 +318,13 @@ class Net:
             raise FetchError(f"HTTP {exc.code} from {redact(url)}") from None
         except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
             raise FetchError(f"{type(exc).__name__}: {exc} ({redact(url)})") from None
+        except RecursionError:  # defensive: never let one URL take the run down
+            raise FetchError(f"RecursionError while fetching {redact(url)}") from None
         if policy.bucket.endswith(DEMO_KEY):
             remaining = (response.headers.get("X-RateLimit-Remaining") or "").strip()
             if remaining == "0":
                 self._blocked[policy.bucket] = "DEMO_KEY hourly limit reached; listings stay cached"
-        return response
+        return response, int(getattr(response, "status", 200) or 200), None
 
     def _request(self, url: str, body: bytes | None = None) -> urllib.request.Request:
         headers = {"User-Agent": USER_AGENT}
@@ -308,37 +344,35 @@ class Net:
         host = (parts.hostname or "").lower()
         if not host_policy(host).robots:
             return True
-        if host not in self._robots:
-            self._robots[host] = self._fetch_robots(f"{parts.scheme}://{parts.netloc}/robots.txt")
-        robots = self._robots[host]
+        key = parts.netloc.lower()
+        if key not in self._robots:
+            self._robots[key] = self._fetch_robots(f"{parts.scheme}://{parts.netloc}/robots.txt")
+        robots = self._robots[key]
         if robots.error is not None:
             raise (HostBlocked if robots.refused else FetchError)(robots.error)
         return robots.allows(url)
 
-    def check_redirect(self, old_url: str, new_url: str) -> None:
+    def check_redirect(self, old_url: str, new_url: str, *, vet_robots: bool = True) -> None:
         """Vet one redirect hop as if it were a first request: http(s) only and no https ->
-        http downgrade (:class:`Rejected`), the target host not blocked, robots.txt allowing
-        it, and the target's rate limit honoured before urllib follows it."""
+        http downgrade (:class:`Rejected`), the target host not blocked, and (unless inside a
+        robots.txt fetch) robots.txt allowing it. The hop's rate limit is applied when it is
+        sent. Not recursive: a robots.txt fetch it triggers follows redirects unvetted."""
         old, new = urllib.parse.urlsplit(old_url), urllib.parse.urlsplit(new_url)
         if new.scheme not in ("http", "https") or (old.scheme == "https" and new.scheme != "https"):
             raise Rejected(f"redirect from {old.scheme} to {new.scheme} refused")
         reason = self.blocked(new_url)
         if reason:
             raise HostBlocked(reason)
-        if not self.allowed(new_url):
+        if vet_robots and not self.allowed(new_url):
             raise Rejected("robots.txt disallows the redirect target")
-        policy = self._policy(new_url)
-        self.limiter.wait(policy.bucket, policy.interval)
-        self.requests += 1
 
     def robots_status(self, url: str) -> str:
-        host = (urllib.parse.urlsplit(url).hostname or "").lower()
-        robots = self._robots.get(host)
+        robots = self._robots.get(_netloc(url))
         return robots.status if robots else "not fetched"
 
     def _fetch_robots(self, robots_url: str) -> Robots:
         try:
-            with self._open(self._request(robots_url)) as response:
+            with self._open(self._request(robots_url), robots_fetch=True) as response:
                 text = response.read(512 * 1024).decode("utf-8", "replace")
         except Rejected as exc:  # 404/410: no robots.txt, nothing is disallowed
             return Robots(rules=[], status=f"no robots.txt ({exc})")

@@ -7,13 +7,17 @@ chosen because their robots.txt allows these paths to all agents (checked 2026-1
 - State Street (SSGA) SPDR ETF fact sheets, one per ticker in SSGA's public "SPDR ETF listing"
   (target-maturity muni series left out);
 - iShares (BlackRock) summary prospectuses, one per fund, the link read from the fund's product
-  page (whose URL comes from iShares' public product-screener listing);
-- iShares annual and semi-annual tailored shareholder reports, per ticker.
+  page (whose URL comes from iShares' public product-screener listing).
+
+Fund shareholder reports (annual and semi-annual reports, N-CSR and the like) are left out of
+the v0.5 corpus (spec §4.0 ruling 3): only prospectuses, summary prospectuses and fact sheets,
+the ``KEPT_DOC_TYPES``, are listed. :func:`excluded` names a manifest record of this source that
+falls outside them (fetched before the ruling); the fetcher drops it when writing the manifest.
 
 Each URL answered ``206 application/pdf`` to a one-kilobyte range request on 2026-10-19
 (SSGA's QNDX fact sheet, a 404, was removed). The documents belong to their sponsors: they are
 kept locally for research and **never redistributed**; the manifest holds only URLs and hashes.
-The four lists are interleaved so any quota draws a mix of sponsors and document kinds.
+The two lists are interleaved so any quota draws a mix of sponsors and document kinds.
 """
 
 from __future__ import annotations
@@ -26,6 +30,19 @@ from benchmarks.training_corpus.sources.base import Candidate, Source, round_rob
 
 NAME = "fund_docs"
 LICENCE = "fund-sponsor public document; local research use only, never redistributed"
+KEPT_DOC_TYPES = frozenset({"financial.prospectus", "financial.fact_sheet"})
+
+
+def excluded(record: dict[str, object]) -> str | None:
+    """Why a manifest record of this source is left out of the corpus, or ``None``: a fund
+    shareholder report (spec §4.0 ruling 3), by its doc type or its ``kind``."""
+    if record.get("source") != NAME:
+        return None
+    kind = str(record.get("kind", "")).lower()
+    if record.get("doc_type_hint") not in KEPT_DOC_TYPES or "report" in kind:
+        return "excluded: fund shareholder report (spec §4.0 ruling 3)"
+    return None
+
 
 SSGA_FACT_SHEETS: tuple[str, ...] = (
     "https://www.ssga.com/library-content/products/factsheets/etfs/us/factsheet-us-en-allw.pdf",
@@ -183,143 +200,6 @@ SSGA_FACT_SHEETS: tuple[str, ...] = (
     "https://www.ssga.com/library-content/products/factsheets/etfs/us/factsheet-us-en-xtl.pdf",
     "https://www.ssga.com/library-content/products/factsheets/etfs/us/factsheet-us-en-xtn.pdf",
 )
-
-ISHARES_ANNUAL_REPORTS: tuple[str, ...] = (
-    "https://www.ishares.com/us/literature/annual-report/ar-ivv-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ijh-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ijr-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-itot-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iwm-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iwb-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iwf-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iwd-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iwo-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iwn-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iwr-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iwv-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-efa-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-eem-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iefa-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iemg-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-agg-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iusb-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-tlt-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ief-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-shy-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iei-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-tip-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-lqd-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-hyg-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-mbb-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-mub-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-emb-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-igsb-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-igib-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ushy-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-shv-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-govt-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-acwi-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-acwx-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ewj-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ewz-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ewg-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ewu-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ewc-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ewa-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ewy-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ewt-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-fxi-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-mchi-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-inda-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ibb-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iyr-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iyw-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-iyf-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ita-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-itb-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-soxx-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-igv-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-usmv-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-efav-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-mtum-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-qual-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-dvy-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-hdv-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-idv-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-scz-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-ixus-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-flot-en.pdf",
-    "https://www.ishares.com/us/literature/annual-report/ar-stip-en.pdf",
-)
-
-ISHARES_SEMIANNUAL_REPORTS: tuple[str, ...] = (
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ivv-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ijh-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ijr-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-itot-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iwm-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iwb-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iwf-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iwd-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iwo-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iwn-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iwr-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iwv-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-efa-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-eem-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iefa-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iemg-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-agg-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iusb-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-tlt-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ief-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-shy-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iei-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-tip-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-lqd-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-hyg-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-mbb-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-mub-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-emb-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-igsb-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-igib-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ushy-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-shv-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-govt-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-acwi-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-acwx-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ewj-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ewz-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ewg-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ewu-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ewc-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ewa-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ewy-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ewt-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-fxi-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-mchi-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-inda-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ibb-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iyr-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iyw-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-iyf-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ita-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-itb-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-soxx-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-igv-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-usmv-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-efav-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-mtum-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-qual-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-dvy-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-hdv-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-idv-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-scz-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-ixus-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-flot-en.pdf",
-    "https://www.ishares.com/us/literature/semi-annual-report/sar-stip-en.pdf",
-)
-
 
 # (ticker, URL): each fund's summary prospectus link, read from its iShares product page.
 ISHARES_SUMMARY_PROSPECTUSES: tuple[tuple[str, str], ...] = (
@@ -600,25 +480,7 @@ def _ssga(url: str) -> Candidate:
         doc_type_hint="financial.fact_sheet",
         title=f"SPDR {ticker.upper()} fact sheet",
         publisher="State Street Global Advisors",
-        family_hint="fund_document",
         extra={"sponsor": "SSGA", "ticker": ticker.upper(), "kind": "fact sheet"},
-    )
-
-
-def _ishares(url: str, kind: str) -> Candidate:
-    prefix = "ar" if kind == "annual" else "sar"
-    ticker = _ticker(url, rf"/{prefix}-([a-z0-9]+)-en\.pdf$")
-    return Candidate(
-        id=f"fund-ishares-{prefix}-{ticker}",
-        url=url,
-        source=NAME,
-        licence=LICENCE,
-        # A fund's shareholder report: the annual-report type, in the fund-document family.
-        doc_type_hint="financial.annual_report",
-        title=f"iShares {ticker.upper()} {kind} shareholder report",
-        publisher="BlackRock (iShares)",
-        family_hint="fund_document",
-        extra={"sponsor": "iShares", "ticker": ticker.upper(), "kind": f"{kind} report"},
     )
 
 
@@ -631,7 +493,6 @@ def _ishares_summary_prospectus(ticker: str, url: str) -> Candidate:
         doc_type_hint="financial.prospectus",
         title=f"iShares {ticker.upper()} summary prospectus",
         publisher="BlackRock (iShares)",
-        family_hint="fund_document",
         extra={"sponsor": "iShares", "ticker": ticker.upper(), "kind": "summary prospectus"},
     )
 
@@ -641,18 +502,13 @@ def candidates(net: Net) -> Iterator[Candidate]:
     return round_robin(
         (_ssga(u) for u in SSGA_FACT_SHEETS),
         (_ishares_summary_prospectus(t, u) for t, u in ISHARES_SUMMARY_PROSPECTUSES),
-        (_ishares(u, "annual") for u in ISHARES_ANNUAL_REPORTS),
-        (_ishares(u, "semi-annual") for u in ISHARES_SEMIANNUAL_REPORTS),
     )
 
 
 SOURCE = Source(
     name=NAME,
     target=150,
-    cap=len(SSGA_FACT_SHEETS)
-    + len(ISHARES_SUMMARY_PROSPECTUSES)
-    + len(ISHARES_ANNUAL_REPORTS)
-    + len(ISHARES_SEMIANNUAL_REPORTS),
+    cap=len(SSGA_FACT_SHEETS) + len(ISHARES_SUMMARY_PROSPECTUSES),
     probe_url="https://www.ssga.com/library-content/products/factsheets/",
     candidates=candidates,
     note="iShares URLs are checked against www.ishares.com robots.txt per download",

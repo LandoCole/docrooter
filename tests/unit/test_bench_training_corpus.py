@@ -29,6 +29,7 @@ from benchmarks.training_corpus.sources import (
     ir_annual_reports,
 )
 from benchmarks.training_corpus.sources.base import Candidate, Source
+from docrooter.taxonomies import family_for_doc_type
 
 UA = "docrooter-research/0.5 (research; contact via repository)"
 
@@ -751,16 +752,12 @@ def test_listing_parsers_for_the_other_sources():
     assert len(funds) == fund_docs.SOURCE.cap >= 150
     assert len({c.id for c in funds}) == len(funds)
     assert {c.url.split("/")[2] for c in funds} == {"www.ssga.com", "www.ishares.com"}
-    assert [c.extra["kind"] for c in funds[:4]] == [
-        "fact sheet",
-        "summary prospectus",
-        "annual report",
-        "semi-annual report",
-    ]
+    assert [c.extra["kind"] for c in funds[:2]] == ["fact sheet", "summary prospectus"]
+    assert {c.extra["kind"] for c in funds} == {"fact sheet", "summary prospectus"}
     prospectuses = [c for c in funds if c.extra["kind"] == "summary prospectus"]
     assert len(prospectuses) >= 50
     assert all(c.doc_type_hint == "financial.prospectus" for c in prospectuses)
-    assert all(c.family_hint == "fund_document" for c in funds)
+    assert all(family_for_doc_type(c.doc_type_hint) == "fund_document" for c in funds)
 
 
 def test_default_transport_passes_the_timeout_by_keyword(monkeypatch):
@@ -943,7 +940,8 @@ def test_cuad_lists_contract_pdfs_only_and_extracts_safely(tmp_path, monkeypatch
     assert not any("master_clauses" in (c.archive_member or "") for c in found)
     assert {c.licence for c in found} == {"CC-BY-4.0"}
     assert all("Atticus" in c.extra["attribution"] for c in found)
-    assert all(c.doc_type_hint == "legal.contract" and c.family_hint == "contract" for c in found)
+    assert all(c.doc_type_hint == "legal.contract" for c in found)
+    assert all(family_for_doc_type(c.doc_type_hint) == "contract" for c in found)
     assert [c.archive_member for c in found] == cuad.sample(cuad.contract_members(target))
     # The fetcher reads members with the PDF checks; a non-PDF member is a permanent drop.
     source = Source("cuad", 6, 6, None, lambda n: iter(found))
@@ -967,7 +965,7 @@ def test_ir_annual_reports_list_is_explicit_and_well_formed():
     assert all(c.url.startswith("https://") for c in found)
     assert all(fetch.SAFE_ID.fullmatch(c.id) for c in found)
     assert all(c.doc_type_hint == "financial.annual_report" for c in found)
-    assert all(c.family_hint == "annual_report" for c in found)
+    assert all(family_for_doc_type(c.doc_type_hint) == "annual_report" for c in found)
     assert all(2019 <= c.extra["year"] <= 2025 for c in found)
     assert len({c.publisher for c in found}) >= 30
     assert "sec.gov" not in " ".join(c.url for c in found)
@@ -1173,3 +1171,123 @@ def test_any_exception_in_one_document_is_recorded_and_the_run_continues(tmp_pat
         with pytest.raises(stop):
             fetcher2.run()
         assert [r["id"] for r in read_manifest(tmp_path / "manifest.jsonl")] == ["src-ok"]
+
+
+# --- corpus families (L5 fix 1 rulings) ------------------------------------------------------
+
+
+def test_fed_series_map_to_research_or_government_families():
+    from benchmarks.training_corpus.sources import fed
+
+    expected = {
+        "FEDS": ("research.research_paper", "research_paper"),
+        "feds": ("research.research_paper", "research_paper"),
+        "IFDP": ("research.research_paper", "research_paper"),
+        "FOMC minutes": ("government.government_report", "generic"),
+        "Monetary Policy Report": ("government.government_report", "generic"),
+        "Financial Stability Report": ("government.government_report", "generic"),
+        "testimony": ("government.government_report", "generic"),
+    }
+    for series, (doc_type, family) in expected.items():
+        assert fed.doc_type_for_series(series) == doc_type, series
+        assert family_for_doc_type(doc_type) == family, series
+
+    page = (
+        '<div id="2025110"><h5><a href="/econres/feds/x.htm">A</a></h5></div>'
+        '<div id="20251429"><h5><a href="/econres/ifdp/y.htm">B</a></h5></div>'
+    )
+    for series in ("feds", "ifdp"):
+        (paper,) = fed.parse_series(page, series)
+        assert paper.doc_type_hint == "research.research_paper"
+    (minutes,) = fed.parse_minutes('<a href="/monetarypolicy/files/fomcminutes20250129.pdf">')
+    assert minutes.doc_type_hint == "government.government_report"
+
+
+def _fund(key: str, doc_type: str, kind: str) -> Candidate:
+    return Candidate(
+        id=f"fund_docs-{key}",
+        url=f"https://fund_docs.example.org/{key}.pdf",
+        source="fund_docs",
+        licence="test licence",
+        doc_type_hint=doc_type,
+        title=f"Fund {key}",
+        publisher="Test",
+        extra={"kind": kind},
+    )
+
+
+def test_fund_shareholder_reports_are_excluded(tmp_path):
+    from benchmarks.training_corpus.sources import fund_docs
+
+    assert fund_docs.excluded({}) is None  # not a fund_docs record
+    keep = {"source": "fund_docs", "doc_type_hint": "financial.prospectus", "kind": "prospectus"}
+    assert fund_docs.excluded(keep) is None
+    assert fund_docs.excluded({**keep, "doc_type_hint": "financial.fact_sheet"}) is None
+    assert fund_docs.excluded({**keep, "doc_type_hint": "financial.annual_report"})
+    assert fund_docs.excluded({**keep, "kind": "semi-annual report"})
+    assert (
+        fund_docs.excluded({**keep, "source": "ir_annual_reports", "kind": "annual report"}) is None
+    )
+
+    # A shareholder report fetched before the ruling (here: by a source that still lists it) is
+    # dropped when the manifest is written, recorded once in drops.jsonl, and not counted.
+    candidates = [
+        _fund("fs", "financial.fact_sheet", "fact sheet"),
+        _fund("sp", "financial.prospectus", "summary prospectus"),
+        _fund("ar", "financial.annual_report", "annual report"),
+        _fund("sar", "financial.annual_report", "semi-annual report"),
+    ]
+    net, _ = make_net(tmp_path, {c.url: _pdf(c.id) for c in candidates})
+    source = fake_source("fund_docs", candidates, target=4, cap=4)
+    report = make_fetcher(tmp_path, [source], 4, net).run()
+    ids = [r["id"] for r in read_manifest(tmp_path / "manifest.jsonl")]
+    assert ids == ["fund_docs-fs", "fund_docs-sp"]
+    assert report.drops["excluded"] == 2
+    drops_path = tmp_path / "cache" / "drops.jsonl"
+    drops = [json.loads(line) for line in drops_path.read_text().splitlines()]
+    assert sorted(d["id"] for d in drops) == ["fund_docs-ar", "fund_docs-sar"]
+    assert all(d["permanent"] and "shareholder report" in d["reason"] for d in drops)
+
+    net2, transport2 = make_net(tmp_path, {})
+    report2 = make_fetcher(tmp_path, [source], 4, net2).run()
+    assert report2.sources["fund_docs"].have == 2  # the reports no longer count
+    assert [r["id"] for r in read_manifest(tmp_path / "manifest.jsonl")] == ids
+    assert len(drops_path.read_text().splitlines()) == 2  # recorded once
+    assert transport2.urls() == ["https://fund_docs.example.org/robots.txt"]  # none refetched
+
+
+def test_family_hint_is_derived_from_doc_type(tmp_path):
+    candidates = [
+        Candidate(
+            id="fed-fomcminutes-20250129",
+            url="https://fed.example.org/minutes.pdf",
+            source="fed",
+            licence="test licence",
+            doc_type_hint="government.government_report",
+            extra={"series": "FOMC minutes"},
+        ),
+        Candidate(
+            id="fed-feds-2025110",
+            url="https://fed.example.org/feds.pdf",
+            source="fed",
+            licence="test licence",
+            doc_type_hint="research.research_paper",
+            extra={"series": "FEDS"},
+        ),
+    ]
+    net, _ = make_net(tmp_path, {c.url: _pdf(c.id) for c in candidates})
+    source = fake_source("fed", candidates, target=2, cap=2)
+    make_fetcher(tmp_path, [source], 2, net).run()
+    families = {r["id"]: r["family_hint"] for r in read_manifest(tmp_path / "manifest.jsonl")}
+    assert families == {"fed-fomcminutes-20250129": "generic", "fed-feds-2025110": "research_paper"}
+
+    # A checkpoint written by older code with a stale family is corrected at manifest-write time.
+    journal = tmp_path / "cache" / "fetched.jsonl"
+    rows = [json.loads(line) for line in journal.read_text().splitlines()]
+    journal.write_text(
+        "".join(json.dumps({**r, "family_hint": "research_paper"}) + "\n" for r in rows)
+    )
+    net2, _ = make_net(tmp_path, {})
+    make_fetcher(tmp_path, [source], 2, net2).run()
+    again = {r["id"]: r["family_hint"] for r in read_manifest(tmp_path / "manifest.jsonl")}
+    assert again == families

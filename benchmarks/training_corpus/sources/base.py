@@ -38,7 +38,7 @@ def safe_id(prefix: str, raw: str) -> str:
 class Candidate:
     """One PDF a source offers. ``id`` is file-name-safe and unique across sources;
     ``doc_type_hint`` is a docrooter doc type id for the source's own type (Form ARS ->
-    ``financial.annual_report``); ``family_hint`` overrides the element family that type maps to;
+    ``financial.annual_report``), from which the fetcher derives the manifest's ``family_hint``;
     ``extra`` holds source fields kept in the manifest (arXiv authors, an EDGAR accession).
     ``archive`` and ``archive_member`` name a PDF inside a cached dataset archive (CUAD), which
     the fetcher reads instead of downloading ``url``; neither goes into the manifest."""
@@ -50,7 +50,6 @@ class Candidate:
     doc_type_hint: str
     title: str = ""
     publisher: str = ""
-    family_hint: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
     archive: Path | None = None
     archive_member: str | None = None

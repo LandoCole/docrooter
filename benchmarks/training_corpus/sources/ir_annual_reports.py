@@ -1199,7 +1199,6 @@ def _candidate(publisher: str, year: int, url: str) -> Candidate:
         doc_type_hint="financial.annual_report",
         title=f"{publisher} {year} annual report",
         publisher=publisher,
-        family_hint="annual_report",
         extra={"year": year},
     )
 

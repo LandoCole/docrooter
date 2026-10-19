@@ -2,6 +2,10 @@
 
     PYTHONPATH=src python -m benchmarks.training_corpus.gold_sample --corpus DIR
 
+The sample (``benchmarks/.cache/training_corpus/gold_sample.jsonl`` by default) holds element
+text from documents that are never redistributed: it stays in the git-ignored cache and is never
+committed. Keep the file the annotations were made against: their item ids refer to it.
+
 Only documents whose manifest split is ``gold`` are read, so no train or calib document can
 enter the gold set. The quota is split into cells by family group (spec §11):
 
@@ -49,7 +53,9 @@ from docrooter.corpus import Corpus, CorpusElement, ManifestRecord
 from docrooter.taxonomies import family_for_doc_type
 
 HERE = Path(__file__).resolve().parent
-SAMPLE_PATH = HERE / "gold_sample.jsonl"
+# The sample holds the full text of documents that are never redistributed, so it lives in the
+# git-ignored cache; the summary (counts only) and the final gold.jsonl (keys and labels) do not.
+SAMPLE_PATH = HERE.parent / ".cache" / "training_corpus" / "gold_sample.jsonl"
 SUMMARY_PATH = HERE / "gold_sample_summary.json"
 
 SEED = 0

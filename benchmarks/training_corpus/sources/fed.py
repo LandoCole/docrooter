@@ -9,8 +9,13 @@ the Board's own index pages (robots.txt allows them; 1 request/s):
   ``/econres/ifdp/files/ifdp1429.pdf``;
 - FOMC minutes: the PDF links on ``/monetarypolicy/fomccalendars.htm``.
 
-The three streams are interleaved. Licence: public domain unless otherwise indicated (Board
-disclaimer); seals, logos and marked third-party material excepted.
+The three streams are interleaved. Doc types follow the series (controller ruling, L5 fix 1):
+FEDS and IFDP working papers are research papers (element family ``research_paper``); FOMC
+minutes and every other Board report (Monetary Policy Report, Financial Stability Report,
+testimony) are government reports (family ``generic``). See :func:`doc_type_for_series`.
+
+Licence: public domain unless otherwise indicated (Board disclaimer); seals, logos and marked
+third-party material excepted.
 """
 
 from __future__ import annotations
@@ -36,6 +41,18 @@ _ENTRY = re.compile(
 _MINUTES = re.compile(r'href="(/monetarypolicy/files/fomcminutes(\d{8})\.pdf)"')
 
 
+RESEARCH_SERIES = frozenset({"FEDS", "IFDP"})
+
+
+def doc_type_for_series(series: str) -> str:
+    """The doc type of a Board publication series: the FEDS and IFDP working-paper series are
+    ``research.research_paper``; any other series (FOMC minutes, the Monetary Policy Report,
+    the Financial Stability Report, testimony) is ``government.government_report``."""
+    if series.upper() in RESEARCH_SERIES:
+        return "research.research_paper"
+    return "government.government_report"
+
+
 def _title(raw: str) -> str:
     return " ".join(html.unescape(re.sub(r"<[^>]+>", "", raw)).split())
 
@@ -59,7 +76,7 @@ def parse_series(page: str, series: str) -> list[Candidate]:
                 url=url,
                 source=NAME,
                 licence=LICENCE,
-                doc_type_hint="research.research_paper",
+                doc_type_hint=doc_type_for_series(series),
                 title=_title(match.group("title")),
                 publisher=PUBLISHER,
                 extra={"series": series.upper()},
@@ -81,7 +98,7 @@ def parse_minutes(page: str) -> list[Candidate]:
                 url=f"{BASE}{path}",
                 source=NAME,
                 licence=LICENCE,
-                doc_type_hint="government.government_report",
+                doc_type_hint=doc_type_for_series("FOMC minutes"),
                 title=f"Minutes of the Federal Open Market Committee {day}",
                 publisher=PUBLISHER,
                 extra={"series": "FOMC minutes"},

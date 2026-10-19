@@ -113,7 +113,6 @@ def candidates(net: Net) -> Iterator[Candidate]:
             doc_type_hint="legal.contract",
             title=title,
             publisher=party,
-            family_hint="contract",
             extra={"cuad_file": member, "attribution": ATTRIBUTION},
             archive=archive,
             archive_member=member,

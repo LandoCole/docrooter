@@ -511,3 +511,12 @@ def test_annotation_guide_covers_taxonomies_and_examples_are_valid():
     assert Counter(a["family"] for a in answers) == dict.fromkeys(gold.topic_leaves(), 3)
     for answer in answers:
         assert gold.label_errors(answer["family"], answer["topic"], answer["functions"]) == []
+
+
+def test_sample_defaults_to_the_git_ignored_cache():
+    cache = (gold_sample.HERE.parent / ".cache").resolve()
+    assert gold_sample.SAMPLE_PATH.resolve().is_relative_to(cache)
+    assert gold.SAMPLE_PATH == gold_sample.SAMPLE_PATH
+    ignore = (gold_sample.HERE.parent.parent / ".gitignore").read_text().splitlines()
+    assert "benchmarks/.cache/" in ignore
+    assert "benchmarks/training_corpus/gold_sample*.jsonl" in ignore

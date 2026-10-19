@@ -73,7 +73,12 @@ from benchmarks.training_corpus._net import (
     Rejected,
     redact,
 )
-from benchmarks.training_corpus.sources import ALL_SOURCES, MAKEUP_ORDER, OPTIONAL_SOURCES
+from benchmarks.training_corpus.sources import (
+    ALL_SOURCES,
+    MAKEUP_ORDER,
+    OPTIONAL_SOURCES,
+    fund_docs,
+)
 from benchmarks.training_corpus.sources.base import Candidate, Source
 from docrooter.taxonomies import family_for_doc_type
 
@@ -474,6 +479,7 @@ class Fetcher:
                 for s in self.sources
             },
         )
+        self._purge_excluded(report)
         for run in report.sources.values():
             run.have = sum(1 for r in self.fetched.values() if r.get("source") == run.name)
         by_name = {s.name: s for s in self.sources}
@@ -663,15 +669,41 @@ class Fetcher:
             "pages": pages,
             "fetched_at": self.now(),
             "doc_type_hint": candidate.doc_type_hint,
-            "family_hint": candidate.family_hint or family_for_doc_type(candidate.doc_type_hint),
+            "family_hint": family_for_doc_type(candidate.doc_type_hint),
             "title": candidate.title,
             "publisher": candidate.publisher,
         }
         record.update({k: v for k, v in candidate.extra.items() if k not in record})
         return record
 
+    def _purge_excluded(self, report: Report) -> None:
+        """Take fetched documents that a later ruling excludes (fund shareholder reports, spec
+        §4.0 ruling 3) out of this run: they are not counted, listed or written to the manifest,
+        and each is recorded once in ``drops.jsonl`` as a permanent drop."""
+        for doc_id, record in list(self.fetched.items()):
+            reason = fund_docs.excluded(record)
+            if reason is None:
+                continue
+            del self.fetched[doc_id]
+            report.drops[reason.split(":", 1)[0]] += 1
+            if doc_id in self.permanent_drops:
+                continue
+            self.permanent_drops.add(doc_id)
+            if not self.dry_run:
+                row = {
+                    "id": doc_id,
+                    "source": record.get("source"),
+                    "url": record.get("url"),
+                    "reason": reason,
+                    "permanent": True,
+                    "at": self.now(),
+                }
+                _append_jsonl(self.drops_path, row)
+            self.log(f"DROP     {record.get('source')} {doc_id} {reason}")
+
     def _write_manifest(self, report: Report) -> list[dict[str, Any]]:
         order = {s.name: i for i, s in enumerate(ALL_SOURCES + OPTIONAL_SOURCES)}
+        self._purge_excluded(report)
         records = []
         for record in self.fetched.values():
             excluded = self.exclusions.match_record(record)  # the exclusion lists may have grown
@@ -682,7 +714,15 @@ class Fetcher:
             records.append(record)
         records.sort(key=lambda r: (order.get(r["source"], len(order)), r["id"]))
         splits = assign_splits(records, self.existing_splits)
-        rows = [{**r, "split": splits[r["id"]]} for r in records]
+        # The family is always derived from the doc type, so the two cannot drift apart.
+        rows = [
+            {
+                **r,
+                "family_hint": family_for_doc_type(str(r.get("doc_type_hint") or "")),
+                "split": splits[r["id"]],
+            }
+            for r in records
+        ]
         _write_atomic(
             self.manifest_path,
             "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in rows),

@@ -21,6 +21,19 @@ Everything else lives in `benchmarks/.cache/training_corpus/`, which is git-igno
 - `summary.json`;
 - `dry_run.jsonl`.
 
+## Gold set
+
+The element gold set (spec §11) is built from the gold split by the following files:
+
+| File | What it is | Committed |
+| - | - | - |
+| `gold_sample.py` | The sampler. It writes `benchmarks/.cache/training_corpus/gold_sample.jsonl` and `gold_sample_summary.json`. | yes |
+| `gold.py` | Annotator batches, validation, agreement (Cohen's kappa) and the adjudication merge. | yes |
+| `annotation_guide.md` | The annotators' guide, written from the taxonomy definitions only. | yes |
+| `gold_sample_summary.json` | Counts per cell, with shortfalls. | yes |
+| `gold.jsonl`, `gold_agreement.json` | Keys and labels, and agreement. They hold no text. They are committed before any model scores a gold document. | yes |
+| `gold_sample.jsonl`, batches | They hold full element text of documents that are never redistributed. They live in `benchmarks/.cache/` and are git-ignored. | **never** |
+
 ## Reproducing
 
 ```
@@ -44,7 +57,7 @@ PYTHONPATH=src .venv/bin/python -m benchmarks.training_corpus.fetch --sources fe
 - EDGAR: `accession` and `cik`;
 - others: the source's own id or date.
 
-Ids match `^[a-z0-9_-]{1,80}$`; the fetcher refuses any other id. `doc_type_hint` is a docrooter doc type id for the source's own type. `family_hint` is the element topic family. `docrooter corpus build DIR --from-manifest benchmarks/training_corpus/manifest.jsonl --pdf-dir benchmarks/.cache/training_corpus/pdfs` reads it directly.
+Ids match `^[a-z0-9_-]{1,80}$`; the fetcher refuses any other id. `doc_type_hint` is a docrooter doc type id for the source's own type. `family_hint` is the element topic family. The fetcher always derives it from `doc_type_hint` with `family_for_doc_type` when it writes the manifest, so the two cannot drift. `docrooter corpus build DIR --from-manifest benchmarks/training_corpus/manifest.jsonl --pdf-dir benchmarks/.cache/training_corpus/pdfs` reads it directly.
 
 **Splits.** Each document's split comes from its id alone: `sha256("split:" + id)` read as a number in [0, 1) gives:
 - `gold` below 0.10;
@@ -60,10 +73,10 @@ Spec targets are given at 1,100 documents. `--target` scales targets and caps. S
 | Source | Spec target | Cap | What, and from where | Licence / status | Availability (2026-10-19) |
 | - | - | - | - | - | - |
 | `ir_annual_reports` | 250 | 255 | 255 explicit URLs of company annual reports for 2019-2025, 55 companies across banking, insurance, pharma, industrials, telecoms, retail and media. Each URL is on the company's own IR site. Replaces EDGAR Form ARS. | The publisher's document: local research use only, never redistributed. | **Works.** Every URL answered a 1 KB range request with a PDF of at most 50 MB on 2026-10-19. The 2023 Berkshire report is a dev document and is excluded. |
-| `fund_docs` | 150 | 349 | 349 explicit sponsor URLs: 154 SSGA SPDR fact sheets, 65 iShares summary prospectuses, and 65 annual and 65 semi-annual iShares shareholder reports. | Sponsor documents: local research use only, never redistributed. | **Works.** All 349 URLs answered with a PDF. |
+| `fund_docs` | 150 | 219 | 219 explicit sponsor URLs: 154 SSGA SPDR fact sheets and 65 iShares summary prospectuses. Fund shareholder reports (annual, semi-annual, N-CSR) are left out by spec §4.0 ruling 3. Any fetched before that ruling is dropped when the manifest is written, and recorded in `drops.jsonl`. | Sponsor documents: local research use only, never redistributed. | **Works.** All 219 URLs answered with a PDF. |
 | `govinfo_gao` | 150 | 250 | GAO reports issued 2004-2008, `docClass` REPORT, through the govinfo `published` API. PDFs come from www.govinfo.gov/content. | US government work, not copyrighted (third-party images excepted). | **Works with `DEMO_KEY`.** One request lists 1,000 packages. About 800 are reports. |
 | `crs` | 100 | 200 | CRS Reports, active or archived, through api.congress.gov `crsreport`. PDFs come from www.congress.gov/crs_external_products, with a 2 s crawl delay. | US government work. Copyright status unverified, and reports may contain third-party material. | **Works with `DEMO_KEY`.** About 160 Reports per 250-item request, with up to 3 requests. |
-| `fed` | 60 | 220 | FEDS and IFDP working papers (2022-2025 index pages) and FOMC minutes. | Public domain unless otherwise indicated. | **Works.** No robots.txt. About 550 papers and 46 minutes are listed. |
+| `fed` | 60 | 220 | FEDS and IFDP working papers (2022-2025 index pages) and FOMC minutes. Working papers are `research.research_paper` (family `research_paper`). FOMC minutes and any other Board report (Monetary Policy Report, Financial Stability Report, testimony) are `government.government_report` (family `generic`). | Public domain unless otherwise indicated. | **Works.** No robots.txt. About 550 papers and 46 minutes are listed. |
 | `arxiv` | 150 | 250 | OAI-PMH `arXiv` format, sets q-fin, econ, stat and cs (2025). Only records whose licence is CC BY 4.0 or CC0 are kept. | CC-BY-4.0 / CC0-1.0. Authors are kept for attribution. | **Works.** About 35% of q-fin records qualify. OAI requests are spaced 3 s apart, and PDF requests 15 s apart (robots crawl delay). |
 | `uscourts` | 100 | 150 | Federal appellate opinions from one govinfo `search` request (1,000 results), interleaved across circuits. PDFs come from www.govinfo.gov/content. | US government work, verify per document. | **Works with `DEMO_KEY`.** About 13 circuits. |
 | `rfc` | 40 | 60 | RFCs 8650-9850 (the v3 format has a PDF rendering), in an order shuffled with seed 0. | IETF Trust Legal Provisions: unmodified copies only. | **Works.** |

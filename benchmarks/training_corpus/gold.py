@@ -9,8 +9,12 @@ against the element taxonomies, inter-annotator agreement and the adjudication m
         --first FILE... --second FILE... --adjudication FILE... \
         [--sample-summary benchmarks/training_corpus/gold_sample_summary.json]
 
-``S`` is the sampler's ``gold_sample.jsonl``. An annotation file is JSON lines, one row per
-item: ``{"item": "g0042", "topic": "<leaf id>", "functions": [...], "annotator": "<name>"}``.
+``S`` is the sampler's ``gold_sample.jsonl`` (default: in ``benchmarks/.cache/training_corpus/``).
+Batches and adjudication batches hold element text too: write them under ``benchmarks/.cache/``
+(for example ``benchmarks/.cache/training_corpus/gold/``), never into a tracked directory.
+
+An annotation file is JSON lines, one row per item:
+``{"item": "g0042", "topic": "<leaf id>", "functions": [...], "annotator": "<name>"}``.
 The first annotation covers every item; the second covers exactly the ``double`` items, each by
 a different annotator than the first; the adjudication covers at least the items on which the
 two disagree (topic, or the set of functions).

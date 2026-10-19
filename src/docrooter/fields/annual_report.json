@@ -8,7 +8,7 @@
       "topics": [
         "annual_report.shareholder_letter"
       ],
-      "query": "What does the letter to shareholders say about the year and the outlook?"
+      "query": "What do the chairman and CEO say about the company's year and its outlook?"
     },
     {
       "id": "annual_report.business_overview",
@@ -53,7 +53,7 @@
       "functions": [
         "financial_data"
       ],
-      "query": "What do the balance sheet, income statement, and cash flow statement report?"
+      "query": "What do the company's balance sheet, income statement, and cash flow statement show?"
     },
     {
       "id": "annual_report.notes_to_financial_statements",
@@ -66,7 +66,7 @@
         "accounting_policy",
         "financial_data"
       ],
-      "query": "What do the notes to the financial statements say about accounting policies and the detail behind the reported amounts?"
+      "query": "What accounting policies does the company use, and what detail do the notes give on revenue, debt, leases, and taxes?"
     },
     {
       "id": "annual_report.corporate_governance",
@@ -157,7 +157,7 @@
     {
       "id": "annual_report.risks_and_uncertainties",
       "label": "Risks and uncertainties",
-      "description": "The threats to the company that the report sets out: the risk factors together with pending or threatened litigation and regulatory actions, each with its possible consequences.",
+      "description": "The threats to the company that the report sets out: the risk factors together with pending or threatened litigation and regulatory actions, each with its possible consequences. Not the quantitative market-risk disclosures in management's discussion and analysis (management_discussion).",
       "topics": [
         "annual_report.risk_factors",
         "annual_report.legal_proceedings"

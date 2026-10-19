@@ -13,14 +13,14 @@
     {
       "id": "fund_document.fees_and_expenses",
       "label": "Fees and expenses",
-      "description": "What it costs to buy, hold, and sell the fund's shares: sales charges and other shareholder fees, annual operating expenses and the expense ratio, fee waivers, the expense example, and portfolio turnover.",
+      "description": "What it costs to buy, hold, and sell the fund's shares: shareholder fees such as the maximum sales charge (load) and the redemption fee; annual fund operating expenses such as the management fee, distribution and/or service (12b-1) fees, other expenses, and acquired fund fees and expenses; total annual fund operating expenses and the expense ratio; fee waivers and expense reimbursements; the expense example; and portfolio turnover.",
       "topics": [
         "fund_document.fees_and_expenses"
       ],
       "functions": [
         "financial_data"
       ],
-      "query": "What are the fund's fees and expense ratio?"
+      "query": "What are the fund's fees and expenses: its management fee, 12b-1 fees, other expenses, total annual fund operating expenses, fee waivers, sales charges, and redemption fees?"
     },
     {
       "id": "fund_document.principal_investment_strategies",
@@ -41,7 +41,7 @@
       "functions": [
         "risk_disclosure"
       ],
-      "query": "What are the main risks of investing in this fund?"
+      "query": "What are the main risks of investing in the fund?"
     },
     {
       "id": "fund_document.performance",
@@ -86,7 +86,7 @@
       "functions": [
         "procedure"
       ],
-      "query": "How do I buy or sell shares of the fund, and what is the minimum investment?"
+      "query": "How can investors buy or sell shares of the fund, and what is the minimum investment?"
     },
     {
       "id": "fund_document.tax_information",
@@ -131,7 +131,7 @@
       "functions": [
         "procedure"
       ],
-      "query": "How do I buy and sell shares of the fund, and how will I be taxed?"
+      "query": "How can investors buy and sell shares of the fund, and how are they taxed?"
     }
   ]
 }

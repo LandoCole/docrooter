@@ -54,7 +54,7 @@
       "functions": [
         "obligation"
       ],
-      "query": "What must be paid, when, and on what terms?"
+      "query": "What must be paid under the agreement, when, and on what terms?"
     },
     {
       "id": "contract.confidentiality",
@@ -123,7 +123,7 @@
       "topics": [
         "contract.general_provisions"
       ],
-      "query": "What do the general provisions say about notices, assignment, amendment, and force majeure?"
+      "query": "What are the agreement's rules on notices, assignment, amendments, and force majeure?"
     },
     {
       "id": "contract.signatures_exhibits",
@@ -138,9 +138,9 @@
       "query": "Who signed the agreement, and which schedules and exhibits are attached?"
     },
     {
-      "id": "contract.obligations",
-      "label": "Obligations of the parties",
-      "description": "The duties each party takes on: what it must deliver, pay, keep confidential, warrant, and indemnify, stated as covenants with shall, must, or agrees to.",
+      "id": "contract.core_obligations",
+      "label": "Core commercial obligations",
+      "description": "The core commercial duties each party takes on: what it must deliver, pay, keep confidential, and indemnify, and the representations and warranties it gives, stated with shall, must, agrees to, or represents and warrants. Not the duties in the term and termination, intellectual property, or general provisions clauses, such as returning materials after termination, assigning work product, or not assigning the agreement without consent (term_and_termination, intellectual_property, general_provisions).",
       "topics": [
         "contract.scope_services",
         "contract.payment",
@@ -151,7 +151,7 @@
       "functions": [
         "obligation"
       ],
-      "query": "What is each party obliged to do under the agreement?"
+      "query": "What must each party deliver, pay, keep confidential, warrant, and indemnify under the agreement?"
     },
     {
       "id": "contract.risk_allocation",

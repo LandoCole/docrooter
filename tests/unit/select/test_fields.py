@@ -1,6 +1,7 @@
 """Fields: the named needs behind ``select()`` (spec §4), their built-in sets and validation."""
 
 import json
+import re
 
 import pytest
 
@@ -46,6 +47,44 @@ def test_each_field_has_description_and_query(family):
         assert field.query is not None and field.query.strip().endswith("?"), field.id
 
 
+@pytest.mark.parametrize("family", FAMILIES)
+def test_queries_share_one_voice(family):
+    """Every query is a question a user would ask about the document's subject, in the third
+    person: no "I", "my" or "this fund", and not about the document's own parts."""
+    for field in builtin_fields(family):
+        assert not re.search(r"\b(I|me|my|we|our|you|your|this)\b", field.query), field.id
+        assert not re.search(r"\bWhat do the \w+ (provisions|notes) say\b", field.query), field.id
+
+
+def test_fee_field_names_the_fee_table_rows():
+    """The fee table's own row labels lift the embedding term on its rows."""
+    fees = next(f for f in builtin_fields("fund_document") if f.id.endswith(".fees_and_expenses"))
+    text = f"{fees.description} {fees.query}".lower()
+    for row in [
+        "management fee",
+        "12b-1",
+        "other expenses",
+        "acquired fund fees and expenses",
+        "total annual fund operating expenses",
+        "fee waiver",
+        "sales charge",
+        "redemption fee",
+    ]:
+        assert row in text, row
+
+
+def test_core_obligations_states_its_boundary():
+    """Relevance is the union of the field's topics, so the label and description must say
+    which obligations it leaves out."""
+    field = next(f for f in builtin_fields("contract") if f.id == "contract.core_obligations")
+    assert field.label == "Core commercial obligations"
+    for excluded in ["term_and_termination", "intellectual_property", "general_provisions"]:
+        assert excluded in field.description
+    left_out = {"term", "termination", "intellectual_property", "general_provisions"}
+    assert not set(field.topics) & {f"contract.{t}" for t in left_out}
+    assert "obligations" not in {f.id.split(".", 1)[1] for f in builtin_fields("contract")}
+
+
 def test_builtin_sets_carry_the_cross_cutting_function_pairs():
     """The pairs the plan names: fees with financial_data, risk with risk_disclosure, and
     obligations with obligation."""
@@ -53,8 +92,8 @@ def test_builtin_sets_carry_the_cross_cutting_function_pairs():
     assert "financial_data" in by_id["fund_document.fees_and_expenses"].functions
     assert "risk_disclosure" in by_id["annual_report.risk_factors"].functions
     assert "risk_disclosure" in by_id["fund_document.principal_risks"].functions
-    assert "obligation" in by_id["contract.obligations"].functions
-    assert len(by_id["contract.obligations"].topics) > 1  # cross-cutting: spans clause topics
+    assert "obligation" in by_id["contract.core_obligations"].functions
+    assert len(by_id["contract.core_obligations"].topics) > 1  # cross-cutting: spans clauses
 
 
 def test_builtin_fields_unknown_family():
@@ -138,7 +177,11 @@ def _field(**overrides) -> Field:
         ([_field(), _field(id="x", topics=["contract.term"])], "family"),
         ([_field(id="annual_report.x", topics=["contract.term"])], "family"),
         ([_field(functions=["not_a_function"])], "unknown function"),
-        ([_field(), _field()], "duplicate"),
+        ([_field(), _field()], "duplicate field id"),
+        ([], "empty field set"),
+        ([_field(topics=["annual_report.risk_factors"] * 2)], "duplicate topics"),
+        ([_field(functions=["risk_disclosure"] * 2)], "duplicate functions"),
+        ([_field(topics=["annual_report.other"])], "catch-all"),
     ],
 )
 def test_unknown_topic_rejected(fields, problem, topics, functions):
@@ -152,3 +195,10 @@ def test_validate_fields_reports_every_problem(topics, functions):
     with pytest.raises(FieldError) as excinfo:
         validate_fields(bad, topics, functions)
     assert len(excinfo.value.problems) == 2
+
+
+def test_other_leaf_allowed_beside_a_real_topic(topics, functions):
+    """``.other`` may widen a field; it only may not be the whole of it."""
+    validate_fields(
+        [_field(topics=["annual_report.risk_factors", "annual_report.other"])], topics, functions
+    )

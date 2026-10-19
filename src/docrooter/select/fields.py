@@ -112,23 +112,38 @@ def validate_fields(
     Every topic must be a leaf of ``topics_taxonomy``, and every function a node of
     ``functions_taxonomy``. A field's topics, and all the fields of a set, must belong to one
     family (a top-level node of the topic tree), and each id must be ``"<family>.<name>"``.
-    Ids must be unique. Raises :class:`~docrooter.errors.FieldError` listing every problem.
+    The set must not be empty, ids must be unique, and a field may not list a topic or function
+    twice. A field may include its family's catch-all ``<family>.other`` leaf, but not as its
+    only topic: "everything that fits nowhere else" is not a need. Raises
+    :class:`~docrooter.errors.FieldError` listing every problem.
     """
     problems: list[str] = []
+    if not fields:
+        problems.append("empty field set: a set needs at least one field")
     set_family: str | None = None
     seen: set[str] = set()
     for field in fields:
         if field.id in seen:
             problems.append(f"{field.id}: duplicate field id")
         seen.add(field.id)
+        for kind, values in (("topic", field.topics), ("function", field.functions)):
+            repeated = sorted({v for v in values if values.count(v) > 1})
+            if repeated:
+                problems.append(f"{field.id}: duplicate {kind}s {repeated}")
         families: set[str] = set()
+        other_only = True
         for topic in field.topics:
             if topic not in topics_taxonomy:
                 problems.append(f"{field.id}: unknown topic {topic!r}")
+                other_only = False
                 continue
             if topics_taxonomy.children(topic):
                 problems.append(f"{field.id}: topic {topic!r} is not a leaf")
-            families.add(topics_taxonomy.path(topic)[0].id)
+            top = topics_taxonomy.path(topic)[0].id
+            families.add(top)
+            other_only = other_only and topic == f"{top}.other"
+        if families and other_only:
+            problems.append(f"{field.id}: its only topics are catch-all '.other' leaves")
         if len(families) > 1:
             problems.append(f"{field.id}: topics are in more than one family: {sorted(families)}")
         elif families:

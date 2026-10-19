@@ -23,7 +23,9 @@ class Analysis(BaseModel):
     (one vector per element) is set only when the ``embeddings`` task is. ``config`` is the
     resolved configuration that ran (a backend or engine the caller passed in appears by its
     name), and ``timings`` holds seconds per stage (``load``, ``doc_type``, ``escalate``,
-    ``sections``, ``summaries``, ``embeddings``, and ``total``) for the stages that ran.
+    ``sections``, ``summaries``, ``element_tags``, ``embeddings``, and ``total``) for the stages
+    that ran. Element tags, when the ``element_tags`` task ran, are on the elements
+    (``Element.tags``).
     """
 
     document: Document

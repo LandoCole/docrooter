@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from docrooter.classify.classifier import DEFAULT_BACKEND
 from docrooter.errors import DocrooterError
@@ -22,6 +22,7 @@ else:  # pragma: no cover - Python 3.10
 __all__ = ["RouterConfig"]
 
 ProfileName = Literal["fast", "balanced", "accurate"]
+_TEACHER_PREFIX = "teacher:"  # docrooter.tagger.element_tags.TEACHER_PREFIX
 
 
 class RouterConfig(BaseModel):
@@ -47,6 +48,11 @@ class RouterConfig(BaseModel):
       ``none``).
     - ``escalate``: ``none`` or a backend spec that re-labels results whose confidence is below
       ``escalate_below`` (spec §7.5).
+    - ``element_tags``: ``none`` (every profile's default), an element-tagger bundle directory,
+      ``embedding:<model>`` (a zero-shot baseline) or ``teacher:<engine spec>``: topic and
+      function tags on the paragraph, list item, table, caption, footnote and formula elements
+      (``Element.tags``); needs element mode. See :mod:`docrooter.tagger.element_tags`. A spec
+      naming Jev is refused (TypeSafe MCA §2.3(b)).
     - ``max_pages``, ``ocr_lang``, ``ocr_dpi``: page cap, OCR language and OCR render DPI
       (72 to 600; a page over ``docrooter.ocr.render.MAX_RENDER_PIXELS`` renders at a lower
       dpi, recorded as ``dpi_capped`` in its route metrics).
@@ -68,6 +74,7 @@ class RouterConfig(BaseModel):
     embeddings: str = Field("none", min_length=1)
     escalate: str = Field("none", min_length=1)
     escalate_below: float = Field(0.5, ge=0.0, le=1.0)
+    element_tags: str = Field("none", min_length=1)
     max_pages: int | None = Field(None, ge=1)
     ocr_lang: str = Field("en", min_length=1)
     ocr_dpi: int = Field(200, ge=72, le=600)
@@ -82,6 +89,21 @@ class RouterConfig(BaseModel):
         if not isinstance(name, str):
             raise ValueError(f"profile must be a string, got {type(name).__name__}")
         return {**profile_defaults(name), **data, "profile": name}
+
+    @field_validator("element_tags")
+    @classmethod
+    def _element_tags_form(cls, value: str) -> str:
+        """Jev is refused here, before anything runs (TypeSafe MCA §2.3(b)); the rest of the
+        spec is checked when :func:`~docrooter.process` resolves it."""
+        if value == "none":
+            return value
+        from docrooter.teach.base import refuse_jev  # light: no model library
+
+        spec = value.strip()
+        refuse_jev(spec.removeprefix(_TEACHER_PREFIX))  # a TeacherNotAllowedError (ValueError)
+        if spec in ("embedding", "teacher", "embedding:", "teacher:"):
+            raise ValueError(f"element_tags={value!r} names no model")
+        return value
 
     @classmethod
     def from_file(cls, path: str | os.PathLike[str]) -> RouterConfig:

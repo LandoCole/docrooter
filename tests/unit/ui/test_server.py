@@ -1266,3 +1266,123 @@ def test_cut_element_text_gets_one_ellipsis_from_the_server_only(client):
     assert text.endswith("…") and not text.endswith("……") and len(text) == 200
     script = client.get("/static/app.js").text
     assert "more ?" not in script and "text_chars" not in script  # the page adds none of its own
+
+
+# --- element tags (v0.5 L10) --------------------------------------------------------------
+
+
+class FakeTagger:
+    """Tags every element with its family's ``other`` leaf and two functions; counts loads
+    (``made``), calls and closes."""
+
+    made = 0
+    closed = 0
+
+    def __init__(self):
+        type(self).made += 1
+        self.calls = []
+
+    def tag(self, elements, family):
+        from docrooter.elements import TagResult
+
+        self.calls.append((len(elements), family))
+        leaf = f"{family}.other"
+        probs = {f"function_{i}": 0.1 for i in range(8)}
+        probs.update({"<b>risk_disclosure</b>": 0.91, "definition": 0.6})
+        return [
+            {
+                "topic": TagResult(
+                    labels=[leaf],
+                    probs={leaf: 0.7, f"{family}.x": 0.3},
+                    confidence=0.7,
+                    source="bundle:fake",
+                ),
+                "function": TagResult(
+                    labels=["<b>risk_disclosure</b>", "definition"],
+                    probs=probs,
+                    confidence=0.6,
+                    source="bundle:fake",
+                ),
+            }
+            for _ in elements
+        ]
+
+    def close(self):
+        type(self).closed += 1
+
+
+@pytest.fixture
+def tag_bundle(tmp_path, monkeypatch):
+    from docrooter.tagger import element_tags
+
+    path = tmp_path / "bundle"
+    path.mkdir()
+    (path / "tagger.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(FakeTagger, "made", 0)
+    monkeypatch.setattr(FakeTagger, "closed", 0)
+    monkeypatch.setattr(element_tags, "load_bundle", lambda spec: FakeTagger())
+    return path
+
+
+def test_server_tag_chips_textcontent(tag_bundle):
+    with TestClient(server.create_app("keyword", element_tags=str(tag_bundle)),
+                    base_url="http://127.0.0.1:8765") as client:  # fmt: skip
+        assert client.get("/api/backends").json()["element_tags"] == "bundle"
+        for _ in range(2):
+            run_id, events = run(client, "paper.md", MARKDOWN, profile="balanced")
+            assert events[-1]["data"]["status"] == "done"
+            tag_end = [e for e in events if e["stage"] == "tag" and e["status"] == "end"]
+            assert len(tag_end) == 1 and tag_end[0]["data"]["elements"] == 3
+        assert FakeTagger.made == 1 and FakeTagger.closed == 0  # loaded once, kept for runs
+
+        detail = client.get(f"/api/runs/{run_id}").json()
+        tagged = [e for e in detail["elements"] if "tags" in e]
+        assert [e["kind"] for e in tagged] == ["paragraph"] * 3  # headings get none
+        assert all("tags" not in e for e in detail["elements"] if e["kind"] == "heading")
+        family = detail["element_tags"]["family"]
+        topic, function = tagged[0]["tags"]["topic"], tagged[0]["tags"]["function"]
+        assert topic == {
+            "labels": [f"{family}.other"],
+            "confidence": 0.7,
+            "probs": [{"id": f"{family}.other", "prob": 0.7}, {"id": f"{family}.x", "prob": 0.3}],
+        }
+        assert function["labels"] == ["<b>risk_disclosure</b>", "definition"]
+        assert [p["id"] for p in function["probs"]][:2] == function["labels"]
+        assert len(function["probs"]) == 5  # the top five, labels first
+        assert detail["element_tags"] == {"source": "bundle", "family": family}
+
+        fast_id, _ = run(client, profile="fast")
+        fast = client.get(f"/api/runs/{fast_id}").json()
+        assert fast["elements"] == [] and fast["element_tags"] is None
+
+        script = client.get("/static/app.js").text
+        assert "function tagChips(" in script
+        assert 'h("span", { class: `chip tag-chip' in script  # text nodes, via h()
+        assert "innerHTML" not in script and "insertAdjacentHTML" not in script
+        assert 'tag: { name: "Tag elements"' in script
+    assert FakeTagger.closed == 1  # closed at shutdown
+
+
+def test_server_without_element_tags_has_no_tags(client):
+    assert client.get("/api/backends").json()["element_tags"] is None
+    run_id, events = run(client, "paper.md", MARKDOWN, profile="balanced")
+    assert not [e for e in events if e["stage"] == "tag"]
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert detail["element_tags"] is None
+    assert all("tags" not in e for e in detail["elements"])
+
+
+def test_serve_element_tags_option(monkeypatch, tag_bundle, tmp_path):
+    import uvicorn
+
+    started = []
+    monkeypatch.setattr(uvicorn.Server, "run", lambda self: started.append(self.config.app))
+    result = CliRunner().invoke(cli.app, ["serve", "--element-tags", str(tag_bundle)])
+    assert result.exit_code == 0, result.output
+    assert started[0].state.playground.element_tags == str(tag_bundle)
+
+    missing = CliRunner().invoke(cli.app, ["serve", "--element-tags", str(tmp_path / "nope")])
+    assert missing.exit_code == 1 and "no element-tagger bundle" in missing.output
+    jev = CliRunner().invoke(cli.app, ["serve", "--element-tags", "teacher:jev:jev-1.13.0"])
+    assert jev.exit_code == 1 and "2.3(b)" in jev.output
+    assert len(started) == 1

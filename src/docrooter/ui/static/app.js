@@ -18,6 +18,7 @@ const STAGES = {
   model_load: { name: "Load model", fam: "model" },
   classify: { name: "Classify type", fam: "model" },
   normalize: { name: "Label sections", fam: "model" },
+  tag: { name: "Tag elements", fam: "model" },
 };
 const FLAG_NAMES = {
   level_from_bookmark: "level from bookmark",
@@ -657,6 +658,30 @@ function renderToc(run) {
 
 const kindName = (kind) => KIND_NAMES[kind] ?? kind;
 
+// A tag id as a short name: a topic leaf without its family ("annual_report.risk_factors").
+const tagName = (id) => id.split(".").pop().replace(/_/g, " ");
+const tagProb = (result, id) => result.probs.find((p) => p.id === id)?.prob ?? result.confidence;
+
+function tagTitle(facet, result) {
+  return `${facet}: ${result.probs.map((p) => `${tagName(p.id)} ${pct(p.prob)}`).join(", ")}`;
+}
+
+// An element's tags as chips: its topic, then each function label, with their probabilities.
+function tagChips(tags) {
+  if (!tags) return null;
+  const chips = [];
+  for (const [facet, title] of [["topic", "Topic"], ["function", "Function"]]) {
+    const result = tags[facet];
+    if (!result) continue;
+    for (const id of result.labels) {
+      chips.push(
+        h("span", { class: `chip tag-chip tag-${facet}`, title: tagTitle(title, result) }, `${tagName(id)} ${pct(tagProb(result, id))}`),
+      );
+    }
+  }
+  return chips.length ? h("span", { class: "tag-chips" }, chips) : null;
+}
+
 function elementRow(el) {
   const family = ELEMENT_KIND_FAMILY[el.kind] ?? "body";
   const head = h(
@@ -666,6 +691,7 @@ function elementRow(el) {
     el.source === "ocr" ? h("span", { class: "badge ocr", title: "Read by OCR" }, "OCR") : null,
     el.flags.map((f) => h("span", { class: "badge" }, f.replace(/_/g, " "))),
     h("span", { class: "el-text" }, el.text || "(no text)"), // the server marks a cut with "…"
+    tagChips(el.tags),
   );
   if (!el.summary.length) return h("li", { class: "el" }, head);
   return h(
@@ -708,6 +734,7 @@ function renderElements(run) {
     ),
   );
   const counts = Object.entries(run.element_counts ?? {}).map(([kind, n]) => `${num(n)} ${kindName(kind)}`);
+  if (run.element_tags) counts.push(`tags by ${run.element_tags.source} (${tagName(run.element_tags.family)} topics)`);
   const setAll = (state) => groups.forEach((g) => (g.open = state));
   const note = run.elements_truncated
     ? h(

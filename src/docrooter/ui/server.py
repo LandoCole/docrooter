@@ -12,6 +12,11 @@ Endpoints: ``POST /api/runs`` (multipart ``file`` plus ``backend``, ``engine``, 
 ``normalize`` and ``profile``), ``GET /api/runs``, ``GET /api/runs/{id}``,
 ``GET /api/runs/{id}/events`` (SSE, ending with a ``{"stage": "job", "status": "end"}`` event
 the server always sends), ``GET /api/backends``, and the page itself at ``/``.
+
+Started with ``element_tags`` (``docrooter serve --element-tags BUNDLE``), the worker loads
+that tagger once, on the first run in element mode, tags every such run's content elements in
+the family of its document type, and closes the tagger on shutdown; the elements then carry
+their tags (``tags``) and the result names the tagger and family (``element_tags``).
 """
 
 from __future__ import annotations
@@ -67,10 +72,10 @@ from docrooter.layout import registry as layout_registry  # noqa: E402
 from docrooter.ocr import registry as ocr_registry  # noqa: E402
 from docrooter.pdf.load import ENGINES  # noqa: E402
 from docrooter.rooter import DEFAULT_PROFILE, PROFILES, RouterConfig, process  # noqa: E402
-from docrooter.rooter.process import _LazyOcr  # noqa: E402
+from docrooter.rooter.process import _LazyOcr, _tag_elements  # noqa: E402
 from docrooter.rooter.profiles import jev_key_set  # noqa: E402
 from docrooter.summarize import Summary  # noqa: E402
-from docrooter.taxonomies import builtin_taxonomy  # noqa: E402
+from docrooter.taxonomies import builtin_taxonomy, family_for_doc_type  # noqa: E402
 from docrooter.taxonomy import Taxonomy  # noqa: E402
 
 __all__ = [
@@ -103,6 +108,8 @@ MAX_ELEMENT_TEXT_CHARS = 200
 MAX_SUMMARY_SENTENCE_CHARS = 300
 """Characters kept of each key sentence in the result (the sentence splitter can return a very
 long one from text without full stops)."""
+MAX_TAG_PROBS = 5
+"""Probabilities sent per element and facet: the labels' and the next highest, up to five."""
 MAX_KEYPHRASES = 20
 MAX_KEYPHRASE_CHARS = 80
 """Key phrases kept per summary, and characters kept of each (a text of long tokens gives long
@@ -419,6 +426,7 @@ class Run:
             "elements_total": result.get("elements_total"),
             "elements_truncated": result.get("elements_truncated", False),
             "element_counts": result.get("element_counts"),
+            "element_tags": result.get("element_tags"),
             "routes": result.get("routes"),
         }
 
@@ -467,6 +475,22 @@ def _summary_out(summary: Summary) -> dict[str, Any]:
     }
 
 
+def _tags_out(tags: dict[str, Any]) -> dict[str, Any]:
+    """An element's tags as the page shows them: per facet the labels, the confidence and the
+    highest probabilities, best first (every label's, then the next, :data:`MAX_TAG_PROBS` at
+    least)."""
+    out = {}
+    for facet, result in tags.items():
+        ranked = sorted(result.probs.items(), key=lambda item: -item[1])
+        keep = max(MAX_TAG_PROBS, len(result.labels))
+        out[facet] = {
+            "labels": list(result.labels),
+            "confidence": round(result.confidence, 4),
+            "probs": [{"id": k, "prob": round(v, 4)} for k, v in ranked[:keep]],
+        }
+    return out
+
+
 def _elements_out(
     doc: Document, summaries: dict[str, Summary]
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
@@ -494,6 +518,8 @@ def _elements_out(
                 "summary": _summary_out(summary)["key_sentences"] if summary else [],
             }
         )
+        if el.tags is not None:  # only runs with element tags have the key
+            out[-1]["tags"] = _tags_out(el.tags)
     return out, counts
 
 
@@ -542,9 +568,11 @@ def build_result(
     norm: NormalizationResult | None,
     doc_types: Taxonomy,
     summaries: dict[str, Summary] | None = None,
+    element_tags: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The JSON the page shows: TOC entries, the document type, the section labels, and, for
-    runs in element mode, the elements, the summaries of the listed sections and the routes."""
+    runs in element mode, the elements, the summaries of the listed sections and the routes.
+    ``element_tags`` (``{"source", "family"}``) names the tagger of a tagged run."""
     summaries = summaries or {}
 
     def label(node_id: str) -> str:
@@ -617,6 +645,7 @@ def build_result(
         "elements_total": len(doc.elements),
         "elements_truncated": len(doc.elements) > len(elements),
         "element_counts": element_counts,
+        "element_tags": element_tags,
         "routes": routes,
     }
 
@@ -624,8 +653,10 @@ def build_result(
 class Playground:
     """Run history, the job queue and its worker thread, and the backend pool."""
 
-    def __init__(self, default_backend: str) -> None:
+    def __init__(self, default_backend: str, element_tags: str | None = None) -> None:
         self.default_backend = default_backend
+        self.element_tags = element_tags
+        self._tagger: Any = None
         self.doc_types = builtin_taxonomy(DOC_TYPES)
         self.backends = BackendPool(self.doc_types)
         self.engines = EnginePool()
@@ -694,6 +725,33 @@ class Playground:
         finally:
             self.engines.close()
             self.backends.close()
+            self._close_tagger()
+
+    def tagger(self) -> Any:
+        """The element tagger, loaded on first use (worker thread only)."""
+        if self._tagger is None:
+            from docrooter.tagger.element_tags import resolve_tagger
+
+            assert self.element_tags is not None
+            self._tagger = resolve_tagger(self.element_tags)
+        return self._tagger
+
+    def _close_tagger(self) -> None:
+        tagger, self._tagger = self._tagger, None
+        close = getattr(tagger, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                logger.warning("closing the element tagger failed", exc_info=True)
+
+    @property
+    def tagger_name(self) -> str | None:
+        """The tagger as the page names it: a bundle's directory name, else the spec."""
+        spec = self.element_tags
+        if spec is None or spec.startswith(("embedding:", "teacher:")):
+            return spec
+        return Path(spec).name
 
     def _load(self, job: Job, options: dict[str, Any]) -> tuple[Document, dict[str, Summary]]:
         """Read the document as the profile says and, in element mode, summarise it. The
@@ -739,8 +797,13 @@ class Playground:
                     doc, self.doc_types, backend=backend, mode=options["mode"], on_event=job.push
                 )
                 norm = None
+                leaf = doc_type.best.node_ids[-1] if doc_type.best.node_ids else None
+                tagged: dict[str, Any] | None = None
+                if self.element_tags is not None and options["profile"] != "fast":
+                    _tag_elements(doc, self.tagger(), leaf, self.element_tags)
+                    family = family_for_doc_type(leaf or "")
+                    tagged = {"source": self.tagger_name, "family": family}
                 if options["normalize"]:
-                    leaf = doc_type.best.node_ids[-1] if doc_type.best.node_ids else None
                     norm = normalize_sections(
                         doc,
                         doc_type=leaf,
@@ -749,7 +812,9 @@ class Playground:
                         backend=backend,
                         on_event=job.push,
                     )
-            result = build_result(doc, run.filename, doc_type, norm, self.doc_types, summaries)
+            result = build_result(
+                doc, run.filename, doc_type, norm, self.doc_types, summaries, tagged
+            )
             status = "done"
         except Exception as exc:
             message = job.redact(str(exc)) or type(exc).__name__
@@ -1009,13 +1074,23 @@ def check_backend_spec(spec: str) -> None:
 
 
 def create_app(
-    backend_spec: str = "keyword", *, host: str = "127.0.0.1", port: int = 8765
+    backend_spec: str = "keyword",
+    *,
+    host: str = "127.0.0.1",
+    port: int = 8765,
+    element_tags: str | None = None,
 ) -> FastAPI:
     """The playground app; ``backend_spec`` is the backend selected by default. ``host`` and
     ``port`` are where it is served: only requests addressed to them are answered (see
-    :class:`HostGuard`)."""
+    :class:`HostGuard`). ``element_tags`` (a tagger bundle directory, ``embedding:<model>`` or
+    ``teacher:<engine spec>``; checked here, loaded on the first run in element mode) tags the
+    elements of every run that has them."""
     check_backend_spec(backend_spec)
-    playground = Playground(backend_spec)
+    if element_tags is not None:
+        from docrooter.tagger.element_tags import check_spec
+
+        check_spec(element_tags)
+    playground = Playground(backend_spec, element_tags)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -1057,6 +1132,7 @@ def create_app(
             "profiles": [info.entry() for info in PROFILE_INFO],
             "max_upload_bytes": MAX_UPLOAD_BYTES,
             "max_text_upload_bytes": MAX_TEXT_UPLOAD_BYTES,
+            "element_tags": playground.tagger_name,
         }
 
     @app.post("/api/runs", status_code=202)

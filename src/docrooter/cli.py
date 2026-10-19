@@ -1235,6 +1235,210 @@ def teach_label(
     typer.echo(report.model_dump_json(indent=2))
 
 
+# --- element tags -------------------------------------------------------------------------
+
+_BUNDLE_HELP = (
+    "Element-tagger bundle directory (or embedding:<model> for the zero-shot baseline, or "
+    "teacher:<engine spec>)."
+)
+
+
+def _tag_cell(result: Any, *, best_only: bool) -> Text:
+    """``label 87%`` for each label (the topic's leaf without its family prefix)."""
+    if result is None:
+        return Text("-")
+    labels = result.labels[:1] if best_only else result.labels
+    parts = [
+        f"{label.split('.', 1)[-1] if best_only else label} {result.probs.get(label, 0.0):.0%}"
+        for label in labels
+    ]
+    return Text(", ".join(parts) or "-")
+
+
+@app.command()
+def tag(
+    file: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Document to read.")
+    ],
+    bundle: Annotated[str, typer.Option("--bundle", help=_BUNDLE_HELP)],
+    profile: Annotated[str | None, typer.Option(help=_PROFILE_HELP)] = None,
+    config: Annotated[
+        Path | None,
+        typer.Option(exists=True, dir_okay=False, readable=True, help=_CONFIG_HELP),
+    ] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Print the tagged elements as JSON.")
+    ] = False,
+) -> None:
+    """Tag a document's paragraphs, list items, tables, captions, footnotes and formulas by
+    topic and function.
+
+    The document type (from the profile's doc_type backend) picks the topic family; the
+    tagger is loaded once and closed at the end. Sections, summaries and escalation are off.
+    """
+    from docrooter.rooter import process
+    from docrooter.taxonomies import family_for_doc_type
+
+    with _errors_exit_1():
+        resolved = _element_config(profile, config, "docrooter tag")
+        analysis = process(
+            file,
+            config=resolved,
+            sections="none",
+            summaries="none",
+            escalate="none",
+            embeddings="none",
+            element_tags=bundle,
+        )
+    doc = analysis.document
+    best = analysis.doc_type.best if analysis.doc_type is not None else None
+    leaf = best.node_ids[-1] if best is not None and best.node_ids else None
+    tagged = [el for el in doc.elements if el.tags is not None]
+    if as_json:
+        data = {
+            "file": str(file),
+            "doc_type": leaf,
+            "family": family_for_doc_type(leaf or ""),
+            "element_tags": bundle,
+            "elements": [el.model_dump(mode="json") for el in tagged],
+        }
+        typer.echo(json.dumps(data, indent=2))
+        return
+    console = Console(highlight=False)
+    table = Table("#", "Page", "Kind", "Topic", "Functions", "Text")
+    for el in tagged:
+        assert el.tags is not None
+        page = el.boxes[0].page if el.boxes else None
+        table.add_row(
+            str(el.order),
+            "-" if page is None else str(page),
+            Text(el.kind),
+            _tag_cell(el.tags.get("topic"), best_only=True),
+            _tag_cell(el.tags.get("function"), best_only=False),
+            Text(_first_chars(el.text, _TEXT_COLUMN_CHARS)),
+        )
+    console.print(table)
+    console.print(
+        Text(
+            f"{len(tagged)} of {len(doc.elements)} elements tagged; document type "
+            f"{leaf or 'none'}, family {family_for_doc_type(leaf or '')}"
+        ),
+        style="dim",
+    )
+
+
+def _check_store(directory: Path) -> None:
+    if not (directory / "manifest.jsonl").is_file():
+        raise DocrooterError(f"no corpus at {directory} (no manifest.jsonl)")
+
+
+@app.command("tag-corpus")
+def tag_corpus(
+    directory: Annotated[Path, typer.Argument(file_okay=False, help="Corpus store directory.")],
+    bundle: Annotated[str, typer.Option("--bundle", help=_BUNDLE_HELP)],
+    split: Annotated[
+        list[str] | None,
+        typer.Option(help="Only this split (train, calib or gold); repeat for several."),
+    ] = None,
+    labeler: Annotated[
+        str, typer.Option(help="Name of the labels file: labels/<labeler>.jsonl.")
+    ] = "tagger",
+) -> None:
+    """Tag a corpus store's content elements and write labels/<labeler>.jsonl: a topic and a
+    function row per element, in the family of the document's manifest hints.
+
+    Resumable: one write per document, and elements already tagged by the same tagger are
+    skipped. Progress goes to stderr, the report (JSON) to stdout.
+    """
+    from docrooter.corpus import Corpus
+    from docrooter.tagger.element_tags import resolve_tagger
+    from docrooter.tagger.pipeline import tag_corpus as run
+
+    with _errors_exit_1():
+        _check_store(directory)
+        tagger = resolve_tagger(bundle)
+        try:
+            report = run(
+                Corpus(directory),
+                tagger,
+                labeler=labeler,
+                splits=split or None,
+                on_document=lambda done, doc_id, n: typer.echo(
+                    f"[{done}] {doc_id}: {n} tagged", err=True
+                ),
+            )
+        finally:
+            close = getattr(tagger, "close", None)
+            if callable(close):
+                close()
+    typer.echo(json.dumps(report, indent=2))
+
+
+@app.command("train-elements")
+def train_elements(
+    directory: Annotated[Path, typer.Argument(file_okay=False, help="Corpus store directory.")],
+    teacher: Annotated[
+        str,
+        typer.Option(
+            help="Teacher spec: mlx:<repo>@<revision>, hf:<repo>@<revision> or "
+            "openai:<model>. Jev is refused (TypeSafe MCA §2.3(b))."
+        ),
+    ],
+    out: Annotated[Path, typer.Option("--out", file_okay=False, help="Bundle directory.")],
+    stage: Annotated[
+        str, typer.Option(help="A: heads on the frozen body; B: fine-tuned body (slow).")
+    ] = "B",
+    embedder: Annotated[
+        str | None,
+        typer.Option(help="Shortlist and dataset embedding model (default: UltraBERT-Embed)."),
+    ] = None,
+    per_doc: Annotated[
+        int, typer.Option("--per-doc", min=1, help="Elements labelled per document, at most.")
+    ] = 60,
+    target: Annotated[int, typer.Option(min=1, help="Elements to label in all.")] = 12000,
+    ceiling_hours: Annotated[
+        float, typer.Option("--ceiling-hours", min=0.001, help="Labelling wall-clock ceiling.")
+    ] = 12.0,
+    time_budget_hours: Annotated[
+        float, typer.Option("--time-budget-hours", min=0.001, help="Stage B training budget.")
+    ] = 6.0,
+    device: Annotated[
+        str | None, typer.Option(help="Training device (default: MPS or CUDA if available).")
+    ] = None,
+) -> None:
+    """Train an element tagger on a corpus store: label with the teacher, build the
+    confident training set, train stage A or B and calibrate on the calib split.
+
+    Each stage is resumable: its output goes to DIRECTORY/train-elements/ and a finished
+    stage is skipped on the next run (the dataset is rebuilt when the labels change). Run
+    one model process at a time. Progress goes to stderr, the report (JSON) to stdout.
+    """
+    from docrooter.backends.embedding import DEFAULT_EMBEDDING_MODEL
+    from docrooter.corpus import Corpus
+    from docrooter.tagger.pipeline import train_elements as run
+    from docrooter.teach.base import refuse_jev
+    from docrooter.teach.label import SampleSpec
+
+    if stage not in ("A", "B"):
+        raise typer.BadParameter(f"invalid stage {stage!r}; use A or B", param_hint="--stage")
+    with _errors_exit_1():
+        refuse_jev(teacher)
+        _check_store(directory)
+        report = run(
+            Corpus(directory),
+            teacher,
+            out,
+            stage="A" if stage == "A" else "B",
+            embedder=embedder or DEFAULT_EMBEDDING_MODEL,
+            sample=SampleSpec(per_doc=per_doc, target=target, floor=min(6000, target)),
+            ceiling_hours=ceiling_hours,
+            time_budget_hours=time_budget_hours,
+            device=device,
+            say=lambda line: typer.echo(line, err=True),
+        )
+    typer.echo(json.dumps(report, indent=2))
+
+
 # --- serve --------------------------------------------------------------------------------
 
 
@@ -1319,6 +1523,14 @@ def serve(
             help="Read missing environment variables (e.g. TYPESAFE_API_KEY) from this file.",
         ),
     ] = None,
+    element_tags: Annotated[
+        str | None,
+        typer.Option(
+            "--element-tags",
+            help="Tag the elements of every run with this element-tagger bundle (or "
+            "embedding:<model>, teacher:<engine spec>); the Elements tab shows the tags.",
+        ),
+    ] = None,
 ) -> None:
     """Start the local playground: upload a document and watch it being processed."""
     import threading
@@ -1330,7 +1542,7 @@ def serve(
         check_backend_spec(backend)
         if env_file is not None:
             load_env_file(env_file)
-        application = create_app(backend, host=host, port=port)
+        application = create_app(backend, host=host, port=port, element_tags=element_tags)
     err = Console(stderr=True, highlight=False)
     if not _is_loopback(host):
         err.print(

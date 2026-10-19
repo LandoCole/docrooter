@@ -11,12 +11,13 @@ from docrooter.errors import DocrooterError
 from docrooter.rooter import PROFILES, RouterConfig, profile_defaults
 from docrooter.rooter import profiles as profiles_module
 
-TASKS = ("text", "ocr", "layout", "doc_type", "sections", "summaries", "embeddings", "escalate")
+TASKS = ("text", "ocr", "layout", "doc_type", "sections", "summaries", "embeddings", "escalate",
+         "element_tags")  # fmt: skip
 
 
 def test_profiles_match_spec():
     common = {"text": "auto", "doc_type": DEFAULT_BACKEND, "sections": DEFAULT_BACKEND,
-              "embeddings": "none", "escalate_below": 0.5}  # fmt: skip
+              "embeddings": "none", "escalate_below": 0.5, "element_tags": "none"}  # fmt: skip
     assert PROFILES == {
         "fast": {**common, "ocr": "none", "layout": "none", "summaries": "none",
                  "escalate": "none"},

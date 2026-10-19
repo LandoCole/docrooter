@@ -3,7 +3,8 @@
 ``fast`` is today's pipeline (no elements, no OCR, no summaries); ``balanced`` adds elements
 with the heuristic layout rules, OCR when an engine is installed and centroid summaries;
 ``accurate`` swaps the rules for the heron layout model (extra ``layout``) and escalates
-low-confidence labels to Jev when ``TYPESAFE_API_KEY`` is set.
+low-confidence labels to Jev when ``TYPESAFE_API_KEY`` is set. No profile tags elements
+(``element_tags`` is ``none`` in all three): a tagger is a bundle the user trains or picks.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ PROFILES: dict[str, dict[str, Any]] = {
         "embeddings": "none",
         "escalate": "none",
         "escalate_below": 0.5,
+        "element_tags": "none",
     },
     "balanced": {
         "text": "auto",
@@ -44,6 +46,7 @@ PROFILES: dict[str, dict[str, Any]] = {
         "embeddings": "none",
         "escalate": "none",
         "escalate_below": 0.5,
+        "element_tags": "none",
     },
     "accurate": {
         "text": "auto",
@@ -55,6 +58,7 @@ PROFILES: dict[str, dict[str, Any]] = {
         "embeddings": "none",
         "escalate": JEV_ESCALATION,  # only with TYPESAFE_API_KEY set; see profile_defaults
         "escalate_below": 0.5,
+        "element_tags": "none",
     },
 }
 """Each profile's task engines, as spec §7.2 writes them. ``accurate``'s ``escalate`` holds

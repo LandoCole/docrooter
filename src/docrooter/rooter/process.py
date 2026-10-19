@@ -3,7 +3,8 @@ them on documents, and return :class:`~docrooter.rooter.analysis.Analysis` objec
 
 The order of a run: the configuration decisions (``route`` events), loading (element mode
 unless ``layout="none"``), document type, its escalation, sections (with the taxonomy of the
-final document type), their escalation, then summaries and, last, the element embeddings.
+final document type), their escalation, then summaries, the element tags (in the element
+family of the final document type) and, last, the element embeddings.
 
 Ruling (spec §7.5): document-type escalation runs before the sections are normalised, so when it
 changes the type, the sections are normalised once, with the new type's taxonomy, by the primary
@@ -55,7 +56,7 @@ from docrooter.ocr.base import OcrEngine, OcrLine
 from docrooter.rooter.analysis import Analysis
 from docrooter.rooter.config import RouterConfig
 from docrooter.summarize import Summary, summarize
-from docrooter.taxonomies import builtin_taxonomy
+from docrooter.taxonomies import builtin_taxonomy, family_for_doc_type
 from docrooter.taxonomy import Taxonomy
 
 if TYPE_CHECKING:
@@ -66,7 +67,7 @@ __all__ = ["process", "process_many"]
 _log = logging.getLogger(__name__)
 
 # Tasks that also take an object instead of a name: the caller owns it (never closed here).
-_INSTANCE_TASKS = ("ocr", "layout", "doc_type", "sections", "escalate")
+_INSTANCE_TASKS = ("ocr", "layout", "doc_type", "sections", "escalate", "element_tags")
 OCR_UNAVAILABLE = "ocr_unavailable"
 
 
@@ -105,12 +106,18 @@ def process(
 
     ``embeddings`` (a backend spec such as ``embedding:BAAI/bge-small-en-v1.5``, needs element
     mode) puts one vector per element in ``Analysis.embeddings``; see :func:`~docrooter.embed`.
+    ``element_tags`` (a tagger bundle directory, ``embedding:<model>`` or
+    ``teacher:<engine spec>``, or an object with ``tag(elements, family)`` such as a loaded
+    :class:`~docrooter.tagger.ElementTagger`; needs element mode) sets ``Element.tags`` on the
+    paragraph, list item, table, caption, footnote and formula elements, tagged within the
+    element family of the final document type (``generic`` without one); see
+    :mod:`docrooter.tagger.element_tags`.
     An ``escalate`` backend that raises leaves the primary result in place and adds a warning
     to the route log (E9 ruling above).
 
     ``on_event`` receives the stages of :func:`~docrooter.load`,
     :func:`~docrooter.classify_document` and :func:`~docrooter.normalize_sections`, plus
-    ``route``, ``escalate``, ``summarize`` and ``embed``, then one ``done``.
+    ``route``, ``escalate``, ``summarize``, ``tag`` and ``embed``, then one ``done``.
 
     ``pages`` (1-based page numbers, a PDF in element mode only) reads just those pages, at
     most ``max_pages`` of them; see :func:`~docrooter.load_pdf`. It is not part of the
@@ -140,8 +147,8 @@ def process_many(
 ) -> Iterator[Analysis]:
     """:func:`process` over ``sources``, yielding one :class:`Analysis` at a time.
 
-    One OCR engine, one layout engine and one set of backends serve every document; they are
-    created on first use and closed when the iterator is exhausted or closed (use
+    One OCR engine, one layout engine, one set of backends and one element tagger serve every
+    document; they are created on first use and closed when the iterator is exhausted or closed (use
     ``contextlib.closing`` when stopping early). Each document is its own event run. The
     configuration is checked when this is called, before any document is read. ``sources`` is
     an iterable of paths or Markdown texts; a single path or text is a ``TypeError`` (a ``str``
@@ -195,11 +202,12 @@ def _resolve(
         cfg = RouterConfig.model_validate({**config.model_dump(), **plain}) if plain else config
     else:
         cfg = RouterConfig.resolve(profile=profile, file=config, **plain)
-    if cfg.embeddings != "none" and cfg.layout == "none":
-        raise ValueError(
-            f"embeddings={cfg.embeddings!r} needs element mode, and layout='none' (the fast "
-            "profile) produces no elements: set layout='heuristic' or a layout engine name"
-        )
+    for task in ("embeddings", "element_tags"):
+        if getattr(cfg, task) != "none" and cfg.layout == "none":
+            raise ValueError(
+                f"{task}={getattr(cfg, task)!r} needs element mode, and layout='none' (the fast "
+                "profile) produces no elements: set layout='heuristic' or a layout engine name"
+            )
     _check_names(cfg, given)
     return cfg, given
 
@@ -213,6 +221,10 @@ def _check_names(cfg: RouterConfig, given: dict[str, object]) -> None:
         spec = getattr(cfg, task)
         if task not in given and spec != "none":
             backend_registry.check_spec(spec)
+    if "element_tags" not in given and cfg.element_tags != "none":
+        from docrooter.tagger.element_tags import check_spec
+
+        check_spec(cfg.element_tags)
     if "ocr" not in given and cfg.ocr not in ("none", "auto"):
         known = ocr_registry.available_ocr_engines()
         if cfg.ocr not in known:
@@ -236,6 +248,8 @@ def _check_instance(task: str, value: object) -> object:
         ok = isinstance(value, LayoutEngine)
     elif task == "escalate":
         ok = is_backend and not isinstance(value, Classifier)
+    elif task == "element_tags":
+        ok = callable(getattr(value, "tag", None))
     else:
         ok = is_backend or isinstance(value, Classifier)
     if not ok:
@@ -243,6 +257,7 @@ def _check_instance(task: str, value: object) -> object:
             "ocr": "an engine name or an OcrEngine",
             "layout": "an engine name or a LayoutEngine",
             "escalate": "a backend spec or a Backend",
+            "element_tags": "a tagger spec or an object with tag(elements, family)",
         }
         wanted = kinds.get(task, "a backend spec, a Backend or a Classifier")
         raise TypeError(f"{task} must be {wanted}, got {type(value).__name__}")
@@ -254,7 +269,8 @@ def _instance_name(value: object) -> str:
     if isinstance(value, Classifier):
         backend = value.backend
         return backend if isinstance(backend, str) else _instance_name(backend)
-    return str(getattr(value, "name", None) or type(value).__name__)
+    name = getattr(value, "name", None) or getattr(value, "source", None)  # a tagger: source
+    return str(name or type(value).__name__)
 
 
 def _decision(task: str, engine: str, reason: str, **metrics: float) -> RouteDecision:
@@ -310,6 +326,7 @@ class _Engines:
         self._layout: tuple[str | LayoutEngine, RouteDecision] | None = None
         self._backends: dict[str, Backend] = {}
         self._doc_types: Taxonomy | None = None
+        self._tagger: object | None = None
         self.ocr_unavailable = False
 
     def ocr(self) -> tuple[OcrEngine | None, RouteDecision]:
@@ -376,6 +393,18 @@ class _Engines:
             self._owned.append(backend)
         return self._backends[spec]
 
+    def element_tagger(self) -> Any:
+        """The element tagger: the caller's, else the one of ``element_tags``, loaded once."""
+        given = self.given.get("element_tags")
+        if given is not None:
+            return given
+        if self._tagger is None:
+            from docrooter.tagger.element_tags import resolve_tagger
+
+            self._tagger = resolve_tagger(self.cfg.element_tags)
+            self._owned.append(self._tagger)
+        return self._tagger
+
     def doc_types(self) -> Taxonomy:
         if self._doc_types is None:
             self._doc_types = builtin_taxonomy(DOC_TYPES)
@@ -385,6 +414,7 @@ class _Engines:
         owned, self._owned = self._owned, []
         self._ocr = self._layout = None
         self._backends = {}
+        self._tagger = None
         for item in owned:
             try:
                 close_backend(item)  # calls close() when there is one
@@ -428,7 +458,7 @@ def _run(
             layout, layout_decision = engines.layout()
             decisions += [_text_decision(cfg.text), ocr_decision, layout_decision]
             options.update(ocr=ocr, layout=layout, ocr_dpi=cfg.ocr_dpi, tables=cfg.tables)
-    for task in ("doc_type", "sections", "escalate", "embeddings"):
+    for task in ("doc_type", "sections", "escalate", "element_tags", "embeddings"):
         spec = getattr(cfg, task)
         if spec != "none":
             how = "passed by the caller" if task in engines.given else f"{task}={spec}"
@@ -508,6 +538,11 @@ def _run(
         stage.end(summaries=len(summaries))
         timings["summaries"] = time.perf_counter() - clock
 
+    if cfg.element_tags != "none":
+        clock = time.perf_counter()
+        _tag_elements(doc, engines.element_tagger(), _leaf(doc_type), cfg.element_tags)
+        timings["element_tags"] = time.perf_counter() - clock
+
     analysis = Analysis(
         document=doc, doc_type=doc_type, sections=sections, summaries=summaries, config=cfg
     )
@@ -521,6 +556,15 @@ def _run(
     timings["total"] = time.perf_counter() - started
     analysis.timings = {key: round(value, 4) for key, value in timings.items()}
     return analysis
+
+
+def _tag_elements(doc: Document, tagger: Any, doc_type: str | None, engine: str) -> None:
+    """Tag the content elements within the element family of ``doc_type``."""
+    from docrooter.tagger.element_tags import tag_document
+
+    family = family_for_doc_type(doc_type or "")
+    stage = events.start("tag", engine=engine, family=family)
+    stage.end(elements=tag_document(doc, tagger, family))
 
 
 def _text_decision(text: str) -> RouteDecision:

@@ -491,6 +491,9 @@ details[open] > summary .toc-twisty { transform: rotate(90deg); }
 .el-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; padding: 0.3rem 0.25rem; border-radius: 4px; }
 .el:hover > .el-row, .el summary:hover .el-row { background: var(--ground); }
 .el-text { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; font-size: 0.875rem; }
+.tag-chips { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; }
+.chip.tag-topic { background: var(--model-soft); color: var(--model); }
+.chip.tag-function { background: var(--doc-soft); color: var(--doc); }
 .el-more { color: var(--model); font-size: 0.75rem; margin-left: 0.25rem; }
 .kind {
   font-size: 0.6875rem;

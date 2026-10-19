@@ -2,7 +2,7 @@
   "benchmark": "elements-doclaynet",
   "split": "train",
   "date": "2026-10-18",
-  "commit": "d951b11+dirty",
+  "commit": "213979e",
   "source": {
     "repo": "docling-project/DocLayNet-v1.2",
     "revision": "0daf93102e2efce76c3e11a274a5e0d0969391d3",
@@ -30,9 +30,9 @@
     "machine": "arm64",
     "cpu_count": 8,
     "loadavg": [
-      2.4609375,
-      2.9677734375,
-      3.12744140625
+      2.0478515625,
+      2.45654296875,
+      3.4169921875
     ],
     "versions": {
       "pymupdf": "1.28.2",
@@ -46,12 +46,12 @@
       "pages": 400,
       "per_class": {
         "Caption": {
-          "tp": 55,
+          "tp": 54,
           "fp": 9,
-          "fn": 53,
-          "precision": 0.859375,
-          "recall": 0.5092592592592593,
-          "f1": 0.6395348837209303
+          "fn": 54,
+          "precision": 0.8571428571428571,
+          "recall": 0.5,
+          "f1": 0.631578947368421
         },
         "Footnote": {
           "tp": 24,
@@ -71,11 +71,11 @@
         },
         "List-item": {
           "tp": 490,
-          "fp": 337,
+          "fp": 338,
           "fn": 739,
-          "precision": 0.592503022974607,
+          "precision": 0.5917874396135265,
           "recall": 0.39869812855980474,
-          "f1": 0.4766536964980545
+          "f1": 0.47642197374817696
         },
         "Page-footer": {
           "tp": 173,
@@ -94,12 +94,12 @@
           "f1": 0.0
         },
         "Picture": {
-          "tp": 87,
-          "fp": 101,
-          "fn": 168,
-          "precision": 0.4627659574468085,
-          "recall": 0.3411764705882353,
-          "f1": 0.3927765237020316
+          "tp": 68,
+          "fp": 56,
+          "fn": 187,
+          "precision": 0.5483870967741935,
+          "recall": 0.26666666666666666,
+          "f1": 0.35883905013192613
         },
         "Section-header": {
           "tp": 119,
@@ -118,12 +118,12 @@
           "f1": 0.43317972350230416
         },
         "Text": {
-          "tp": 1668,
-          "fp": 2990,
-          "fn": 673,
-          "precision": 0.3580936024044654,
-          "recall": 0.7125160187953866,
-          "f1": 0.4766395199314188
+          "tp": 1670,
+          "fp": 2998,
+          "fn": 671,
+          "precision": 0.3577549271636675,
+          "recall": 0.7133703545493378,
+          "f1": 0.47653017548865745
         },
         "Title": {
           "tp": 4,
@@ -134,11 +134,11 @@
           "f1": 0.04040404040404041
         }
       },
-      "macro": 0.35345271338696815,
+      "macro": 0.34961321546739965,
       "per_category": {
         "financial_reports": {
           "pages": 67,
-          "macro": 0.25292056812557995,
+          "macro": 0.24882076181531718,
           "f1": {
             "Caption": 0.0,
             "Footnote": 0.0,
@@ -146,50 +146,50 @@
             "List-item": 0.5846153846153846,
             "Page-footer": 0.5384615384615384,
             "Page-header": 0.0,
-            "Picture": 0.3157894736842105,
+            "Picture": 0.27586206896551724,
             "Section-header": 0.17297297297297298,
             "Table": 0.4155844155844156,
-            "Text": 0.5017818959372773,
+            "Text": 0.5007112375533428,
             "Title": 0.0
           }
         },
         "government_tenders": {
           "pages": 67,
-          "macro": 0.36512812417270624,
+          "macro": 0.3274017082348603,
           "f1": {
             "Caption": 0.2857142857142857,
             "Footnote": 0.5263157894736842,
             "Formula": 0.0,
-            "List-item": 0.5458248472505092,
+            "List-item": 0.5447154471544715,
             "Page-footer": 0.5826771653543307,
             "Page-header": 0.0,
-            "Picture": 0.4126984126984127,
+            "Picture": 0.0,
             "Section-header": 0.27835051546391754,
             "Table": 0.8372093023255814,
-            "Text": 0.5476190476190477,
+            "Text": 0.5464362850971922,
             "Title": 0.0
           }
         },
         "laws_and_regulations": {
           "pages": 67,
-          "macro": 0.37317876990748117,
+          "macro": 0.37423104515659494,
           "f1": {
-            "Caption": 0.8695652173913043,
+            "Caption": 0.8529411764705882,
             "Footnote": 0.2,
             "Formula": null,
             "List-item": 0.5578231292517006,
             "Page-footer": 0.3218390804597701,
             "Page-header": 0.0,
-            "Picture": 0.7407407407407407,
+            "Picture": 0.7692307692307693,
             "Section-header": 0.11851851851851852,
             "Table": 0.27450980392156865,
-            "Text": 0.4087912087912088,
+            "Text": 0.40744797371303393,
             "Title": 0.24
           }
         },
         "manuals": {
           "pages": 67,
-          "macro": 0.4859346501810738,
+          "macro": 0.48902069013146593,
           "f1": {
             "Caption": 0.9,
             "Footnote": 0.9444444444444444,
@@ -197,16 +197,16 @@
             "List-item": 0.5613382899628253,
             "Page-footer": 0.6766917293233082,
             "Page-header": 0.0,
-            "Picture": 0.4230769230769231,
+            "Picture": 0.45454545454545453,
             "Section-header": 0.62,
             "Table": 0.5714285714285714,
-            "Text": 0.6483011937557392,
+            "Text": 0.6507791017415215,
             "Title": 0.0
           }
         },
         "patents": {
           "pages": 66,
-          "macro": 0.07742771194653138,
+          "macro": 0.07589413183019081,
           "f1": {
             "Caption": 0.0,
             "Footnote": null,
@@ -214,7 +214,7 @@
             "List-item": 0.14218009478672985,
             "Page-footer": 0.15789473684210525,
             "Page-header": 0.0,
-            "Picture": 0.06451612903225806,
+            "Picture": 0.04918032786885246,
             "Section-header": 0.06521739130434782,
             "Table": 0.0,
             "Text": 0.31369953673064194,
@@ -223,7 +223,7 @@
         },
         "scientific_articles": {
           "pages": 66,
-          "macro": 0.26770094850664833,
+          "macro": 0.26913060118514465,
           "f1": {
             "Caption": 0.6382978723404256,
             "Footnote": 0.09523809523809523,
@@ -231,7 +231,7 @@
             "List-item": 0.1111111111111111,
             "Page-footer": 0.6935483870967742,
             "Page-header": 0.0,
-            "Picture": 0.723404255319149,
+            "Picture": 0.7391304347826086,
             "Section-header": 0.09523809523809523,
             "Table": 0.0,
             "Text": 0.4939759036144578,
@@ -242,8 +242,8 @@
       "text_coverage": {
         "Caption": {
           "chars": 10370,
-          "covered": 6037,
-          "share": 0.5821600771456124
+          "covered": 5973,
+          "share": 0.5759884281581485
         },
         "Footnote": {
           "chars": 3939,
@@ -272,8 +272,8 @@
         },
         "Picture": {
           "chars": 17976,
-          "covered": 4468,
-          "share": 0.24855362705829995
+          "covered": 4170,
+          "share": 0.23197596795727637
         },
         "Section-header": {
           "chars": 19928,
@@ -287,8 +287,8 @@
         },
         "Text": {
           "chars": 538352,
-          "covered": 507480,
-          "share": 0.9426546200255594
+          "covered": 507806,
+          "share": 0.9432601717835171
         },
         "Title": {
           "chars": 1390,
@@ -303,17 +303,17 @@
           "Formula": 97,
           "List-item": 284,
           "Page-footer": 114,
-          "Picture": 100,
+          "Picture": 55,
           "Section-header": 45,
           "Table": 24,
-          "Text": 2041,
+          "Text": 2047,
           "Title": 35
         },
         "Caption": {
           "-": 19,
-          "Caption": 55,
+          "Caption": 54,
           "Section-header": 3,
-          "Text": 30,
+          "Text": 31,
           "Title": 1
         },
         "Footnote": {
@@ -328,11 +328,11 @@
           "Text": 47
         },
         "List-item": {
-          "-": 462,
+          "-": 463,
           "Formula": 1,
           "List-item": 490,
           "Section-header": 6,
-          "Text": 267,
+          "Text": 266,
           "Title": 3
         },
         "Page-footer": {
@@ -344,24 +344,24 @@
           "Title": 1
         },
         "Page-header": {
-          "-": 133,
+          "-": 132,
           "Page-footer": 33,
           "Section-header": 3,
-          "Text": 159,
+          "Text": 160,
           "Title": 18
         },
         "Picture": {
-          "-": 159,
-          "Picture": 87,
+          "-": 178,
+          "Picture": 68,
           "Section-header": 1,
           "Table": 3,
           "Text": 5
         },
         "Section-header": {
-          "-": 136,
+          "-": 135,
           "List-item": 10,
           "Section-header": 119,
-          "Text": 321,
+          "Text": 322,
           "Title": 93
         },
         "Table": {
@@ -371,14 +371,14 @@
           "Text": 12
         },
         "Text": {
-          "-": 635,
+          "-": 632,
           "Caption": 1,
           "Footnote": 1,
           "Formula": 1,
-          "List-item": 30,
+          "List-item": 31,
           "Section-header": 2,
           "Table": 2,
-          "Text": 1668,
+          "Text": 1670,
           "Title": 1
         },
         "Title": {
@@ -389,8 +389,8 @@
           "Title": 4
         }
       },
-      "seconds": 13.25,
-      "seconds_per_page": 0.0331,
+      "seconds": 13.59,
+      "seconds_per_page": 0.034,
       "errors": {},
       "no_text_layer": [
         "7bf8f041e24088cb5347ba78ed77a172f13c9a40c252558ccd34c878ed6e22dc",
@@ -441,12 +441,12 @@
           "f1": 0.4518406454866364
         },
         "Page-footer": {
-          "tp": 177,
-          "fp": 164,
-          "fn": 154,
-          "precision": 0.5190615835777126,
-          "recall": 0.5347432024169184,
-          "f1": 0.5267857142857143
+          "tp": 181,
+          "fp": 160,
+          "fn": 150,
+          "precision": 0.530791788856305,
+          "recall": 0.5468277945619335,
+          "f1": 0.5386904761904762
         },
         "Page-header": {
           "tp": 0,
@@ -457,12 +457,12 @@
           "f1": 0.0
         },
         "Picture": {
-          "tp": 83,
-          "fp": 90,
-          "fn": 172,
-          "precision": 0.4797687861271676,
-          "recall": 0.3254901960784314,
-          "f1": 0.3878504672897196
+          "tp": 64,
+          "fp": 47,
+          "fn": 191,
+          "precision": 0.5765765765765766,
+          "recall": 0.25098039215686274,
+          "f1": 0.34972677595628415
         },
         "Section-header": {
           "tp": 108,
@@ -474,19 +474,19 @@
         },
         "Table": {
           "tp": 36,
-          "fp": 30,
+          "fp": 31,
           "fn": 105,
-          "precision": 0.5454545454545454,
+          "precision": 0.5373134328358209,
           "recall": 0.2553191489361702,
-          "f1": 0.34782608695652173
+          "f1": 0.34615384615384615
         },
         "Text": {
-          "tp": 1361,
-          "fp": 4320,
-          "fn": 980,
-          "precision": 0.23957049815173384,
-          "recall": 0.5813754805638616,
-          "f1": 0.3393168785838943
+          "tp": 1381,
+          "fp": 4282,
+          "fn": 960,
+          "precision": 0.2438636764965566,
+          "recall": 0.5899188381033746,
+          "f1": 0.34507746126936534
         },
         "Title": {
           "tp": 3,
@@ -497,39 +497,39 @@
           "f1": 0.031746031746031744
         }
       },
-      "macro": 0.3130513992844356,
+      "macro": 0.3110395276893558,
       "per_category": {
         "financial_reports": {
           "pages": 67,
-          "macro": 0.18977070462859563,
+          "macro": 0.19660546709223126,
           "f1": {
             "Caption": 0.0,
             "Footnote": 0.0,
             "Formula": null,
-            "List-item": 0.441025641025641,
-            "Page-footer": 0.5050505050505051,
+            "List-item": 0.44329896907216493,
+            "Page-footer": 0.5858585858585859,
             "Page-header": 0.0,
-            "Picture": 0.3055555555555556,
+            "Picture": 0.27450980392156865,
             "Section-header": 0.11956521739130435,
-            "Table": 0.17142857142857143,
-            "Text": 0.35508155583437895,
+            "Table": 0.16901408450704225,
+            "Text": 0.37380801017164655,
             "Title": 0.0
           }
         },
         "government_tenders": {
           "pages": 67,
-          "macro": 0.36395345490800923,
+          "macro": 0.3256674841985122,
           "f1": {
             "Caption": 0.2857142857142857,
             "Footnote": 0.4444444444444444,
             "Formula": 0.0,
-            "List-item": 0.5726141078838174,
+            "List-item": 0.5714285714285714,
             "Page-footer": 0.5625,
             "Page-header": 0.0,
-            "Picture": 0.41935483870967744,
+            "Picture": 0.0,
             "Section-header": 0.28272251308900526,
             "Table": 0.8780487804878049,
-            "Text": 0.5580890336590663,
+            "Text": 0.5574837310195228,
             "Title": 0.0
           }
         },
@@ -552,7 +552,7 @@
         },
         "manuals": {
           "pages": 67,
-          "macro": 0.47918740067055976,
+          "macro": 0.4836538497596509,
           "f1": {
             "Caption": 0.9,
             "Footnote": 0.9444444444444444,
@@ -560,16 +560,16 @@
             "List-item": 0.6035714285714285,
             "Page-footer": 0.6716417910447762,
             "Page-header": 0.0,
-            "Picture": 0.43137254901960786,
+            "Picture": 0.46511627906976744,
             "Section-header": 0.6060606060606061,
             "Table": 0.5,
-            "Text": 0.6139705882352942,
+            "Text": 0.6293577981651376,
             "Title": 0.0
           }
         },
         "patents": {
           "pages": 66,
-          "macro": 0.0657727701975862,
+          "macro": 0.06423919008124565,
           "f1": {
             "Caption": 0.0,
             "Footnote": null,
@@ -577,7 +577,7 @@
             "List-item": 0.27906976744186046,
             "Page-footer": 0.1348314606741573,
             "Page-header": 0.0,
-            "Picture": 0.06451612903225806,
+            "Picture": 0.04918032786885246,
             "Section-header": 0.0,
             "Table": 0.0,
             "Text": 0.1793103448275862,
@@ -625,8 +625,8 @@
         },
         "Page-footer": {
           "chars": 5236,
-          "covered": 474,
-          "share": 0.09052711993888464
+          "covered": 489,
+          "share": 0.09339190221543163
         },
         "Page-header": {
           "chars": 7642,
@@ -635,8 +635,8 @@
         },
         "Picture": {
           "chars": 17976,
-          "covered": 2423,
-          "share": 0.13479083222073876
+          "covered": 2264,
+          "share": 0.12594570538495772
         },
         "Section-header": {
           "chars": 19928,
@@ -650,8 +650,8 @@
         },
         "Text": {
           "chars": 538352,
-          "covered": 504398,
-          "share": 0.9369297411359111
+          "covered": 504925,
+          "share": 0.9379086545605849
         },
         "Title": {
           "chars": 1390,
@@ -664,13 +664,13 @@
           "Caption": 14,
           "Footnote": 17,
           "Formula": 276,
-          "List-item": 256,
-          "Page-footer": 135,
-          "Picture": 88,
+          "List-item": 255,
+          "Page-footer": 131,
+          "Picture": 45,
           "Section-header": 43,
-          "Table": 26,
-          "Text": 3436,
-          "Title": 37
+          "Table": 27,
+          "Text": 3382,
+          "Title": 36
         },
         "Caption": {
           "-": 37,
@@ -689,54 +689,54 @@
           "Text": 33
         },
         "List-item": {
-          "-": 494,
+          "-": 490,
           "List-item": 448,
           "Section-header": 6,
-          "Text": 279,
+          "Text": 283,
           "Title": 2
         },
         "Page-footer": {
-          "-": 47,
+          "-": 42,
           "Footnote": 2,
           "List-item": 8,
-          "Page-footer": 177,
-          "Text": 96,
+          "Page-footer": 181,
+          "Text": 97,
           "Title": 1
         },
         "Page-header": {
-          "-": 169,
+          "-": 166,
           "Page-footer": 29,
           "Section-header": 4,
-          "Text": 126,
-          "Title": 18
+          "Text": 128,
+          "Title": 19
         },
         "Picture": {
-          "-": 167,
-          "Picture": 83,
+          "-": 186,
+          "Picture": 64,
           "Table": 3,
           "Text": 1,
           "Title": 1
         },
         "Section-header": {
-          "-": 174,
+          "-": 166,
           "List-item": 8,
           "Section-header": 108,
-          "Text": 305,
+          "Text": 313,
           "Title": 84
         },
         "Table": {
-          "-": 96,
+          "-": 95,
           "Picture": 2,
           "Table": 36,
-          "Text": 7
+          "Text": 8
         },
         "Text": {
-          "-": 945,
+          "-": 924,
           "Formula": 1,
-          "List-item": 30,
+          "List-item": 31,
           "Section-header": 2,
           "Table": 1,
-          "Text": 1361,
+          "Text": 1381,
           "Title": 1
         },
         "Title": {
@@ -747,8 +747,8 @@
           "Title": 3
         }
       },
-      "seconds": 28.37,
-      "seconds_per_page": 0.0709,
+      "seconds": 29.7,
+      "seconds_per_page": 0.0743,
       "errors": {},
       "no_text_layer": [
         "7bf8f041e24088cb5347ba78ed77a172f13c9a40c252558ccd34c878ed6e22dc",
@@ -764,18 +764,45 @@
       ]
     }
   },
+  "thresholds": {
+    "CAPTION_MAX_DISTANCE_LINES": 5.0,
+    "CAPTION_MAX_LINES": 6,
+    "FIGURE_BACKGROUND_PAGE_SHARE": 0.5,
+    "FIGURE_CODE_LINE_SHARE": 0.5,
+    "FIGURE_GRID_ALIGN_TOLERANCE": 3.0,
+    "FIGURE_GRID_LINE_SHARE": 0.7,
+    "FIGURE_GRID_MIN_COLUMNS": 2,
+    "FIGURE_GRID_MIN_LABELLED_ROWS": 2,
+    "FIGURE_GRID_MIN_ROWS": 3,
+    "FIGURE_LIST_MIN_ITEMS": 2,
+    "FIGURE_MAX_TEXT_COVERAGE": 0.3,
+    "FIGURE_MAX_TEXT_DENSITY": 0.5,
+    "FIGURE_MIN_AREA": 0.02,
+    "FIGURE_PROSE_LINE_SHARE": 0.5,
+    "FIGURE_PROSE_MIN_SENTENCES": 2,
+    "FIGURE_PROSE_MIN_WORDS": 5,
+    "FIGURE_PROSE_RUN_LINES": 3,
+    "FIGURE_PROSE_SENTENCE_SHARE": 0.25,
+    "FIRST_LINE_INDENT": 8.0,
+    "FOOTNOTE_BOTTOM_SHARE": 0.3,
+    "FOOTNOTE_MAX_SIZE_RATIO": 0.85,
+    "FORMULA_MIN_SYMBOL_SHARE": 0.3,
+    "LIST_INDENT_STEP": 8.0,
+    "PARAGRAPH_GAP_RATIO": 1.75,
+    "PARAGRAPH_SIZE_DELTA": 0.5
+  },
   "target": {
     "heuristic-pymupdf": {
       "f1": {
         "financial_reports": {
-          "Text": 0.5017818959372773,
+          "Text": 0.5007112375533428,
           "Table": 0.4155844155844156,
-          "Picture": 0.3157894736842105
+          "Picture": 0.27586206896551724
         },
         "scientific_articles": {
           "Text": 0.4939759036144578,
           "Table": 0.0,
-          "Picture": 0.723404255319149
+          "Picture": 0.7391304347826086
         }
       },
       "met": false
@@ -783,9 +810,9 @@
     "heuristic-pdfplumber": {
       "f1": {
         "financial_reports": {
-          "Text": 0.35508155583437895,
-          "Table": 0.17142857142857143,
-          "Picture": 0.3055555555555556
+          "Text": 0.37380801017164655,
+          "Table": 0.16901408450704225,
+          "Picture": 0.27450980392156865
         },
         "scientific_articles": {
           "Text": 0.28142589118198874,

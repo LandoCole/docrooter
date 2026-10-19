@@ -542,8 +542,9 @@ def test_no_relevant_elements_needs_defined_readout():
     assert budget.over_budget is False
 
 
-def test_select_linear_time():
-    n_sections, per_section = 300, 20  # 6,300 elements
+def _timed_select(n_sections: int, per_section: int = 20) -> tuple[float, Selection, int]:
+    """Seconds for a guaranteed, a budgeted and a query select() on a document of
+    ``n_sections`` labelled sections (the best of three runs), and the guaranteed result."""
     sections = [{"title": f"Part {i}", "level": 1} for i in range(n_sections)]
     items = []
     for s in range(n_sections):
@@ -570,14 +571,49 @@ def test_select_linear_time():
         },
     )
     analysis = analysis_of(doc, sections=labels)
-    assert len(doc.elements) > 5_000
-    start = time.perf_counter()
-    result = select(analysis, RISK, selector=_selector(), embedder=FakeEmbedder())
-    budgeted = select(analysis, RISK, budget=20_000, selector=_selector(), embedder=FakeEmbedder())
-    query = select(analysis, "risk", selector=_selector(), embedder=FakeEmbedder())
-    elapsed = time.perf_counter() - start
+    best = float("inf")
+    for _ in range(3):
+        start = time.perf_counter()
+        result = select(analysis, RISK, selector=_selector(), embedder=FakeEmbedder())
+        budgeted = select(
+            analysis, RISK, budget=20_000, selector=_selector(), embedder=FakeEmbedder()
+        )
+        query = select(analysis, "risk", selector=_selector(), embedder=FakeEmbedder())
+        best = min(best, time.perf_counter() - start)
     assert result.guarantee is True and budgeted.tokens <= 20_000 and query.element_ids
-    assert elapsed < 2.0, f"select() took {elapsed:.2f}s on {len(doc.elements)} elements"
+    return best, result, len(doc.elements)
+
+
+def test_select_linear_time():
+    small, _, n_small = _timed_select(75)  # 1,575 elements
+    large, result, n_large = _timed_select(300)  # 6,300 elements: four times as many
+    assert n_large > 5_000 and n_large == 4 * n_small
+    assert large < 2.0, f"select() took {large:.2f}s on {n_large} elements"
+    # Linear: four times the elements cost about four times the time. A quadratic step would
+    # cost sixteen; the bound leaves room for timer noise on the small document.
+    assert large < 8.0 * small + 0.05, f"{small:.3f}s for {n_small}, {large:.3f}s for {n_large}"
+
+
+def test_select_scored_is_the_tail_of_select():
+    """The benchmarks and the playground score with prepare() + need_features() +
+    select_scored(); that must be select() itself."""
+    analysis = analysis_of(expansion_doc())
+    for need in (RISK, [RISK, LEGAL], "What are the main risks?"):
+        for c in (0.5, 0.9, 0.99):
+            direct = select(
+                analysis,
+                need,
+                completeness=c,
+                selector=_selector(),
+                tagger=FakeTagger(),
+                embedder=FakeEmbedder(),
+            )
+            ctx = prepare(
+                analysis, tagger=FakeTagger(), encoder=FakeEmbedder(), family="annual_report"
+            )
+            _, X = need_features(ctx, need)
+            tail = select_scored(analysis, ctx, X, need, completeness=c, selector=_selector())
+            assert tail.model_dump() == direct.model_dump()
 
 
 def test_no_tagger_fallback_no_guarantee():

@@ -165,6 +165,9 @@ def test_crc_guarantee_on_simulation():
         recall = kept.sum(axis=1) / new_relevant.sum(axis=1)
         realised[c] = float(recall.mean())
         assert realised[c] >= c - 0.01, (c, realised[c])
+        # and tight: at n = 2,000 the slack 1/(n+1) is tiny, so a needlessly conservative dial
+        # (a grid step off, the wrong side of a tie) would overshoot
+        assert realised[c] <= c + 0.03, (c, realised[c])
 
 
 def test_unreachable_target_caps_to_whole_document():

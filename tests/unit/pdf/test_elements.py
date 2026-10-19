@@ -560,6 +560,17 @@ def test_ruled_page_frame_is_not_a_table(with_heading):
     assert "line 0." in text and "line 19." in text
 
 
+def test_ruled_frame_around_a_chart_is_not_a_table():
+    # dev doc_036 p9: a figure panel in a page frame (2 rows, 3 cells, 161 lines of labels)
+    rows = [row(1, "F I G U R E 1 . 1", 60, 40), row(1, "Unemployment rate", 150, 40)]
+    rows += [row(1, f"{10 * k}", 128, 80 + 12 * k) for k in range(30)]
+    rows += [row(1, f"Q{k % 4 + 1}", 150 + 12 * k, 470) for k in range(30)]
+    cells = [["F I G U R E 1 . 1", "Unemployment rate"], ["axis labels", ""]]
+    elements = Doc(rows, tables={1: [((30, 30, 582, 762), cells)]}).build()
+    assert of_kind(elements, "table") == []
+    assert sum(len(e.text.split()) for e in elements) >= 60  # every label is kept
+
+
 def test_page_sized_statement_table_stays_a_table():
     labels = ["Net cash provided by operating activities", "Purchases of property and equipment",
               "Proceeds from the sale of investments", "Repayments of long term debt"]  # fmt: skip

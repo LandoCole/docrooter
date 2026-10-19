@@ -146,8 +146,8 @@ FIGURE_GRID_MIN_LABELLED_ROWS = 2  # rows of a word label then numbers: a statem
 FIGURE_GRID_LINE_SHARE = 0.7  # share of lines in worded multi-cell rows a table needs
 FIGURE_CODE_LINE_SHARE = 0.5  # this share of monospace lines inside: a code listing
 FIGURE_LIST_MIN_ITEMS = 2  # this many list items inside: a list set on a shape
-FRAME_MIN_LINES_PER_CELL = 8.0  # a page-sized ruled "table" of prose is a frame when its
-# cells hold this many lines each on average (final review; dev: frames 8-195, tables 1-7)
+FRAME_MIN_LINES_PER_CELL = 8.0  # a page-sized ruled "table" is a frame when its cells hold
+# this many lines each on average (final review; dev: frames 8-195 lines, tables 1-7.3)
 CAPTION_MAX_LINES = 6  # a caption is a line or a short paragraph
 CAPTION_FIRST_SIDE = {"table": "above", "figure": "below"}  # preferred when both sides fit
 
@@ -454,18 +454,21 @@ class _Builder:
     def _is_frame(
         self, obj: PageObjects, r: Rect, rows: list[list[str]], idxs: list[int], protected: set[int]
     ) -> bool:
-        """Whether a ruled table is a frame drawn around page content rather than a table: it
-        holds a heading candidate or the title, or it covers at least
-        ``FIGURE_BACKGROUND_PAGE_SHARE`` of the page, its lines read as prose (the figure
-        rule's prose test) and its cells hold whole paragraphs (``FRAME_MIN_LINES_PER_CELL``
-        lines per non-empty cell). A table whose lines are mostly (``FIGURE_GRID_LINE_SHARE``)
-        in statement rows (a word label, then two or more numbers: "2024 Notes | 37 | 443") is
-        a table whatever it holds, a title row set as a heading included; and a heading
-        candidate that shares its row with another line of the table (a statement-row label,
-        a value beside its field) is a cell, not a heading.
-        Prose alone does not make a frame: a statement table's long row labels, or a register
-        table's descriptions, stack like a paragraph, so ``FIGURE_GRID_MIN_LABELLED_ROWS``
-        statement rows, or fewer lines per cell, keep a page-sized table a table."""
+        """Whether a ruled table is a frame drawn around page content rather than a table.
+
+        - A table whose lines are mostly (``FIGURE_GRID_LINE_SHARE``) in statement rows (a word
+          label, then two or more numbers: "2024 Notes | 37 | 443") is a table, whatever else it
+          holds (a title row set as a heading, a bold label).
+        - Otherwise a heading candidate or the title alone on its row makes it a frame. One
+          that shares its row with another line of the table (a label, a value beside its
+          field) is a cell.
+        - A table covering at least ``FIGURE_BACKGROUND_PAGE_SHARE`` of the page is a frame when
+          its cells hold whole paragraphs or panels (``FRAME_MIN_LINES_PER_CELL`` lines per
+          non-empty cell) and it has fewer than ``FIGURE_GRID_MIN_LABELLED_ROWS`` statement
+          rows: framed prose (the review's ruling: its lines read as prose) and framed chart
+          panels alike (final-fix ruling). A page-sized register or errata table, whose cells
+          hold a line or a few, stays a table even where its text reads as prose.
+        """
         lines = [self.lines[i] for i in idxs]
         statements = statement_rows(lines)
         cells = {id(line) for row in statements for line in row}
@@ -483,13 +486,7 @@ class _Builder:
         if len(statements) >= FIGURE_GRID_MIN_LABELLED_ROWS:
             return False
         filled = sum(1 for row in rows for cell in row if cell.strip())
-        if len(lines) < FRAME_MIN_LINES_PER_CELL * max(filled, 1):
-            return False
-        return is_prose(lines, min_words=FIGURE_PROSE_MIN_WORDS,
-                        line_share=FIGURE_PROSE_LINE_SHARE,
-                        min_sentences=FIGURE_PROSE_MIN_SENTENCES,
-                        sentence_share=FIGURE_PROSE_SENTENCE_SHARE,
-                        run_lines=FIGURE_PROSE_RUN_LINES)  # fmt: skip
+        return len(lines) >= FRAME_MIN_LINES_PER_CELL * max(filled, 1)
 
     def _table_text(self, rows: list[list[str]], idxs: Sequence[int]) -> tuple[str, list[str]]:
         """A table's ``text`` (its cells, row by row) and flags."""

@@ -8,8 +8,12 @@ cached listings and capped, checked PDF downloads.
   15 s, the arxiv.org crawl delay); ``DEMO_KEY`` requests to api.data.gov APIs share one (10 per
   hour, the limit its response headers report).
 - **robots.txt** is fetched once per web host and obeyed (``*`` and ``$`` patterns, longest match
-  wins). 401/403 or a server error on robots.txt means "do not crawl". Documented API hosts are
-  machine interfaces and are exempt.
+  wins). When robots.txt cannot be read (401/403/429, a server or network error), nothing on that
+  host is fetched this run, and the failure is *transient* (:class:`HostBlocked` or
+  :class:`FetchError`), so the next run asks again; only an explicit disallow is permanent.
+  Documented API hosts are machine interfaces and are exempt.
+- **Redirects** are followed only to http(s), never from https down to http, and each hop is
+  checked like a first request: the target host's block list, robots.txt and rate limit.
 - **No aggressive retries.** A 401, 403 or 429 blocks the host for the rest of the run; a network
   error or 5xx fails that one request (the next run retries it).
 - **Downloads are untrusted data.** A PDF is streamed to ``<dest>.part``, refused above
@@ -117,12 +121,11 @@ class Robots:
 
     rules: list[tuple[bool, str]]
     crawl_delay: float | None = None
-    disallow_all: bool = False
     status: str = "ok"
+    error: str | None = None  # robots.txt could not be read: nothing is fetched this run
+    refused: bool = False  # the error was a 401/403/429 (the host refused us)
 
     def allows(self, url: str) -> bool:
-        if self.disallow_all:
-            return False
         parts = urllib.parse.urlsplit(url)
         path = parts.path or "/"
         if parts.query:
@@ -189,8 +192,17 @@ def parse_robots(text: str, token: str = ROBOTS_TOKEN) -> Robots:
 Transport = Callable[[urllib.request.Request, float], Any]
 
 
-def _urlopen(request: urllib.request.Request, timeout: float) -> Any:
-    return urllib.request.urlopen(request, timeout=timeout)
+class _PoliteRedirects(urllib.request.HTTPRedirectHandler):
+    """Runs :meth:`Net.check_redirect` on every hop before urllib follows it."""
+
+    def __init__(self, net: Net) -> None:
+        self.net = net
+
+    def redirect_request(
+        self, req: urllib.request.Request, fp: Any, code: int, msg: str, headers: Any, newurl: str
+    ) -> urllib.request.Request | None:
+        self.net.check_redirect(req.full_url, newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _strip_key(url: str) -> str:
@@ -216,12 +228,17 @@ class Net:
         self,
         cache_dir: Path | None = None,
         *,
+        archive_dir: Path | None = None,
         transport: Transport | None = None,
         limiter: RateLimiter | None = None,
         log: Callable[[str], None] = print,
     ) -> None:
         self.cache_dir = cache_dir
-        self.transport: Transport = transport or _urlopen
+        self.archive_dir = archive_dir  # where sources keep downloaded dataset archives
+        self.opener = urllib.request.build_opener(_PoliteRedirects(self))
+        self.transport: Transport = transport or (
+            lambda request, timeout: self.opener.open(request, timeout=timeout)
+        )
         self.limiter = limiter or RateLimiter()
         self.log = log
         self._robots: dict[str, Robots] = {}
@@ -285,14 +302,34 @@ class Net:
 
     def allowed(self, url: str) -> bool:
         """Whether robots.txt lets us fetch ``url`` (API hosts are exempt). One robots.txt
-        request per host per run."""
+        request per host per run. Raises :class:`HostBlocked` or :class:`FetchError` when
+        robots.txt could not be read: that is transient, never a reason to drop for good."""
         parts = urllib.parse.urlsplit(url)
         host = (parts.hostname or "").lower()
         if not host_policy(host).robots:
             return True
         if host not in self._robots:
             self._robots[host] = self._fetch_robots(f"{parts.scheme}://{parts.netloc}/robots.txt")
-        return self._robots[host].allows(url)
+        robots = self._robots[host]
+        if robots.error is not None:
+            raise (HostBlocked if robots.refused else FetchError)(robots.error)
+        return robots.allows(url)
+
+    def check_redirect(self, old_url: str, new_url: str) -> None:
+        """Vet one redirect hop as if it were a first request: http(s) only and no https ->
+        http downgrade (:class:`Rejected`), the target host not blocked, robots.txt allowing
+        it, and the target's rate limit honoured before urllib follows it."""
+        old, new = urllib.parse.urlsplit(old_url), urllib.parse.urlsplit(new_url)
+        if new.scheme not in ("http", "https") or (old.scheme == "https" and new.scheme != "https"):
+            raise Rejected(f"redirect from {old.scheme} to {new.scheme} refused")
+        reason = self.blocked(new_url)
+        if reason:
+            raise HostBlocked(reason)
+        if not self.allowed(new_url):
+            raise Rejected("robots.txt disallows the redirect target")
+        policy = self._policy(new_url)
+        self.limiter.wait(policy.bucket, policy.interval)
+        self.requests += 1
 
     def robots_status(self, url: str) -> str:
         host = (urllib.parse.urlsplit(url).hostname or "").lower()
@@ -306,9 +343,11 @@ class Net:
         except Rejected as exc:  # 404/410: no robots.txt, nothing is disallowed
             return Robots(rules=[], status=f"no robots.txt ({exc})")
         except HostBlocked as exc:
-            return Robots(rules=[], disallow_all=True, status=f"robots.txt refused: {exc}")
+            why = f"robots.txt refused: {exc}"
+            return Robots(rules=[], status=why, error=why, refused=True)
         except FetchError as exc:
-            return Robots(rules=[], disallow_all=True, status=f"robots.txt unavailable: {exc}")
+            why = f"robots.txt unavailable: {exc}"
+            return Robots(rules=[], status=why, error=why)
         robots = parse_robots(text)
         robots.status = "ok"
         return robots
@@ -343,6 +382,10 @@ class Net:
     def download_pdf(self, url: str, dest: Path, max_bytes: int = MAX_PDF_BYTES) -> int:
         """Stream ``url`` to ``dest`` if it is a PDF of at most ``max_bytes``; the byte count.
         :class:`Rejected` for a non-PDF, oversized or missing file; nothing is left behind."""
+        return self.download(url, dest, max_bytes=max_bytes, magic=PDF_MAGIC)
+
+    def download(self, url: str, dest: Path, *, max_bytes: int, magic: bytes) -> int:
+        """Stream ``url`` to ``dest`` if it starts with ``magic`` and has at most ``max_bytes``."""
         if not self.allowed(url):
             raise Rejected("robots.txt disallows this URL")
         part = dest.with_name(dest.name + ".part")
@@ -352,9 +395,9 @@ class Net:
                 length = (response.headers.get("Content-Length") or "").strip()
                 if length.isdigit() and int(length) > max_bytes:
                     raise Rejected(f"Content-Length {length} is over the {max_bytes}-byte cap")
-                head = response.read(len(PDF_MAGIC))
-                if not head.startswith(PDF_MAGIC):
-                    raise Rejected("not a PDF (no %PDF- magic)")
+                head = response.read(len(magic))
+                if not head.startswith(magic):
+                    raise Rejected(f"wrong file type (no {magic!r} magic)")
                 size = len(head)
                 with part.open("wb") as out:
                     out.write(head)

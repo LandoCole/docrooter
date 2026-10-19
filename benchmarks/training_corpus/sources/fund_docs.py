@@ -6,12 +6,14 @@ chosen because their robots.txt allows these paths to all agents (checked 2026-1
 
 - State Street (SSGA) SPDR ETF fact sheets, one per ticker in SSGA's public "SPDR ETF listing"
   (target-maturity muni series left out);
-- iShares (BlackRock) annual and semi-annual tailored shareholder reports, per ticker.
+- iShares (BlackRock) summary prospectuses, one per fund, the link read from the fund's product
+  page (whose URL comes from iShares' public product-screener listing);
+- iShares annual and semi-annual tailored shareholder reports, per ticker.
 
 Each URL answered ``206 application/pdf`` to a one-kilobyte range request on 2026-10-19
 (SSGA's QNDX fact sheet, a 404, was removed). The documents belong to their sponsors: they are
 kept locally for research and **never redistributed**; the manifest holds only URLs and hashes.
-The three lists are interleaved so any quota draws a mix of sponsors and document kinds.
+The four lists are interleaved so any quota draws a mix of sponsors and document kinds.
 """
 
 from __future__ import annotations
@@ -319,6 +321,268 @@ ISHARES_SEMIANNUAL_REPORTS: tuple[str, ...] = (
 )
 
 
+# (ticker, URL): each fund's summary prospectus link, read from its iShares product page.
+ISHARES_SUMMARY_PROSPECTUSES: tuple[tuple[str, str], ...] = (
+    (
+        "ivv",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-core-s-and-p-500-etf-3-31.pdf",
+    ),
+    (
+        "ijh",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-core-s-and-p-mid-cap-etf-3-31.pdf",
+    ),
+    (
+        "ijr",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-core-s-and-p-small-cap-etf-3-31.pdf",
+    ),
+    (
+        "itot",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-core-s-and-p-total-us-stock-market-etf-3-31.pdf",
+    ),
+    (
+        "iwm",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-russell-2000-etf-3-31.pdf",
+    ),
+    (
+        "iwb",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-russell-1000-etf-3-31.pdf",
+    ),
+    (
+        "iwf",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-russell-1000-growth-etf-3-31.pdf",
+    ),
+    (
+        "iwd",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-russell-1000-value-etf-3-31.pdf",
+    ),
+    (
+        "iwo",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-russell-2000-growth-etf-3-31.pdf",
+    ),
+    (
+        "iwn",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-russell-2000-value-etf-3-31.pdf",
+    ),
+    (
+        "iwr",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-russell-mid-cap-etf-3-31.pdf",
+    ),
+    (
+        "iwv",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-russell-3000-etf-3-31.pdf",
+    ),
+    (
+        "efa",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-eafe-etf-7-31.pdf",
+    ),
+    (
+        "eem",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-emerging-markets-etf-8-31.pdf",
+    ),
+    (
+        "iefa",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-core-msci-eafe-etf-7-31.pdf",
+    ),
+    (
+        "iemg",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-core-msci-emerging-markets-etf-8-31.pdf",
+    ),
+    (
+        "agg",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-core-us-aggregate-bond-etf-2-28.pdf",
+    ),
+    (
+        "iusb",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-core-total-usd-bond-market-etf-10-31.pdf",
+    ),
+    (
+        "tlt",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-20-plus-year-treasury-bond-etf-2-28.pdf",
+    ),
+    (
+        "ief",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-7-10-year-treasury-bond-etf-2-28.pdf",
+    ),
+    (
+        "shy",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-1-3-year-treasury-bond-etf-2-28.pdf",
+    ),
+    (
+        "iei",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-3-7-year-treasury-bond-etf-2-28.pdf",
+    ),
+    (
+        "tip",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-tips-bond-etf-10-31.pdf",
+    ),
+    (
+        "lqd",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-iboxx-investment-grade-corporate-bond-etf-2-28.pdf",
+    ),
+    (
+        "hyg",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-iboxx-high-yield-corporate-bond-etf-2-28.pdf",
+    ),
+    ("mbb", "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-mbs-etf-2-28.pdf"),
+    (
+        "mub",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-national-muni-bond-etf-2-28.pdf",
+    ),
+    (
+        "emb",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-jp-morgan-usd-emerging-markets-bond-etf-10-31.pdf",
+    ),
+    (
+        "igsb",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-1-3-year-credit-bond-etf-2-28.pdf",
+    ),
+    (
+        "igib",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-intermediate-credit-bond-etf-2-28.pdf",
+    ),
+    (
+        "ushy",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-broad-usd-high-yield-corporate-bond-etf-10-31.pdf",
+    ),
+    (
+        "shv",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-short-treasury-bond-etf-2-28.pdf",
+    ),
+    (
+        "govt",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-core-us-treasury-bond-etf-10-31.pdf",
+    ),
+    (
+        "acwi",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-acwi-etf-7-31.pdf",
+    ),
+    (
+        "acwx",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-acwi-ex-us-etf-7-31.pdf",
+    ),
+    (
+        "ewj",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-japan-etf-8-31.pdf",
+    ),
+    (
+        "ewz",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-brazil-capped-etf-8-31.pdf",
+    ),
+    (
+        "ewg",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-germany-etf-8-31.pdf",
+    ),
+    (
+        "ewu",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-united-kingdom-etf-8-31.pdf",
+    ),
+    (
+        "ewc",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-canada-etf-8-31.pdf",
+    ),
+    (
+        "ewa",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-australia-etf-8-31.pdf",
+    ),
+    (
+        "ewy",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-south-korea-capped-etf-8-31.pdf",
+    ),
+    (
+        "ewt",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-taiwan-capped-etf-8-31.pdf",
+    ),
+    (
+        "fxi",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-china-large-cap-etf-7-31.pdf",
+    ),
+    (
+        "mchi",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-china-etf-8-31.pdf",
+    ),
+    (
+        "inda",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-india-etf-8-31.pdf",
+    ),
+    (
+        "ibb",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-nasdaq-biotechnology-etf-3-31.pdf",
+    ),
+    (
+        "iyr",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-us-real-estate-etf-3-31.pdf",
+    ),
+    (
+        "iyw",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-us-technology-etf-4-30.pdf",
+    ),
+    (
+        "iyf",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-us-financials-etf-4-30.pdf",
+    ),
+    (
+        "ita",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-us-aerospace-and-defense-etf-3-31.pdf",
+    ),
+    (
+        "itb",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-us-home-construction-etf-3-31.pdf",
+    ),
+    (
+        "soxx",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-phlx-semiconductor-etf-3-31.pdf",
+    ),
+    (
+        "igv",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-north-american-tech-software-etf-3-31.pdf",
+    ),
+    (
+        "usmv",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-edge-msci-min-vol-usa-etf-7-31.pdf",
+    ),
+    (
+        "efav",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-edge-msci-min-vol-eafe-etf-7-31.pdf",
+    ),
+    (
+        "mtum",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-edge-msci-usa-momentum-factor-etf-7-31.pdf",
+    ),
+    (
+        "qual",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-edge-msci-usa-quality-factor-etf-7-31.pdf",
+    ),
+    (
+        "dvy",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-select-dividend-etf-4-30.pdf",
+    ),
+    (
+        "hdv",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-core-high-dividend-etf-4-30.pdf",
+    ),
+    (
+        "idv",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-international-select-dividend-etf-4-30.pdf",
+    ),
+    (
+        "scz",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-msci-eafe-small-cap-etf-7-31.pdf",
+    ),
+    (
+        "ixus",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-core-msci-total-international-stock-etf-7-31.pdf",
+    ),
+    (
+        "flot",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-floating-rate-bond-etf-10-31.pdf",
+    ),
+    (
+        "stip",
+        "https://www.ishares.com/us/literature/summary-prospectus/sp-ishares-0-5-year-tips-bond-etf-10-31.pdf",
+    ),
+)
+
+
 def _ticker(url: str, pattern: str) -> str:
     match = re.search(pattern, url)
     if match is None:
@@ -358,10 +622,25 @@ def _ishares(url: str, kind: str) -> Candidate:
     )
 
 
+def _ishares_summary_prospectus(ticker: str, url: str) -> Candidate:
+    return Candidate(
+        id=f"fund-ishares-sp-{ticker}",
+        url=url,
+        source=NAME,
+        licence=LICENCE,
+        doc_type_hint="financial.prospectus",
+        title=f"iShares {ticker.upper()} summary prospectus",
+        publisher="BlackRock (iShares)",
+        family_hint="fund_document",
+        extra={"sponsor": "iShares", "ticker": ticker.upper(), "kind": "summary prospectus"},
+    )
+
+
 def candidates(net: Net) -> Iterator[Candidate]:
     """No listing request: the URLs above are the list."""
     return round_robin(
         (_ssga(u) for u in SSGA_FACT_SHEETS),
+        (_ishares_summary_prospectus(t, u) for t, u in ISHARES_SUMMARY_PROSPECTUSES),
         (_ishares(u, "annual") for u in ISHARES_ANNUAL_REPORTS),
         (_ishares(u, "semi-annual") for u in ISHARES_SEMIANNUAL_REPORTS),
     )
@@ -370,7 +649,10 @@ def candidates(net: Net) -> Iterator[Candidate]:
 SOURCE = Source(
     name=NAME,
     target=150,
-    cap=len(SSGA_FACT_SHEETS) + len(ISHARES_ANNUAL_REPORTS) + len(ISHARES_SEMIANNUAL_REPORTS),
+    cap=len(SSGA_FACT_SHEETS)
+    + len(ISHARES_SUMMARY_PROSPECTUSES)
+    + len(ISHARES_ANNUAL_REPORTS)
+    + len(ISHARES_SEMIANNUAL_REPORTS),
     probe_url="https://www.ssga.com/library-content/products/factsheets/",
     candidates=candidates,
     note="iShares URLs are checked against www.ishares.com robots.txt per download",

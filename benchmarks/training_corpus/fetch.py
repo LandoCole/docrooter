@@ -14,24 +14,33 @@ first, each up to its cap. Both are recorded in the run summary and the README.
 held-out manifest (``benchmarks/heldout/manifest.jsonl``) are read for three fields only: sha256,
 url and title. Nothing else under ``benchmarks/heldout/`` is opened. A candidate whose
 normalised URL or normalised title matches is dropped before download; a download whose sha256
-matches (the same bytes re-hosted elsewhere) is deleted and dropped. Spec §5 matches on
-(publisher, normalised title); the controller ruling limits the manifests to sha256, url and
-title, so titles are matched without the publisher, which can only drop more, never less. Drops
-are recorded in the cache (``drops.jsonl``); a held-out drop is recorded without its URL or title.
+matches (the same bytes re-hosted elsewhere) is deleted and dropped. Every record is checked
+again when the manifest is written, so a grown dev manifest also purges journalled documents.
+Spec §5 matches on (publisher, normalised title); the controller ruling limits the manifests to
+sha256, url and title, so titles are matched without the publisher, which can only drop more,
+never less. Drops are recorded in the cache (``drops.jsonl``). A held-out drop is only counted:
+its row holds a hash of the candidate id (so it is not retried) and no id, URL or title, and it
+is never logged one by one.
 
-**Checks.** Every download must start with ``%PDF-`` and be at most 50 MB. Its page count and
-text layer are read by :mod:`benchmarks.training_corpus.pdf_meta` in a ``python -I`` child
-process; a PDF with no usable text layer in its first pages (a scan) is dropped, since the corpus
-is native PDFs only. Byte-identical documents are kept once.
+**Checks.** Every candidate id must match ``^[a-z0-9_-]{1,80}$`` (it names a file). Every
+download must start with ``%PDF-`` and be at most 50 MB. Its page count and text layer are read
+by :mod:`benchmarks.training_corpus.pdf_meta` in a ``python -I`` child process with a timeout and
+a 2 GB memory cap (``setrlimit`` where the OS enforces it, and a resident-size watchdog here); a
+PDF with no usable text layer in its first pages (a scan) is dropped, since the corpus is native
+PDFs only. Byte-identical documents are kept once. A candidate taken from a dataset archive
+(CUAD) is read out of the cached archive with the same magic and size checks.
 
 **Resume.** Each accepted document is appended (and fsynced) to ``fetched.jsonl`` in the cache
 before the next one starts; a PDF that reached its final name but not the journal is re-checked
 and adopted without a new download. Re-running skips everything fetched or permanently dropped;
 listings come from the cache. The manifest is rewritten atomically at the end of every run.
 
-**Splits.** Assigned by document over the whole manifest, stratified by source, with seed 0:
-about 85% ``train``, 5% ``calib`` and 10% ``gold`` per source. They are a pure function of the
-set of documents, so the full fetch fixes them; the gold set (L5) is drawn after it.
+**Splits.** Per document and stable: ``sha256("split:" + id)`` read as a number in [0, 1) puts
+a document in ``gold`` below 0.10, ``calib`` below 0.15 and ``train`` otherwise (about 10/5/85).
+A document that already has a split in the manifest keeps it. Adding or removing documents never
+moves another document, so gold documents can never drift into training. Stratification by
+source holds in expectation; the realised shares per source are reported in the summary and the
+README.
 """
 
 from __future__ import annotations
@@ -41,13 +50,14 @@ import hashlib
 import json
 import math
 import os
-import random
 import re
 import subprocess
 import sys
+import time
 import unicodedata
 import urllib.parse
 import xml.etree.ElementTree as ET
+import zipfile
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -64,7 +74,7 @@ from benchmarks.training_corpus._net import (
     Rejected,
     redact,
 )
-from benchmarks.training_corpus.sources import ALL_SOURCES, MAKEUP_ORDER
+from benchmarks.training_corpus.sources import ALL_SOURCES, MAKEUP_ORDER, OPTIONAL_SOURCES
 from benchmarks.training_corpus.sources.base import Candidate, Source
 from docrooter.taxonomies import family_for_doc_type
 
@@ -78,11 +88,13 @@ HELDOUT_MANIFEST = REPO / "benchmarks" / "heldout" / "manifest.jsonl"
 PDF_META = HERE / "pdf_meta.py"
 
 SPEC_TOTAL = 1100
-SEED = 0
-SPLIT_SHARES = (("gold", 0.10), ("calib", 0.05))  # the rest is train (about 85%)
+SPLITS = ("train", "calib", "gold")
+SPLIT_BOUNDS = (("gold", 0.10), ("calib", 0.15))  # cumulative; the rest (about 85%) is train
+SAFE_ID = re.compile(r"[a-z0-9_-]{1,80}")
 MIN_TEXT_CHARS = 200  # in the first pages read by pdf_meta: fewer means a scan
 MAX_CONSECUTIVE_FAILURES = 10
 INSPECT_TIMEOUT = 180
+INSPECT_MEMORY_CAP = 2 << 30  # bytes, for the pdf_meta child
 EXCLUSION_FIELDS = ("sha256", "url", "title")
 
 
@@ -148,6 +160,18 @@ class Exclusions:
         corpus = self.sha256.get(sha256.lower())
         return f"{corpus}:sha256" if corpus else None
 
+    def match_record(self, record: Mapping[str, Any]) -> str | None:
+        """Any match of a fetched record: sha256, URL or title."""
+        by_hash = self.match_sha256(str(record.get("sha256", "")))
+        if by_hash:
+            return by_hash
+        url, title = str(record.get("url", "")), str(record.get("title", ""))
+        corpus = self.urls.get(normalise_url(url))
+        if corpus:
+            return f"{corpus}:url"
+        corpus = self.titles.get(normalise_title(title)) if normalise_title(title) else None
+        return f"{corpus}:title" if corpus else None
+
 
 def default_exclusions() -> Exclusions:
     return Exclusions.from_manifests({"dev": DEV_MANIFEST, "heldout": HELDOUT_MANIFEST})
@@ -156,25 +180,40 @@ def default_exclusions() -> Exclusions:
 # --- splits and quotas ---------------------------------------------------------------------
 
 
-def assign_splits(records: Iterable[Mapping[str, Any]], seed: int = SEED) -> dict[str, str]:
-    """``id -> split`` by document, stratified by source: per source, ids sorted then shuffled
-    with ``seed``; the first 10% (rounded) are ``gold``, the next 5% ``calib``, the rest
-    ``train``. Independent of input order."""
-    by_source: dict[str, list[str]] = defaultdict(list)
+def split_for(doc_id: str) -> str:
+    """The split of one document, from ``sha256("split:" + id)`` read as a number in [0, 1)."""
+    digest = hashlib.sha256(f"split:{doc_id}".encode()).digest()
+    value = int.from_bytes(digest[:8], "big") / 2**64
+    return next((name for name, bound in SPLIT_BOUNDS if value < bound), "train")
+
+
+def assign_splits(
+    records: Iterable[Mapping[str, Any]], existing: Mapping[str, str] | None = None
+) -> dict[str, str]:
+    """``id -> split``: a split already in ``existing`` (the manifest's) is kept; any other
+    document gets :func:`split_for`. One document's split never depends on another's."""
+    existing = existing or {}
+    out = {}
     for record in records:
-        by_source[str(record["source"])].append(str(record["id"]))
-    splits: dict[str, str] = {}
-    for source in sorted(by_source):
-        ids = sorted(by_source[source])
-        random.Random(f"{seed}:{source}").shuffle(ids)
-        bounds, start = [], 0
-        for name, share in SPLIT_SHARES:
-            count = int(len(ids) * share + 0.5)
-            bounds.append((name, start, start + count))
-            start += count
-        for index, doc_id in enumerate(ids):
-            splits[doc_id] = next((n for n, a, b in bounds if a <= index < b), "train")
-    return splits
+        doc_id = str(record["id"])
+        kept = existing.get(doc_id)
+        out[doc_id] = kept if kept in SPLITS else split_for(doc_id)
+    return out
+
+
+def split_shares(records: Iterable[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Per source: document counts per split and the realised percentages."""
+    counts: dict[str, Counter[str]] = defaultdict(Counter)
+    for record in records:
+        counts[str(record["source"])][str(record["split"])] += 1
+    out = {}
+    for source, counter in counts.items():
+        total = sum(counter.values())
+        out[source] = {
+            **{name: counter.get(name, 0) for name in SPLITS},
+            "percent": {name: round(100 * counter.get(name, 0) / total, 1) for name in SPLITS},
+        }
+    return out
 
 
 def scaled_quotas(sources: Sequence[Source], target: int) -> dict[str, int]:
@@ -251,24 +290,46 @@ class InspectError(Exception):
     pass
 
 
+def _rss_bytes(pid: int) -> int:
+    """Resident size of process ``pid`` (0 when it cannot be read)."""
+    try:
+        out = subprocess.run(
+            ["ps", "-o", "rss=", "-p", str(pid)], capture_output=True, text=True, timeout=5
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return 0
+    return int(out) * 1024 if out.isdigit() else 0
+
+
 def inspect_pdf(path: Path) -> PdfInfo:
     """Page count and text-layer size of an untrusted PDF, read in an isolated child process
     (``python -I``: no environment variables, no user site, no script or working directory on
-    ``sys.path``), with a timeout."""
-    try:
-        done = subprocess.run(
-            [sys.executable, "-I", str(PDF_META), str(path)],
-            capture_output=True,
-            text=True,
-            timeout=INSPECT_TIMEOUT,
-            cwd=str(PDF_META.parent),
-            check=False,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise InspectError(f"timed out after {INSPECT_TIMEOUT} s") from exc
-    lines = done.stdout.strip().splitlines()
-    if done.returncode != 0 or not lines:
-        tail = (done.stderr.strip().splitlines() or ["no output"])[-1]
+    ``sys.path``), with a timeout and a memory cap: the child lowers its own limits where the OS
+    enforces them, and this parent kills it if its resident size passes the cap anyway."""
+    with subprocess.Popen(
+        [sys.executable, "-I", str(PDF_META), str(path)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=str(PDF_META.parent),
+    ) as child:
+        deadline = time.monotonic() + INSPECT_TIMEOUT
+        while True:
+            try:
+                stdout, stderr = child.communicate(timeout=0.25)
+                break
+            except subprocess.TimeoutExpired:
+                if time.monotonic() > deadline:
+                    child.kill()
+                    child.communicate()
+                    raise InspectError(f"timed out after {INSPECT_TIMEOUT} s") from None
+                if _rss_bytes(child.pid) > INSPECT_MEMORY_CAP:
+                    child.kill()
+                    child.communicate()
+                    raise InspectError("over the 2 GB memory cap") from None
+    lines = stdout.strip().splitlines()
+    if child.returncode != 0 or not lines:
+        tail = (stderr.strip().splitlines() or ["no output"])[-1]
         raise InspectError(f"cannot read PDF: {tail[:200]}")
     try:
         info = json.loads(lines[-1])
@@ -386,9 +447,20 @@ class Fetcher:
             if pdf.exists() and pdf.stat().st_size == row.get("bytes"):
                 self.fetched[str(row["id"])] = row  # a missing or altered PDF is fetched again
         self.shas = {str(r["sha256"]): str(r["id"]) for r in self.fetched.values()}
-        self.permanent_drops = {
-            str(r["id"]) for r in _read_jsonl(self.drops_path) if r.get("permanent")
+        drops = [r for r in _read_jsonl(self.drops_path) if r.get("permanent")]
+        self.permanent_drops = {str(r["id"]) for r in drops if "id" in r}
+        self.heldout_drop_keys = {str(r["key"]) for r in drops if "key" in r}
+        self.existing_splits = {
+            str(r["id"]): str(r["split"])
+            for r in _read_jsonl(self.manifest_path)
+            if "id" in r and r.get("split") in SPLITS
         }
+
+    def _dropped_before(self, candidate: Candidate) -> bool:
+        return (
+            candidate.id in self.permanent_drops
+            or _drop_key(candidate.id) in self.heldout_drop_keys
+        )
 
     def run(self) -> Report:
         self._load()
@@ -423,7 +495,7 @@ class Fetcher:
                 deficit -= extra.have - before
         finally:
             if not self.dry_run:
-                report.records = self._write_manifest()
+                report.records = self._write_manifest(report)
                 self._write_summary(report)
         if self.dry_run:
             _write_atomic(
@@ -435,11 +507,18 @@ class Fetcher:
         return report
 
     def _preflight(self, source: Source, state: SourceRun) -> bool:
-        """robots.txt of the host the PDFs come from: one request per host."""
-        if self.net.allowed(source.probe_url):
+        """robots.txt of the host the PDFs come from: one request per host. An unreadable
+        robots.txt makes the source unavailable for this run only."""
+        if source.probe_url is None:
             return True
+        try:
+            if self.net.allowed(source.probe_url):
+                return True
+            why = "robots.txt disallows it"
+        except FetchError as exc:
+            why = str(exc)
         state.status = "unavailable"
-        state.reason = f"{redact(source.probe_url)}: {self.net.robots_status(source.probe_url)}"
+        state.reason = f"{redact(source.probe_url)}: {why}"
         self.log(f"SKIP     {source.name}: {state.reason}")
         return False
 
@@ -462,7 +541,11 @@ class Fetcher:
                 self.log(f"STOP     {source.name}: {state.reason}")
                 return
             state.listed += 1
-            if candidate.id in self.fetched or candidate.id in self.permanent_drops:
+            if candidate.id in self.fetched or self._dropped_before(candidate):
+                continue
+            if not SAFE_ID.fullmatch(candidate.id):  # ids name files: no paths, no surprises
+                report.drops["unsafe-id"] += 1
+                self.log(f"DROP     {candidate.source}: unsafe id {candidate.id[:100]!r}")
                 continue
             outcome = self._take(candidate, report)
             if outcome == "ok":
@@ -470,7 +553,7 @@ class Fetcher:
                 failures = 0
             elif outcome == "blocked":
                 why = self.net.blocked(candidate.url) or "host refused downloads"
-                if _host(candidate.url) != _host(source.probe_url):
+                if source.probe_url is None or _host(candidate.url) != _host(source.probe_url):
                     # Another of the source's hosts (a second fund sponsor) still works.
                     self.log(f"BLOCKED  {source.name} {candidate.id}: {why}")
                     continue
@@ -488,23 +571,27 @@ class Fetcher:
     def _drop(
         self, candidate: Candidate, reason: str, report: Report, *, permanent: bool = True
     ) -> str:
-        excluded = reason.startswith(("dev:", "heldout:"))
-        report.drops[reason if excluded else reason.split(":", 1)[0]] += 1
+        if reason.startswith("heldout"):
+            # Counted only: no id, URL, title or matching field, on disk or in the log.
+            report.drops["heldout"] += 1
+            self.heldout_drop_keys.add(_drop_key(candidate.id))
+            if not self.dry_run:
+                _append_jsonl(self.drops_path, {"key": _drop_key(candidate.id), "permanent": True})
+            return "dropped"
+        report.drops[reason if reason.startswith("dev:") else reason.split(":", 1)[0]] += 1
         row: dict[str, Any] = {
             "id": candidate.id,
             "source": candidate.source,
+            "url": candidate.url,
             "reason": reason,
             "permanent": permanent,
             "at": self.now(),
         }
-        if not reason.startswith("heldout"):
-            row["url"] = candidate.url  # held-out matches are recorded without URL or title
         if permanent:
             self.permanent_drops.add(candidate.id)
         if not self.dry_run:
             _append_jsonl(self.drops_path, row)
-        shown = "(held-out match)" if reason.startswith("heldout") else redact(candidate.url)
-        self.log(f"DROP     {candidate.source} {candidate.id} {reason} {shown}")
+        self.log(f"DROP     {candidate.source} {candidate.id} {reason} {redact(candidate.url)}")
         return "dropped" if permanent else "failed"
 
     def _take(self, candidate: Candidate, report: Report) -> str:
@@ -519,7 +606,10 @@ class Fetcher:
         dest = self.pdf_dir / f"{candidate.id}.pdf"
         if not dest.exists():
             try:
-                self.net.download_pdf(candidate.url, dest)
+                if candidate.archive is not None:
+                    extract_pdf(candidate.archive, candidate.archive_member or "", dest)
+                else:
+                    self.net.download_pdf(candidate.url, dest)
             except Rejected as exc:
                 return self._drop(candidate, f"rejected: {exc}", report)
             except HostBlocked:
@@ -574,12 +664,18 @@ class Fetcher:
         record.update({k: v for k, v in candidate.extra.items() if k not in record})
         return record
 
-    def _write_manifest(self) -> list[dict[str, Any]]:
-        order = {s.name: i for i, s in enumerate(ALL_SOURCES)}
-        records = sorted(
-            self.fetched.values(), key=lambda r: (order.get(r["source"], len(order)), r["id"])
-        )
-        splits = assign_splits(records)
+    def _write_manifest(self, report: Report) -> list[dict[str, Any]]:
+        order = {s.name: i for i, s in enumerate(ALL_SOURCES + OPTIONAL_SOURCES)}
+        records = []
+        for record in self.fetched.values():
+            excluded = self.exclusions.match_record(record)  # the exclusion lists may have grown
+            if excluded:
+                key = "heldout" if excluded.startswith("heldout") else f"manifest-{excluded}"
+                report.drops[key] += 1
+                continue
+            records.append(record)
+        records.sort(key=lambda r: (order.get(r["source"], len(order)), r["id"]))
+        splits = assign_splits(records, self.existing_splits)
         rows = [{**r, "split": splits[r["id"]]} for r in records]
         _write_atomic(
             self.manifest_path,
@@ -593,6 +689,7 @@ class Fetcher:
             "documents": len(report.records),
             "by_source": dict(Counter(r["source"] for r in report.records)),
             "by_split": dict(Counter(r["split"] for r in report.records)),
+            "split_shares_by_source": split_shares(report.records),
         }
         _write_atomic(self.cache_dir / "summary.json", json.dumps(summary, indent=2) + "\n")
         if self.readme_path is not None and self.readme_path.exists():
@@ -601,6 +698,44 @@ class Fetcher:
 
 def _host(url: str) -> str:
     return (urllib.parse.urlsplit(url).hostname or "").lower()
+
+
+def _drop_key(doc_id: str) -> str:
+    return hashlib.sha256(f"drop:{doc_id}".encode()).hexdigest()
+
+
+def extract_pdf(archive: Path, member: str, dest: Path, max_bytes: int = MAX_PDF_BYTES) -> int:
+    """Copy one PDF out of a cached dataset archive (untrusted data) to ``dest``: only the named
+    member, streamed with the ``%PDF-`` magic and size checks of a download, written to
+    ``.part`` and renamed. The archive's own paths never become file names here."""
+    part = dest.with_name(dest.name + ".part")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with zipfile.ZipFile(archive) as zf:
+            info = zf.getinfo(member)
+            if info.file_size > max_bytes:
+                raise Rejected(f"archive member is over the {max_bytes}-byte cap")
+            with zf.open(info) as src, part.open("wb") as out:
+                head = src.read(len(PDF_MAGIC))
+                if not head.startswith(PDF_MAGIC):
+                    raise Rejected("archive member is not a PDF (no %PDF- magic)")
+                size = len(head)
+                out.write(head)
+                while block := src.read(1 << 20):
+                    size += len(block)
+                    if size > max_bytes:
+                        raise Rejected(f"archive member is over the {max_bytes}-byte cap")
+                    out.write(block)
+                out.flush()
+                os.fsync(out.fileno())
+    except (KeyError, zipfile.BadZipFile, OSError, EOFError) as exc:
+        part.unlink(missing_ok=True)
+        raise Rejected(f"cannot read archive member: {type(exc).__name__}") from None
+    except BaseException:
+        part.unlink(missing_ok=True)
+        raise
+    os.replace(part, dest)
+    return size
 
 
 def _candidate_row(candidate: Candidate) -> dict[str, Any]:
@@ -612,6 +747,16 @@ def _candidate_row(candidate: Candidate) -> dict[str, Any]:
         "doc_type_hint": candidate.doc_type_hint,
         "licence": candidate.licence,
     }
+
+
+def split_table(shares: Mapping[str, Mapping[str, Any]]) -> str:
+    rows = ["| Source | train | calib | gold | gold % |", "| - | - | - | - | - |"]
+    for source, row in shares.items():
+        rows.append(
+            f"| {source} | {row['train']} | {row['calib']} | {row['gold']} "
+            f"| {row['percent']['gold']} |"
+        )
+    return "\n".join(rows)
 
 
 COUNTS_BEGIN = "<!-- counts:begin -->"
@@ -635,6 +780,10 @@ def update_readme_counts(readme: Path, report: Report, summary: Mapping[str, Any
             "",
             report.table(),
             "",
+            "Realised splits per source (hash-assigned, so stratified in expectation):",
+            "",
+            split_table(summary["manifest"]["split_shares_by_source"]),
+            "",
             f"Drops this run: {drops}.",
             "",
             COUNTS_END,
@@ -646,23 +795,31 @@ def update_readme_counts(readme: Path, report: Report, summary: Mapping[str, Any
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    names = [s.name for s in ALL_SOURCES]
+    names = [s.name for s in ALL_SOURCES + OPTIONAL_SOURCES]
+    default = [s.name for s in ALL_SOURCES]
     parser = argparse.ArgumentParser(
         description=__doc__.split("\n\n")[0], formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument("--target", type=int, default=SPEC_TOTAL, help="documents to reach")
-    parser.add_argument("--sources", nargs="+", choices=names, default=names, metavar="SOURCE")
+    parser.add_argument(
+        "--sources",
+        nargs="+",
+        choices=names,
+        default=default,
+        metavar="SOURCE",
+        help=f"default: {' '.join(default)}; also available: edgar_ars edgar_ex10",
+    )
     parser.add_argument("--dry-run", action="store_true", help="list candidates, download none")
     parser.add_argument("--cache", type=Path, default=CACHE, help="PDFs, journal and listings")
     parser.add_argument("--manifest", type=Path, default=MANIFEST)
     args = parser.parse_args(argv)
     if args.target < 1:
         parser.error("--target must be positive")
-    sources = [s for s in ALL_SOURCES if s.name in set(args.sources)]
+    sources = [s for s in ALL_SOURCES + OPTIONAL_SOURCES if s.name in set(args.sources)]
     fetcher = Fetcher(
         sources,
         args.target,
-        net=Net(args.cache / "listings"),
+        net=Net(args.cache / "listings", archive_dir=args.cache / "archives"),
         exclusions=default_exclusions(),
         cache_dir=args.cache,
         manifest_path=args.manifest,

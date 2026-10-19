@@ -8,7 +8,9 @@ import builtins
 import hashlib
 import io
 import json
+import sys
 import urllib.error
+import urllib.request
 from collections import Counter
 from email.message import Message
 from pathlib import Path
@@ -16,7 +18,15 @@ from pathlib import Path
 import pytest
 
 from benchmarks.training_corpus import _net, fetch
-from benchmarks.training_corpus.sources import ALL_SOURCES, MAKEUP_ORDER, arxiv, edgar_ars
+from benchmarks.training_corpus.sources import (
+    ALL_SOURCES,
+    MAKEUP_ORDER,
+    OPTIONAL_SOURCES,
+    arxiv,
+    cuad,
+    edgar_ars,
+    ir_annual_reports,
+)
 from benchmarks.training_corpus.sources.base import Candidate, Source
 
 UA = "docrooter-research/0.5 (research; contact via repository)"
@@ -31,6 +41,16 @@ def _sha(data: bytes) -> str:
 
 
 # --- fakes ---------------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _no_network(monkeypatch):
+    """Every test is offline: a real request would fail the test, not reach a server."""
+
+    def refuse(self, *args, **kwargs):
+        raise AssertionError("unit tests must not use the network")
+
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", refuse)
 
 
 class FakeClock:
@@ -130,7 +150,7 @@ def make_fetcher(tmp_path, sources, target, net, exclusions=None, **kwargs):
         cache_dir=tmp_path / "cache",
         manifest_path=tmp_path / "manifest.jsonl",
         inspect=kwargs.pop("inspect", fake_inspect),
-        log=lambda m: None,
+        log=kwargs.pop("log", lambda m: None),
         now=lambda: "2026-10-19T00:00:00Z",
         **kwargs,
     )
@@ -216,14 +236,16 @@ def test_exclusion_by_hash_url_and_title(tmp_path, monkeypatch):
         "https://src.example.org/clean.pdf": clean_bytes,
     }
     net, transport = make_net(tmp_path, routes)
-    fetcher = make_fetcher(tmp_path, [fake_source("src", candidates)], 6, net, exclusions)
+    logs: list[str] = []
+    fetcher = make_fetcher(
+        tmp_path, [fake_source("src", candidates)], 6, net, exclusions, log=logs.append
+    )
     report = fetcher.run()
 
     rows = read_manifest(tmp_path / "manifest.jsonl")
     assert [r["id"] for r in rows] == ["src-clean"]
-    assert report.drops == Counter(
-        {"dev:url": 1, "dev:title": 1, "heldout:sha256": 1, "heldout:url": 1, "dev:sha256": 1}
-    )
+    # Held-out drops are a bare count: which field matched is not recorded either.
+    assert report.drops == Counter({"dev:url": 1, "dev:title": 1, "heldout": 2, "dev:sha256": 1})
     # URL and title matches never reach the network.
     downloaded = transport.urls()
     assert "http://example.com/reports/acme-2023.pdf/#page=2" not in downloaded
@@ -232,13 +254,18 @@ def test_exclusion_by_hash_url_and_title(tmp_path, monkeypatch):
     # Re-hosted bytes are deleted, and held-out drops do not record the URL or title.
     pdfs = sorted(p.name for p in (tmp_path / "cache" / "pdfs").iterdir())
     assert pdfs == ["src-clean.pdf"]
-    drops = [
-        json.loads(line) for line in (tmp_path / "cache" / "drops.jsonl").read_text().splitlines()
-    ]
-    for drop in drops:
-        assert drop["permanent"] is True
-        if drop["reason"].startswith("heldout"):
-            assert "url" not in drop and "title" not in drop
+    drops_text = (tmp_path / "cache" / "drops.jsonl").read_text()
+    drops = [json.loads(line) for line in drops_text.splitlines()]
+    assert all(drop["permanent"] is True for drop in drops)
+    heldout_rows = [d for d in drops if "key" in d]
+    assert len(heldout_rows) == 2 and all(set(d) == {"key", "permanent"} for d in heldout_rows)
+    for secret in ("src-rehosted", "src-heldout_url", "heldout.example.net", "Some Fund Summary"):
+        assert secret not in drops_text
+        assert not any(secret in line for line in logs)  # never logged one by one
+    # A re-run skips the held-out drops without any request.
+    net2, transport2 = make_net(tmp_path, {})
+    make_fetcher(tmp_path, [fake_source("src", candidates)], 6, net2, exclusions).run()
+    assert transport2.urls() == ["https://src.example.org/robots.txt"]
     # Under the held-out directory only the manifest file was opened.
     under_heldout = {p for p in opened if str(heldout_dir) in p}
     assert under_heldout == {str(heldout)}
@@ -429,9 +456,9 @@ def test_arxiv_licence_filter_keeps_only_cc_by_and_cc0(tmp_path):
     net, transport = make_net(tmp_path, routes)
     kept = list(arxiv.harvest(net, "q-fin", "2025-01-01", "2025-06-30"))
     assert [(c.id, c.licence) for c in kept] == [
-        ("arxiv-2501.00001", "CC-BY-4.0"),
-        ("arxiv-2501.00005", "CC0-1.0"),
-        ("arxiv-2501.00007", "CC-BY-4.0"),
+        ("arxiv-2501_00001", "CC-BY-4.0"),
+        ("arxiv-2501_00005", "CC0-1.0"),
+        ("arxiv-2501_00007", "CC-BY-4.0"),
     ]
     assert kept[0].url == "https://arxiv.org/pdf/2501.00001"
     assert kept[0].extra["authors"] == ["Jane Doe"]
@@ -484,29 +511,47 @@ def test_edgar_ars_keeps_pdf_main_documents_only():
 
 
 def test_split_assignment_deterministic_and_stratified():
-    records = [{"id": f"a-{i:03d}", "source": "a"} for i in range(100)]
-    records += [{"id": f"b-{i:03d}", "source": "b"} for i in range(40)]
-    records += [{"id": "c-only", "source": "c"}]
+    records = [{"id": f"a-{i:04d}", "source": "a"} for i in range(1000)]
+    records += [{"id": f"b-{i:04d}", "source": "b"} for i in range(1000)]
     splits = fetch.assign_splits(records)
-    again = fetch.assign_splits(list(reversed(records)))
-    assert splits == again
-    by_source = {
-        s: Counter(v for k, v in splits.items() if k.startswith(f"{s}-")) for s in ("a", "b", "c")
-    }
-    assert by_source["a"] == Counter({"train": 85, "gold": 10, "calib": 5})
-    assert by_source["b"] == Counter({"train": 34, "gold": 4, "calib": 2})
-    assert by_source["c"] == Counter({"train": 1})
-    assert fetch.assign_splits(records, seed=1) != splits  # the seed matters
-    # Adding a document to one source leaves the other sources' splits alone.
-    more = fetch.assign_splits(records + [{"id": "b-new", "source": "b"}])
-    assert {k: v for k, v in more.items() if k.startswith("a-")} == {
-        k: v for k, v in splits.items() if k.startswith("a-")
-    }
+    assert splits == fetch.assign_splits(list(reversed(records)))
+    assert all(splits[r["id"]] == fetch.split_for(r["id"]) for r in records)
+    # Realised shares within 3 points of 85/5/10 per source, on 1,000 synthetic ids each.
+    for source in ("a", "b"):
+        rows = [{**r, "split": splits[r["id"]]} for r in records if r["source"] == source]
+        percent = fetch.split_shares(rows)[source]["percent"]
+        assert abs(percent["train"] - 85) <= 3
+        assert abs(percent["calib"] - 5) <= 3
+        assert abs(percent["gold"] - 10) <= 3
+    # Adding or removing documents never changes any other document's split.
+    grown = fetch.assign_splits(records + [{"id": f"c-{i}", "source": "a"} for i in range(300)])
+    assert all(grown[k] == v for k, v in splits.items())
+    shrunk = fetch.assign_splits(records[::3])
+    assert all(shrunk[k] == splits[k] for k in shrunk)
+    # A split already in the manifest is never re-assigned.
+    flipped = {"a-0000": "gold" if splits["a-0000"] != "gold" else "train"}
+    assert fetch.assign_splits(records, flipped)["a-0000"] == flipped["a-0000"]
+
+
+def test_manifest_splits_are_sticky_across_runs(tmp_path):
+    candidates = [cand("src", str(i)) for i in range(6)]
+    net, _ = make_net(tmp_path, {c.url: _pdf(c.id) for c in candidates})
+    make_fetcher(tmp_path, [fake_source("src", candidates[:3])], 3, net).run()
+    manifest = tmp_path / "manifest.jsonl"
+    rows = read_manifest(manifest)
+    rows[0]["split"] = "gold" if rows[0]["split"] != "gold" else "calib"  # as if assigned earlier
+    manifest.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    net2, _ = make_net(tmp_path, {c.url: _pdf(c.id) for c in candidates})
+    make_fetcher(tmp_path, [fake_source("src", candidates)], 6, net2).run()
+    after = {r["id"]: r["split"] for r in read_manifest(manifest)}
+    assert after[rows[0]["id"]] == rows[0]["split"]
+    assert all(after[r["id"]] == r["split"] for r in rows)
+    assert all(after[c.id] == fetch.split_for(c.id) for c in candidates[3:])
 
 
 def test_quotas_scale_to_target_and_sources_match_the_spec():
     assert {s.name: s.target for s in ALL_SOURCES} == {
-        "edgar_ars": 300,
+        "ir_annual_reports": 250,
         "fund_docs": 150,
         "govinfo_gao": 150,
         "crs": 100,
@@ -514,13 +559,14 @@ def test_quotas_scale_to_target_and_sources_match_the_spec():
         "arxiv": 150,
         "uscourts": 100,
         "rfc": 40,
-        "edgar_ex10": 50,
+        "cuad": 100,
     }
-    assert sorted(MAKEUP_ORDER) == sorted(s.name for s in ALL_SOURCES)
+    assert sum(s.target for s in ALL_SOURCES) >= 1100
+    assert sorted(MAKEUP_ORDER) == sorted(s.name for s in ALL_SOURCES + OPTIONAL_SOURCES)
     for target in (10, 30, 1100, 1500):
         quotas = fetch.scaled_quotas(ALL_SOURCES, target)
         assert sum(quotas.values()) == target
-    assert fetch.scaled_quotas(ALL_SOURCES, 1100)["edgar_ars"] == 300
+    assert fetch.scaled_quotas(ALL_SOURCES, 1100)["ir_annual_reports"] == 250
     assert all(s.cap >= s.target for s in ALL_SOURCES)
 
 
@@ -609,16 +655,20 @@ def test_pdf_meta_runs_isolated(tmp_path, monkeypatch):
     path = tmp_path / "native.pdf"
     doc.save(str(path))
     calls = []
-    real_run = fetch.subprocess.run
+    real_popen = fetch.subprocess.Popen
 
-    def spy_run(cmd, **kwargs):
+    def spy_popen(cmd, **kwargs):
         calls.append(cmd)
-        return real_run(cmd, **kwargs)
+        return real_popen(cmd, **kwargs)
 
-    monkeypatch.setattr(fetch.subprocess, "run", spy_run)
+    monkeypatch.setattr(fetch.subprocess, "Popen", spy_popen)
     info = fetch.inspect_pdf(path)
     assert info.pages == 3 and info.text_chars > fetch.MIN_TEXT_CHARS and not info.encrypted
     assert calls[0][1] == "-I"
+    out = fetch.subprocess.run(
+        [sys.executable, "-I", str(fetch.PDF_META), str(path)], capture_output=True, text=True
+    )
+    assert isinstance(json.loads(out.stdout)["memory_cap"], bool)  # True where the OS enforces it
     (tmp_path / "bad.pdf").write_bytes(b"%PDF-1.4 garbage")
     with pytest.raises(fetch.InspectError):
         fetch.inspect_pdf(tmp_path / "bad.pdf")
@@ -671,7 +721,7 @@ def test_listing_parsers_for_the_other_sources():
     )
     assert [(c.id, c.url) for c in gao] == [
         (
-            "gao-GAO-08-705",
+            "gao-gao-08-705",
             "https://www.govinfo.gov/content/pkg/GAOREPORTS-GAO-08-705/pdf/GAOREPORTS-GAO-08-705.pdf",
         )
     ]
@@ -684,7 +734,7 @@ def test_listing_parsers_for_the_other_sources():
     assert [c.id for c in opinions][:3] == [
         "uscourts-ca5-1-0",
         "uscourts-ca9-1-0",
-        "uscourts-caDC-1-0",
+        "uscourts-cadc-1-0",
     ]
     assert opinions[0].url.endswith("/USCOURTS-ca5-1/pdf/USCOURTS-ca5-1-0.pdf")
 
@@ -692,7 +742,15 @@ def test_listing_parsers_for_the_other_sources():
     assert len(funds) == fund_docs.SOURCE.cap >= 150
     assert len({c.id for c in funds}) == len(funds)
     assert {c.url.split("/")[2] for c in funds} == {"www.ssga.com", "www.ishares.com"}
-    assert [c.extra["sponsor"] for c in funds[:3]] == ["SSGA", "iShares", "iShares"]
+    assert [c.extra["kind"] for c in funds[:4]] == [
+        "fact sheet",
+        "summary prospectus",
+        "annual report",
+        "semi-annual report",
+    ]
+    prospectuses = [c for c in funds if c.extra["kind"] == "summary prospectus"]
+    assert len(prospectuses) >= 50
+    assert all(c.doc_type_hint == "financial.prospectus" for c in prospectuses)
     assert all(c.family_hint == "fund_document" for c in funds)
 
 
@@ -703,8 +761,8 @@ def test_default_transport_passes_the_timeout_by_keyword(monkeypatch):
         seen.update(data=data, timeout=timeout)
         return FakeResponse(b"ok")
 
-    monkeypatch.setattr(_net.urllib.request, "urlopen", fake_urlopen)
     net = _net.Net(None, log=lambda m: None)
+    monkeypatch.setattr(net.opener, "open", fake_urlopen)
     assert net.listing("https://api.govinfo.gov/x?api_key=K") == b"ok"
     assert seen == {"data": None, "timeout": _net.TIMEOUT_SECONDS}
 
@@ -720,3 +778,181 @@ def test_a_second_host_blocking_does_not_stop_the_source(tmp_path):
     assert report.sources["src"].status == "ok"
     assert [r["id"] for r in report.records] == ["src-0", "src-1", "src-2"]
     assert transport.urls().count(other.url) == 1
+
+
+# --- fix round 1 ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("status", [503, 429, 403])
+def test_unreadable_robots_on_a_second_host_is_transient(tmp_path, status):
+    main = [cand("src", str(i)) for i in range(2)]
+    other = [
+        Candidate(**{**cand("src", f"o{i}").__dict__, "url": f"https://other.example.org/{i}.pdf"})
+        for i in range(2)
+    ]
+    routes = {c.url: _pdf(c.id) for c in main + other}
+    routes["https://other.example.org/robots.txt"] = (status, b"", {})
+    net, transport = make_net(tmp_path, routes)
+    source = fake_source("src", [main[0], other[0], other[1], main[1]], target=4, cap=4)
+    report = make_fetcher(tmp_path, [source], 4, net).run()
+    assert [r["id"] for r in report.records] == ["src-0", "src-1"]
+    assert report.sources["src"].status == "ok"
+    drops_path = tmp_path / "cache" / "drops.jsonl"
+    drops = (
+        [json.loads(x) for x in drops_path.read_text().splitlines()] if drops_path.exists() else []
+    )
+    assert not any(d["permanent"] for d in drops if d.get("id", "").startswith("src-o"))
+    assert not any(
+        u.startswith("https://other.example.org/") and u.endswith(".pdf") for u in transport.urls()
+    )
+    assert transport.urls().count("https://other.example.org/robots.txt") == 1  # once per run
+
+    # The next run asks again and fetches them once robots.txt is readable.
+    routes["https://other.example.org/robots.txt"] = b"User-agent: *\nAllow: /\n"
+    net2, _ = make_net(tmp_path, routes)
+    report2 = make_fetcher(tmp_path, [source], 4, net2).run()
+    assert sorted(r["id"] for r in report2.records) == ["src-0", "src-1", "src-o0", "src-o1"]
+
+
+def test_redirects_are_vetted_like_first_requests(tmp_path):
+    clock = FakeClock()
+    routes = {
+        "https://b.example.org/robots.txt": b"User-agent: *\nDisallow: /private/\nCrawl-delay: 5\n",
+    }
+    net, transport = make_net(tmp_path, routes, clock)
+    # https -> http and non-http schemes are refused.
+    for target in ("http://a.example.org/x.pdf", "ftp://a.example.org/x.pdf"):
+        with pytest.raises(_net.Rejected):
+            net.check_redirect("https://a.example.org/x.pdf", target)
+    # robots.txt of the target host applies.
+    with pytest.raises(_net.Rejected):
+        net.check_redirect("https://a.example.org/x.pdf", "https://b.example.org/private/x.pdf")
+    # The target's rate limit and crawl delay apply before the hop.
+    net.check_redirect("https://a.example.org/x.pdf", "https://b.example.org/ok/1.pdf")
+    before = clock()
+    net.check_redirect("https://a.example.org/x.pdf", "https://b.example.org/ok/2.pdf")
+    assert clock() - before >= 5.0 - 1e-9
+    # A blocked host stays blocked behind a redirect.
+    net._blocked["c.example.org"] = "blocked"
+    with pytest.raises(_net.HostBlocked):
+        net.check_redirect("https://a.example.org/x.pdf", "https://c.example.org/x.pdf")
+    # The default opener carries the vetting handler.
+    real = _net.Net(None, log=lambda m: None)
+    assert any(isinstance(h, _net._PoliteRedirects) for h in real.opener.handlers)
+
+
+def test_unsafe_ids_are_refused_by_the_fetcher(tmp_path):
+    bad = [
+        Candidate(**{**cand("src", "x").__dict__, "id": doc_id})
+        for doc_id in ("../../etc/passwd", "/abs/x", "Upper-Case", "dots.in.id", "a" * 81, "")
+    ]
+    good = cand("src", "fine_1")
+    net, transport = make_net(tmp_path, {good.url: _pdf(good.id)})
+    report = make_fetcher(tmp_path, [fake_source("src", bad + [good])], 7, net).run()
+    assert [r["id"] for r in report.records] == ["src-fine_1"]
+    assert report.drops["unsafe-id"] == len(bad)
+    assert transport.urls().count(good.url) == 1 and len(transport.urls()) == 2  # + robots
+    assert [p.name for p in (tmp_path / "cache" / "pdfs").iterdir()] == ["src-fine_1.pdf"]
+    from benchmarks.training_corpus.sources.base import safe_id
+
+    for raw in ("../../etc/passwd", "2501.00001", "USCOURTS-caDC-25", "x" * 300):
+        assert fetch.SAFE_ID.fullmatch(safe_id("p", raw))
+    assert safe_id("p", "x" * 300) != safe_id("p", "x" * 299)  # shortening keeps ids distinct
+
+
+def test_exclusion_is_rechecked_when_the_manifest_is_written(tmp_path):
+    candidates = [cand("src", str(i), title=f"Report {i}") for i in range(3)]
+    net, _ = make_net(tmp_path, {c.url: _pdf(c.id) for c in candidates})
+    make_fetcher(tmp_path, [fake_source("src", candidates)], 3, net).run()
+    assert len(read_manifest(tmp_path / "manifest.jsonl")) == 3
+    # The dev manifest later gains one of these documents (by bytes) and another (by title).
+    grown = fetch.Exclusions(
+        sha256={_sha(_pdf("src-0")): "dev"}, titles={fetch.normalise_title("Report 1"): "dev"}
+    )
+    net2, _ = make_net(tmp_path, {})
+    report = make_fetcher(tmp_path, [fake_source("src", candidates)], 3, net2, grown).run()
+    assert [r["id"] for r in read_manifest(tmp_path / "manifest.jsonl")] == ["src-2"]
+    assert report.drops["manifest-dev:sha256"] == 1 and report.drops["manifest-dev:title"] == 1
+
+
+def test_inspect_kills_a_child_over_the_memory_cap(tmp_path, monkeypatch):
+    slow = tmp_path / "slow.py"
+    slow.write_text("import time\ntime.sleep(30)\n")
+    monkeypatch.setattr(fetch, "PDF_META", slow)
+    monkeypatch.setattr(fetch, "_rss_bytes", lambda pid: fetch.INSPECT_MEMORY_CAP + 1)
+    with pytest.raises(fetch.InspectError, match="memory cap"):
+        fetch.inspect_pdf(tmp_path / "x.pdf")
+
+
+def test_demo_key_stops_when_the_hourly_budget_is_spent(tmp_path):
+    url = "https://api.govinfo.gov/a?api_key=DEMO_KEY"
+    routes = {url: (200, b"{}", {"X-RateLimit-Remaining": "0"})}
+    net, transport = make_net(tmp_path, routes)
+    net.cache_dir = None
+    net.listing(url)
+    with pytest.raises(_net.HostBlocked):
+        net.listing("https://api.congress.gov/v3/crsreport?api_key=DEMO_KEY")
+    assert len(transport.calls) == 1
+
+
+def _zip(path: Path, members: dict[str, bytes]) -> Path:
+    import zipfile
+
+    with zipfile.ZipFile(path, "w") as zf:
+        for name, data in members.items():
+            zf.writestr(name, data)
+    return path
+
+
+def test_cuad_lists_contract_pdfs_only_and_extracts_safely(tmp_path, monkeypatch):
+    folder = "CUAD_v1/full_contract_pdf/Part_I/Distributor"
+    members = {f"{folder}/ACME_01_01_2001-EX-10-{i} AGREEMENT.pdf": _pdf(str(i)) for i in range(5)}
+    members["CUAD_v1/master_clauses.csv"] = b"Filename,Parties\n"
+    members["CUAD_v1/CUAD_v1.json"] = b"{}"
+    members["__MACOSX/CUAD_v1/full_contract_pdf/._x.pdf"] = b"junk"
+    members["CUAD_v1/full_contract_pdf/Part_I/Bad/not-a-pdf.pdf"] = b"<html>"
+    archive_dir = tmp_path / "archives"
+    archive = _zip(tmp_path / "CUAD_v1.zip", members)
+    (archive_dir / "cuad").mkdir(parents=True)
+    target = archive_dir / "cuad" / cuad.ARCHIVE_NAME
+    target.write_bytes(archive.read_bytes())
+    monkeypatch.setattr(cuad, "ARCHIVE_SHA256", _sha(target.read_bytes()))
+    net, transport = make_net(tmp_path, {})
+    net.archive_dir = archive_dir
+    found = list(cuad.candidates(net))
+    assert transport.calls == []  # the cached archive is used
+    assert len(found) == 6
+    assert all(c.archive_member and "full_contract_pdf" in c.archive_member for c in found)
+    assert not any("master_clauses" in (c.archive_member or "") for c in found)
+    assert {c.licence for c in found} == {"CC-BY-4.0"}
+    assert all("Atticus" in c.extra["attribution"] for c in found)
+    assert all(c.doc_type_hint == "legal.contract" and c.family_hint == "contract" for c in found)
+    assert [c.archive_member for c in found] == cuad.sample(cuad.contract_members(target))
+    # The fetcher reads members with the PDF checks; a non-PDF member is a permanent drop.
+    source = Source("cuad", 6, 6, None, lambda n: iter(found))
+    report = make_fetcher(tmp_path, [source], 6, net).run()
+    assert len(report.records) == 5 and report.drops["rejected"] == 1
+    assert all(r["licence"] == "CC-BY-4.0" and "attribution" in r for r in report.records)
+    assert not any("archive" in k for r in report.records for k in r if k != "cuad_file")
+    with pytest.raises(_net.Rejected):
+        fetch.extract_pdf(target, "CUAD_v1/full_contract_pdf/missing.pdf", tmp_path / "m.pdf")
+    first = next(iter(members))
+    with pytest.raises(_net.Rejected):
+        fetch.extract_pdf(target, first, tmp_path / "c.pdf", max_bytes=10)
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_ir_annual_reports_list_is_explicit_and_well_formed():
+    found = list(ir_annual_reports.candidates(None))  # an explicit list: no network
+    assert len(found) == ir_annual_reports.SOURCE.cap >= 200
+    assert len({c.id for c in found}) == len(found)
+    assert len({c.url for c in found}) == len(found)
+    assert all(c.url.startswith("https://") for c in found)
+    assert all(fetch.SAFE_ID.fullmatch(c.id) for c in found)
+    assert all(c.doc_type_hint == "financial.annual_report" for c in found)
+    assert all(c.family_hint == "annual_report" for c in found)
+    assert all(2019 <= c.extra["year"] <= 2025 for c in found)
+    assert len({c.publisher for c in found}) >= 30
+    assert "sec.gov" not in " ".join(c.url for c in found)
+    # Interleaved by company, so a small quota still spans many companies.
+    assert len({c.publisher for c in found[:30]}) >= 20

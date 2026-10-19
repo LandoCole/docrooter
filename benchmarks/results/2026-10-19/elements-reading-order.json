@@ -1,7 +1,7 @@
 {
   "benchmark": "elements-reading-order",
   "date": "2026-10-19",
-  "commit": "c09b9f7",
+  "commit": "a0830ea",
   "engine": "pymupdf",
   "env": {
     "python": "3.12.13",
@@ -9,9 +9,9 @@
     "machine": "arm64",
     "cpu_count": 8,
     "loadavg": [
-      2.4345703125,
-      3.24609375,
-      3.3330078125
+      3.61962890625,
+      3.70361328125,
+      3.36572265625
     ],
     "versions": {
       "pymupdf": "1.28.2",
@@ -24,9 +24,9 @@
   "mostly_single_column_documents": {
     "rule": "< 50% of pages with a column gutter",
     "documents": 47,
-    "cut_pages": 221,
-    "moved_lines": 5425,
-    "body_lines_on_cut_pages": 19352,
+    "cut_pages": 222,
+    "moved_lines": 5429,
+    "body_lines_on_cut_pages": 19428,
     "per_document": {
       "doc_001": {
         "pages": 150,
@@ -420,7 +420,7 @@
         "pages": 222,
         "cut_pages": 24,
         "body_lines_on_cut_pages": 1293,
-        "moved_lines": 169,
+        "moved_lines": 172,
         "pages_moved": [
           [
             41,
@@ -499,7 +499,7 @@
           ],
           [
             156,
-            6,
+            9,
             61
           ],
           [
@@ -546,9 +546,9 @@
       },
       "doc_013": {
         "pages": 63,
-        "cut_pages": 2,
-        "body_lines_on_cut_pages": 101,
-        "moved_lines": 8,
+        "cut_pages": 3,
+        "body_lines_on_cut_pages": 177,
+        "moved_lines": 9,
         "pages_moved": [
           [
             23,
@@ -559,6 +559,11 @@
             30,
             4,
             56
+          ],
+          [
+            62,
+            1,
+            76
           ]
         ]
       },
@@ -1439,8 +1444,8 @@
   },
   "single_column_check": {
     "definition": "pages where XY-cut cuts no gutter: their body order equals the input by construction (the identity guard); the check is that the input equals fast's lines and what furniture placement changes",
-    "pages": 4520,
-    "unchanged": 4248,
+    "pages": 4519,
+    "unchanged": 4247,
     "changed": [
       {
         "id": "doc_001",
@@ -3350,13 +3355,13 @@
     "input_differs_from_fast": 0
   },
   "column_pages": {
-    "pages": 516,
-    "changed": 506,
-    "bands": 1192,
-    "single_column_bands": 669,
+    "pages": 517,
+    "changed": 507,
+    "bands": 1195,
+    "single_column_bands": 670,
     "shifted_bands": 2,
     "shifted_lines": 64,
-    "lines": 59084,
+    "lines": 59160,
     "pages_with_shifted_bands": [
       {
         "id": "doc_036",
@@ -3798,7 +3803,7 @@
       222
     ],
     "doc_013": [
-      2,
+      3,
       63
     ],
     "doc_014": [

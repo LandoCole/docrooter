@@ -202,7 +202,7 @@ def table_description(el: Element, *, caption: str | None = None) -> str:
     the table's first row (its header row when it has one) with empty cells dropped.
     """
     rows = el.table.rows if el.table else []
-    label = (caption or "").strip()
+    label = (caption or "").strip().rstrip(".;: ")  # the "; " that follows is its punctuation
     if not label and rows:
         label = " | ".join(" ".join(cell.split()) for cell in rows[0] if cell.strip())
     n_cols = max((len(row) for row in rows), default=0)

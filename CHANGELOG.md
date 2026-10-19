@@ -39,8 +39,8 @@ held-out evaluation, the repository essentials, and (v0.4) elements, OCR and the
 - **Layout model.** Extra `layout`: Docling's heron model on onnxruntime, no torch
   (`layout="heron"`; `register_layout_engine` adds others). On DocLayNet test pages its macro F1
   is 0.736 against 0.257 for the heuristic rules.
-- **Summaries, chunks and embeddings.** `docrooter.summarize` (key sentences and key phrases, no model),
-  `chunk()` (section-aware chunks that keep tables whole and start with their heading path) and
+- **Summaries, chunks and embeddings.** `summarize` (key sentences and key phrases, no model),
+  `chunk()` (section-aware chunks that keep tables whole, with their caption, and start with their heading path) and
   `embed()` (element or chunk embeddings, with the model and revision recorded).
 - **Surfaces.** `docrooter elements`, `docrooter process [--profile] [--config] [--chunks]` and
   `docrooter config show`; a profile selector and an Elements tab in the playground; guides for
@@ -108,9 +108,11 @@ held-out evaluation, the repository essentials, and (v0.4) elements, OCR and the
 ### Changed
 
 - **`ocr="auto"` resolves to `tesseract` (the binary on PATH), then `ocrmac` (macOS), then
-  `rapidocr`.** It follows the measured character error rate: tesseract 0.058, rapidocr 0.089,
-  ocrmac 0.102, and ocrmac fails on legal pages and table columns. The first draft of the rooter
-  preferred ocrmac on macOS.
+  `rapidocr`.** Tesseract comes first for accuracy (character error rate 0.058, against 0.089
+  for rapidocr and 0.102 for ocrmac, which also fails on legal pages and table columns). ocrmac
+  comes before rapidocr for speed and memory (0.73 against 3.04 s per page, 1.2 against 3.3 GiB),
+  although rapidocr is the more accurate of the two. The first draft of the rooter preferred
+  ocrmac on macOS.
 - New extras `layout`, `ocr` and `ocr-mac`, all included in `all`; Python 3.10 gains `tomli` in
   the core dependencies (router config files).
 - The UltraBERT recipes read at most 1024 tokens (was 8192), and `train()` truncates to 512 tokens

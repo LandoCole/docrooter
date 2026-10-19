@@ -41,6 +41,12 @@ docstrings.
 
 ::: docrooter.register_layout_engine
 
+## Summaries
+
+::: docrooter.summarize
+
+::: docrooter.Summary
+
 ## Chunks and embeddings
 
 ::: docrooter.chunk

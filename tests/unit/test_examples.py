@@ -158,21 +158,20 @@ def test_elements_and_chunks_example_runs(capsys, monkeypatch):
     assert lines[5].split(maxsplit=3)[3].startswith("Competition")
     assert lines[9].endswith("Page 1") and lines[10].split()[1] == "p2"
     chunk_lines = lines.index("c0: 4 tokens, Annual Report 2025 ['heading_only']")
-    assert lines[chunk_lines : chunk_lines + 5] == [
+    assert lines[chunk_lines : chunk_lines + 4] == [
         "c0: 4 tokens, Annual Report 2025 ['heading_only']",
         "c1: 94 tokens, 1. Business []",
         "c2: 65 tokens, 2. Financial results []",
-        "c3: 12 tokens, 2. Financial results []",
-        "c4: 25 tokens, 3. Outlook []",
+        "c3: 25 tokens, 3. Outlook []",
     ]
-    assert lines[chunk_lines + 5 :][:3] == [
+    assert lines[chunk_lines + 4 :][:3] == [
         "2. Financial results",
         "",
-        "Table: Table 1. Revenue by segment (millions).; 4×3",
+        "Table: Table 1. Revenue by segment (millions); 4×3",
     ]
     readme = README.read_text(encoding="utf-8")
     assert "\n".join(lines[2:13]) in readme  # the README shows the elements
-    assert "\n".join(lines[chunk_lines + 5 :]) in readme  # and the table's chunk
+    assert "\n".join(lines[chunk_lines + 4 :]) in readme  # and the table's chunk
 
 
 def test_readme_documents_profiles_with_the_measured_numbers():

@@ -22,11 +22,10 @@ On the sample report of [`examples/elements_and_chunks.py`](../../../examples/el
 c0: 4 tokens, Annual Report 2025 ['heading_only']
 c1: 94 tokens, 1. Business []
 c2: 65 tokens, 2. Financial results []
-c3: 12 tokens, 2. Financial results []
-c4: 25 tokens, 3. Outlook []
+c3: 25 tokens, 3. Outlook []
 2. Financial results
 
-Table: Table 1. Revenue by segment (millions).; 4×3
+Table: Table 1. Revenue by segment (millions); 4×3
 |  |  |  |
 | --- | --- | --- |
 | Segment | 2024 | 2025 |
@@ -55,7 +54,10 @@ with `elements=True`, and returns `Chunk` objects:
   `max_tokens`.
 - **A table is always one chunk.** Its text is a description line (its caption, or its first
   row, and its size in rows by columns) followed by the markdown of its rows, so an embedding model
-  sees what the table is before it sees the numbers.
+  sees what the table is before it sees the numbers. Its caption is part of that line, so the
+  caption element is listed in the table's chunk (`element_ids` of `c2` above holds the heading, the
+  table and the caption) and is not a chunk of its own; a caption in a different section than its
+  table keeps its own chunk.
 - **A single element longer than `max_tokens` becomes its own chunk**, flagged `oversize`. If
   the heading path alone is longer than `max_tokens`, every chunk of that section is flagged.
 - **Every heading is in exactly one chunk.** A heading that opens a section is the last item of

@@ -307,9 +307,9 @@ def test_toc_example_on_a_pdf(capsys, monkeypatch, tmp_path):
 def test_elements_and_chunks_example_matches_the_pages(capsys, monkeypatch):
     pytest.importorskip("pymupdf")
     lines = _run("elements_and_chunks.py", capsys, monkeypatch)
-    last = lines.index("c4: 25 tokens, 3. Outlook []")
+    last = lines.index("c3: 25 tokens, 3. Outlook []")
     assert "\n".join(lines[2:13]) in _page("concepts/elements.md")
-    assert "\n".join(lines[last - 4 :]) in _page("guides/chunking-for-rag.md")
+    assert "\n".join(lines[last - 3 :]) in _page("guides/chunking-for-rag.md")
 
 
 def test_new_pages_quote_the_committed_results():

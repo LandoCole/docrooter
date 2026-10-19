@@ -21,7 +21,7 @@ heading path alone is longer than ``max_tokens``, every chunk of that section is
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
@@ -84,7 +84,7 @@ def chunk(
         raise ValueError(f"overlap_elements must be >= 0, got {overlap_elements}")
     doc = document_of(source)
     skipped = frozenset() if include_furniture else SKIPPED_KINDS
-    parts = element_parts(doc, lambda el: el.kind not in skipped)
+    parts = _fold_captions(element_parts(doc, lambda el: el.kind not in skipped))
     chunks: list[Chunk] = []
     for section_id, group in _by_section(parts):
         path = heading_titles(doc, section_id)
@@ -132,6 +132,7 @@ class Part:
     opener: bool = False
     table: bool = False
     words: int = 0  # whitespace-separated words of ``body``
+    folded: tuple[Element, ...] = ()  # a table's caption, whose text is in ``body`` already
 
 
 def compose(path: Iterable[str], body: str) -> str:
@@ -156,6 +157,42 @@ def element_parts(doc: Document, keep: Callable[[Element], bool]) -> list[Part]:
         if body.strip():
             parts.append(Part(el, body, table=el.kind == "table", words=len(body.split())))
     return parts
+
+
+def _fold_captions(parts: list[Part]) -> list[Part]:
+    """Fold the caption of each table into the table's part. The table's description line
+    already holds the caption text, so a chunk of its own would repeat it. The caption element
+    stays in exactly one chunk: the table's. A caption in another section keeps its own."""
+    by_id = {part.element.id: part for part in parts}
+    caption_of: dict[str, Element] = {}  # table id -> its caption
+    used: set[str] = set()
+
+    def link(table: Part, caption: Part | None) -> None:
+        if (
+            caption is not None
+            and caption.element.kind == "caption"
+            and caption.element.section_id == table.element.section_id
+            and table.element.id not in caption_of
+            and caption.element.id not in used
+        ):
+            caption_of[table.element.id] = caption.element
+            used.add(caption.element.id)
+
+    for part in parts:  # a caption that names its table...
+        if part.element.kind == "caption" and part.element.caption_for in by_id:
+            table = by_id[part.element.caption_for]
+            if table.table:
+                link(table, part)
+    for part in parts:  # ... or a table that names its caption
+        if part.table and part.element.caption_id in by_id:
+            link(part, by_id[part.element.caption_id])
+    return [
+        replace(part, folded=(caption_of[part.element.id],))
+        if part.element.id in caption_of
+        else part
+        for part in parts
+        if part.element.id not in used
+    ]
 
 
 def _opens_section(el: Element) -> bool:
@@ -255,4 +292,9 @@ class _Packer:
         flags = [HEADING_ONLY] if heading_only else []
         if tokens > self.max_tokens:
             flags.append(OVERSIZE)
-        self.out.append(([p.element.id for p in parts], text, tokens, flags))
+        ids = [
+            element.id
+            for p in parts
+            for element in sorted([p.element, *p.folded], key=lambda e: e.order)
+        ]
+        self.out.append((ids, text, tokens, flags))

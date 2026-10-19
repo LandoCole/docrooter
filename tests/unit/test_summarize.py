@@ -192,3 +192,18 @@ def test_deterministic():
 def test_bad_method_rejected():
     with pytest.raises(ValueError, match="method"):
         summarize(_doc(("A", "x. y.")), method="magic")  # type: ignore[arg-type]
+
+
+def test_table_description_does_not_double_the_caption_punctuation():
+    table = Element(
+        id="e0",
+        kind="table",
+        text="a b",
+        boxes=[],
+        order=0,
+        section_id="s1",
+        table=TableData(rows=[["a", "b"]], header_rows=1),
+    )
+    assert table_description(table, caption="Table 1. Revenue (millions).") == (
+        "Table: Table 1. Revenue (millions); 1×2"
+    )

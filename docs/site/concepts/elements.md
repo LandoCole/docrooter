@@ -112,7 +112,7 @@ region instead (see below).
 Running headers, footers and page numbers are moved out of the body flow in element mode, by
 design: lines in the upper half of the page go to the start of that page's elements and lines
 in the lower half go to its end. Their text is not in `Section.text`. In `fast` mode they stay
-where the extractor put them. On the 4,520 dev-corpus pages where XY-cut finds no gutter, the
+where the extractor put them. On the 4,519 dev-corpus pages where XY-cut finds no gutter, the
 body order equals `fast`'s, and 272 of those pages differ from `fast` only in where furniture
 sits (`benchmarks/results/2026-10-19/elements-reading-order.json`).
 

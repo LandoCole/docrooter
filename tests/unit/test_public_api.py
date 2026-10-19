@@ -57,6 +57,8 @@ PUBLIC_NAMES = [
     "chunk",
     "EmbeddingSet",
     "embed",
+    "summarize",
+    "Summary",
 ]
 
 

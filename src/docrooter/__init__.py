@@ -30,6 +30,7 @@ from docrooter.ocr.registry import register_ocr_engine
 from docrooter.pdf.load import load_pdf
 from docrooter.rooter import Analysis, RouterConfig, process, process_many
 from docrooter.runtime import configure
+from docrooter.summarize import Summary, summarize
 from docrooter.taxonomies import builtin_taxonomy, list_builtin_taxonomies
 from docrooter.taxonomy import Taxonomy, TaxonomyNode
 from docrooter.train import Dataset
@@ -64,6 +65,7 @@ __all__ = [
     "RouterConfig",
     "Section",
     "SectionView",
+    "Summary",
     "Taxonomy",
     "TaxonomyError",
     "TableData",
@@ -87,5 +89,6 @@ __all__ = [
     "process_many",
     "register_layout_engine",
     "register_ocr_engine",
+    "summarize",
     "train",
 ]

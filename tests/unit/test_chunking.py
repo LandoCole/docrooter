@@ -82,27 +82,55 @@ def test_chunks_never_cross_sections():
             assert {by_id[eid].section_id for eid in c.element_ids} == {c.section_id}
         assert {c.section_id for c in chunks} == {"s1", "s1.1", "s2"}
     # a roomy budget still gives one chunk per section here (the table is its own chunk)
-    assert [c.section_id for c in chunk(doc)] == ["s1", "s1.1", "s1.1", "s1.1", "s2"]
+    assert [c.section_id for c in chunk(doc)] == ["s1", "s1.1", "s1.1", "s2"]
 
 
 def test_table_is_one_chunk_with_description():
     doc = standard_doc()
     chunks = chunk(doc)
     (table,) = [c for c in chunks if "e5" in c.element_ids]
-    assert table.element_ids == ["e5"]
+    assert table.element_ids == ["e5", "e6"]  # the caption is folded into the table's chunk
     markdown = doc.elements[5].table.to_markdown()
     assert table.text == f"A > B\n\nTable: Table 1. Revenue by region; 3×2\n{markdown}"
     # the neighbouring paragraphs are not merged into it, whatever the budget
     assert [c.element_ids for c in chunks if c.section_id == "s1.1"] == [
         ["e2", "e3", "e4"],
-        ["e5"],
-        ["e6"],
+        ["e5", "e6"],
     ]
     # without a caption, the description names the first row
     doc.elements[5].caption_id = None
     doc.elements[6] = doc.elements[6].model_copy(update={"caption_for": None})
     (plain,) = [c for c in chunk(doc) if "e5" in c.element_ids]
     assert "Table: Region | Revenue; 3×2" in plain.text
+
+
+def test_a_table_caption_is_in_one_chunk_only():
+    doc = standard_doc()
+    chunks = chunk(doc)
+    assert sum("Table 1. Revenue by region" in c.text for c in chunks) == 1
+    assert sum("e6" in c.element_ids for c in chunks) == 1
+    # a caption above the table is folded the same way, and the ids stay in reading order
+    above = make_doc(
+        [
+            ("heading", "A", "s1"),  # e0
+            ("caption", "Table 2. Costs", "s1", {"caption_for": "e2"}),  # e1
+            ("table", "x y", "s1", {"table": TableData(rows=[["x", "y"]], header_rows=1)}),  # e2
+            ("paragraph", "After.", "s1"),  # e3
+        ]
+    )
+    chunks = chunk(above)
+    assert [c.element_ids for c in chunks] == [["e0", "e1", "e2"], ["e3"]]
+    assert sum("Table 2. Costs" in c.text for c in chunks) == 1
+    # a caption in another section than its table keeps a chunk of its own
+    split = make_doc(
+        [
+            ("heading", "A", "s1"),  # e0
+            ("table", "x y", "s1", {"table": TableData(rows=[["x", "y"]], header_rows=1)}),  # e1
+            ("heading", "B", "s2"),  # e2
+            ("caption", "Table 3. Late", "s2", {"caption_for": "e1"}),  # e3
+        ]
+    )
+    assert [c.element_ids for c in chunk(split)] == [["e0", "e1"], ["e2", "e3"]]
 
 
 def test_table_caption_is_found_through_the_table_too():
@@ -325,10 +353,11 @@ def test_overlap_does_not_repeat_a_table_or_enter_one():
     doc = standard_doc()
     chunks = chunk(doc, max_tokens=512, overlap_elements=2)
     (table,) = [c for c in chunks if "e5" in c.element_ids]
-    assert table.element_ids == ["e5"]
+    assert table.element_ids == ["e5", "e6"]
     assert not any("e5" in c.element_ids for c in chunks if c is not table)
-    # the caption after the table does not take the paragraphs before it as overlap
-    assert [c.element_ids for c in chunks if "e6" in c.element_ids] == [["e6"]]
+    # the caption lives in the table's chunk: no chunk repeats it or takes the paragraphs before
+    # the table as overlap
+    assert [c.element_ids for c in chunks if "e6" in c.element_ids] == [["e5", "e6"]]
 
 
 def test_empty_and_textless_inputs():

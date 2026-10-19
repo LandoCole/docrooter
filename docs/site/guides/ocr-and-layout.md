@@ -31,11 +31,15 @@ the weights are missing, rather than falling back to the heuristic rules.
 ## Choosing an OCR engine
 
 `ocr="auto"` is the default of `balanced` and `accurate`. It picks the first engine that is
-available, in the order of the measured error rate:
+available, in this order:
 
 1. `tesseract`, if the binary is on PATH;
 2. `ocrmac`, on macOS with `docrooter[ocr-mac]`;
 3. `rapidocr`, with `docrooter[ocr]`.
+
+Tesseract is first for accuracy. `ocrmac` comes before `rapidocr` for speed and memory (0.73
+against 3.04 s per page, 1.2 against 3.3 GiB at peak), although `rapidocr` is the more accurate
+of the two.
 
 With none available, `auto` becomes `none`: pages that need OCR keep their text layer and the
 route log carries a warning. Name an engine to override the choice:
@@ -64,7 +68,7 @@ words after normalisation:
 Source: `benchmarks/results/2026-10-18/ocr.json`; method in
 [Element benchmarks](../benchmarks/elements.md#ocr-and-routing-spec-104).
 
-- Tesseract is the most accurate here, and the order of `auto` follows it.
+- Tesseract is the most accurate here, so `auto` tries it first.
 - `ocrmac` is the fastest and fine on prose, but it fails on legal pages (three CHIPS Act pages
   scored a character error rate of 0.51 to 0.65, against 0.04 to 0.06 for the other engines)
   and can miss number columns in tables. Choose it for speed on clean prose, not for filings.

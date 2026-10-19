@@ -266,7 +266,7 @@ print(chunks[2].text)  # a table is never split: a description line, then its ro
 10 p2 page_number Page 2
 2. Financial results
 
-Table: Table 1. Revenue by segment (millions).; 4×3
+Table: Table 1. Revenue by segment (millions); 4×3
 |  |  |  |
 | --- | --- | --- |
 | Segment | 2024 | 2025 |
@@ -283,7 +283,9 @@ Table: Table 1. Revenue by segment (millions).; 4×3
 - **Page furniture.** In element mode, running headers, footers and page numbers move to the start
   or end of their page, by design.
 - **OCR.** `ocr="auto"` picks Tesseract (if the binary is on PATH), then Apple Vision (macOS),
-  then RapidOCR, in order of measured character error rate (0.058, 0.102 and 0.089).
+  then RapidOCR: tesseract first for accuracy (character error rate 0.058, against 0.089 for
+  RapidOCR and 0.102 for Apple Vision), Apple Vision before RapidOCR for speed and memory (0.73
+  against 3.04 s per page, 1.2 against 3.3 GiB).
 
 From the shell: `docrooter elements report.pdf`, `docrooter process report.pdf --profile
 accurate --chunks --out analysis.json` and `docrooter config show --profile balanced`. See the

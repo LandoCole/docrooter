@@ -130,6 +130,8 @@ skip_empty = true
 
 [tool.ruff]
 line-length = 100
+# Design documents hold sketches (ruff 0.17 formats Python fences in Markdown), not code to check.
+extend-exclude = ["docs/superpowers"]
 src = ["src", "tests", "."]
 
 [tool.ruff.lint]

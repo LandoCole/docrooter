@@ -58,9 +58,10 @@ _NUMERIC_SHARE = (
     0.6  # a side with at least this share of numeric boxes holds the figures of a table
 )
 _CELL_WIDTH = 0.1  # a side whose median box is narrower than this share of the text width is cells
-_PRECHECK_BOXES = 24  # regions this big are first checked once, setting aside the most boxes
+_PRECHECK_BOXES = 10  # regions this big are first checked once, setting aside the most boxes
 _STRUCTURAL_GAP = 1.25  # a gap of this many median line heights under columns is a section break
 _TABLE_COLUMNS = 3  # a projection with this many columns is also checked column by column
+_MAX_BREAKS = 8  # section breaks tried per region, from the top
 _CROSSING = 3  # boxes that cross a gutter (titles, headings) and still leave it a gutter
 
 
@@ -214,6 +215,8 @@ def _find_gutter(
     if len(body) < 2 * _COLUMN_MIN_BOXES:
         return None
     by_y = sorted(body, key=lambda i: ((boxes[i][1] + boxes[i][3]) / 2, i))
+    # Valleys of what is left once up to three of the topmost and of the bottommost boxes are set
+    # aside (a title or heading that crosses a gutter no longer fills it), least set aside first.
     core = (
         _valleys(boxes, by_y[_CROSSING : len(by_y) - _CROSSING], min_gutter)
         if len(by_y) > 2 * _CROSSING
@@ -225,13 +228,17 @@ def _find_gutter(
         ((p, q) for p in range(_CROSSING + 1) for q in range(_CROSSING + 1)),
         key=lambda pq: (sum(pq), pq),
     )
+    tried: set[tuple[float, float]] = set()
     for p, q in combos:
         if len(by_y) - p - q < 2:
             continue
         valleys = _valleys(boxes, by_y[p : len(by_y) - q], min_gutter)
-        for lo, hi in valleys:
-            columns = core if len(core) > len(valleys) else valleys  # the table check's columns
-            found = _validate(boxes, body, (lo, hi), columns, text_width, numeric)
+        columns = core if len(core) > len(valleys) else valleys  # the table check's columns
+        for valley in valleys:
+            if valley in tried:
+                continue
+            tried.add(valley)
+            found = _validate(boxes, body, valley, columns, text_width, numeric)
             if found is not None:
                 left, right, crossing = found
                 return left, right, [*spanning, *crossing]
@@ -363,9 +370,11 @@ def _break_under_columns(
     if not (_valleys(boxes, members, min_gutter) or _valleys(boxes, core, min_gutter)):
         return None  # nothing like columns: skip the scan
     reach = boxes[members[0]][3]
+    tried = 0
     for k in range(1, len(members)):
         i = members[k]
-        if boxes[i][1] - reach >= structural > 0:
+        if boxes[i][1] - reach >= structural > 0 and tried < _MAX_BREAKS:
+            tried += 1
             head, tail = sorted(members[:k]), sorted(members[k:])
             found = _find_gutter(boxes, head, text_width, min_gutter, numeric)
             if found is not None:

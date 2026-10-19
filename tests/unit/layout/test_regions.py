@@ -413,6 +413,32 @@ def test_named_layout_engine_is_created_and_closed(tmp_path, monkeypatch):
     assert _by_text(doc, "Introduction").kind == "paragraph"
 
 
+def test_named_layout_engine_is_closed_when_loading_fails_before_detect(tmp_path, monkeypatch):
+    # Final review M1: an engine created by name is closed on any failure before detect
+    made = []
+
+    def factory():
+        made.append(FakeLayout([]))
+        return made[-1]
+
+    monkeypatch.setitem(layout_registry._FACTORIES, "fake", factory)
+    good = _pdf(tmp_path)
+    bad = tmp_path / "corrupt.pdf"
+    bad.write_bytes(b"%PDF-1.7 this is not a PDF")
+    failing = [
+        dict(path=good, ocr_dpi=0),  # argument errors
+        dict(path=good, tables="some"),
+        dict(path=good, max_pages=0),
+        dict(path=good, ocr="no-such-ocr"),
+        dict(path=bad),  # extraction fails
+    ]
+    for kwargs in failing:
+        with pytest.raises(Exception):  # noqa: B017, PT011 - each case raises its own error
+            load_pdf(kwargs.pop("path"), elements=True, layout="fake", **kwargs)
+    assert all(engine.closed == 1 for engine in made), [e.closed for e in made]
+    assert len(made) == 1  # only the extraction failure got past the argument checks
+
+
 def test_registry():
     assert isinstance(FakeLayout([]), LayoutEngine)
     with pytest.raises(DocrooterError, match="unknown layout engine 'nope'"):

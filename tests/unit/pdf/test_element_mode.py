@@ -2,6 +2,7 @@
 elements and the sections built from them."""
 
 import itertools
+import math
 from collections import Counter
 from pathlib import Path
 
@@ -167,6 +168,31 @@ def test_element_mode_sections_built_from_elements(tmp_path):
     assert "Table 1. Results" in review.text
     assert "1 A footnote set in small type." in doc.section("Outlook").text
     assert all("ACME" not in s.text for s in doc.walk())  # furniture is not section text
+
+
+def test_ruled_page_frame_keeps_headings_and_sections(tmp_path):
+    """A page drawn in a frame with a header rule and a centre rule is not one table that
+    takes the headings: element mode finds the sections the fast path finds."""
+    doc = pymupdf.open()
+    for n in (1, 2):
+        page = doc.new_page(width=612, height=792)
+        page.draw_rect(pymupdf.Rect(30, 30, 582, 762), color=(0, 0, 0))
+        page.draw_line((30, 90), (582, 90))
+        page.draw_line((306, 90), (306, 762))
+        page.insert_text((50, 70), f"{n}. Introduction to the Results", fontsize=18,
+                         fontname="hebo")  # fmt: skip
+        for x in (50, 320):
+            for k in range(20):
+                page.insert_text((x, 120 + 15 * k), f"Column text line {k} has words.",
+                                 fontsize=10, fontname="helv")  # fmt: skip
+    path = _save(doc, tmp_path / "framed.pdf")
+    fast = load_pdf(path)
+    out = load_pdf(path, elements=True)
+    titles = [s.title for s in fast.walk()]
+    assert titles == ["1. Introduction to the Results", "2. Introduction to the Results"]
+    assert [s.title for s in out.walk()] == titles
+    assert not [e for e in out.elements if e.kind == "table"]
+    assert "Column text line 19 has words." in out.section(titles[1]).text
 
 
 def test_figure_label_text_is_section_text(tmp_path):
@@ -656,6 +682,14 @@ def test_scanned_rule_with_text_layer_merges(tmp_path):
         assert o.text in joined
     by_text = {e.text: e for e in doc.elements}
     assert by_text["Plant Survey"].source == "text"
+    # the two sources are merged top to bottom: the OCR body (y 129..) is read before the
+    # text-layer caption at y 688 and the page number
+    assert [(e.kind, e.source, e.text[:17]) for e in doc.elements] == [
+        ("title", "text", "Plant Survey"),
+        ("paragraph", "ocr", "Scanned body text"),
+        ("paragraph", "text", "Figure 3 plant la"),
+        ("page_number", "text", "12"),
+    ]
     ocr = [e for e in doc.elements if e.source == "ocr"]
     assert ocr and all("Scanned body text" in e.text for e in ocr)
     assert all(e.confidence == pytest.approx(0.9) for e in ocr)
@@ -708,6 +742,31 @@ def _merge_page(*texts_and_boxes):
 
 def _ocr(text, x0, y0, x1, y1):
     return OcrLine(text=text, box=Box(page=1, x0=x0, y0=y0, x1=x1, y1=y1), confidence=0.9)
+
+
+def test_merged_page_lines_are_sorted_top_to_bottom_with_gaps_recomputed():
+    from docrooter.pdf.element_mode import _merge_page_lines
+
+    page = _merge_page(("Title", 72, 80, 300, 100), ("Caption low on the page", 72, 690, 300, 702))
+    extra, _ = _to_lines_for_test(
+        page,
+        [
+            _ocr("Body read by OCR", 72, 130, 400, 144),
+            _ocr("More body read by OCR", 72, 148, 400, 162),
+        ],
+    )
+    lines, source, conf = _merge_page_lines(page.lines, extra, [0.8, 0.7])
+    assert [ln.text for ln in lines] == ["Title", "Body read by OCR", "More body read by OCR",
+                                         "Caption low on the page"]  # fmt: skip
+    assert source == ["text", "ocr", "ocr", "text"] and conf == [None, 0.8, 0.7, None]
+    assert [ln.gap_above for ln in lines] == [math.inf, 30.0, 4.0, 528.0]
+    assert [ln.gap_below for ln in lines] == [30.0, 4.0, 528.0, math.inf]
+
+
+def _to_lines_for_test(page, found):
+    from docrooter.pdf.element_mode import _new_lines
+
+    return _new_lines(found, page)
 
 
 def test_merge_drops_an_ocr_row_the_text_layer_splits_into_short_lines():

@@ -41,7 +41,7 @@ import os
 import statistics
 import time
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -139,8 +139,6 @@ def load_elements(
             f"unknown PDF engine {engine!r}; use one of auto, pymupdf, pdfplumber, both, "
             "pymupdf4llm"
         )
-    layout_engine = _layout_engine(layout)  # raises before any page work
-    owned_layout = isinstance(layout, str) and layout_engine is not None
     if ocr_dpi <= 0:
         raise ValueError(f"ocr_dpi must be positive, got {ocr_dpi}")
     if tables not in ("lines", "none"):
@@ -155,7 +153,43 @@ def load_elements(
         known = available_ocr_engines()
         if ocr not in known:  # checked before any page work, needed or not
             raise DocrooterError(f"unknown OCR engine {ocr!r}; available: {', '.join(known)}")
-    path = Path(path)
+    layout_engine = _layout_engine(layout)  # raises before any page work
+    owned_layout = isinstance(layout, str) and layout_engine is not None
+    closed = False
+
+    def release() -> None:
+        """Close an engine created here, once: after detection, or on any failure."""
+        nonlocal closed
+        if owned_layout and not closed and layout_engine is not None:
+            closed = True
+            layout_engine.close()
+
+    try:
+        return _load_elements(
+            Path(path), engine=engine, ocr=ocr, layout_engine=layout_engine, release=release,
+            ocr_dpi=ocr_dpi, min_heading_score=min_heading_score, use_bookmarks=use_bookmarks,
+            use_printed_toc=use_printed_toc, max_pages=max_pages, tables=tables,
+        )  # fmt: skip
+    finally:
+        release()
+
+
+def _load_elements(
+    path: Path,
+    *,
+    engine: str,
+    ocr: str | OcrEngine | None,
+    layout_engine: LayoutEngine | None,
+    release: Callable[[], None],
+    ocr_dpi: int,
+    min_heading_score: float | None,
+    use_bookmarks: bool,
+    use_printed_toc: bool,
+    max_pages: int | None,
+    tables: Literal["lines", "none"],
+) -> Document:
+    """:func:`load_elements` after its argument checks; ``release`` closes an owned layout
+    engine (called once detection is done)."""
     if engine == "auto":
         engine = _auto_engine()
     min_score = _DEFAULT_SCORE if min_heading_score is None else min_heading_score
@@ -204,8 +238,7 @@ def load_elements(
         try:
             regions = layout_engine.detect(path, [objs.page for objs in pages], dpi=None)
         finally:
-            if owned_layout:
-                layout_engine.close()
+            release()
         regions = [r for r in regions if r.confidence >= min_conf]
     text_tables = _text_table_requests(pages, regions, found) if tables == "lines" else {}
     region_tables = find_text_tables(path, engine, text_tables)  # type: ignore[arg-type]
@@ -227,12 +260,13 @@ def load_elements(
             confidence += page_conf
             build_pages.append(objs.model_copy(update={"lines": page_lines, "tables": []}))
         elif objs.page in found.added:
-            extra, extra_conf = found.added[objs.page]
-            lines += objs.lines + extra
-            source += ["text"] * len(objs.lines)
-            source += ["ocr"] * len(extra)
-            confidence += [None] * len(objs.lines) + extra_conf
-            build_pages.append(objs.model_copy(update={"lines": objs.lines + extra}))
+            merged, merged_source, merged_conf = _merge_page_lines(
+                objs.lines, *found.added[objs.page]
+            )
+            lines += merged
+            source += merged_source
+            confidence += merged_conf
+            build_pages.append(objs.model_copy(update={"lines": merged}))
         else:
             lines += objs.lines
             source += ["text"] * len(objs.lines)
@@ -593,6 +627,22 @@ def _new_lines(found: list[OcrLine], objs: PageObjects) -> tuple[list[Line], lis
         offset = max(line.block for line in objs.lines) + 1
         extra = [line.model_copy(update={"block": line.block + offset}) for line in extra]
     return extra, conf
+
+
+def _merge_page_lines(
+    text_lines: Sequence[Line], extra: Sequence[Line], extra_conf: Sequence[float | None]
+) -> tuple[list[Line], list[Literal["text", "ocr"]], list[float | None]]:
+    """A ``text+ocr`` page's text-layer and added OCR lines merged top to bottom, then left to
+    right, with the vertical gaps recomputed across the two sources (the concatenation is no
+    extractor order, and reading order keeps a page without a gutter as it is). Returns the
+    lines with the source and the OCR confidence of each."""
+    tagged: list[tuple[Line, Literal["text", "ocr"], float | None]] = [
+        *((line, "text", None) for line in text_lines),
+        *((line, "ocr", conf) for line, conf in zip(extra, extra_conf, strict=True)),
+    ]
+    tagged.sort(key=lambda t: (t[0].y0, t[0].x0))
+    lines = _lines_module._finalise([line.model_dump() for line, _, _ in tagged])
+    return lines, [src for _, src, _ in tagged], [conf for _, _, conf in tagged]
 
 
 def _covered(box: Box, lines: Sequence[Line]) -> float:

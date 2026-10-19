@@ -199,6 +199,24 @@ def _is_labelled_row(row: Sequence[Line]) -> bool:
     return _is_worded(row[0].text) and sum(_is_numeric(c.text) for c in row[1:]) >= 2
 
 
+def _rows(lines: Sequence[Line]) -> list[list[Line]]:
+    """``lines`` grouped into rows (``same_row`` with each row's first line), top to bottom."""
+    rows: list[list[Line]] = []
+    for line in sorted(lines, key=lambda ln: (ln.y0, ln.x0)):
+        if rows and same_row(rows[-1][0], line):
+            rows[-1].append(line)
+        else:
+            rows.append([line])
+    return rows
+
+
+def statement_rows(lines: Sequence[Line]) -> list[list[Line]]:
+    """The rows of ``lines`` that are statement rows: a word label, then two or more numeric
+    cells ("Net income | 112,010 | 93,736"), each left to right."""
+    rows = [sorted(row, key=lambda ln: ln.x0) for row in _rows(lines)]
+    return [row for row in rows if len(row) >= 3 and _is_labelled_row(row)]
+
+
 def is_text_grid(
     lines: Sequence[Line],
     *,
@@ -214,12 +232,7 @@ def is_text_grid(
     or more numeric cells) or ``min_columns`` columns make a table: a column is a left or
     right edge (within ``tolerance`` pt) shared by at least ``min_rows`` such rows, and cells
     aligned on both edges count once."""
-    rows: list[list[Line]] = []
-    for line in sorted(lines, key=lambda ln: (ln.y0, ln.x0)):
-        if rows and same_row(rows[-1][0], line):
-            rows[-1].append(line)
-        else:
-            rows.append([line])
+    rows = _rows(lines)
     # rows of numbers alone are a chart's ticks (two y axes give "35 | 350"), not a table
     multi = [
         sorted(row, key=lambda ln: ln.x0)

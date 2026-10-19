@@ -471,12 +471,13 @@ def long_caption_doc():
 
 @fixture
 def caption_sides_doc():
-    """A caption line halfway between two targets, on three pages."""
+    """A caption line halfway between two targets, on three pages. Each table holds a cell
+    line (a table owning no line is not emitted)."""
     rows = [
         row(1, "Figure 2: Between", 100, 214, x1=300),
-        row(2, "Table 3. Between", 100, 214, x1=300),
-        row(3, "Table 1. Mixed", 100, 214, x1=300),
-    ]
+        row(2, "a", 110, 150), row(2, "Table 3. Between", 100, 214, x1=300), row(2, "c", 110, 290),
+        row(3, "Table 1. Mixed", 100, 214, x1=300), row(3, "a", 110, 290),
+    ]  # fmt: skip
     cells = [["a", "b"], ["c", "d"]]
     return Doc(
         rows,
@@ -529,6 +530,105 @@ def test_table_consumes_its_lines():
     ]
     assert sorted(table_lines) == list(range(1, 9))
     assert not any("Revenue" in e.text for e in elements if e.kind != "table")
+
+
+def _framed_doc(*, with_heading):
+    """A page drawn inside a ruled frame (a header rule and a centre rule make the engine see a
+    2-row table covering 89% of the page) holding a heading and two columns of prose."""
+    rows = []
+    if with_heading:
+        rows.append(row(1, "1. Introduction to the Results", 50, 60, size=18, bold=True))
+    for x in (50, 320):
+        rows += [row(1, f"The framed column continues its running text on line {k}.", x,
+                     110 + 14 * k, x1=x + 240) for k in range(20)]  # fmt: skip
+    cells = [["1. Introduction to the Results" if with_heading else "", ""],
+             ["left column prose", "right column prose"]]  # fmt: skip
+    headings = [heading(rows, 0, level=1)] if with_heading else []
+    return Doc(rows, tables={1: [((30, 30, 582, 762), cells)]}, headings=headings)
+
+
+@pytest.mark.parametrize("with_heading", [True, False])
+def test_ruled_page_frame_is_not_a_table(with_heading):
+    elements = _framed_doc(with_heading=with_heading).build()
+    assert of_kind(elements, "table") == []
+    if with_heading:
+        assert [(e.kind, e.text) for e in elements][0] == (
+            "heading",
+            "1. Introduction to the Results",
+        )
+    text = " ".join(e.text for e in of_kind(elements, "paragraph"))
+    assert "line 0." in text and "line 19." in text
+
+
+def test_page_sized_statement_table_stays_a_table():
+    labels = ["Net cash provided by operating activities", "Purchases of property and equipment",
+              "Proceeds from the sale of investments", "Repayments of long term debt"]  # fmt: skip
+    rows, cells = [], []
+    for k in range(40):
+        label = f"{labels[k % 4]} {k}"
+        y = 60 + 17 * k
+        rows += [row(1, label, 40, y, x1=330), row(1, f"{k},234", 420, y, x1=460),
+                 row(1, f"({k},678)", 500, y, x1=550)]  # fmt: skip
+        cells.append([label, f"{k},234", f"({k},678)"])
+    elements = Doc(rows, tables={1: [((30, 55, 582, 745), cells)]}).build()
+    assert kinds(elements) == ["table"]
+    first = elements[0].text.splitlines()[0]
+    assert first == "Net cash provided by operating activities 0 | 0,234 | (0,678)"
+
+
+def test_page_sized_register_table_with_text_cells_stays_a_table():
+    # a datasheet register table (dev doc_042 p103): its description column stacks like prose,
+    # but a cell holds a line or two, not a page of paragraphs
+    rows, cells = [], []
+    for k in range(30):
+        y = 80 + 21 * k
+        name, info = f"CH{k}_READ_ADDR", f"Alias for channel {k} READ_ADDR register in the block"
+        rows += [row(1, f"0x{k:03x}", 60, y, x1=100, h=10), row(1, name, 110, y, x1=250, h=10),
+                 row(1, info, 260, y, x1=560, h=10)]  # fmt: skip
+        cells.append([f"0x{k:03x}", name, info])
+    elements = Doc(rows, tables={1: [((50, 75, 570, 720), cells)]}).build()
+    assert kinds(elements) == ["table"]
+
+
+def test_heading_candidate_labelling_a_statement_row_is_a_cell():
+    # a false heading candidate ("2024 Notes", dev doc_002 p74) on a statement row's label
+    rows = [
+        row(1, "2024 Notes", 72, 150, bold=True),
+        row(1, "37", 300, 150),
+        row(1, "443", 450, 150),
+        row(1, "Digital assets, net", 72, 170),
+        row(1, "184", 300, 170),
+        row(1, "487", 450, 170),
+    ]
+    cells = [["2024 Notes", "37", "443"], ["Digital assets, net", "184", "487"]]
+    doc = Doc(rows, tables={1: [((60, 145, 540, 190), cells)]}, headings=[heading(rows, 0)])
+    assert kinds(doc.build()) == ["table"]
+
+
+def test_ruled_table_with_no_lines_of_its_own_is_not_emitted():
+    doc = table_doc()
+    inner = ((300, 168, 520, 190), [["12", "10"]])  # nested in the first; its lines are taken
+    doc.tables[1].append(inner)
+    typed = doc.typed()
+    tables = [(e, idxs) for e, idxs in typed if e.kind == "table"]
+    assert len(tables) == 1 and tables[0][1]
+    assert sum(e.text.count("Revenue") for e, _ in typed) == 1
+
+
+def test_layout_table_region_with_no_lines_of_its_own_is_not_emitted():
+    from docrooter.layout import LayoutRegion
+
+    def region(label, x0, y0, x1, y1):
+        return LayoutRegion(page=1, box=Box(page=1, x0=x0, y0=y0, x1=x1, y1=y1), label=label,
+                            confidence=0.9)  # fmt: skip
+
+    args, kwargs = table_doc().args()
+    # a Text region takes every table line first; a small Table region on the ruled table's
+    # blank middle matches the engine table but has no free line
+    regions = [region("text", 70, 148, 542, 212), region("table", 120, 200, 200, 209)]
+    typed = build_elements_with_lines(*args, **kwargs, regions=regions)
+    assert of_kind([e for e, _ in typed], "table") == []
+    assert sum(e.text.count("Revenue") for e, _ in typed) == 1
 
 
 def test_image_and_vector_figures_consume_label_text():

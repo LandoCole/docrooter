@@ -74,6 +74,7 @@ from docrooter.pdf.element_rules import (
     list_marker,
     overlap_area,
     same_row,
+    statement_rows,
     symbol_share,
     text_box,
     union,
@@ -108,6 +109,7 @@ __all__ = [
     "FOOTNOTE_BOTTOM_SHARE",
     "FOOTNOTE_MAX_SIZE_RATIO",
     "FORMULA_MIN_SYMBOL_SHARE",
+    "FRAME_MIN_LINES_PER_CELL",
     "LIST_INDENT_STEP",
     "PARAGRAPH_GAP_RATIO",
     "PARAGRAPH_SIZE_DELTA",
@@ -144,6 +146,8 @@ FIGURE_GRID_MIN_LABELLED_ROWS = 2  # rows of a word label then numbers: a statem
 FIGURE_GRID_LINE_SHARE = 0.7  # share of lines in worded multi-cell rows a table needs
 FIGURE_CODE_LINE_SHARE = 0.5  # this share of monospace lines inside: a code listing
 FIGURE_LIST_MIN_ITEMS = 2  # this many list items inside: a list set on a shape
+FRAME_MIN_LINES_PER_CELL = 8.0  # a page-sized ruled "table" of prose is a frame when its
+# cells hold this many lines each on average (final review; dev: frames 8-195, tables 1-7)
 CAPTION_MAX_LINES = 6  # a caption is a line or a short paragraph
 CAPTION_FIRST_SIDE = {"table": "above", "figure": "below"}  # preferred when both sides fit
 
@@ -224,8 +228,9 @@ def build_elements_with_lines(
     builder.contents()
     if regions:
         builder.layout_regions(regions, headings, title_index, region_min_confidence)
-    builder.tables()
-    builder.figures(_protected(headings, title_index, len(lines)))
+    protected = _protected(headings, title_index, len(lines))
+    builder.tables(protected)
+    builder.figures(protected)
     builder.link_layout_captions()
     builder.captions()
     builder.headings(headings, title_index)
@@ -300,6 +305,7 @@ class _Builder:
         self.layout_rects: defaultdict[int, list[Rect]] = defaultdict(list)  # figures, tables
         self.layout_captions: list[_Pending] = []
         self.used_tables: set[tuple[int, int]] = set()  # (page, index in PageObjects.tables)
+        self.frames: set[tuple[int, int]] = set()  # ruled tables that are page frames
 
     # -- helpers ----------------------------------------------------------------------------
     def free(self, i: int) -> bool:
@@ -419,7 +425,10 @@ class _Builder:
             )
 
     # -- rule 3: ruled tables ---------------------------------------------------------------
-    def tables(self) -> None:
+    def tables(self, protected: set[int]) -> None:
+        """Ruled tables, each with the free lines inside it. A table that owns no line is not
+        emitted (its cells would repeat text other elements hold), and neither is a page
+        frame (see :meth:`_is_frame`), whose lines stay free for the later rules."""
         for obj in self.pages.values():
             for k, (box, rows) in enumerate(obj.tables):
                 if (obj.page, k) in self.used_tables:
@@ -428,6 +437,11 @@ class _Builder:
                 if r is None or self._holds_layout_lines(obj.page, r):
                     continue  # the layout model typed its lines
                 idxs = self._inside(obj.page, r)
+                if not idxs:
+                    continue  # its text is another element's (an enclosing table, contents)
+                if self._is_frame(obj, r, rows, idxs, protected):
+                    self.frames.add((obj.page, k))
+                    continue
                 text, flags = self._table_text(rows, idxs)
                 if not text:
                     continue
@@ -436,6 +450,36 @@ class _Builder:
                          anchor=self._geometric_anchor(obj.page, r),
                          table=TableData(rows=[list(row) for row in rows]),
                          flags=flags)  # fmt: skip
+
+    def _is_frame(
+        self, obj: PageObjects, r: Rect, rows: list[list[str]], idxs: list[int], protected: set[int]
+    ) -> bool:
+        """Whether a ruled table is a frame drawn around page content rather than a table: it
+        holds a heading candidate or the title, or it covers at least
+        ``FIGURE_BACKGROUND_PAGE_SHARE`` of the page, its lines read as prose (the figure
+        rule's prose test) and its cells hold whole paragraphs (``FRAME_MIN_LINES_PER_CELL``
+        lines per non-empty cell). A heading candidate that labels a statement row (a word
+        label, then two or more numbers: "2024 Notes | 37 | 443") is a cell, not a heading.
+        Prose alone does not make a frame: a statement table's long row labels, or a register
+        table's descriptions, stack like a paragraph, so ``FIGURE_GRID_MIN_LABELLED_ROWS``
+        statement rows, or fewer lines per cell, keep a page-sized table a table."""
+        lines = [self.lines[i] for i in idxs]
+        statements = statement_rows(lines)
+        labels = {id(line) for row in statements for line in row}
+        if any(i in protected and id(self.lines[i]) not in labels for i in idxs):
+            return True
+        if area(r) < FIGURE_BACKGROUND_PAGE_SHARE * obj.width * obj.height:
+            return False
+        if len(statements) >= FIGURE_GRID_MIN_LABELLED_ROWS:
+            return False
+        cells = sum(1 for row in rows for cell in row if cell.strip())
+        if len(lines) < FRAME_MIN_LINES_PER_CELL * max(cells, 1):
+            return False
+        return is_prose(lines, min_words=FIGURE_PROSE_MIN_WORDS,
+                        line_share=FIGURE_PROSE_LINE_SHARE,
+                        min_sentences=FIGURE_PROSE_MIN_SENTENCES,
+                        sentence_share=FIGURE_PROSE_SENTENCE_SHARE,
+                        run_lines=FIGURE_PROSE_RUN_LINES)  # fmt: skip
 
     def _table_text(self, rows: list[list[str]], idxs: Sequence[int]) -> tuple[str, list[str]]:
         """A table's ``text`` (its cells, row by row) and flags."""
@@ -598,6 +642,8 @@ class _Builder:
             extra = [i for i in self._inside(page, t) if i not in idxs]
             self.layout_lines.update(extra)
             idxs = idxs + extra
+        if not idxs:
+            return  # its text is another element's: an engine table would repeat it
         if not rows:
             rows = self._rows_from_lines(idxs)
         text, more = self._table_text(rows, idxs)
@@ -640,7 +686,11 @@ class _Builder:
             page_area = obj.width * obj.height
             if page_area <= 0:
                 continue
-            tables = [r for box, _ in obj.tables if (r := self._clip(box)) is not None]
+            tables = [
+                r
+                for k, (box, _) in enumerate(obj.tables)
+                if (obj.page, k) not in self.frames and (r := self._clip(box)) is not None
+            ]
             kinds: tuple[tuple[list[Box], Literal["image", "vector"]], ...] = (
                 (obj.images, "image"),
                 (obj.drawings, "vector"),

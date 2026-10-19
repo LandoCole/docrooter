@@ -4,6 +4,7 @@ OCR and layout engines; no model is ever loaded."""
 
 import contextlib
 import json
+import sys
 import zlib
 from pathlib import Path
 from types import SimpleNamespace
@@ -602,6 +603,55 @@ def test_process_many_checks_the_config_upfront():
         process_many([GOLDEN / "scanned.pdf"], bogus=1)
 
 
+@pytest.fixture
+def no_loading(monkeypatch):
+    """Loading a document fails the test: the configuration must be rejected before it."""
+
+    def load(*args, **kwargs):
+        raise AssertionError("a document was loaded before the configuration was checked")
+
+    # the module, not the ``process`` function that shadows it on the package
+    monkeypatch.setattr(sys.modules["docrooter.rooter.process"], "load", load)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "error", "match"),
+    [
+        (dict(doc_type="bogus:x"), BackendError, "unknown backend kind 'bogus'"),
+        (dict(sections="bogus:x"), BackendError, "unknown backend kind 'bogus'"),
+        (dict(escalate="jevv:jev-1.13.0"), BackendError, "unknown backend kind 'jevv'"),
+        (dict(embeddings="bogus:x"), BackendError, "unknown backend kind 'bogus'"),
+        (dict(layout="heronn"), DocrooterError, "unknown layout engine 'heronn'"),
+        (dict(ocr="nope"), DocrooterError, "unknown OCR engine 'nope'"),
+        (dict(text="both"), DocrooterError, "text='both' has no element mode"),
+    ],
+)
+def test_bad_specs_and_names_fail_before_any_document_is_read(no_loading, overrides, error,
+                                                              match):  # fmt: skip
+    # Final review R-I1: on a PDF or a Markdown text alike, and at process_many call time
+    for source in (GOLDEN / "scanned.pdf", MARKDOWN):
+        with pytest.raises(error, match=match):
+            process(source, **overrides)
+        with pytest.raises(error, match=match):
+            process_many([source], **overrides)  # raised by the call, not by next()
+
+
+def test_a_mistyped_escalate_kind_is_an_error_not_a_route_warning(no_loading):
+    with pytest.raises(BackendError, match="unknown backend kind"):
+        process(MARKDOWN, profile="fast", doc_type="keyword", escalate="bogus:x",
+                escalate_below=0.0)  # fmt: skip
+
+
+def test_good_specs_still_resolve(tmp_path, registries):
+    # registered kinds and engines pass the up-front check; caller objects are not checked
+    backend_registry.register_backend_kind("mine", lambda *a, **k: PreferBackend("mine"))
+    layout_registry.register_layout_engine("fake", FakeLayout)
+    analysis = process(MARKDOWN, doc_type="mine:any", sections="none", layout="fake", ocr="none",
+                       text="pymupdf", escalate="none")  # fmt: skip
+    assert analysis.config.layout == "fake" and analysis.doc_type is not None
+    assert process(MARKDOWN, profile="fast", text="both", doc_type="none", sections="none")
+
+
 def test_process_many_rejects_a_single_source(tmp_path):
     for single in ("paper.pdf", MARKDOWN, tmp_path / "paper.pdf", Path("paper.pdf"),
                    b"paper.pdf", bytearray(b"paper.pdf")):  # fmt: skip
@@ -638,6 +688,34 @@ def test_caller_classifier_is_used_and_kept_open(tmp_path):
     analysis = process(_paper(tmp_path), profile="fast", doc_type=classifier, sections="none")
     assert analysis.doc_type.best.node_ids[-1] == "research.research_paper"
     assert analysis.config.doc_type == "mine" and backend.closed == 0
+
+
+def test_sections_classifier_on_another_taxonomy_uses_its_backend_with_a_warning(tmp_path):
+    # Final review R-I3: the detected type maps to the contract taxonomy, the caller's
+    # Classifier is built on the research-paper one: never an error, and the batch goes on
+    detector = PreferBackend("detector", {"legal.contract": 0.9})
+    labeller = PreferBackend("labeller")
+    classifier = docrooter.Classifier(builtin_taxonomy("section_types/research_paper"), labeller)
+    sources = [_paper(tmp_path, "a.pdf"), _paper(tmp_path, "b.pdf")]
+    results = list(process_many(sources, profile="fast", doc_type=detector, sections=classifier))
+    assert len(results) == 2
+    for analysis in results:
+        assert analysis.doc_type.best.node_ids[-1] == "legal.contract"
+        assert analysis.sections.taxonomy == "section_types/contract"
+        assert {n.canonical for n in analysis.sections.sections.values()} <= set(
+            builtin_taxonomy("section_types/contract").nodes
+        )
+        (warning,) = [r for r in _routes(analysis, "sections") if "warning" in r["reason"]]
+        assert "section_types/contract" in warning["reason"]
+        assert "section_types/research_paper" in warning["reason"]
+    assert labeller.section_calls("section_types/contract")  # its backend labelled them
+    assert labeller.closed == 0  # the caller's backend stays open
+
+    # the same taxonomy: the Classifier is used as it is, with no warning
+    detector = PreferBackend("detector", {"research.research_paper": 0.9})
+    analysis = process(sources[0], profile="fast", doc_type=detector, sections=classifier)
+    assert analysis.sections.taxonomy == "section_types/research_paper"
+    assert not [r for r in _routes(analysis, "sections") if "warning" in r["reason"]]
 
 
 def test_bad_instances_are_type_errors(tmp_path):

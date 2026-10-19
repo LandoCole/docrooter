@@ -31,6 +31,7 @@ from docrooter.backends.base import Backend, close_backend
 from docrooter.classify.classifier import Classifier, _is_trained
 from docrooter.classify.documents import classify_document
 from docrooter.classify.normalize import (
+    DOC_TYPE_TO_SECTION_TAXONOMY,
     DOC_TYPES,
     GENERIC_TAXONOMY,
     NormalizationResult,
@@ -89,6 +90,11 @@ def process(
     :class:`~docrooter.Classifier`, and ``escalate`` a backend: the caller owns these and they
     are never closed here. What this call creates from names (engines and backends, each
     loaded at most once, shared between tasks with the same spec) is closed before it returns.
+    Unknown backend kinds, OCR and layout engine names, and ``text="both"`` in element mode are
+    errors raised before any document is read; a missing extra, key or network shows at first
+    use. A ``sections`` Classifier built on another section taxonomy than the detected
+    document type's has its backend label the sections with that type's taxonomy, with a
+    warning decision in the route log.
 
     Every configuration decision (OCR engine, layout, backends) is a document-scope
     ``RouteDecision``, emitted as a ``route`` event and, in element mode, put at the head of
@@ -184,7 +190,32 @@ def _resolve(
             f"embeddings={cfg.embeddings!r} needs element mode, and layout='none' (the fast "
             "profile) produces no elements: set layout='heuristic' or a layout engine name"
         )
+    _check_names(cfg, given)
     return cfg, given
+
+
+def _check_names(cfg: RouterConfig, given: dict[str, object]) -> None:
+    """Reject unknown backend specs, OCR and layout engine names, and a text engine without an
+    element mode, before any document is read (whatever the sources are). Only names are
+    checked: nothing is imported or loaded, so a missing extra, key or network still shows at
+    first use (and an escalation backend that fails there is a route warning, E9 ruling)."""
+    for task in ("doc_type", "sections", "escalate", "embeddings"):
+        spec = getattr(cfg, task)
+        if task not in given and spec != "none":
+            backend_registry.check_spec(spec)
+    if "ocr" not in given and cfg.ocr not in ("none", "auto"):
+        known = ocr_registry.available_ocr_engines()
+        if cfg.ocr not in known:
+            raise DocrooterError(f"unknown OCR engine {cfg.ocr!r}; available: {', '.join(known)}")
+    if "layout" not in given and cfg.layout not in ("none", "heuristic"):
+        if cfg.layout not in layout_registry.available_layout_engines():
+            names = ", ".join(["none", "heuristic", *layout_registry.available_layout_engines()])
+            raise DocrooterError(f"unknown layout engine {cfg.layout!r}; use one of {names}")
+    if cfg.layout != "none" and cfg.text == "both":
+        raise DocrooterError(
+            "text='both' has no element mode; use 'auto', 'pymupdf' or 'pdfplumber', or "
+            "layout='none' (the fast path)"
+        )
 
 
 def _check_instance(task: str, value: object) -> object:
@@ -421,8 +452,12 @@ def _run(source: str | os.PathLike[str], cfg: RouterConfig, engines: _Engines) -
     sections: NormalizationResult | None = None
     if cfg.sections != "none":
         clock = time.perf_counter()
-        sections = _normalize(doc, engines.backend("sections"), _leaf(doc_type))
+        sections, mismatch = _normalize(
+            doc, engines.backend("sections"), _leaf(doc_type), engines.doc_types(), cfg
+        )
         timings["sections"] = time.perf_counter() - clock
+        if mismatch is not None:
+            escalations.append(mismatch)
         if primary_type is not doc_type:
             before = _normalize_taxonomy(_leaf(primary_type), engines.doc_types())
             if before != sections.taxonomy:
@@ -491,14 +526,46 @@ def _classify(doc: Document, backend: Backend | Classifier, doc_types: Taxonomy)
 
 
 def _normalize(
-    doc: Document, backend: Backend | Classifier, doc_type: str | None
-) -> NormalizationResult:
+    doc: Document,
+    backend: Backend | Classifier,
+    doc_type: str | None,
+    doc_types: Taxonomy,
+    cfg: RouterConfig,
+) -> tuple[NormalizationResult, RouteDecision | None]:
     """Sections normalised with the taxonomy of ``doc_type``; the generic section taxonomy when
-    there is no type (as the playground does), never a second document-type pass."""
+    there is no type (as the playground does), never a second document-type pass.
+
+    A caller's ``Classifier`` built on another section taxonomy than the detected type's (the
+    caller cannot know the type in advance) is not an error: its backend labels the sections
+    with the right taxonomy (a trained backend through its zero-shot fallback), and a warning
+    decision says so."""
     taxonomy = None if doc_type else GENERIC_TAXONOMY
-    if isinstance(backend, Classifier):
-        return normalize_sections(doc, doc_type=doc_type, taxonomy=taxonomy, classifier=backend)
-    return normalize_sections(doc, doc_type=doc_type, taxonomy=taxonomy, backend=backend)
+    if not isinstance(backend, Classifier):
+        return normalize_sections(doc, doc_type=doc_type, taxonomy=taxonomy, backend=backend), None
+    wanted = _normalize_taxonomy(doc_type, doc_types)
+    if backend.taxonomy.content_hash() == builtin_taxonomy(wanted).content_hash():
+        result = normalize_sections(doc, doc_type=doc_type, taxonomy=taxonomy, classifier=backend)
+        return result, None
+    plain = backend._resolve(backend.backend)  # loaded and closed by the caller's Classifier
+    if _is_trained(plain):  # per-node heads of the classifier's own taxonomy
+        plain = backend._fallback()  # type: ignore[assignment]
+    result = normalize_sections(doc, doc_type=doc_type, taxonomy=taxonomy, backend=plain)
+    warning = _decision(
+        "sections",
+        cfg.sections,
+        f"warning: the sections Classifier passed by the caller is built on "
+        f"{_taxonomy_label(backend.taxonomy)}, not on {wanted} (the taxonomy of the document "
+        f"type {doc_type or 'none'}): its backend labelled the sections with {wanted}",
+    )
+    return result, warning
+
+
+def _taxonomy_label(taxonomy: Taxonomy) -> str:
+    """The built-in section taxonomy name of ``taxonomy``, else "a custom taxonomy"."""
+    digest = taxonomy.content_hash()
+    names = sorted({GENERIC_TAXONOMY, *DOC_TYPE_TO_SECTION_TAXONOMY.values()})
+    return next((n for n in names if builtin_taxonomy(n).content_hash() == digest),
+                "a custom taxonomy")  # fmt: skip
 
 
 def _normalize_taxonomy(doc_type: str | None, doc_types: Taxonomy) -> str:

@@ -26,7 +26,7 @@ PYTHONPATH=src .venv/bin/python -m benchmarks.elements_bench --split test \
 
 ### Test results (final: shipped constants, `elements-doclaynet.json`)
 
-These are the numbers for the constants that ship (commit `213979e`): the tuned values below, with the spec figure thresholds and the pdfplumber CropBox fix.
+These are the numbers for the constants that ship (commit `213979e`): the tuned values below, with the spec figure thresholds and the pdfplumber CropBox fix. The later pdfplumber geometry fix (`ee2a829`) changes no test page (see the disclosure).
 
 <!-- elements-benchmark:begin -->
 Split: **test**, 400 pages (financial_reports 67, government_tenders 67, laws_and_regulations 67, manuals 67, patents 66, scientific_articles 66); sample digest `cdda52423f79`; commit `213979e`; 2026-10-18. Matching: one-to-one, greedy by IoU >= 0.5, within a class. Pages without a text layer (scans; no OCR engine runs in this benchmark): heuristic-pymupdf 9, heuristic-pdfplumber 9, heron 9; load errors: heuristic-pymupdf 0, heuristic-pdfplumber 0, heron 0.
@@ -91,7 +91,10 @@ Split: **test**, 400 pages (financial_reports 67, government_tenders 67, laws_an
 The test pages were first scored once, after tuning, at commit `d951b11` plus the uncommitted tuned constants (`elements-doclaynet-first.json`, reproduced below). Review then found two problems, and the controller ruled on both:
 
 1. **The tuned figure thresholds broke the E5a content ruling.** `FIGURE_MIN_AREA` 0.005 and `FIGURE_MAX_TEXT_COVERAGE` 0.4 turned shaded statement-table rows and banner rows into figures on the dev corpus. Both were reverted to the spec / E5a values (pass 5 of the tuning log).
-2. **heuristic-pdfplumber boxes were in the wrong space on cropped pages.** On pages whose CropBox differs from the MediaBox, pdfplumber element boxes were in MediaBox space, while the gold and pymupdf use the CropBox. That affected 5 test pages (all financial reports) and 13 train pages. This was fixed at the source (`pdf/objects.py`).
+2. **heuristic-pdfplumber boxes were in the wrong space on some pages.** The gold and pymupdf use the visible page, CropBox ∩ MediaBox, but pdfplumber element boxes were in its MediaBox frame. The fix was made at the source (`pdf/objects.py`) in two steps:
+   - **`213979e`** handled a CropBox inside a MediaBox whose origin is 0. That fixed the 5 affected test pages (all financial reports) and 9 of the 13 affected train pages. It did not handle a MediaBox with a non-zero origin (4 train pages, 18–33 pt off), and it gave a wrong page size when the CropBox is larger than the MediaBox (dev doc_001, 126 pages).
+   - **`ee2a829`** handles every case. It takes the visible box as CropBox ∩ MediaBox, uses it for the page size, and shifts every pdfplumber box by its top-left corner, derived per rotation. The layout-region text-table search (`pdf/text_tables.py`) gets the same transform.
+   - **Effect on the published test numbers.** Under `ee2a829`, **0 of the 400 test pages** change their pdfplumber page box or element boxes. This was found by comparing objects only, without scoring. The published heuristic-pdfplumber test numbers therefore stand for the current code. On train, 5 pages change, and train was re-scored.
 
 After those fixes the published first scoring no longer described the shipped code, so the test split was scored a second time with the final constants. This second scoring was for correctness, not for score: no threshold was changed after either test scoring, and the test pages were never used to choose a value. Both results are published.
 
@@ -186,7 +189,7 @@ Split: **test**, 400 pages (financial_reports 67, government_tenders 67, laws_an
 | System | Train macro F1, spec starting values | Train macro F1, first tuned set | Train macro F1, final (shipped) |
 | --- | --- | --- | --- |
 | heuristic-pymupdf | 0.3305 | 0.3535 | 0.3496 |
-| heuristic-pdfplumber | 0.2965 | 0.3131 | 0.3110 (with the CropBox fix) |
+| heuristic-pdfplumber | 0.2965 | 0.3131 | 0.3119 (with the visible-box fix, `ee2a829`) |
 
 The starting values were re-scored with `--set` (see the log below). pdfplumber was not tuned on, but it gains too, because the constants are shared.
 
@@ -305,4 +308,4 @@ Every other constant keeps its starting value, including `FIGURE_MIN_AREA` 0.02,
 - **TOC no-regression (spec §10.3):** `benchmarks.toc --engines pymupdf --elements` on the 24 bookmarked dev PDFs gives depth <= 2 micro F1 **0.7074** in element mode, against 0.7031 for `fast`. That is unchanged by tuning and meets the 0.703 target (`benchmarks/results/2026-10-18/toc-elements.json`).
 - **Ownership invariant:** on all 51 dev PDFs, every line with text is in exactly one element. There were 0 failures and no empty non-figure element.
   - pymupdf: 316,617 lines, 90,908 elements.
-  - pdfplumber, with the CropBox fix: 331,104 lines, 95,770 elements.
+  - pdfplumber, with the visible-box fix (`ee2a829`): 331,104 lines, 95,779 elements.

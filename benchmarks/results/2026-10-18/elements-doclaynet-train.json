@@ -2,7 +2,7 @@
   "benchmark": "elements-doclaynet",
   "split": "train",
   "date": "2026-10-18",
-  "commit": "213979e",
+  "commit": "ee2a829",
   "source": {
     "repo": "docling-project/DocLayNet-v1.2",
     "revision": "0daf93102e2efce76c3e11a274a5e0d0969391d3",
@@ -30,9 +30,9 @@
     "machine": "arm64",
     "cpu_count": 8,
     "loadavg": [
-      2.0478515625,
-      2.45654296875,
-      3.4169921875
+      2.2802734375,
+      2.6171875,
+      2.88232421875
     ],
     "versions": {
       "pymupdf": "1.28.2",
@@ -389,8 +389,8 @@
           "Title": 4
         }
       },
-      "seconds": 13.59,
-      "seconds_per_page": 0.034,
+      "seconds": 13.41,
+      "seconds_per_page": 0.0335,
       "errors": {},
       "no_text_layer": [
         "7bf8f041e24088cb5347ba78ed77a172f13c9a40c252558ccd34c878ed6e22dc",
@@ -442,11 +442,11 @@
         },
         "Page-footer": {
           "tp": 181,
-          "fp": 160,
+          "fp": 162,
           "fn": 150,
-          "precision": 0.530791788856305,
+          "precision": 0.5276967930029155,
           "recall": 0.5468277945619335,
-          "f1": 0.5386904761904762
+          "f1": 0.5370919881305638
         },
         "Page-header": {
           "tp": 0,
@@ -465,12 +465,12 @@
           "f1": 0.34972677595628415
         },
         "Section-header": {
-          "tp": 108,
-          "fp": 64,
-          "fn": 571,
-          "precision": 0.627906976744186,
-          "recall": 0.15905743740795286,
-          "f1": 0.25381903642773207
+          "tp": 111,
+          "fp": 61,
+          "fn": 568,
+          "precision": 0.6453488372093024,
+          "recall": 0.1634756995581738,
+          "f1": 0.2608695652173913
         },
         "Table": {
           "tp": 36,
@@ -481,12 +481,12 @@
           "f1": 0.34615384615384615
         },
         "Text": {
-          "tp": 1381,
-          "fp": 4282,
-          "fn": 960,
-          "precision": 0.2438636764965566,
-          "recall": 0.5899188381033746,
-          "f1": 0.34507746126936534
+          "tp": 1396,
+          "fp": 4266,
+          "fn": 945,
+          "precision": 0.24655598728364536,
+          "recall": 0.5963263562580094,
+          "f1": 0.3488691740597276
         },
         "Title": {
           "tp": 3,
@@ -497,22 +497,22 @@
           "f1": 0.031746031746031744
         }
       },
-      "macro": 0.3110395276893558,
+      "macro": 0.3118798689184566,
       "per_category": {
         "financial_reports": {
           "pages": 67,
-          "macro": 0.19660546709223126,
+          "macro": 0.20063839672791944,
           "f1": {
             "Caption": 0.0,
             "Footnote": 0.0,
             "Formula": null,
             "List-item": 0.44329896907216493,
-            "Page-footer": 0.5858585858585859,
+            "Page-footer": 0.5742574257425742,
             "Page-header": 0.0,
             "Picture": 0.27450980392156865,
-            "Section-header": 0.11956521739130435,
+            "Section-header": 0.15217391304347827,
             "Table": 0.16901408450704225,
-            "Text": 0.37380801017164655,
+            "Text": 0.3931297709923664,
             "Title": 0.0
           }
         },
@@ -625,8 +625,8 @@
         },
         "Page-footer": {
           "chars": 5236,
-          "covered": 489,
-          "share": 0.09339190221543163
+          "covered": 493,
+          "share": 0.09415584415584416
         },
         "Page-header": {
           "chars": 7642,
@@ -640,8 +640,8 @@
         },
         "Section-header": {
           "chars": 19928,
-          "covered": 3019,
-          "share": 0.1514953833801686
+          "covered": 3090,
+          "share": 0.15505820955439584
         },
         "Table": {
           "chars": 77118,
@@ -650,8 +650,8 @@
         },
         "Text": {
           "chars": 538352,
-          "covered": 504925,
-          "share": 0.9379086545605849
+          "covered": 505656,
+          "share": 0.9392665022141647
         },
         "Title": {
           "chars": 1390,
@@ -662,15 +662,15 @@
       "confusion": {
         "-": {
           "Caption": 14,
-          "Footnote": 17,
+          "Footnote": 16,
           "Formula": 276,
           "List-item": 255,
-          "Page-footer": 131,
+          "Page-footer": 133,
           "Picture": 45,
-          "Section-header": 43,
+          "Section-header": 40,
           "Table": 27,
-          "Text": 3382,
-          "Title": 36
+          "Text": 3362,
+          "Title": 34
         },
         "Caption": {
           "-": 37,
@@ -704,10 +704,10 @@
           "Title": 1
         },
         "Page-header": {
-          "-": 166,
+          "-": 163,
           "Page-footer": 29,
           "Section-header": 4,
-          "Text": 128,
+          "Text": 131,
           "Title": 19
         },
         "Picture": {
@@ -718,11 +718,11 @@
           "Title": 1
         },
         "Section-header": {
-          "-": 166,
+          "-": 160,
           "List-item": 8,
-          "Section-header": 108,
-          "Text": 313,
-          "Title": 84
+          "Section-header": 111,
+          "Text": 314,
+          "Title": 86
         },
         "Table": {
           "-": 95,
@@ -731,12 +731,13 @@
           "Text": 8
         },
         "Text": {
-          "-": 924,
+          "-": 908,
+          "Footnote": 1,
           "Formula": 1,
           "List-item": 31,
           "Section-header": 2,
           "Table": 1,
-          "Text": 1381,
+          "Text": 1396,
           "Title": 1
         },
         "Title": {
@@ -747,8 +748,8 @@
           "Title": 3
         }
       },
-      "seconds": 29.7,
-      "seconds_per_page": 0.0743,
+      "seconds": 28.75,
+      "seconds_per_page": 0.0719,
       "errors": {},
       "no_text_layer": [
         "7bf8f041e24088cb5347ba78ed77a172f13c9a40c252558ccd34c878ed6e22dc",
@@ -810,7 +811,7 @@
     "heuristic-pdfplumber": {
       "f1": {
         "financial_reports": {
-          "Text": 0.37380801017164655,
+          "Text": 0.3931297709923664,
           "Table": 0.16901408450704225,
           "Picture": 0.27450980392156865
         },

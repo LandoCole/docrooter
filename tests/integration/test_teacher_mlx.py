@@ -31,7 +31,6 @@ pytestmark = [
         sys.platform != "darwin" or platform.machine() != "arm64", reason="mlx needs Apple silicon"
     ),
 ]
-pytest.importorskip("mlx_lm")
 
 TOPICS = builtin_taxonomy("element_topics")
 FUNCTIONS = builtin_taxonomy("element_functions")
@@ -309,6 +308,7 @@ def run_all(teacher, built) -> list[dict[str, float]]:
 
 @pytest.fixture(scope="module")
 def guarded():
+    pytest.importorskip("mlx_lm")  # here, not at module level: collecting must import nothing heavy
     _guard.apply_env_caps()
     others = _guard.other_model_processes()
     if others:

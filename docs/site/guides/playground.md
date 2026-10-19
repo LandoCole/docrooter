@@ -72,9 +72,11 @@ preset (1.0) does:
   The playground offers built-in fields only, and a selector made before the calibrated fields
   were recorded shows "field not calibrated".
 - **Read as the selector was fitted.** The guarantee needs the run read with the profile the
-  selector was fitted with (Accurate, for one fitted on the corpus build) and tagged by its
-  bundle (`--element-tags` the bundle that holds the selector). A run with another profile, or
-  tagged by another tagger, shows "reading differs from calibration" and gets an estimate.
+  selector was fitted with (Accurate, for one fitted on the corpus build), its sections labelled
+  (*Label sections with canonical names* on) by the backend the selector was fitted with (the
+  default embedding model, not `keyword`), and tagged by its bundle (`--element-tags` the bundle
+  that holds the selector). A run with another profile, sections backend or tagger shows
+  "reading differs from calibration" and gets an estimate.
 - **Elements tab.** The selected elements are highlighted, and *Show selected only* hides the
   rest.
 

@@ -1455,7 +1455,7 @@ def fake_selector(embedder="fakeenc:m"):
             embedder=embedder,
             profile="balanced",
             layout="heuristic",
-            sections="keyword",
+            sections=RouterConfig(profile="balanced").sections,
         ),
     )
 
@@ -1989,3 +1989,16 @@ def test_fit_mismatch_several_fields_and_calibration_size_reach_the_page(client)
     style = client.get("/static/style.css").text
     for kind in ("fit", "multi", "calibration"):
         assert f'[data-kind="{kind}"]' in style
+
+
+def test_a_kept_run_records_the_backend_that_labelled_its_sections(client):
+    """The playground labels sections with the backend picked on the page: the kept analysis
+    says which, or "none" when sections were not labelled, so select() can compare it with
+    the selector's fit."""
+    labelled, _ = run(client, "a.md", MARKDOWN, profile="balanced", normalize="true")
+    plain, _ = run(client, "b.md", MARKDOWN, profile="balanced", normalize="false")
+    analyses = client.app.state.playground.analyses
+    assert analyses[labelled].config.sections == "keyword"  # the page's default backend
+    assert analyses[labelled].config.doc_type == "keyword"
+    assert analyses[labelled].sections is not None
+    assert analyses[plain].config.sections == "none" and analyses[plain].sections is None

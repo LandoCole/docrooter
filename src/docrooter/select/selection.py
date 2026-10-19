@@ -27,7 +27,9 @@ never modified.
   content element's tags carry the fingerprint of the fit's tagger bundle
   (``TagResult.fingerprint``; tags of unknown provenance do not), ``sim`` comes from the fit's
   embedder spec, and the analysis was read with the fit's layout engine
-  (``analysis.config.layout``) and has section labels (``analysis.sections``). Otherwise
+  (``analysis.config.layout``) and has section labels (``analysis.sections``) from the fit's
+  sections backend (``analysis.config.sections``; ``"none"`` there, an unknown backend, does
+  not match). Otherwise
   ``fit_mismatch`` lists what differs (``"tagger"``, ``"embedder"``, ``"layout"``,
   ``"sections"``, or ``"provenance"`` for a selector that recorded none, which guarantees
   nothing).
@@ -218,8 +220,9 @@ class FitProvenance(BaseModel):
     guarantee only on features made the same way: ``tagger`` is the fingerprint of the tagger
     bundle (:func:`~docrooter.tagger.element_tags.tagger_fingerprint`; ``None`` when the fit's
     tagger was not a saved bundle, which then never matches), ``embedder`` the embedding spec
-    of ``sim``, and the reading: the rooter ``profile``, its ``layout`` engine and its
-    ``sections`` backend (recorded; :func:`select` checks that section labels are on)."""
+    of ``sim``, and the reading: the rooter ``profile``, its ``layout`` engine and the
+    ``sections`` backend that labelled the sections (``section_hit`` depends on it). ``None``
+    for a part the fit could not establish, which then never matches."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -970,8 +973,14 @@ def fit_mismatch(selector: Selector, analysis: Analysis | Document, ctx: DocCont
     config = None if isinstance(analysis, Document) else analysis.config
     if config is None or provenance.layout is None or config.layout != provenance.layout:
         out.append("layout")
-    if isinstance(analysis, Document) or analysis.sections is None:
-        out.append("sections")
+    if (
+        config is None
+        or isinstance(analysis, Document)
+        or analysis.sections is None
+        or provenance.sections is None
+        or config.sections != provenance.sections
+    ):
+        out.append("sections")  # off, unknown ("none" in the config) or another backend
     return out
 
 

@@ -1028,7 +1028,13 @@ class Playground:
                 doc, run.filename, doc_type, norm, self.doc_types, summaries, tagged
             )
             if doc.elements:  # the fast profile builds none: nothing for the dial to read
-                config = RouterConfig.resolve(profile=options["profile"])
+                # the backends that typed it and labelled its sections, which select()
+                # compares with the selector's fit
+                config = RouterConfig.resolve(
+                    profile=options["profile"],
+                    doc_type=options["backend"],
+                    sections=options["backend"] if norm is not None else "none",
+                )
                 analysis = Analysis(
                     document=doc,
                     doc_type=doc_type,

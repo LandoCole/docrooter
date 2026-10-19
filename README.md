@@ -359,7 +359,8 @@ print("\n\n".join(chunk.text for chunk in selection.chunks))
   "relevant" is what the **teacher** model labelled, not a human.
 - **Only for what was calibrated.** The guarantee holds for **one field** at a time, on a
   document **read and tagged as the selector was fitted**: the same profile (`accurate`, the
-  corpus build's), the bundle's own tagger and the selector's embedder. Anything else is reported
+  corpus build's) with its layout engine and sections backend, the bundle's own tagger and the
+  selector's embedder. Anything else is reported
   in `fit_mismatch` (for example `["layout"]` for the default `balanced` profile) and gives an
   estimate.
 - **When it promises nothing.** Below `c = 1.0`, free-text queries, a list of several fields

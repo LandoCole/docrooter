@@ -166,7 +166,9 @@ class CorpusPdfReader:
             taxonomy=f"section_types/{family}",
             backend=self.sections_backend(),
         )
-        return analysis.model_copy(update={"sections": sections})
+        # record the backend that labelled the sections, as process() would have
+        config = analysis.config.model_copy(update={"sections": self.sections_spec})
+        return analysis.model_copy(update={"sections": sections, "config": config})
 
     def engines(self) -> tuple[Any, Any]:
         """``(layout, ocr)`` as ``process()`` takes them: the profile's engines, created once
@@ -383,7 +385,6 @@ def fit_selector(
 
     owned: list[Any] = []
     reader: CorpusPdfReader | None = None
-    sections_spec: str | None = getattr(analyse, "sections_spec", None)
     try:
         tagger_obj = tagger
         if isinstance(tagger, (str, Path)):
@@ -410,7 +411,6 @@ def fit_selector(
                 sections_backend=encoder if same else None,  # one embedding model, not two
             )
             analyse = reader
-            sections_spec = getattr(reader, "sections_spec", None)
         selector = _fit_all(todo, labels, fields, tagger_obj, encoder, analyse, on_progress)
     finally:
         if reader is not None:
@@ -418,7 +418,6 @@ def fit_selector(
         for item in owned:
             close_backend(item)
 
-    from docrooter.rooter.profiles import profile_defaults
     from docrooter.tagger.element_tags import tagger_fingerprint
 
     meta = selector.meta
@@ -434,12 +433,18 @@ def fit_selector(
             f"the documents were read with layout engines {layouts}, not one: select() will "
             "never guarantee recall with this selector"
         )
+    labelled = sorted(meta.pop("sections_backends"))
+    if len(labelled) != 1 or labelled[0] == "none":
+        meta["warnings"].append(
+            f"the documents' sections were labelled by {labelled}, not one known backend: "
+            "select() will never guarantee recall with this selector"
+        )
     provenance = FitProvenance(
         tagger=fingerprint,
         embedder=_spec_of(embedder),
         profile=profile,
         layout=layouts[0] if len(layouts) == 1 else None,
-        sections=sections_spec or str(profile_defaults(profile)["sections"]),
+        sections=labelled[0] if len(labelled) == 1 and labelled[0] != "none" else None,
     )
     meta.update(
         {
@@ -500,11 +505,14 @@ def _fit_all(
     counts: dict[str, Counter[str]] = {"fit": Counter(), "crc": Counter()}
     section_types: Counter[str] = Counter()  # the doc type each one's sections were read as
     layouts: set[str] = set()  # the layout engines the documents were read with
+    labelled_by: set[str] = set()  # the backends that labelled their sections
     for done, (record, family, half) in enumerate(todo, 1):
         analysis = analyse(record)
         sections = getattr(analysis, "sections", None)
         section_types[str(getattr(sections, "doc_type", None) or "none")] += 1
-        layouts.add(str(getattr(getattr(analysis, "config", None), "layout", None)))
+        config = getattr(analysis, "config", None)
+        layouts.add(str(getattr(config, "layout", None)))
+        labelled_by.add(str(getattr(config, "sections", None) if sections is not None else "none"))
         ctx = prepare(analysis, tagger=tagger, encoder=encoder, family=family)
         if not (ctx.tagged and ctx.has_sims):
             raise DocrooterError(
@@ -578,6 +586,7 @@ def _fit_all(
         "section_doc_types": dict(sorted(section_types.items())),
         "crc_units": crc_units,
         "layouts": sorted(layouts),
+        "sections_backends": sorted(labelled_by),
         "warnings": fit_warnings,
     }
     return Selector(

@@ -28,8 +28,8 @@ the number `c` promises, because the answer is more careful than "90%".
   [element tagging](../concepts/element-tags.md) does.
 - **Read as the selector was fitted.** The guarantee holds only on documents read and tagged the
   way the selector was fitted: the same profile (`accurate`, the corpus build's, unless you
-  fitted with another), the tagger bundle that holds the selector, and the selector's own
-  embedder. Pass `--profile accurate` on the shell, or `profile="accurate"` to `process()`.
+  fitted with another) with its own sections backend, the tagger bundle that holds the
+  selector, and the selector's own embedder. Pass `--profile accurate` on the shell, or `profile="accurate"` to `process()`.
   Anything else is reported in `fit_mismatch` and gives an estimate (see
   [the dial](../concepts/completeness-dial.md#the-same-reading-tagger-and-embedder)).
 
@@ -148,7 +148,7 @@ fields. These matter before you trust it:
 | `guarantee=True` | The dial's guarantee applies: on documents like its calibration set, the mean share of **teacher-relevant** elements kept, over documents and the family's fields, is at least `c` (at `c = 1.0` it is always `True`: the whole document) | Rely on it on, and only on, such documents |
 | `guarantee=False`, "(estimate)" | The recall is the model's own estimate | Treat as an estimate; raise `c` if a miss is costly |
 | `uncalibrated_field=True` | The guarantee would have applied, but a field of the need is not one the dial was fitted with (a field of your own, one with edited topics or query, or any field of a `selector.json` that predates this record). The readout says "field not calibrated (estimate)" | Refit with the field, or accept an estimate |
-| `fit_mismatch` not empty | The document was read, tagged or embedded otherwise than the selector was fitted: `layout` (another profile, such as the default `balanced`), `tagger` (tags from another bundle or a zero-shot tagger), `embedder`, `sections` (section labelling off), or `provenance` (a selector saved before this was recorded). The readout says "reading differs from calibration (estimate)" | Read with the fit's profile and tag with its bundle; refit an old selector |
+| `fit_mismatch` not empty | The document was read, tagged or embedded otherwise than the selector was fitted: `layout` (another profile, such as the default `balanced`), `tagger` (tags from another bundle or a zero-shot tagger), `embedder`, `sections` (section labelling off, or done by another sections backend than the fit's), or `provenance` (a selector saved before this was recorded). The readout says "reading differs from calibration (estimate)" | Read with the fit's profile and tag with its bundle; refit an old selector |
 | `multi_field=True` | Several fields as one need. The readout says "several fields (estimate)" | Select once per field for a guarantee |
 | `capped=True` | The calibration set was too small to reach this `c`, so the **whole document** is returned | Fine, just costlier; fit with more documents to uncap it |
 | `doc_type_mismatch=True` | The document's type maps to another family than the field's, for example an annual-report field on a prospectus. The elements were re-tagged for the field's family; the guarantee is dropped | Check the document type, or accept an estimate |

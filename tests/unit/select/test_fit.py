@@ -248,7 +248,11 @@ class FakeAnalyse:
         items = list(self.store.items[rec.id])
         if self.edit is not None:
             items = self.edit(rec.id, items)
-        return Analysis(document=make_doc(items), config=RouterConfig(profile="balanced"))
+        return Analysis(
+            document=make_doc(items),
+            sections=NormalizationResult(doc_type=None, taxonomy="section_types/annual_report"),
+            config=RouterConfig(profile="balanced"),  # sections labelled by its backend
+        )
 
 
 @pytest.fixture
@@ -489,10 +493,18 @@ def test_fit_records_its_provenance(store, tmp_path):
         embedder="embedding:fake",
         profile="accurate",
         layout="heuristic",  # what the analyses were read with (FakeAnalyse: balanced)
-        sections=selector.provenance.sections,
+        sections=RouterConfig(profile="balanced").sections,  # and labelled with
     )
     assert selector.provenance.tagger is not None
     assert selector.meta["tagger"]["fingerprint"] == selector.provenance.tagger
+
+    # readings without section labels give no known sections backend: never a guarantee
+    def unlabelled(rec):
+        return FakeAnalyse(store)(rec).model_copy(update={"sections": None})
+
+    bare, _, _ = fit(store, analyse=unlabelled, tagger=FakeTagger(bundle))
+    assert bare.provenance.sections is None
+    assert any("sections" in w for w in bare.meta["warnings"])
     # a tagger that is not a saved bundle gives no fingerprint: the selector never guarantees
     plain, _, _ = fit(store)
     assert plain.provenance is not None and plain.provenance.tagger is None
@@ -544,7 +556,7 @@ def test_default_reader_reads_as_the_build_did(store, tmp_path, monkeypatch):
 
     def fake_process(path, **kwargs):
         seen["process"] = (path, kwargs)
-        return Analysis(document=make_doc(store.items[doc_id]), config=RouterConfig(profile="fast"))
+        return Analysis(document=make_doc(store.items[doc_id]), config=kwargs["config"])
 
     def fake_normalize(doc, **kwargs):
         seen["normalize"] = kwargs
@@ -576,6 +588,8 @@ def test_default_reader_reads_as_the_build_did(store, tmp_path, monkeypatch):
     reader._engines = engines
     analysis = reader(store.corpus.manifest()[0])
     assert [e.id for e in analysis.document.elements] == [i for i, _, _ in store.items[doc_id]]
+    # the analysis records the backend that labelled its sections, for the fit provenance
+    assert analysis.config.sections == reader.sections_spec != "none"
 
     path, kwargs = seen["process"]
     assert path == pdfs / f"{doc_id}.pdf"

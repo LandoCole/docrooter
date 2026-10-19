@@ -127,16 +127,18 @@ about probabilities computed another way. `fit-selector` records that way in the
   `selector.json` kept in the bundle does not count);
 - the **embedder**: the embedding spec that gave `sim`;
 - the **reading**: the rooter profile, its layout engine (`heron` for `accurate`, the heuristic
-  rules for `balanced`) and its sections backend. `fit-selector` reads with `accurate` by
-  default, as the corpus build does.
+  rules for `balanced`) and the sections backend that labelled the sections, on which
+  `section_hit` depends. `fit-selector` reads with `accurate` by default, as the corpus build
+  does.
 
 `select()` grants the guarantee only when the document was **read and tagged the same way**:
 every content element's tags carry the fingerprint of the fit's bundle (tags from a zero-shot
 `embedding:` or `teacher:` tagger, or from another bundle, do not), `sim` comes from the same
-embedder spec, the analysis was read with the same layout engine, and section labelling ran.
-Otherwise `Selection.fit_mismatch` lists what differs (`"tagger"`, `"embedder"`, `"layout"`,
-`"sections"`), the selection is an estimate, and the readout adds "reading differs from
-calibration (estimate)". A selector saved before provenance was recorded reports
+embedder spec, the analysis was read with the same layout engine, and its sections were
+labelled by the same sections backend (`analysis.config.sections`; labels from another backend,
+from an unknown one, or none at all give `"sections"`). Otherwise `Selection.fit_mismatch` lists
+what differs (`"tagger"`, `"embedder"`, `"layout"`, `"sections"`), the selection is an estimate,
+and the readout adds "reading differs from calibration (estimate)". A selector saved before provenance was recorded reports
 `fit_mismatch=["provenance"]` and guarantees nothing until you refit.
 
 The flow that earns the guarantee reads with the fit's profile and tags with the bundle that
@@ -242,7 +244,7 @@ document text, rather than calibrate on a diverged reading. The
 | `doc_type_mismatch` | The document's type maps to another family than the field's |
 | `uncalibrated_field` | The guarantee would have applied, but a field of the need is not one the dial was calibrated on |
 | `multi_field` | The need is several fields, an estimate below `c = 1.0` |
-| `fit_mismatch` | What differs from the selector's fit: `tagger`, `embedder`, `layout`, `sections`, or `provenance` for an old selector; empty when nothing does |
+| `fit_mismatch` | What differs from the selector's fit: `tagger`, `embedder`, `layout`, `sections` (no labels, or labels from another or an unknown sections backend), or `provenance` for an old selector; empty when nothing does |
 | `calibration_n` | The *n* of the dial that was applied (`None` when none was) |
 | `expected_recall` | `c` (or 1.0 when capped) under the guarantee, else the model's estimate; `None` only without the guarantee, when no relevant content is expected |
 | `relevant_expected` | ΣP over the content elements: the expected number of relevant elements |

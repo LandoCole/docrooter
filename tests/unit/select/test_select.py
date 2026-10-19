@@ -1007,6 +1007,14 @@ def test_another_reading_drops_the_guarantee():
     assert balanced.guarantee is False and balanced.fit_mismatch == ["layout"]
     unlabelled = select(analysis_of(doc, sections=None), RISK, **kwargs)
     assert unlabelled.guarantee is False and unlabelled.fit_mismatch == ["sections"]
+    # section labels from another backend change section_hit: no guarantee either
+    keyword = RouterConfig(profile="accurate", sections="keyword")
+    relabelled = select(analysis_of(doc, config=keyword), RISK, **kwargs)
+    assert relabelled.guarantee is False and relabelled.fit_mismatch == ["sections"]
+    # labels whose backend is unknown (the config says none ran) count as another backend
+    unknown = RouterConfig(profile="accurate", sections="none")
+    unrecorded = select(analysis_of(doc, config=unknown), RISK, **kwargs)
+    assert unrecorded.guarantee is False and unrecorded.fit_mismatch == ["sections"]
     # every difference is listed, in a fixed order
     many = select(
         analysis_of(_tagged_doc("fp-other"), sections=None, config=RouterConfig()),

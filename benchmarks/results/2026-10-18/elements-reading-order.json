@@ -1,0 +1,2522 @@
+{
+  "benchmark": "elements-reading-order",
+  "date": "2026-10-18",
+  "commit": "aa729eb",
+  "engine": "pymupdf",
+  "env": {
+    "python": "3.12.13",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 8,
+    "loadavg": [
+      3.7373046875,
+      2.970703125,
+      2.85986328125
+    ],
+    "versions": {
+      "pymupdf": "1.28.2",
+      "pdfplumber": "0.11.10",
+      "pymupdf4llm": "1.28.2",
+      "docrooter": "0.2.0"
+    }
+  },
+  "pages": 5036,
+  "single_column_check": {
+    "pages": 4460,
+    "unchanged": 4193,
+    "changed": [
+      {
+        "id": "doc_001",
+        "page": 108,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 5
+      },
+      {
+        "id": "doc_001",
+        "page": 146,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_001",
+        "page": 147,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_002",
+        "page": 42,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_002",
+        "page": 46,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_002",
+        "page": 47,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_002",
+        "page": 52,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_002",
+        "page": 54,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_002",
+        "page": 55,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_002",
+        "page": 96,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_002",
+        "page": 97,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_002",
+        "page": 113,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_002",
+        "page": 115,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_002",
+        "page": 116,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_002",
+        "page": 117,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_002",
+        "page": 118,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_002",
+        "page": 119,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_002",
+        "page": 121,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_002",
+        "page": 122,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_002",
+        "page": 123,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_003",
+        "page": 46,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_004",
+        "page": 2,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_005",
+        "page": 2,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_005",
+        "page": 12,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 5
+      },
+      {
+        "id": "doc_009",
+        "page": 4,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_010",
+        "page": 4,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_014",
+        "page": 6,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_014",
+        "page": 7,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_014",
+        "page": 61,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_020",
+        "page": 136,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_020",
+        "page": 194,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_022",
+        "page": 2,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_022",
+        "page": 4,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_023",
+        "page": 3,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_023",
+        "page": 5,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_023",
+        "page": 7,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_023",
+        "page": 9,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_023",
+        "page": 11,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_026",
+        "page": 2,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_026",
+        "page": 3,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_026",
+        "page": 4,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_030",
+        "page": 3,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 5,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 7,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 9,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 11,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 13,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 15,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 17,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 19,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 21,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 23,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 25,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 27,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 29,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 31,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 33,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 35,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 37,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 39,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 41,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 43,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 45,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 47,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 49,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 51,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 53,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 55,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 57,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 59,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 61,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 63,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 65,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 67,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 69,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 71,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 73,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 75,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 77,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 79,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 81,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 83,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 85,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 87,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 89,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 91,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 93,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 95,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 97,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 99,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 101,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 103,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 105,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 107,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 109,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 111,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 113,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 115,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 117,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 119,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 121,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 123,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 125,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 127,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 129,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 131,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 133,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 135,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 137,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 139,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 141,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 143,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 145,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 147,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 149,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 151,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 153,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 155,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 157,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 159,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 161,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 163,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 165,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 167,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 169,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 171,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 173,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 175,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 177,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 179,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 181,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 183,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 185,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 187,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 189,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 191,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 193,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 195,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 197,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 199,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 201,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 203,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 205,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 207,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 209,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 211,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_030",
+        "page": 213,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_036",
+        "page": 9,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_036",
+        "page": 11,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_036",
+        "page": 21,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 5
+      },
+      {
+        "id": "doc_036",
+        "page": 25,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_036",
+        "page": 27,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_036",
+        "page": 58,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_036",
+        "page": 64,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_038",
+        "page": 8,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_038",
+        "page": 10,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_039",
+        "page": 193,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_039",
+        "page": 194,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_039",
+        "page": 233,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_039",
+        "page": 234,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_039",
+        "page": 253,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_041",
+        "page": 24,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 5
+      },
+      {
+        "id": "doc_041",
+        "page": 25,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 5
+      },
+      {
+        "id": "doc_041",
+        "page": 26,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 5
+      },
+      {
+        "id": "doc_042",
+        "page": 13,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 17,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 58,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 91,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 127,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 139,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 5
+      },
+      {
+        "id": "doc_042",
+        "page": 140,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 172,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 176,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 177,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 178,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 187,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 199,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 211,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 212,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 214,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 215,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 238,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 250,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 251,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 252,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 253,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 254,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 255,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 256,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 257,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 258,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 259,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 260,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 261,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 262,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 263,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 264,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 265,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 266,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 267,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 268,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 269,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 270,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 271,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 272,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 273,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 274,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 275,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 276,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 277,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 278,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 279,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 280,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 281,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 282,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 283,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 284,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 285,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 286,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 287,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 288,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 289,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 292,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 293,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 294,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 295,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 296,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 298,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 299,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 300,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 304,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 309,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 330,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 7
+      },
+      {
+        "id": "doc_042",
+        "page": 331,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 6
+      },
+      {
+        "id": "doc_042",
+        "page": 383,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 403,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 404,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 405,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 406,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 407,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 410,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 412,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 533,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 543,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 544,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 556,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 565,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 603,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_042",
+        "page": 613,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 4
+      },
+      {
+        "id": "doc_043",
+        "page": 4,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 5
+      },
+      {
+        "id": "doc_044",
+        "page": 1,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 7
+      },
+      {
+        "id": "doc_046",
+        "page": 7,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_046",
+        "page": 11,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_046",
+        "page": 13,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_046",
+        "page": 23,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_046",
+        "page": 43,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_046",
+        "page": 53,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_046",
+        "page": 55,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_047",
+        "page": 578,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_047",
+        "page": 584,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_048",
+        "page": 1,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_048",
+        "page": 75,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 7
+      },
+      {
+        "id": "doc_048",
+        "page": 78,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 14
+      },
+      {
+        "id": "doc_049",
+        "page": 2,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 2
+      },
+      {
+        "id": "doc_050",
+        "page": 2,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 3
+      },
+      {
+        "id": "doc_050",
+        "page": 6,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 1
+      },
+      {
+        "id": "doc_050",
+        "page": 24,
+        "body_unchanged": true,
+        "input_matches_fast": true,
+        "furniture": 11
+      }
+    ],
+    "input_differs_from_fast": 0
+  },
+  "column_pages": {
+    "pages": 576,
+    "changed": 569,
+    "bands": 1397,
+    "single_column_bands": 812,
+    "shifted_bands": 2,
+    "shifted_lines": 64,
+    "lines": 66938,
+    "pages_with_shifted_bands": [
+      {
+        "id": "doc_036",
+        "page": 28,
+        "bands": 3,
+        "single_column_bands": 2,
+        "shifted_bands": 1,
+        "shifted_lines": 12,
+        "lines": 70
+      },
+      {
+        "id": "doc_036",
+        "page": 44,
+        "bands": 3,
+        "single_column_bands": 2,
+        "shifted_bands": 1,
+        "shifted_lines": 52,
+        "lines": 102
+      }
+    ]
+  },
+  "bookmark_pairs": {
+    "documents": 24,
+    "fast": {
+      "agree": 1640,
+      "pairs": 1642,
+      "share": 0.9987819732034104
+    },
+    "elements": {
+      "agree": 1652,
+      "pairs": 1654,
+      "share": 0.9987908101571947
+    },
+    "per_document": {
+      "doc_001": {
+        "fast": [
+          2,
+          2
+        ],
+        "elements": [
+          2,
+          2
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_003": {
+        "fast": [
+          13,
+          13
+        ],
+        "elements": [
+          13,
+          13
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_004": {
+        "fast": [
+          6,
+          7
+        ],
+        "elements": [
+          6,
+          7
+        ],
+        "tau_fast": 0.9555555555555556,
+        "tau_elements": 0.9555555555555556
+      },
+      "doc_005": {
+        "fast": [
+          6,
+          7
+        ],
+        "elements": [
+          6,
+          7
+        ],
+        "tau_fast": 0.9555555555555556,
+        "tau_elements": 0.9555555555555556
+      },
+      "doc_009": {
+        "fast": [
+          0,
+          0
+        ],
+        "elements": [
+          0,
+          0
+        ],
+        "tau_fast": null,
+        "tau_elements": null
+      },
+      "doc_010": {
+        "fast": [
+          0,
+          0
+        ],
+        "elements": [
+          0,
+          0
+        ],
+        "tau_fast": null,
+        "tau_elements": null
+      },
+      "doc_027": {
+        "fast": [
+          21,
+          21
+        ],
+        "elements": [
+          21,
+          21
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_029": {
+        "fast": [
+          31,
+          31
+        ],
+        "elements": [
+          31,
+          31
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_030": {
+        "fast": [
+          37,
+          37
+        ],
+        "elements": [
+          37,
+          37
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_031": {
+        "fast": [
+          308,
+          308
+        ],
+        "elements": [
+          308,
+          308
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_032": {
+        "fast": [
+          217,
+          217
+        ],
+        "elements": [
+          217,
+          217
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_033": {
+        "fast": [
+          25,
+          25
+        ],
+        "elements": [
+          25,
+          25
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_034": {
+        "fast": [
+          29,
+          29
+        ],
+        "elements": [
+          29,
+          29
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_038": {
+        "fast": [
+          133,
+          133
+        ],
+        "elements": [
+          133,
+          133
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_039": {
+        "fast": [
+          263,
+          263
+        ],
+        "elements": [
+          263,
+          263
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_040": {
+        "fast": [
+          67,
+          67
+        ],
+        "elements": [
+          67,
+          67
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_041": {
+        "fast": [
+          37,
+          37
+        ],
+        "elements": [
+          37,
+          37
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_042": {
+        "fast": [
+          347,
+          347
+        ],
+        "elements": [
+          347,
+          347
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_045": {
+        "fast": [
+          9,
+          9
+        ],
+        "elements": [
+          11,
+          11
+        ],
+        "tau_fast": 0.7362637362637363,
+        "tau_elements": 0.8
+      },
+      "doc_046": {
+        "fast": [
+          12,
+          12
+        ],
+        "elements": [
+          12,
+          12
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_048": {
+        "fast": [
+          41,
+          41
+        ],
+        "elements": [
+          48,
+          48
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_049": {
+        "fast": [
+          26,
+          26
+        ],
+        "elements": [
+          29,
+          29
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      },
+      "doc_050": {
+        "fast": [
+          0,
+          0
+        ],
+        "elements": [
+          0,
+          0
+        ],
+        "tau_fast": null,
+        "tau_elements": null
+      },
+      "doc_051": {
+        "fast": [
+          10,
+          10
+        ],
+        "elements": [
+          10,
+          10
+        ],
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      }
+    }
+  },
+  "two_column": {
+    "rule": ">= 50% of pages with a column gutter",
+    "documents": {
+      "doc_017": {
+        "pages": 1,
+        "column_pages": 1,
+        "bookmarks": false,
+        "numbered_tau": {
+          "fast": [
+            null,
+            0
+          ],
+          "elements": [
+            null,
+            0
+          ]
+        }
+      },
+      "doc_028": {
+        "pages": 12,
+        "column_pages": 12,
+        "bookmarks": false,
+        "numbered_tau": {
+          "fast": [
+            0.9444444444444444,
+            9
+          ],
+          "elements": [
+            1.0,
+            11
+          ]
+        }
+      },
+      "doc_036": {
+        "pages": 296,
+        "column_pages": 267,
+        "bookmarks": false,
+        "numbered_tau": {
+          "fast": [
+            0.21904761904761905,
+            15
+          ],
+          "elements": [
+            0.4095238095238095,
+            15
+          ]
+        }
+      },
+      "doc_045": {
+        "pages": 73,
+        "column_pages": 37,
+        "bookmarks": true,
+        "numbered_tau": {
+          "fast": [
+            null,
+            0
+          ],
+          "elements": [
+            null,
+            0
+          ]
+        },
+        "tau_fast": 0.7362637362637363,
+        "tau_elements": 0.8
+      },
+      "doc_049": {
+        "pages": 41,
+        "column_pages": 31,
+        "bookmarks": true,
+        "numbered_tau": {
+          "fast": [
+            null,
+            0
+          ],
+          "elements": [
+            null,
+            0
+          ]
+        },
+        "tau_fast": 1.0,
+        "tau_elements": 1.0
+      }
+    }
+  },
+  "column_pages_per_document": {
+    "doc_001": [
+      9,
+      150
+    ],
+    "doc_002": [
+      0,
+      130
+    ],
+    "doc_003": [
+      4,
+      91
+    ],
+    "doc_004": [
+      3,
+      56
+    ],
+    "doc_005": [
+      4,
+      59
+    ],
+    "doc_006": [
+      0,
+      16
+    ],
+    "doc_007": [
+      1,
+      22
+    ],
+    "doc_008": [
+      0,
+      10
+    ],
+    "doc_009": [
+      3,
+      12
+    ],
+    "doc_010": [
+      3,
+      12
+    ],
+    "doc_011": [
+      56,
+      113
+    ],
+    "doc_012": [
+      24,
+      222
+    ],
+    "doc_013": [
+      3,
+      63
+    ],
+    "doc_014": [
+      5,
+      161
+    ],
+    "doc_015": [
+      0,
+      4
+    ],
+    "doc_016": [
+      0,
+      10
+    ],
+    "doc_017": [
+      1,
+      1
+    ],
+    "doc_018": [
+      0,
+      19
+    ],
+    "doc_019": [
+      0,
+      8
+    ],
+    "doc_020": [
+      0,
+      213
+    ],
+    "doc_021": [
+      0,
+      20
+    ],
+    "doc_022": [
+      0,
+      6
+    ],
+    "doc_023": [
+      0,
+      13
+    ],
+    "doc_024": [
+      0,
+      394
+    ],
+    "doc_025": [
+      0,
+      41
+    ],
+    "doc_026": [
+      0,
+      4
+    ],
+    "doc_027": [
+      0,
+      15
+    ],
+    "doc_028": [
+      12,
+      12
+    ],
+    "doc_029": [
+      1,
+      75
+    ],
+    "doc_030": [
+      0,
+      214
+    ],
+    "doc_031": [
+      0,
+      194
+    ],
+    "doc_032": [
+      1,
+      151
+    ],
+    "doc_033": [
+      0,
+      13
+    ],
+    "doc_034": [
+      0,
+      16
+    ],
+    "doc_035": [
+      3,
+      37
+    ],
+    "doc_036": [
+      267,
+      296
+    ],
+    "doc_037": [
+      1,
+      9
+    ],
+    "doc_038": [
+      11,
+      214
+    ],
+    "doc_039": [
+      24,
+      326
+    ],
+    "doc_040": [
+      0,
+      36
+    ],
+    "doc_041": [
+      5,
+      36
+    ],
+    "doc_042": [
+      15,
+      640
+    ],
+    "doc_043": [
+      0,
+      4
+    ],
+    "doc_044": [
+      1,
+      5
+    ],
+    "doc_045": [
+      37,
+      73
+    ],
+    "doc_046": [
+      16,
+      63
+    ],
+    "doc_047": [
+      11,
+      576
+    ],
+    "doc_048": [
+      19,
+      86
+    ],
+    "doc_049": [
+      31,
+      41
+    ],
+    "doc_050": [
+      4,
+      28
+    ],
+    "doc_051": [
+      1,
+      26
+    ]
+  }
+}

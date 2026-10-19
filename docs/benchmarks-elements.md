@@ -309,3 +309,122 @@ Every other constant keeps its starting value, including `FIGURE_MIN_AREA` 0.02,
 - **Ownership invariant:** on all 51 dev PDFs, every line with text is in exactly one element. There were 0 failures and no empty non-figure element.
   - pymupdf: 316,617 lines, 90,908 elements.
   - pdfplumber, with the visible-box fix (`ee2a829`): 331,104 lines, 95,779 elements.
+
+## Reading order (spec §10.2)
+
+```
+PYTHONPATH=src .venv/bin/python -m benchmarks.elements_bench --reading-order
+```
+
+Every dev PDF is loaded twice with pymupdf and no OCR: in element mode, recording the line list and the permutation that `order_lines` returns, and as `fast`. Both loads run with bookmarks off for the TOC, as in the TOC benchmark. Results are in `benchmarks/results/2026-10-18/elements-reading-order.json`, at commit `aa729eb`. The run covers 5,036 pages with at least one text line.
+
+**Single-column pages unchanged (the hard constraint).** A page is single-column when XY-cut finds no column gutter among its body lines, that is, its lines other than running headers, footers and page numbers. 4,460 pages qualify. Every element-mode line list was first checked against `fast`'s (`extract_lines`) on all 5,036 pages: the checksums of the page's line texts, in order, are equal on every page.
+
+| Check on the 4,460 single-column pages | Pages equal to `fast` |
+| --- | --- |
+| Body lines, in order | **4,460 (100%)** |
+| All lines, furniture included (checksum of the page's line texts in order) | 4,193 (94.0%) |
+
+The 267 pages that differ do so only in where their furniture lines sit. Element mode puts a page's running headers, footers and page numbers at its start (upper half) or end (lower half), by the E5b design; `fast` keeps them where the extractor put them. doc_030 accounts for 106 of these pages, doc_042 for 85 and doc_002 for 17. Body text order is never changed on a single-column page.
+
+**The page-global identity guard (review E3).** Once XY-cut finds a gutter anywhere on a page, the whole page is re-sorted by bands and row cuts, including the page's single-column regions. The check: on each page with a gutter, take every band XY-cut forms (a run of full-width or of narrower lines) that has no gutter of its own. Such a band is *shifted* when its lines' relative order differs from the extraction order, which a band-local guard would have kept.
+
+| Pages with a gutter | Reordered | Bands | Single-column bands | Shifted bands | Lines in shifted bands |
+| --- | --- | --- | --- | --- | --- |
+| 576 | 569 | 1,397 | 812 | **2** | 64 of 66,938 |
+
+Both shifted bands are in doc_036 (Future of Jobs Report): the source note under a chart on page 28 (two source lines swap places, because the row cut sorts them by height), and a chart's label column on page 44. No prose band moved. A band-local guard would change these two pages only, so the guard stays page-global. The finding is recorded here.
+
+**Bookmark-pair order agreement.** This runs on the 24 dev PDFs with at least 5 bookmarks. Headings are matched to bookmarks as in the TOC benchmark (title ratio >= 0.85, page within 1). For each pair of consecutive bookmarks whose two headings both match, the pair agrees when the headings come out in the same order.
+
+| Mode | Pairs agreeing | Share |
+| --- | --- | --- |
+| `fast` (before XY-cut) | 1,640 of 1,642 | 0.9988 |
+| element mode (after XY-cut) | 1,652 of 1,654 | 0.9988 |
+
+- The two disagreeing pairs are the same in both modes, one each in doc_004 and doc_005 (10-Q filings).
+- Element mode matches 12 more pairs (doc_045 +2, doc_048 +7, doc_049 +3) and adds no disagreement.
+
+**Kendall's tau on two-column documents.** A document counts as two-column when a gutter is cut on at least half of its pages. Only one dev research paper qualifies: doc_028 (Deep Residual Learning, 12 of 12 pages). It has no bookmarks, so there is no bookmark gold for it.
+
+Ruling: its gold is the paper's own section numbering. The numbered headings ("3.1 ...") are taken in predicted order, and tau is computed against the order of their numbers. Two other documents qualify and do have bookmarks, so tau against bookmarks is reported for them.
+
+| Document | Column pages | Gold | `fast` tau | Element-mode tau |
+| --- | --- | --- | --- | --- |
+| doc_028 Deep Residual Learning | 12 / 12 | section numbers | 0.944 (9 headings) | **1.000** (11 headings) |
+| doc_045 Monetary Policy Report | 37 / 73 | bookmarks | 0.736 | **0.800** |
+| doc_049 NVIDIA Sustainability Report | 31 / 41 | bookmarks | 1.000 | 1.000 |
+
+doc_017 (one page) and doc_036 also cross the 50% line, but neither has bookmarks. doc_036's numbered "headings" are the numbered items of its guide panels, laid out in grids (pages 89-92 and 259-260), not section numbers, so they are no gold for it. Its numbers are kept in the JSON only.
+
+## OCR and routing (spec §10.4)
+
+```
+PYTHONPATH=src .venv/bin/python -m benchmarks.ocr_bench
+```
+
+Results are in `benchmarks/results/2026-10-18/ocr.json`, at commit `aa729eb` (no `src` change since).
+
+**Pages.**
+- Dev PDFs are shuffled with seed `20261018:ocr`. The first 20 that have at least 3 pages with a clean text layer are taken, with 3 such pages each, also seeded: 60 pages from doc_002, 003, 005, 006, 007, 013, 016, 018, 019, 022, 023, 024, 031, 033, 035, 040, 044, 045, 047 and 050. doc_017 was skipped, because it has a single page.
+- A page is clean when it is routed `text` with no OCR region, has at least 200 text-layer characters and no invisible text, and its images cover at most 10% of it. Text inside images is not in the text layer, so it could not serve as ground truth.
+- Each page is copied into a one-page PDF (the ground truth: its text layer, without annotations or form fields). It is also rendered at 200 dpi into a one-page, image-only PDF of the same size.
+- Everything is cached in the git-ignored `benchmarks/.cache/ocr/`. The selection digest is `880a6925c2b8`.
+
+**Scoring.**
+- CER and WER are computed after the spec normalisation: NFKC, words hyphenated at a line end joined before a lowercase letter, and whitespace collapsed.
+- An engine returns lines in its own order, so both sides are put in one fixed order before scoring. Lines are grouped into rows by vertical centre, rows run top to bottom and lines run left to right within a row.
+- CER and WER are pooled: total edits over total reference characters or words. Word recall and precision are order-free (the multiset intersection of words), so they show how much of an error rate comes from order rather than recognition.
+- Each engine runs in its own worker process, one after the other. The worker recognises every page after a warm-up page, so model loading is excluded from the per-page time and reported as load.
+- *Elements s/page* is `load_pdf(elements=True, ocr=engine)` on the image-only page: routing, rendering, OCR and element typing.
+
+| Engine | CER | WER | Median page CER | Word recall | Word precision | OCR s/page | Elements s/page | Load s | Peak RSS |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ocrmac 1.0.1 (Apple Vision, accurate) | 0.102 | 0.208 | 0.013 | 0.802 | 0.961 | 0.73 | 0.83 | 1.2 | 1,184 MiB |
+| rapidocr 3.10.0 (onnxruntime, CPU) | 0.089 | 0.196 | 0.043 | 0.809 | 0.953 | 3.04 | 3.16 | 2.4 | 3,311 MiB |
+| tesseract 5.5.1 (`--psm 3`, `eng`) | **0.058** | **0.168** | **0.012** | **0.842** | **0.965** | 1.72 | 1.83 | 0.5 | 803 MiB + 263 MiB (binary) |
+
+Rendering a page at 200 dpi takes 0.10 s on top of the OCR time. Peak RSS is the worker's whole process, which is 126 MiB before the engine is created. For tesseract, the separate binary's peak is listed after the `+`. Every model process stayed far inside the 8 GiB budget.
+
+**Reading the numbers.**
+- The pooled CER is dominated by a few pages; the median page is at about 1% for ocrmac and tesseract.
+  - doc_007 p1 (Berkshire's performance table) scores 0.69-0.79 CER for every engine. Its text layer is full of dot leaders that no engine reads, and word precision there is 0.94 (measured for ocrmac).
+  - doc_007 p5 and doc_013 p49 (dense tables) score 0.22-0.34.
+- ocrmac fails on the three CHIPS Act pages (doc_024, CER 0.51-0.65; the other engines get 0.04-0.06). Its recall drops to 0.39 and it outputs unrelated words. On doc_050 p23 (an income-statement slide), it reads 2 of 5 number columns.
+- rapidocr's median page CER is about 4%, against about 1% for the others: its errors are small but spread over most pages. It is also the slowest engine and the largest in memory.
+- `ocr=auto` picks ocrmac on macOS. It is the fastest engine and fine on prose, but it is the least reliable on legal text and tables.
+
+**Routing confusion.** Expected labels: every page of the 51 dev PDFs is born-digital (`text`), and every image-only page needs `ocr`. A region decision keeps the page's text layer, so it counts as `text`. The dev rows are `routing-dev.json` from E5c (commit `8913b7a`). The pymupdf routing path has not changed since: the later `objects.py` changes are the pdfplumber geometry fix and the `tables` switch.
+
+| Expected \ Decided | `text` | `text+ocr` | `ocr` |
+| --- | --- | --- | --- |
+| `text`: 51 dev PDFs (5,069 pages; 127 with OCR regions) | 5,055 | 13 | 1 |
+| `ocr`: 60 image-only pages | 0 | 0 | **60** |
+
+- The one dev page replaced by OCR, doc_051 p27, has no text layer at all: it is a full-page image.
+- The 13 `text+ocr` pages are full-page images carrying 21-254 characters of text layer: covers and photo pages of doc_013, 036, 048, 049 and 051. They keep their text, and OCR adds only the lines that text lacks.
+- No page with a usable text layer was replaced.
+
+**Element-kind agreement.** Each of the 924 text-layer elements on the 60 pages is compared with the OCR element (from the image-only page) whose box overlaps it most.
+
+| Engine | Same kind (elements) | Same kind (characters) | No overlapping OCR element |
+| --- | --- | --- | --- |
+| ocrmac | 778 / 924 (0.842) | 0.904 | 40 |
+| rapidocr | 820 / 924 (0.887) | 0.923 | 9 |
+| tesseract | 771 / 924 (0.834) | 0.899 | 21 |
+
+Paragraphs agree in 94-98% of cases. Where the kinds differ, the cause is by design:
+- An OCR page has no ruled tables, so all 11 tables become paragraphs.
+- Its only image is the page scan, so the 14 figures become paragraphs or are missed.
+- Headings come only from size and isolation (no bold, no font), so 12-17 of 32 headings and 10-13 of 31 titles are kept.
+- Page numbers agree in 14-32 of 44 cases.
+
+Full confusion tables are in the JSON.
+
+## Speed and memory (spec §10.5)
+
+On the ten-document Q5 profiling set (1,439 pages, no OCR), `fast` takes 0.99 s per 100 pages. Element mode takes 4.64 s with heuristic pymupdf, 7.65 s with heuristic pdfplumber and 64.6 s with heron. Peak RSS is 200, 263, 308 and 904 MiB.
+
+The OCR engines take 0.73 s (ocrmac), 1.72 s (tesseract) and 3.04 s (rapidocr) per page at 200 dpi. `fast` stays within 5% of v0.3: +0.8% to +2.8%.
+
+Method, raw files and the `fast` A/B: `docs/performance.md`, *Element mode, OCR and the `fast` path (v0.4)*.

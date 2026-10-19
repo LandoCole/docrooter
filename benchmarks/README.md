@@ -28,7 +28,7 @@ crashed run keeps its finished rows.
 ### Memory guard
 
 Every model benchmark (`run`, `pdf_bench`, `normalize_bench`, `memory_check`,
-`profile_pipeline`) refuses to start while another one, or `docrooter serve`, is running, since
+`profile_pipeline`, `elements_bench`, `ocr_bench`) refuses to start while another one, or `docrooter serve`, is running, since
 two models at once can exhaust a 16 GB machine; `--allow-concurrent` overrides this. Each entry point (and `toc`) also sets
 conservative defaults unless the variable is already set: `OMP_NUM_THREADS=4`,
 `DOCROOTER_THREADS=4`, `TOKENIZERS_PARALLELISM=false` and `DOCROOTER_MEMORY_BUDGET_GB=8`, and
@@ -43,6 +43,17 @@ results go to `results/<date>/memory.json` and `docs/performance.md`.
 `classify_document` + `normalize_sections` on ten dev PDFs with pyinstrument (dev dependency) and
 splits the time into pymupdf, our own Python stages, tokenisation and inference; results go to
 `results/<date>/profile.json` and the Rust decision in `docs/performance.md`.
+With `--elements` it times `fast` and element mode (heuristic pymupdf, heuristic pdfplumber,
+heron) on the same ten PDFs, one worker process per system (peak RSS each), into
+`results/<date>/profile-elements[-TAG].json`; `--systems fast --repeat 3` under a v0.3
+`PYTHONPATH` gives the "fast within 5% of v0.3" baseline.
+
+`python -m benchmarks.ocr_bench` renders 60 clean dev pages to image-only PDFs (cached in
+`benchmarks/.cache/ocr/`) and scores ocrmac, rapidocr and tesseract (CER, WER, word recall,
+seconds and peak RSS per engine, element-kind agreement) plus the OCR routing confusion;
+`python -m benchmarks.elements_bench --reading-order` checks reading order on the dev corpus;
+`python -m benchmarks.pdf_bench --profile balanced` re-runs the doc-type benchmark on
+`balanced` parses. Write-ups: `docs/benchmarks-elements.md`, `docs/benchmarks-pdf.md`.
 
 ### Few-shot
 

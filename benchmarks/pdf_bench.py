@@ -12,6 +12,13 @@ block of the ``## Document-type classification`` section of ``docs/benchmarks-pd
 Timing: local-model systems run one untimed warm-up classification of a tiny synthetic document
 first (model load + label encoding, reported as ``load_s``). A batch system's per-document
 classify time is the batch's wall time divided by the number of documents.
+
+``--profile balanced`` (v0.4, spec §10.3) parses every PDF as the rooter's ``balanced`` profile
+does (element mode, heuristic layout, ``ocr=auto``; ``process_many`` with classification and
+summaries off, so one OCR engine serves the run), caches those Documents in
+``benchmarks/.cache/docs-balanced/`` and writes ``pdf-balanced.json``. With ``--docs`` it
+rewrites the generated block of the v0.4 section of ``docs/benchmarks-pdf.md``: each system
+against its committed ``fast`` row in ``benchmarks/results/2026-10-16/pdf.json``.
 """
 
 from __future__ import annotations
@@ -48,6 +55,8 @@ CORPUS = corpora.DEV
 HELDOUT = corpora.HELDOUT
 CACHE = Path(__file__).parent / ".cache"
 DOC_CACHE = CACHE / "docs"
+BALANCED_CACHE = CACHE / "docs-balanced"
+FAST_REFERENCE = Path(__file__).parent / "results" / "2026-10-16" / "pdf.json"
 RESULTS_ROOT = Path(__file__).parent / "results"
 DOCS_PATH = ROOT / "docs" / "benchmarks-pdf.md"
 ENV_FILE = ROOT / ".env"
@@ -307,6 +316,87 @@ def parse_corpus(
         out[entry["id"]] = (doc, seconds)
         log(f"parsed {entry['id']} ({entry['pages']} pages) in {seconds:.2f} s")
     return out
+
+
+def parse_corpus_balanced(
+    *,
+    entries: Sequence[dict[str, Any]] | None = None,
+    corpus: Path = CORPUS,
+    cache: Path = BALANCED_CACHE,
+) -> dict[str, tuple[Document, float]]:
+    """``{doc_id: (Document, parse_seconds)}`` as the ``balanced`` profile loads each PDF:
+    ``process_many(..., profile="balanced")`` with ``doc_type``, ``sections`` and ``summaries``
+    off, so one OCR engine (created on the first page that needs one) serves the whole run.
+    Cached as JSON with ``"profile": "balanced"``; a document's seconds include the OCR engine's
+    creation when it is the first to need it."""
+    import contextlib
+
+    from docrooter.rooter import process_many
+
+    entries = list(entries) if entries is not None else manifest(corpus)
+    cache.mkdir(parents=True, exist_ok=True)
+    out: dict[str, tuple[Document, float]] = {}
+    todo = []
+    for entry in entries:
+        path = cache / f"{entry['id']}.json"
+        if path.exists():
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            if saved.get("profile") == "balanced":
+                out[entry["id"]] = (Document.model_validate(saved["document"]), saved["parse_s"])
+                continue
+        todo.append(entry)
+    if not todo:
+        return out
+    smallest = min(entries, key=lambda e: e["pages"])  # warm-up: imports, untimed
+    warmup = process_many([corpus / smallest["file"]], profile="balanced", doc_type="none",
+                          sections="none", summaries="none")  # fmt: skip
+    with contextlib.closing(warmup):
+        next(warmup)
+    analyses = process_many(
+        [corpus / e["file"] for e in todo],
+        profile="balanced", doc_type="none", sections="none", summaries="none",
+    )  # fmt: skip
+    with contextlib.closing(analyses):
+        for entry in todo:
+            start = time.perf_counter()
+            doc = next(analyses).document
+            seconds = time.perf_counter() - start
+            record = {
+                "doc_id": entry["id"],
+                "profile": "balanced",
+                "commit": bench_revision(),
+                "parse_s": seconds,
+                "loadavg": list(os.getloadavg()),
+                "document": doc.model_dump(mode="json"),
+            }
+            (cache / f"{entry['id']}.json").write_text(json.dumps(record), encoding="utf-8")
+            out[entry["id"]] = (doc, seconds)
+            needs = doc.meta.get("needs_ocr", {})
+            log(
+                f"balanced {entry['id']} ({entry['pages']} pages) in {seconds:.2f} s; "
+                f"OCR pages {needs.get('pages', 0)}, merged {needs.get('merge_pages', 0)}, "
+                f"regions {needs.get('regions', 0)}; warnings {doc.meta.get('warnings', [])}"
+            )
+    return out
+
+
+def profile_ocr_summary(docs: Mapping[str, tuple[Document, float]]) -> dict[str, Any]:
+    """What OCR did across a ``balanced`` parse: pages replaced or merged, regions, engines and
+    warnings, from each Document's route log."""
+    pages = merged = regions = 0
+    engines: Counter[str] = Counter()
+    warnings: Counter[str] = Counter()
+    for doc, _ in docs.values():
+        needs = doc.meta.get("needs_ocr", {})
+        pages += needs.get("pages", 0)
+        merged += needs.get("merge_pages", 0)
+        regions += needs.get("regions", 0)
+        warnings.update(doc.meta.get("warnings", []))
+        for route in doc.meta.get("routes", []):
+            if route.get("scope") == "document" and route.get("task") == "ocr":
+                engines[route.get("engine", "?")] += 1
+    return {"ocr_pages": pages, "merge_pages": merged, "regions": regions,
+            "ocr_engine": dict(engines), "warnings": dict(warnings)}  # fmt: skip
 
 
 # --- device ------------------------------------------------------------------------------
@@ -1646,6 +1736,100 @@ def _confusion_table(
     return lines
 
 
+PROFILE_BEGIN = "<!-- doctype-profile:begin -->"
+PROFILE_END = "<!-- doctype-profile:end -->"
+PROFILE_SECTION = "## Document type in the `balanced` profile (v0.4)"
+
+
+def render_profile_comparison(balanced: Mapping[str, Any], fast: Mapping[str, Any]) -> str:
+    """Each system of ``balanced`` (``pdf-balanced.json``) against its row in ``fast``
+    (``pdf.json``): accuracy, macro F1, parse and classify seconds, and every document whose
+    prediction changed."""
+    lines = [
+        "| System | Profile | Leaf acc | 95% CI | Macro F1 | Parse s/doc | Classify s/doc | Run |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    changes = []
+    for name, run in balanced.get("systems", {}).items():
+        if "metrics" not in run:
+            continue
+        ref = fast.get("systems", {}).get(name)
+        for label, entry in (("fast", ref), ("balanced", run)):
+            if entry is None or "metrics" not in entry:
+                continue
+            m = entry["metrics"]
+            lo, hi = m["leaf_accuracy_ci95"]
+            correct = sum(r["correct"] for r in entry["rows"])
+            lines.append(
+                f"| `{name}` | {label} | {m['leaf_accuracy']:.3f} ({correct}/{m['n']}) | "
+                f"{lo:.2f}-{hi:.2f} | {m['macro_f1']:.3f} | {m['avg_parse_s']:.2f} | "
+                f"{m['avg_classify_s']:.3f} | {entry.get('date')} at `{entry.get('commit')}`, "
+                f"{entry.get('device')} |"
+            )
+        if ref is None:
+            continue
+        before = {r["doc_id"]: r for r in ref["rows"]}
+        for row in run["rows"]:
+            old = before.get(row["doc_id"])
+            if old is not None and old["pred"] != row["pred"]:
+                mark = "fixed" if row["correct"] else "broken" if old["correct"] else "wrong"
+                changes.append(
+                    f"- `{name}` {row['doc_id']}: {_short(old['pred'])} -> {_short(row['pred'])}"
+                    f" (gold {_short(row['gold'])}; {mark})"
+                )
+    ocr = balanced.get("parse", {}).get("ocr", {})
+    differing = {
+        name: sum(
+            row["view_sha"] != ref_rows[row["doc_id"]]["view_sha"]
+            for row in run["rows"]
+            if row["doc_id"] in ref_rows and "view_sha" in ref_rows[row["doc_id"]]
+        )
+        for name, run in balanced.get("systems", {}).items()
+        if (
+            ref_rows := {
+                r["doc_id"]: r for r in fast.get("systems", {}).get(name, {}).get("rows", [])
+            }
+        )
+    }
+    out = [
+        f"Corpus: `{balanced.get('corpus')}`, {len(balanced.get('documents', []))} documents. "
+        f"`fast` rows are the committed `{FAST_REFERENCE.relative_to(ROOT)}`; `balanced` rows "
+        'parse each PDF with `process_many(..., profile="balanced")` (element mode, '
+        "heuristic layout, `ocr=auto`) and classify it exactly as `fast` does (same "
+        "systems, view and instruction). Balanced parse: pages OCR'd whole "
+        f"{ocr.get('ocr_pages', 0)}, scanned pages with OCR lines merged in "
+        f"{ocr.get('merge_pages', 0)}, image regions OCR'd {ocr.get('regions', 0)}; OCR engine "
+        f"{', '.join(ocr.get('ocr_engine', {})) or 'none'}. A `+dirty` commit marks "
+        "uncommitted files under `src/` or `benchmarks/`.",
+        "",
+        *lines,
+        "",
+        "View texts that differ from `fast`'s (the classifier input): "
+        + ", ".join(
+            f"`{n}` {k} of {len(balanced['systems'][n]['rows'])}" for n, k in differing.items()
+        )
+        + ".",
+        "",
+        "Documents whose prediction changed (fast -> balanced):",
+        "",
+        *(changes or ["- none"]),
+    ]
+    return "\n".join(out)
+
+
+def update_profile_docs(path: Path, block: str) -> None:
+    """Replace the generated block of the v0.4 profile section of ``path`` (appending the
+    section when missing)."""
+    wrapped = f"{PROFILE_BEGIN}\n{block}\n{PROFILE_END}"
+    text = path.read_text(encoding="utf-8")
+    if PROFILE_BEGIN in text and PROFILE_END in text:
+        head, rest = text.split(PROFILE_BEGIN, 1)
+        text = f"{head}{wrapped}{rest.split(PROFILE_END, 1)[1]}"
+    else:
+        text = f"{text.rstrip()}\n\n{PROFILE_SECTION}\n\n{wrapped}\n"
+    path.write_text(text, encoding="utf-8")
+
+
 def update_docs(path: Path, block: str) -> None:
     """Replace the generated block of the ``## Document-type classification`` section of
     ``path`` (appending the section when missing); everything else is kept."""
@@ -1685,20 +1869,32 @@ def main(argv: Sequence[str] | None = None) -> None:
         action="store_true",
         help="also run the P9b zero-shot grid and leave-one-out experiments",
     )
+    parser.add_argument(
+        "--profile",
+        choices=("fast", "balanced"),
+        default="fast",
+        help="how the PDFs are parsed: fast (load_pdf, pdf.json) or the rooter's balanced "
+        "profile (element mode with OCR, pdf-balanced.json)",
+    )
     _guard.add_guard_argument(parser)
     args = parser.parse_args(argv)
 
     taxonomy = builtin_taxonomy("doc_types")
     out_dir = args.out or RESULTS_ROOT / datetime.date.today().isoformat()
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / corpora.results_name(args.corpus, "pdf.json")
+    balanced = args.profile == "balanced"
+    filename = "pdf-balanced.json" if balanced else "pdf.json"
+    path = out_dir / corpora.results_name(args.corpus, filename)
     if args.report_only:
         saved = json.loads(path.read_text(encoding="utf-8"))
-        update_docs(args.docs or DOCS_PATH, render_section(saved, taxonomy))
+        if balanced:
+            fast = json.loads(FAST_REFERENCE.read_text(encoding="utf-8"))
+            update_profile_docs(args.docs or DOCS_PATH, render_profile_comparison(saved, fast))
+        else:
+            update_docs(args.docs or DOCS_PATH, render_section(saved, taxonomy))
         return
 
     _guard.single_model_process("benchmarks.pdf_bench", allow_concurrent=args.allow_concurrent)
-    load_env()  # silent: never prints names or values
     entries = manifest(args.corpus)
     if args.only:
         wanted = {x.strip() for x in args.only.split(",") if x.strip()}
@@ -1710,6 +1906,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     unknown = [s for s in systems if s not in SYSTEMS]
     if unknown:
         parser.error(f"unknown systems {unknown}; choose from {list(SYSTEMS)}")
+    if any(SYSTEMS[s].is_jev for s in systems):
+        load_env()  # silent: never prints names or values; only the Jev systems need it
 
     result: dict[str, Any] = (
         json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"systems": {}}
@@ -1734,13 +1932,20 @@ def main(argv: Sequence[str] | None = None) -> None:
     result["env"] |= {"device": device, "device_note": note}
     log(f"device {device}: {note}")
 
-    log(f"parsing {len(ids)} PDFs (cached in {DOC_CACHE})")
-    docs = parse_corpus("auto", entries=entries, corpus=args.corpus)
+    if balanced:
+        log(f"parsing {len(ids)} PDFs with the balanced profile (cached in {BALANCED_CACHE})")
+        docs = parse_corpus_balanced(entries=entries, corpus=args.corpus)
+    else:
+        log(f"parsing {len(ids)} PDFs (cached in {DOC_CACHE})")
+        docs = parse_corpus("auto", entries=entries, corpus=args.corpus)
     result["parse"] = {
         "engine": "auto",
+        "profile": args.profile,
         "avg_parse_s": sum(docs[i][1] for i in ids) / len(ids),
         "per_doc_s": {i: round(docs[i][1], 4) for i in ids},
     }
+    if balanced:
+        result["parse"]["ocr"] = profile_ocr_summary({i: docs[i] for i in ids})
 
     shared = SharedViews(ids, docs)
     for name in systems:
@@ -1797,7 +2002,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         }
         result["views"] = {"counter": SHARED_COUNTER, "sha256_12": shared.manifest()}
         path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
-    if args.docs:
+    if args.docs and balanced:
+        fast = json.loads(FAST_REFERENCE.read_text(encoding="utf-8"))
+        update_profile_docs(args.docs, render_profile_comparison(result, fast))
+    elif args.docs:
         update_docs(args.docs, render_section(result, taxonomy))
     log(f"wrote {path}")
 

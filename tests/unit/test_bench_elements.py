@@ -174,3 +174,71 @@ def test_threshold_overrides_are_restored():
     assert before == rules.PARAGRAPH_GAP_RATIO
     with pytest.raises(SystemExit), overrides({"CAPTION_FIRST_SIDE": 1.0}):
         pass
+
+
+# --- reading order (spec §10.2) ------------------------------------------------------------
+
+
+def test_bookmark_pair_agreement():
+    from benchmarks.elements_bench import bookmark_pair_agreement
+
+    gold = [("Intro", 1, 1), ("Method", 2, 1), ("Results", 3, 1), ("Discussion", 4, 1)]
+    in_order = [("Intro", 1, 1), ("Method", 2, 1), ("Results", 3, 1), ("Discussion", 4, 1)]
+    assert bookmark_pair_agreement(in_order, gold) == (3, 3)
+    # Results read before Method: the pairs (Intro, Method) and (Results, Discussion) still agree
+    swapped = [("Intro", 1, 1), ("Results", 3, 1), ("Method", 2, 1), ("Discussion", 4, 1)]
+    assert bookmark_pair_agreement(swapped, gold) == (2, 3)
+    # an unmatched gold heading breaks its two pairs: only (Results, Discussion) is counted
+    missing = [("Intro", 1, 1), ("Results", 3, 1), ("Discussion", 4, 1)]
+    assert bookmark_pair_agreement(missing, gold) == (1, 1)
+    assert bookmark_pair_agreement([], gold) == (0, 0)
+
+
+def test_kendall_tau():
+    from benchmarks.elements_bench import kendall_tau
+
+    gold = [("A", 1, 1), ("B", 1, 1), ("C", 2, 1), ("D", 2, 1)]
+    assert kendall_tau(gold, gold) == pytest.approx(1.0)
+    assert kendall_tau(list(reversed(gold)), gold) == pytest.approx(-1.0)
+    one_swap = [("A", 1, 1), ("C", 2, 1), ("B", 1, 1), ("D", 2, 1)]
+    assert kendall_tau(one_swap, gold) == pytest.approx((5 - 1) / 6)
+    assert kendall_tau([("A", 1, 1)], gold) is None  # fewer than two matched headings
+
+
+def two_column_page(full_width_rows):
+    """Boxes of a page: full-width lines (one per y in ``full_width_rows``, in that input
+    order), then a two-column body of 2 x 6 lines below them, in column order."""
+    boxes = [(50.0, y, 550.0, y + 10.0) for y in full_width_rows]
+    for x0 in (50.0, 310.0):
+        boxes += [(x0, 300.0 + 14 * k, x0 + 240.0, 310.0 + 14 * k) for k in range(6)]
+    return boxes
+
+
+def test_order_analysis_finds_shifted_single_column_bands():
+    from benchmarks.elements_bench import order_analysis
+
+    # full-width lines in top-to-bottom input order: the page has columns, nothing shifts
+    calm = order_analysis(two_column_page([50, 64, 120]), page_width=600.0,
+                          median_char_width=5.0, median_line_gap=4.0)  # fmt: skip
+    assert calm["columns"] is True
+    assert calm["single_column_bands"] >= 1
+    assert calm["shifted_bands"] == 0 and calm["shifted_lines"] == 0
+    # the same band given bottom line first, with a paragraph gap: the row cut re-sorts it
+    shifted = order_analysis(two_column_page([120, 50, 64]), page_width=600.0,
+                             median_char_width=5.0, median_line_gap=4.0)  # fmt: skip
+    assert shifted["columns"] is True
+    assert shifted["shifted_bands"] == 1
+    assert shifted["shifted_lines"] == 3
+    # no columns anywhere: the identity guard keeps the input order, nothing is analysed
+    rows = [(50.0, y, 550.0, y + 10.0) for y in (120, 50, 64)]
+    single = order_analysis(rows, page_width=600.0, median_char_width=5.0, median_line_gap=4.0)
+    assert single == {"columns": False, "changed": False, "bands": 0,
+                      "single_column_bands": 0, "shifted_bands": 0, "shifted_lines": 0}  # fmt: skip
+
+
+def test_order_digest():
+    from benchmarks.elements_bench import order_digest
+
+    assert order_digest(["a", "b"]) == order_digest(["a", "b"])
+    assert order_digest(["a", "b"]) != order_digest(["b", "a"])
+    assert order_digest(["ab"]) != order_digest(["a", "b"])

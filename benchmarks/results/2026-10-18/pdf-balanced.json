@@ -1,0 +1,2416 @@
+{
+  "systems": {
+    "ultrabert-view": {
+      "rows": [
+        {
+          "doc_id": "doc_001",
+          "pred": "financial.annual_report",
+          "confidence": 0.2002,
+          "leaf_probs_top3": {
+            "financial.annual_report": 0.2002,
+            "financial.earnings_release": 0.1801,
+            "financial.shareholder_letter": 0.1509
+          },
+          "parse_s": 19.933727625000756,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "49ce533900fd",
+          "gold": "financial.annual_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_002",
+          "pred": "financial.proxy_statement",
+          "confidence": 0.1327,
+          "leaf_probs_top3": {
+            "financial.proxy_statement": 0.1327,
+            "financial.annual_report": 0.108,
+            "government.government_report": 0.09
+          },
+          "parse_s": 6.620757250027964,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "6bd23048e115",
+          "gold": "financial.annual_report",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_003",
+          "pred": "financial.shareholder_letter",
+          "confidence": 0.5155,
+          "leaf_probs_top3": {
+            "financial.shareholder_letter": 0.5155,
+            "financial.annual_report": 0.2439,
+            "financial.proxy_statement": 0.0547
+          },
+          "parse_s": 3.3500152079795953,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "a077b071a2ca",
+          "gold": "financial.annual_report",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_004",
+          "pred": "financial.quarterly_report",
+          "confidence": 0.5321,
+          "leaf_probs_top3": {
+            "financial.quarterly_report": 0.5321,
+            "financial.annual_report": 0.1487,
+            "financial.earnings_release": 0.0717
+          },
+          "parse_s": 6.838363249989925,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "4b59393163ac",
+          "gold": "financial.quarterly_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_005",
+          "pred": "financial.quarterly_report",
+          "confidence": 0.5465,
+          "leaf_probs_top3": {
+            "financial.quarterly_report": 0.5465,
+            "financial.annual_report": 0.1444,
+            "financial.earnings_release": 0.0752
+          },
+          "parse_s": 13.464006833004532,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "f5d6acf077e1",
+          "gold": "financial.quarterly_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_006",
+          "pred": "corporate.investor_presentation",
+          "confidence": 0.2156,
+          "leaf_probs_top3": {
+            "corporate.investor_presentation": 0.2156,
+            "financial.shareholder_letter": 0.1425,
+            "financial.earnings_release": 0.1135
+          },
+          "parse_s": 0.27505329201812856,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "cf48fec61a83",
+          "gold": "financial.shareholder_letter",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_007",
+          "pred": "financial.annual_report",
+          "confidence": 0.2486,
+          "leaf_probs_top3": {
+            "financial.annual_report": 0.2486,
+            "financial.earnings_release": 0.1415,
+            "corporate.sustainability_report": 0.1363
+          },
+          "parse_s": 0.5179386659874581,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "ba317aefb94f",
+          "gold": "financial.shareholder_letter",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_008",
+          "pred": "financial.shareholder_letter",
+          "confidence": 0.5975,
+          "leaf_probs_top3": {
+            "financial.shareholder_letter": 0.5975,
+            "financial.annual_report": 0.0859,
+            "financial.proxy_statement": 0.0567
+          },
+          "parse_s": 0.8318791659839917,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "6a612a0b11f6",
+          "gold": "financial.shareholder_letter",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_009",
+          "pred": "financial.earnings_release",
+          "confidence": 0.2823,
+          "leaf_probs_top3": {
+            "financial.earnings_release": 0.2823,
+            "financial.annual_report": 0.1608,
+            "financial.quarterly_report": 0.1307
+          },
+          "parse_s": 0.9423938329855446,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "3cd98a69d245",
+          "gold": "financial.earnings_release",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_010",
+          "pred": "financial.earnings_release",
+          "confidence": 0.3285,
+          "leaf_probs_top3": {
+            "financial.earnings_release": 0.3285,
+            "financial.annual_report": 0.1606,
+            "financial.quarterly_report": 0.094
+          },
+          "parse_s": 1.0065222090051975,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "6eb9451cec2a",
+          "gold": "financial.earnings_release",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_011",
+          "pred": "financial.prospectus",
+          "confidence": 0.8232,
+          "leaf_probs_top3": {
+            "financial.prospectus": 0.8232,
+            "financial.proxy_statement": 0.022,
+            "legal.legislation": 0.0214
+          },
+          "parse_s": 3.1918752499914262,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "bd7b050896e7",
+          "gold": "financial.prospectus",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_012",
+          "pred": "financial.prospectus",
+          "confidence": 0.5983,
+          "leaf_probs_top3": {
+            "financial.prospectus": 0.5983,
+            "financial.proxy_statement": 0.0401,
+            "legal.legislation": 0.04
+          },
+          "parse_s": 6.626121000008425,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "4d8ebef148aa",
+          "gold": "financial.prospectus",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_013",
+          "pred": "financial.proxy_statement",
+          "confidence": 0.9865,
+          "leaf_probs_top3": {
+            "financial.proxy_statement": 0.9865,
+            "financial.shareholder_letter": 0.0025,
+            "financial.annual_report": 0.0021
+          },
+          "parse_s": 3.078520374983782,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "e5cf2e0a0e00",
+          "gold": "financial.proxy_statement",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_014",
+          "pred": "financial.proxy_statement",
+          "confidence": 0.8131,
+          "leaf_probs_top3": {
+            "financial.proxy_statement": 0.8131,
+            "corporate.investor_presentation": 0.0383,
+            "financial.shareholder_letter": 0.035
+          },
+          "parse_s": 11.055068875022698,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "db0203369efc",
+          "gold": "financial.proxy_statement",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_015",
+          "pred": "government.government_report",
+          "confidence": 0.1347,
+          "leaf_probs_top3": {
+            "government.government_report": 0.1347,
+            "legal.terms_policy": 0.1099,
+            "legal.contract": 0.0797
+          },
+          "parse_s": 0.05657158300164156,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "d6ac5442d44e",
+          "gold": "legal.contract",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_016",
+          "pred": "research.technical_standard",
+          "confidence": 0.5,
+          "leaf_probs_top3": {
+            "research.technical_standard": 0.5,
+            "research.research_paper": 0.1407,
+            "legal.contract": 0.0506
+          },
+          "parse_s": 0.18218587498995475,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "4b2cb79a7c9d",
+          "gold": "legal.contract",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_017",
+          "pred": "legal.terms_policy",
+          "confidence": 0.6964,
+          "leaf_probs_top3": {
+            "legal.terms_policy": 0.6964,
+            "research.research_paper": 0.035,
+            "technical.datasheet": 0.0335
+          },
+          "parse_s": 0.18461562501033768,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "33cd1ccb1ff6",
+          "gold": "legal.terms_policy",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_018",
+          "pred": "legal.terms_policy",
+          "confidence": 0.7818,
+          "leaf_probs_top3": {
+            "legal.terms_policy": 0.7818,
+            "legal.contract": 0.0698,
+            "technical.user_manual": 0.05
+          },
+          "parse_s": 0.27931016599177383,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "a39509706ad6",
+          "gold": "legal.terms_policy",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_019",
+          "pred": "legal.terms_policy",
+          "confidence": 0.6022,
+          "leaf_probs_top3": {
+            "legal.terms_policy": 0.6022,
+            "research.technical_standard": 0.0926,
+            "technical.user_manual": 0.066
+          },
+          "parse_s": 0.24888291698880494,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "7d7cd5f1d29f",
+          "gold": "legal.terms_policy",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_020",
+          "pred": "legal.court_opinion",
+          "confidence": 0.6595,
+          "leaf_probs_top3": {
+            "legal.court_opinion": 0.6595,
+            "legal.legislation": 0.1499,
+            "legal.terms_policy": 0.0222
+          },
+          "parse_s": 3.1429469999857247,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "1353ec3417e7",
+          "gold": "legal.court_opinion",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_021",
+          "pred": "legal.court_opinion",
+          "confidence": 0.5208,
+          "leaf_probs_top3": {
+            "legal.court_opinion": 0.5208,
+            "research.white_paper": 0.0786,
+            "legal.legislation": 0.0578
+          },
+          "parse_s": 0.23066158400615677,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "e31e1f9a97e9",
+          "gold": "legal.court_opinion",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_022",
+          "pred": "legal.court_opinion",
+          "confidence": 0.1364,
+          "leaf_probs_top3": {
+            "legal.court_opinion": 0.1364,
+            "financial.prospectus": 0.1223,
+            "government.government_report": 0.0919
+          },
+          "parse_s": 0.06840112499776296,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "737b3e5ca511",
+          "gold": "legal.court_opinion",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_023",
+          "pred": "legal.legislation",
+          "confidence": 0.2151,
+          "leaf_probs_top3": {
+            "legal.legislation": 0.2151,
+            "legal.court_opinion": 0.1825,
+            "government.government_report": 0.0766
+          },
+          "parse_s": 0.1613618329865858,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "583228f6d461",
+          "gold": "legal.court_opinion",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_024",
+          "pred": "legal.legislation",
+          "confidence": 0.6255,
+          "leaf_probs_top3": {
+            "legal.legislation": 0.6255,
+            "government.government_report": 0.0666,
+            "research.research_paper": 0.0588
+          },
+          "parse_s": 7.031172874994809,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "93056677f6de",
+          "gold": "legal.legislation",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_025",
+          "pred": "legal.legislation",
+          "confidence": 0.5066,
+          "leaf_probs_top3": {
+            "legal.legislation": 0.5066,
+            "government.government_report": 0.0973,
+            "financial.quarterly_report": 0.067
+          },
+          "parse_s": 0.8239685409935191,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "6fc6a98fa5d4",
+          "gold": "legal.legislation",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_026",
+          "pred": "legal.legislation",
+          "confidence": 0.5422,
+          "leaf_probs_top3": {
+            "legal.legislation": 0.5422,
+            "government.government_report": 0.0557,
+            "financial.proxy_statement": 0.0489
+          },
+          "parse_s": 0.03260791697539389,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "15e322b12d43",
+          "gold": "legal.legislation",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_027",
+          "pred": "research.research_paper",
+          "confidence": 0.6265,
+          "leaf_probs_top3": {
+            "research.research_paper": 0.6265,
+            "research.white_paper": 0.0786,
+            "research.technical_standard": 0.0706
+          },
+          "parse_s": 1.0540977919881698,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "b7c02bc88118",
+          "gold": "research.research_paper",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_028",
+          "pred": "research.research_paper",
+          "confidence": 0.672,
+          "leaf_probs_top3": {
+            "research.research_paper": 0.672,
+            "research.technical_standard": 0.0548,
+            "financial.earnings_release": 0.0398
+          },
+          "parse_s": 1.8592685840267222,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "660b7acfa9b6",
+          "gold": "research.research_paper",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_029",
+          "pred": "research.research_paper",
+          "confidence": 0.4693,
+          "leaf_probs_top3": {
+            "research.research_paper": 0.4693,
+            "research.white_paper": 0.0916,
+            "research.technical_standard": 0.0881
+          },
+          "parse_s": 7.47766954099643,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "de70e5dc7517",
+          "gold": "research.research_paper",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_030",
+          "pred": "research.research_paper",
+          "confidence": 0.4501,
+          "leaf_probs_top3": {
+            "research.research_paper": 0.4501,
+            "research.technical_standard": 0.0882,
+            "financial.prospectus": 0.0753
+          },
+          "parse_s": 12.70912662500632,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "3ad62b19fe2d",
+          "gold": "research.research_paper",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_031",
+          "pred": "research.technical_standard",
+          "confidence": 0.6352,
+          "leaf_probs_top3": {
+            "research.technical_standard": 0.6352,
+            "research.research_paper": 0.1969,
+            "technical.datasheet": 0.0322
+          },
+          "parse_s": 2.9105372079939116,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "63e0223a35ba",
+          "gold": "research.technical_standard",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_032",
+          "pred": "research.technical_standard",
+          "confidence": 0.7183,
+          "leaf_probs_top3": {
+            "research.technical_standard": 0.7183,
+            "research.research_paper": 0.0986,
+            "technical.datasheet": 0.0586
+          },
+          "parse_s": 2.2261653329769615,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "b332d4e95a6b",
+          "gold": "research.technical_standard",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_033",
+          "pred": "research.technical_standard",
+          "confidence": 0.607,
+          "leaf_probs_top3": {
+            "research.technical_standard": 0.607,
+            "research.research_paper": 0.1453,
+            "technical.datasheet": 0.0488
+          },
+          "parse_s": 0.19348954199813306,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "69ddc2609dd6",
+          "gold": "research.technical_standard",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_034",
+          "pred": "research.technical_standard",
+          "confidence": 0.5226,
+          "leaf_probs_top3": {
+            "research.technical_standard": 0.5226,
+            "research.research_paper": 0.2168,
+            "technical.datasheet": 0.0661
+          },
+          "parse_s": 0.1916317080031149,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "dc7d4a0865f6",
+          "gold": "research.technical_standard",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_035",
+          "pred": "research.research_paper",
+          "confidence": 0.2488,
+          "leaf_probs_top3": {
+            "research.research_paper": 0.2488,
+            "corporate.sustainability_report": 0.0983,
+            "technical.user_manual": 0.0857
+          },
+          "parse_s": 1.9794297500047833,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "4932a9639c1b",
+          "gold": "research.white_paper",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_036",
+          "pred": "government.government_report",
+          "confidence": 0.1987,
+          "leaf_probs_top3": {
+            "government.government_report": 0.1987,
+            "corporate.sustainability_report": 0.1896,
+            "research.white_paper": 0.1031
+          },
+          "parse_s": 32.054870416992344,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "295c2911c5db",
+          "gold": "research.white_paper",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_037",
+          "pred": "research.research_paper",
+          "confidence": 0.3139,
+          "leaf_probs_top3": {
+            "research.research_paper": 0.3139,
+            "research.technical_standard": 0.1081,
+            "financial.prospectus": 0.0974
+          },
+          "parse_s": 0.26602466602344066,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "8d9e7ce624f0",
+          "gold": "research.white_paper",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_038",
+          "pred": "technical.user_manual",
+          "confidence": 0.3766,
+          "leaf_probs_top3": {
+            "technical.user_manual": 0.3766,
+            "research.technical_standard": 0.2009,
+            "research.research_paper": 0.1524
+          },
+          "parse_s": 3.4438342089997604,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "680179ca2861",
+          "gold": "technical.user_manual",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_039",
+          "pred": "technical.user_manual",
+          "confidence": 0.5382,
+          "leaf_probs_top3": {
+            "technical.user_manual": 0.5382,
+            "research.technical_standard": 0.115,
+            "technical.datasheet": 0.0927
+          },
+          "parse_s": 5.24109770799987,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "b2785490238a",
+          "gold": "technical.user_manual",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_040",
+          "pred": "technical.user_manual",
+          "confidence": 0.4011,
+          "leaf_probs_top3": {
+            "technical.user_manual": 0.4011,
+            "technical.datasheet": 0.1763,
+            "research.research_paper": 0.1347
+          },
+          "parse_s": 8.004658582998673,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "158e9f128fd1",
+          "gold": "technical.user_manual",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_041",
+          "pred": "technical.datasheet",
+          "confidence": 0.5671,
+          "leaf_probs_top3": {
+            "technical.datasheet": 0.5671,
+            "technical.user_manual": 0.2401,
+            "research.technical_standard": 0.0418
+          },
+          "parse_s": 4.512146458000643,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "62b6b6dcdecf",
+          "gold": "technical.datasheet",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_042",
+          "pred": "technical.user_manual",
+          "confidence": 0.3232,
+          "leaf_probs_top3": {
+            "technical.user_manual": 0.3232,
+            "technical.datasheet": 0.243,
+            "research.research_paper": 0.1296
+          },
+          "parse_s": 43.43974979198538,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "63f974d611c3",
+          "gold": "technical.datasheet",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_043",
+          "pred": "technical.datasheet",
+          "confidence": 0.5068,
+          "leaf_probs_top3": {
+            "technical.datasheet": 0.5068,
+            "technical.user_manual": 0.171,
+            "research.technical_standard": 0.0535
+          },
+          "parse_s": 0.3271821669768542,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "314db055fa1a",
+          "gold": "technical.datasheet",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_044",
+          "pred": "technical.datasheet",
+          "confidence": 0.5926,
+          "leaf_probs_top3": {
+            "technical.datasheet": 0.5926,
+            "technical.user_manual": 0.1379,
+            "research.technical_standard": 0.0499
+          },
+          "parse_s": 0.39788495798711665,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "cd2b77771d58",
+          "gold": "technical.datasheet",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_045",
+          "pred": "government.government_report",
+          "confidence": 0.744,
+          "leaf_probs_top3": {
+            "government.government_report": 0.744,
+            "financial.quarterly_report": 0.0512,
+            "financial.annual_report": 0.0365
+          },
+          "parse_s": 8.277905958995689,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "eaea62dbcc91",
+          "gold": "government.government_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_046",
+          "pred": "government.government_report",
+          "confidence": 0.2426,
+          "leaf_probs_top3": {
+            "government.government_report": 0.2426,
+            "financial.quarterly_report": 0.1356,
+            "financial.annual_report": 0.1295
+          },
+          "parse_s": 1.9052918330125976,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "99bd3914f887",
+          "gold": "government.government_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_047",
+          "pred": "government.government_report",
+          "confidence": 0.3592,
+          "leaf_probs_top3": {
+            "government.government_report": 0.3592,
+            "research.white_paper": 0.0948,
+            "legal.legislation": 0.0623
+          },
+          "parse_s": 14.547884750005323,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "5a0ae11d3f11",
+          "gold": "government.government_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_048",
+          "pred": "corporate.sustainability_report",
+          "confidence": 0.9354,
+          "leaf_probs_top3": {
+            "corporate.sustainability_report": 0.9354,
+            "financial.annual_report": 0.0178,
+            "research.research_paper": 0.007
+          },
+          "parse_s": 30.935203208995517,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "2fa6baeb2e4a",
+          "gold": "corporate.sustainability_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_049",
+          "pred": "corporate.sustainability_report",
+          "confidence": 0.8062,
+          "leaf_probs_top3": {
+            "corporate.sustainability_report": 0.8062,
+            "financial.annual_report": 0.0455,
+            "corporate.investor_presentation": 0.0242
+          },
+          "parse_s": 6.0940223340003286,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "6002c6187e97",
+          "gold": "corporate.sustainability_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_050",
+          "pred": "financial.earnings_release",
+          "confidence": 0.363,
+          "leaf_probs_top3": {
+            "financial.earnings_release": 0.363,
+            "financial.quarterly_report": 0.1476,
+            "corporate.investor_presentation": 0.1306
+          },
+          "parse_s": 11.702735041995766,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "8895cb2bcc09",
+          "gold": "corporate.investor_presentation",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_051",
+          "pred": "corporate.investor_presentation",
+          "confidence": 0.6755,
+          "leaf_probs_top3": {
+            "corporate.investor_presentation": 0.6755,
+            "financial.earnings_release": 0.0825,
+            "financial.annual_report": 0.0706
+          },
+          "parse_s": 24.538412082998548,
+          "classify_s": 0.2533473553918941,
+          "view_sha": "f6ab57253f4d",
+          "gold": "corporate.investor_presentation",
+          "correct": true
+        }
+      ],
+      "load_s": 14.103010708000511,
+      "batch_s": 12.9207151249866,
+      "view_counter": "estimate_tokens",
+      "views_differing_from_own_counter": 26,
+      "what": "UltraBERT-Embed-150M, DocumentView, Flat (zero-shot)",
+      "backend": "embedding:dmis-lab/UltraBERT-Embed-150M",
+      "mode": "view",
+      "device": "mps",
+      "date": "2026-10-18",
+      "commit": "aa729eb+dirty",
+      "loadavg_start": [
+        4.8525390625,
+        4.72021484375,
+        4.84521484375
+      ],
+      "loadavg_end": [
+        3.80029296875,
+        4.478515625,
+        4.75146484375
+      ],
+      "metrics": {
+        "n": 51,
+        "leaf_accuracy": 0.7647058823529411,
+        "leaf_accuracy_ci95": [
+          0.6470588235294118,
+          0.8627450980392157
+        ],
+        "level1_accuracy": 0.9019607843137255,
+        "macro_p": 0.6888888888888889,
+        "macro_r": 0.7592592592592592,
+        "macro_f1": 0.7093033509700176,
+        "per_class": {
+          "corporate.investor_presentation": {
+            "p": 0.5,
+            "r": 0.5,
+            "f1": 0.5,
+            "n": 2
+          },
+          "corporate.sustainability_report": {
+            "p": 1.0,
+            "r": 1.0,
+            "f1": 1.0,
+            "n": 2
+          },
+          "financial.annual_report": {
+            "p": 0.5,
+            "r": 0.3333333333333333,
+            "f1": 0.4,
+            "n": 3
+          },
+          "financial.earnings_release": {
+            "p": 0.6666666666666666,
+            "r": 1.0,
+            "f1": 0.8,
+            "n": 2
+          },
+          "financial.prospectus": {
+            "p": 1.0,
+            "r": 1.0,
+            "f1": 1.0,
+            "n": 2
+          },
+          "financial.proxy_statement": {
+            "p": 0.6666666666666666,
+            "r": 1.0,
+            "f1": 0.8,
+            "n": 2
+          },
+          "financial.quarterly_report": {
+            "p": 1.0,
+            "r": 1.0,
+            "f1": 1.0,
+            "n": 2
+          },
+          "financial.shareholder_letter": {
+            "p": 0.5,
+            "r": 0.3333333333333333,
+            "f1": 0.4,
+            "n": 3
+          },
+          "government.government_report": {
+            "p": 0.6,
+            "r": 1.0,
+            "f1": 0.7499999999999999,
+            "n": 3
+          },
+          "legal.contract": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "n": 2
+          },
+          "legal.court_opinion": {
+            "p": 1.0,
+            "r": 0.75,
+            "f1": 0.8571428571428571,
+            "n": 4
+          },
+          "legal.legislation": {
+            "p": 0.75,
+            "r": 1.0,
+            "f1": 0.8571428571428571,
+            "n": 3
+          },
+          "legal.terms_policy": {
+            "p": 1.0,
+            "r": 1.0,
+            "f1": 1.0,
+            "n": 3
+          },
+          "research.research_paper": {
+            "p": 0.6666666666666666,
+            "r": 1.0,
+            "f1": 0.8,
+            "n": 4
+          },
+          "research.technical_standard": {
+            "p": 0.8,
+            "r": 1.0,
+            "f1": 0.888888888888889,
+            "n": 4
+          },
+          "research.white_paper": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "n": 3
+          },
+          "technical.datasheet": {
+            "p": 1.0,
+            "r": 0.75,
+            "f1": 0.8571428571428571,
+            "n": 4
+          },
+          "technical.user_manual": {
+            "p": 0.75,
+            "r": 1.0,
+            "f1": 0.8571428571428571,
+            "n": 3
+          }
+        },
+        "confusion": {
+          "corporate.investor_presentation": {
+            "corporate.investor_presentation": 1,
+            "financial.earnings_release": 1
+          },
+          "corporate.sustainability_report": {
+            "corporate.sustainability_report": 2
+          },
+          "financial.annual_report": {
+            "financial.annual_report": 1,
+            "financial.proxy_statement": 1,
+            "financial.shareholder_letter": 1
+          },
+          "financial.earnings_release": {
+            "financial.earnings_release": 2
+          },
+          "financial.prospectus": {
+            "financial.prospectus": 2
+          },
+          "financial.proxy_statement": {
+            "financial.proxy_statement": 2
+          },
+          "financial.quarterly_report": {
+            "financial.quarterly_report": 2
+          },
+          "financial.shareholder_letter": {
+            "corporate.investor_presentation": 1,
+            "financial.annual_report": 1,
+            "financial.shareholder_letter": 1
+          },
+          "government.government_report": {
+            "government.government_report": 3
+          },
+          "legal.contract": {
+            "government.government_report": 1,
+            "research.technical_standard": 1
+          },
+          "legal.court_opinion": {
+            "legal.court_opinion": 3,
+            "legal.legislation": 1
+          },
+          "legal.legislation": {
+            "legal.legislation": 3
+          },
+          "legal.terms_policy": {
+            "legal.terms_policy": 3
+          },
+          "research.research_paper": {
+            "research.research_paper": 4
+          },
+          "research.technical_standard": {
+            "research.technical_standard": 4
+          },
+          "research.white_paper": {
+            "government.government_report": 1,
+            "research.research_paper": 2
+          },
+          "technical.datasheet": {
+            "technical.datasheet": 3,
+            "technical.user_manual": 1
+          },
+          "technical.user_manual": {
+            "technical.user_manual": 3
+          }
+        },
+        "avg_parse_s": 6.205200982821064,
+        "avg_classify_s": 0.2533473553918941,
+        "avg_total_s": 6.4585483382129585,
+        "jev_input_tokens": null,
+        "jev_tokens_estimated": null,
+        "jev_cost_usd": null
+      }
+    },
+    "ultrabert-hybrid": {
+      "rows": [
+        {
+          "doc_id": "doc_001",
+          "pred": "financial.annual_report",
+          "confidence": 0.1723,
+          "leaf_probs_top3": {
+            "financial.annual_report": 0.1723,
+            "financial.proxy_statement": 0.1467,
+            "financial.earnings_release": 0.1333
+          },
+          "parse_s": 19.933727625000756,
+          "classify_s": 2.616377067000048,
+          "view_sha": "49ce533900fd",
+          "gold": "financial.annual_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_002",
+          "pred": "financial.annual_report",
+          "confidence": 0.1523,
+          "leaf_probs_top3": {
+            "financial.annual_report": 0.1523,
+            "financial.proxy_statement": 0.1304,
+            "corporate.investor_presentation": 0.0777
+          },
+          "parse_s": 6.620757250027964,
+          "classify_s": 2.616377067000048,
+          "view_sha": "6bd23048e115",
+          "gold": "financial.annual_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_003",
+          "pred": "financial.shareholder_letter",
+          "confidence": 0.357,
+          "leaf_probs_top3": {
+            "financial.shareholder_letter": 0.357,
+            "financial.annual_report": 0.2341,
+            "financial.proxy_statement": 0.0796
+          },
+          "parse_s": 3.3500152079795953,
+          "classify_s": 2.616377067000048,
+          "view_sha": "a077b071a2ca",
+          "gold": "financial.annual_report",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_004",
+          "pred": "financial.quarterly_report",
+          "confidence": 0.3502,
+          "leaf_probs_top3": {
+            "financial.quarterly_report": 0.3502,
+            "financial.annual_report": 0.1328,
+            "financial.proxy_statement": 0.1059
+          },
+          "parse_s": 6.838363249989925,
+          "classify_s": 2.616377067000048,
+          "view_sha": "4b59393163ac",
+          "gold": "financial.quarterly_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_005",
+          "pred": "financial.quarterly_report",
+          "confidence": 0.3953,
+          "leaf_probs_top3": {
+            "financial.quarterly_report": 0.3953,
+            "financial.annual_report": 0.1771,
+            "financial.earnings_release": 0.0966
+          },
+          "parse_s": 13.464006833004532,
+          "classify_s": 2.616377067000048,
+          "view_sha": "f5d6acf077e1",
+          "gold": "financial.quarterly_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_006",
+          "pred": "corporate.investor_presentation",
+          "confidence": 0.2021,
+          "leaf_probs_top3": {
+            "corporate.investor_presentation": 0.2021,
+            "financial.shareholder_letter": 0.1435,
+            "financial.proxy_statement": 0.1172
+          },
+          "parse_s": 0.27505329201812856,
+          "classify_s": 2.616377067000048,
+          "view_sha": "cf48fec61a83",
+          "gold": "financial.shareholder_letter",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_007",
+          "pred": "financial.annual_report",
+          "confidence": 0.2269,
+          "leaf_probs_top3": {
+            "financial.annual_report": 0.2269,
+            "financial.earnings_release": 0.1232,
+            "corporate.investor_presentation": 0.1179
+          },
+          "parse_s": 0.5179386659874581,
+          "classify_s": 2.616377067000048,
+          "view_sha": "ba317aefb94f",
+          "gold": "financial.shareholder_letter",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_008",
+          "pred": "financial.shareholder_letter",
+          "confidence": 0.4859,
+          "leaf_probs_top3": {
+            "financial.shareholder_letter": 0.4859,
+            "financial.proxy_statement": 0.1005,
+            "financial.annual_report": 0.0794
+          },
+          "parse_s": 0.8318791659839917,
+          "classify_s": 2.616377067000048,
+          "view_sha": "6a612a0b11f6",
+          "gold": "financial.shareholder_letter",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_009",
+          "pred": "financial.earnings_release",
+          "confidence": 0.2064,
+          "leaf_probs_top3": {
+            "financial.earnings_release": 0.2064,
+            "financial.annual_report": 0.1144,
+            "corporate.sustainability_report": 0.0996
+          },
+          "parse_s": 0.9423938329855446,
+          "classify_s": 2.616377067000048,
+          "view_sha": "3cd98a69d245",
+          "gold": "financial.earnings_release",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_010",
+          "pred": "financial.earnings_release",
+          "confidence": 0.2414,
+          "leaf_probs_top3": {
+            "financial.earnings_release": 0.2414,
+            "financial.annual_report": 0.1143,
+            "corporate.sustainability_report": 0.1018
+          },
+          "parse_s": 1.0065222090051975,
+          "classify_s": 2.616377067000048,
+          "view_sha": "6eb9451cec2a",
+          "gold": "financial.earnings_release",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_011",
+          "pred": "financial.prospectus",
+          "confidence": 0.5349,
+          "leaf_probs_top3": {
+            "financial.prospectus": 0.5349,
+            "legal.contract": 0.0632,
+            "legal.terms_policy": 0.0581
+          },
+          "parse_s": 3.1918752499914262,
+          "classify_s": 2.616377067000048,
+          "view_sha": "bd7b050896e7",
+          "gold": "financial.prospectus",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_012",
+          "pred": "financial.prospectus",
+          "confidence": 0.6187,
+          "leaf_probs_top3": {
+            "financial.prospectus": 0.6187,
+            "financial.proxy_statement": 0.0449,
+            "corporate.investor_presentation": 0.0353
+          },
+          "parse_s": 6.626121000008425,
+          "classify_s": 2.616377067000048,
+          "view_sha": "4d8ebef148aa",
+          "gold": "financial.prospectus",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_013",
+          "pred": "financial.proxy_statement",
+          "confidence": 0.7115,
+          "leaf_probs_top3": {
+            "financial.proxy_statement": 0.7115,
+            "financial.shareholder_letter": 0.0531,
+            "corporate.sustainability_report": 0.0338
+          },
+          "parse_s": 3.078520374983782,
+          "classify_s": 2.616377067000048,
+          "view_sha": "e5cf2e0a0e00",
+          "gold": "financial.proxy_statement",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_014",
+          "pred": "financial.proxy_statement",
+          "confidence": 0.6232,
+          "leaf_probs_top3": {
+            "financial.proxy_statement": 0.6232,
+            "corporate.investor_presentation": 0.0604,
+            "financial.shareholder_letter": 0.0538
+          },
+          "parse_s": 11.055068875022698,
+          "classify_s": 2.616377067000048,
+          "view_sha": "db0203369efc",
+          "gold": "financial.proxy_statement",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_015",
+          "pred": "legal.terms_policy",
+          "confidence": 0.1258,
+          "leaf_probs_top3": {
+            "legal.terms_policy": 0.1258,
+            "government.government_report": 0.1223,
+            "legal.contract": 0.1084
+          },
+          "parse_s": 0.05657158300164156,
+          "classify_s": 2.616377067000048,
+          "view_sha": "d6ac5442d44e",
+          "gold": "legal.contract",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_016",
+          "pred": "research.technical_standard",
+          "confidence": 0.3512,
+          "leaf_probs_top3": {
+            "research.technical_standard": 0.3512,
+            "research.research_paper": 0.1248,
+            "legal.legislation": 0.0675
+          },
+          "parse_s": 0.18218587498995475,
+          "classify_s": 2.616377067000048,
+          "view_sha": "4b2cb79a7c9d",
+          "gold": "legal.contract",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_017",
+          "pred": "legal.terms_policy",
+          "confidence": 0.535,
+          "leaf_probs_top3": {
+            "legal.terms_policy": 0.535,
+            "research.research_paper": 0.0538,
+            "research.white_paper": 0.0538
+          },
+          "parse_s": 0.18461562501033768,
+          "classify_s": 2.616377067000048,
+          "view_sha": "33cd1ccb1ff6",
+          "gold": "legal.terms_policy",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_018",
+          "pred": "legal.terms_policy",
+          "confidence": 0.6219,
+          "leaf_probs_top3": {
+            "legal.terms_policy": 0.6219,
+            "legal.contract": 0.091,
+            "research.technical_standard": 0.0485
+          },
+          "parse_s": 0.27931016599177383,
+          "classify_s": 2.616377067000048,
+          "view_sha": "a39509706ad6",
+          "gold": "legal.terms_policy",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_019",
+          "pred": "legal.terms_policy",
+          "confidence": 0.4837,
+          "leaf_probs_top3": {
+            "legal.terms_policy": 0.4837,
+            "legal.contract": 0.1134,
+            "research.technical_standard": 0.0854
+          },
+          "parse_s": 0.24888291698880494,
+          "classify_s": 2.616377067000048,
+          "view_sha": "7d7cd5f1d29f",
+          "gold": "legal.terms_policy",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_020",
+          "pred": "legal.court_opinion",
+          "confidence": 0.5003,
+          "leaf_probs_top3": {
+            "legal.court_opinion": 0.5003,
+            "legal.legislation": 0.2454,
+            "legal.contract": 0.0325
+          },
+          "parse_s": 3.1429469999857247,
+          "classify_s": 2.616377067000048,
+          "view_sha": "1353ec3417e7",
+          "gold": "legal.court_opinion",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_021",
+          "pred": "legal.court_opinion",
+          "confidence": 0.4474,
+          "leaf_probs_top3": {
+            "legal.court_opinion": 0.4474,
+            "research.white_paper": 0.1035,
+            "legal.legislation": 0.0614
+          },
+          "parse_s": 0.23066158400615677,
+          "classify_s": 2.616377067000048,
+          "view_sha": "e31e1f9a97e9",
+          "gold": "legal.court_opinion",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_022",
+          "pred": "legal.court_opinion",
+          "confidence": 0.1614,
+          "leaf_probs_top3": {
+            "legal.court_opinion": 0.1614,
+            "government.government_report": 0.1181,
+            "financial.prospectus": 0.1032
+          },
+          "parse_s": 0.06840112499776296,
+          "classify_s": 2.616377067000048,
+          "view_sha": "737b3e5ca511",
+          "gold": "legal.court_opinion",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_023",
+          "pred": "legal.court_opinion",
+          "confidence": 0.1936,
+          "leaf_probs_top3": {
+            "legal.court_opinion": 0.1936,
+            "legal.legislation": 0.1664,
+            "government.government_report": 0.1092
+          },
+          "parse_s": 0.1613618329865858,
+          "classify_s": 2.616377067000048,
+          "view_sha": "583228f6d461",
+          "gold": "legal.court_opinion",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_024",
+          "pred": "legal.legislation",
+          "confidence": 0.5093,
+          "leaf_probs_top3": {
+            "legal.legislation": 0.5093,
+            "research.research_paper": 0.0838,
+            "government.government_report": 0.0792
+          },
+          "parse_s": 7.031172874994809,
+          "classify_s": 2.616377067000048,
+          "view_sha": "93056677f6de",
+          "gold": "legal.legislation",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_025",
+          "pred": "legal.legislation",
+          "confidence": 0.4363,
+          "leaf_probs_top3": {
+            "legal.legislation": 0.4363,
+            "government.government_report": 0.1014,
+            "financial.quarterly_report": 0.0615
+          },
+          "parse_s": 0.8239685409935191,
+          "classify_s": 2.616377067000048,
+          "view_sha": "6fc6a98fa5d4",
+          "gold": "legal.legislation",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_026",
+          "pred": "legal.legislation",
+          "confidence": 0.5944,
+          "leaf_probs_top3": {
+            "legal.legislation": 0.5944,
+            "government.government_report": 0.0571,
+            "financial.proxy_statement": 0.0422
+          },
+          "parse_s": 0.03260791697539389,
+          "classify_s": 2.616377067000048,
+          "view_sha": "15e322b12d43",
+          "gold": "legal.legislation",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_027",
+          "pred": "research.research_paper",
+          "confidence": 0.573,
+          "leaf_probs_top3": {
+            "research.research_paper": 0.573,
+            "research.white_paper": 0.0758,
+            "research.technical_standard": 0.0707
+          },
+          "parse_s": 1.0540977919881698,
+          "classify_s": 2.616377067000048,
+          "view_sha": "b7c02bc88118",
+          "gold": "research.research_paper",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_028",
+          "pred": "research.research_paper",
+          "confidence": 0.6268,
+          "leaf_probs_top3": {
+            "research.research_paper": 0.6268,
+            "research.technical_standard": 0.0624,
+            "research.white_paper": 0.0451
+          },
+          "parse_s": 1.8592685840267222,
+          "classify_s": 2.616377067000048,
+          "view_sha": "660b7acfa9b6",
+          "gold": "research.research_paper",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_029",
+          "pred": "research.research_paper",
+          "confidence": 0.4644,
+          "leaf_probs_top3": {
+            "research.research_paper": 0.4644,
+            "research.white_paper": 0.0969,
+            "research.technical_standard": 0.0793
+          },
+          "parse_s": 7.47766954099643,
+          "classify_s": 2.616377067000048,
+          "view_sha": "de70e5dc7517",
+          "gold": "research.research_paper",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_030",
+          "pred": "research.research_paper",
+          "confidence": 0.4592,
+          "leaf_probs_top3": {
+            "research.research_paper": 0.4592,
+            "research.technical_standard": 0.0893,
+            "research.white_paper": 0.0777
+          },
+          "parse_s": 12.70912662500632,
+          "classify_s": 2.616377067000048,
+          "view_sha": "3ad62b19fe2d",
+          "gold": "research.research_paper",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_031",
+          "pred": "research.technical_standard",
+          "confidence": 0.5158,
+          "leaf_probs_top3": {
+            "research.technical_standard": 0.5158,
+            "research.research_paper": 0.2073,
+            "technical.datasheet": 0.0447
+          },
+          "parse_s": 2.9105372079939116,
+          "classify_s": 2.616377067000048,
+          "view_sha": "63e0223a35ba",
+          "gold": "research.technical_standard",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_032",
+          "pred": "research.technical_standard",
+          "confidence": 0.5553,
+          "leaf_probs_top3": {
+            "research.technical_standard": 0.5553,
+            "research.research_paper": 0.1477,
+            "technical.datasheet": 0.0741
+          },
+          "parse_s": 2.2261653329769615,
+          "classify_s": 2.616377067000048,
+          "view_sha": "b332d4e95a6b",
+          "gold": "research.technical_standard",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_033",
+          "pred": "research.technical_standard",
+          "confidence": 0.5295,
+          "leaf_probs_top3": {
+            "research.technical_standard": 0.5295,
+            "research.research_paper": 0.1623,
+            "technical.datasheet": 0.0516
+          },
+          "parse_s": 0.19348954199813306,
+          "classify_s": 2.616377067000048,
+          "view_sha": "69ddc2609dd6",
+          "gold": "research.technical_standard",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_034",
+          "pred": "research.technical_standard",
+          "confidence": 0.4461,
+          "leaf_probs_top3": {
+            "research.technical_standard": 0.4461,
+            "research.research_paper": 0.2115,
+            "technical.datasheet": 0.0641
+          },
+          "parse_s": 0.1916317080031149,
+          "classify_s": 2.616377067000048,
+          "view_sha": "dc7d4a0865f6",
+          "gold": "research.technical_standard",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_035",
+          "pred": "research.research_paper",
+          "confidence": 0.2291,
+          "leaf_probs_top3": {
+            "research.research_paper": 0.2291,
+            "corporate.sustainability_report": 0.094,
+            "technical.user_manual": 0.0939
+          },
+          "parse_s": 1.9794297500047833,
+          "classify_s": 2.616377067000048,
+          "view_sha": "4932a9639c1b",
+          "gold": "research.white_paper",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_036",
+          "pred": "corporate.sustainability_report",
+          "confidence": 0.1907,
+          "leaf_probs_top3": {
+            "corporate.sustainability_report": 0.1907,
+            "government.government_report": 0.1517,
+            "research.white_paper": 0.113
+          },
+          "parse_s": 32.054870416992344,
+          "classify_s": 2.616377067000048,
+          "view_sha": "295c2911c5db",
+          "gold": "research.white_paper",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_037",
+          "pred": "research.research_paper",
+          "confidence": 0.3068,
+          "leaf_probs_top3": {
+            "research.research_paper": 0.3068,
+            "research.technical_standard": 0.1111,
+            "financial.prospectus": 0.0948
+          },
+          "parse_s": 0.26602466602344066,
+          "classify_s": 2.616377067000048,
+          "view_sha": "8d9e7ce624f0",
+          "gold": "research.white_paper",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_038",
+          "pred": "technical.user_manual",
+          "confidence": 0.3104,
+          "leaf_probs_top3": {
+            "technical.user_manual": 0.3104,
+            "research.research_paper": 0.1762,
+            "research.technical_standard": 0.1729
+          },
+          "parse_s": 3.4438342089997604,
+          "classify_s": 2.616377067000048,
+          "view_sha": "680179ca2861",
+          "gold": "technical.user_manual",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_039",
+          "pred": "technical.user_manual",
+          "confidence": 0.4192,
+          "leaf_probs_top3": {
+            "technical.user_manual": 0.4192,
+            "research.research_paper": 0.1204,
+            "research.technical_standard": 0.1085
+          },
+          "parse_s": 5.24109770799987,
+          "classify_s": 2.616377067000048,
+          "view_sha": "b2785490238a",
+          "gold": "technical.user_manual",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_040",
+          "pred": "technical.user_manual",
+          "confidence": 0.3636,
+          "leaf_probs_top3": {
+            "technical.user_manual": 0.3636,
+            "research.research_paper": 0.1413,
+            "technical.datasheet": 0.1376
+          },
+          "parse_s": 8.004658582998673,
+          "classify_s": 2.616377067000048,
+          "view_sha": "158e9f128fd1",
+          "gold": "technical.user_manual",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_041",
+          "pred": "technical.datasheet",
+          "confidence": 0.4948,
+          "leaf_probs_top3": {
+            "technical.datasheet": 0.4948,
+            "technical.user_manual": 0.2101,
+            "research.technical_standard": 0.0656
+          },
+          "parse_s": 4.512146458000643,
+          "classify_s": 2.616377067000048,
+          "view_sha": "62b6b6dcdecf",
+          "gold": "technical.datasheet",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_042",
+          "pred": "technical.datasheet",
+          "confidence": 0.2815,
+          "leaf_probs_top3": {
+            "technical.datasheet": 0.2815,
+            "technical.user_manual": 0.2705,
+            "research.technical_standard": 0.1291
+          },
+          "parse_s": 43.43974979198538,
+          "classify_s": 2.616377067000048,
+          "view_sha": "63f974d611c3",
+          "gold": "technical.datasheet",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_043",
+          "pred": "technical.datasheet",
+          "confidence": 0.4816,
+          "leaf_probs_top3": {
+            "technical.datasheet": 0.4816,
+            "technical.user_manual": 0.1611,
+            "research.technical_standard": 0.059
+          },
+          "parse_s": 0.3271821669768542,
+          "classify_s": 2.616377067000048,
+          "view_sha": "314db055fa1a",
+          "gold": "technical.datasheet",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_044",
+          "pred": "technical.datasheet",
+          "confidence": 0.545,
+          "leaf_probs_top3": {
+            "technical.datasheet": 0.545,
+            "technical.user_manual": 0.1366,
+            "research.research_paper": 0.0608
+          },
+          "parse_s": 0.39788495798711665,
+          "classify_s": 2.616377067000048,
+          "view_sha": "cd2b77771d58",
+          "gold": "technical.datasheet",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_045",
+          "pred": "government.government_report",
+          "confidence": 0.5472,
+          "leaf_probs_top3": {
+            "government.government_report": 0.5472,
+            "financial.earnings_release": 0.0701,
+            "financial.quarterly_report": 0.0607
+          },
+          "parse_s": 8.277905958995689,
+          "classify_s": 2.616377067000048,
+          "view_sha": "eaea62dbcc91",
+          "gold": "government.government_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_046",
+          "pred": "government.government_report",
+          "confidence": 0.1885,
+          "leaf_probs_top3": {
+            "government.government_report": 0.1885,
+            "financial.quarterly_report": 0.1247,
+            "financial.annual_report": 0.1157
+          },
+          "parse_s": 1.9052918330125976,
+          "classify_s": 2.616377067000048,
+          "view_sha": "99bd3914f887",
+          "gold": "government.government_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_047",
+          "pred": "government.government_report",
+          "confidence": 0.2714,
+          "leaf_probs_top3": {
+            "government.government_report": 0.2714,
+            "research.white_paper": 0.1094,
+            "research.research_paper": 0.08
+          },
+          "parse_s": 14.547884750005323,
+          "classify_s": 2.616377067000048,
+          "view_sha": "5a0ae11d3f11",
+          "gold": "government.government_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_048",
+          "pred": "corporate.sustainability_report",
+          "confidence": 0.7313,
+          "leaf_probs_top3": {
+            "corporate.sustainability_report": 0.7313,
+            "research.research_paper": 0.0549,
+            "research.white_paper": 0.0252
+          },
+          "parse_s": 30.935203208995517,
+          "classify_s": 2.616377067000048,
+          "view_sha": "2fa6baeb2e4a",
+          "gold": "corporate.sustainability_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_049",
+          "pred": "corporate.sustainability_report",
+          "confidence": 0.6076,
+          "leaf_probs_top3": {
+            "corporate.sustainability_report": 0.6076,
+            "research.research_paper": 0.0581,
+            "financial.annual_report": 0.047
+          },
+          "parse_s": 6.0940223340003286,
+          "classify_s": 2.616377067000048,
+          "view_sha": "6002c6187e97",
+          "gold": "corporate.sustainability_report",
+          "correct": true
+        },
+        {
+          "doc_id": "doc_050",
+          "pred": "financial.earnings_release",
+          "confidence": 0.3186,
+          "leaf_probs_top3": {
+            "financial.earnings_release": 0.3186,
+            "financial.quarterly_report": 0.1663,
+            "financial.annual_report": 0.1175
+          },
+          "parse_s": 11.702735041995766,
+          "classify_s": 2.616377067000048,
+          "view_sha": "8895cb2bcc09",
+          "gold": "corporate.investor_presentation",
+          "correct": false
+        },
+        {
+          "doc_id": "doc_051",
+          "pred": "corporate.investor_presentation",
+          "confidence": 0.4814,
+          "leaf_probs_top3": {
+            "corporate.investor_presentation": 0.4814,
+            "financial.earnings_release": 0.0943,
+            "financial.annual_report": 0.0802
+          },
+          "parse_s": 24.538412082998548,
+          "classify_s": 2.616377067000048,
+          "view_sha": "f6ab57253f4d",
+          "gold": "corporate.investor_presentation",
+          "correct": true
+        }
+      ],
+      "load_s": 2.0108997500210535,
+      "batch_s": 133.43523041700246,
+      "view_counter": "estimate_tokens",
+      "views_differing_from_own_counter": 26,
+      "what": "UltraBERT-Embed-150M, 0.6 view + 0.4 sections (zero-shot)",
+      "backend": "embedding:dmis-lab/UltraBERT-Embed-150M",
+      "mode": "hybrid",
+      "device": "mps",
+      "date": "2026-10-18",
+      "commit": "aa729eb+dirty",
+      "loadavg_start": [
+        3.80029296875,
+        4.478515625,
+        4.75146484375
+      ],
+      "loadavg_end": [
+        3.05419921875,
+        3.88623046875,
+        4.46435546875
+      ],
+      "metrics": {
+        "n": 51,
+        "leaf_accuracy": 0.8235294117647058,
+        "leaf_accuracy_ci95": [
+          0.7254901960784313,
+          0.9215686274509803
+        ],
+        "level1_accuracy": 0.9215686274509803,
+        "macro_p": 0.7342592592592593,
+        "macro_r": 0.8055555555555556,
+        "macro_f1": 0.7618165784832451,
+        "per_class": {
+          "corporate.investor_presentation": {
+            "p": 0.5,
+            "r": 0.5,
+            "f1": 0.5,
+            "n": 2
+          },
+          "corporate.sustainability_report": {
+            "p": 0.6666666666666666,
+            "r": 1.0,
+            "f1": 0.8,
+            "n": 2
+          },
+          "financial.annual_report": {
+            "p": 0.6666666666666666,
+            "r": 0.6666666666666666,
+            "f1": 0.6666666666666666,
+            "n": 3
+          },
+          "financial.earnings_release": {
+            "p": 0.6666666666666666,
+            "r": 1.0,
+            "f1": 0.8,
+            "n": 2
+          },
+          "financial.prospectus": {
+            "p": 1.0,
+            "r": 1.0,
+            "f1": 1.0,
+            "n": 2
+          },
+          "financial.proxy_statement": {
+            "p": 1.0,
+            "r": 1.0,
+            "f1": 1.0,
+            "n": 2
+          },
+          "financial.quarterly_report": {
+            "p": 1.0,
+            "r": 1.0,
+            "f1": 1.0,
+            "n": 2
+          },
+          "financial.shareholder_letter": {
+            "p": 0.5,
+            "r": 0.3333333333333333,
+            "f1": 0.4,
+            "n": 3
+          },
+          "government.government_report": {
+            "p": 1.0,
+            "r": 1.0,
+            "f1": 1.0,
+            "n": 3
+          },
+          "legal.contract": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "n": 2
+          },
+          "legal.court_opinion": {
+            "p": 1.0,
+            "r": 1.0,
+            "f1": 1.0,
+            "n": 4
+          },
+          "legal.legislation": {
+            "p": 1.0,
+            "r": 1.0,
+            "f1": 1.0,
+            "n": 3
+          },
+          "legal.terms_policy": {
+            "p": 0.75,
+            "r": 1.0,
+            "f1": 0.8571428571428571,
+            "n": 3
+          },
+          "research.research_paper": {
+            "p": 0.6666666666666666,
+            "r": 1.0,
+            "f1": 0.8,
+            "n": 4
+          },
+          "research.technical_standard": {
+            "p": 0.8,
+            "r": 1.0,
+            "f1": 0.888888888888889,
+            "n": 4
+          },
+          "research.white_paper": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "n": 3
+          },
+          "technical.datasheet": {
+            "p": 1.0,
+            "r": 1.0,
+            "f1": 1.0,
+            "n": 4
+          },
+          "technical.user_manual": {
+            "p": 1.0,
+            "r": 1.0,
+            "f1": 1.0,
+            "n": 3
+          }
+        },
+        "confusion": {
+          "corporate.investor_presentation": {
+            "corporate.investor_presentation": 1,
+            "financial.earnings_release": 1
+          },
+          "corporate.sustainability_report": {
+            "corporate.sustainability_report": 2
+          },
+          "financial.annual_report": {
+            "financial.annual_report": 2,
+            "financial.shareholder_letter": 1
+          },
+          "financial.earnings_release": {
+            "financial.earnings_release": 2
+          },
+          "financial.prospectus": {
+            "financial.prospectus": 2
+          },
+          "financial.proxy_statement": {
+            "financial.proxy_statement": 2
+          },
+          "financial.quarterly_report": {
+            "financial.quarterly_report": 2
+          },
+          "financial.shareholder_letter": {
+            "corporate.investor_presentation": 1,
+            "financial.annual_report": 1,
+            "financial.shareholder_letter": 1
+          },
+          "government.government_report": {
+            "government.government_report": 3
+          },
+          "legal.contract": {
+            "legal.terms_policy": 1,
+            "research.technical_standard": 1
+          },
+          "legal.court_opinion": {
+            "legal.court_opinion": 4
+          },
+          "legal.legislation": {
+            "legal.legislation": 3
+          },
+          "legal.terms_policy": {
+            "legal.terms_policy": 3
+          },
+          "research.research_paper": {
+            "research.research_paper": 4
+          },
+          "research.technical_standard": {
+            "research.technical_standard": 4
+          },
+          "research.white_paper": {
+            "corporate.sustainability_report": 1,
+            "research.research_paper": 2
+          },
+          "technical.datasheet": {
+            "technical.datasheet": 4
+          },
+          "technical.user_manual": {
+            "technical.user_manual": 3
+          }
+        },
+        "avg_parse_s": 6.205200982821064,
+        "avg_classify_s": 2.616377067000048,
+        "avg_total_s": 8.821578049821113,
+        "jev_input_tokens": null,
+        "jev_tokens_estimated": null,
+        "jev_cost_usd": null
+      }
+    }
+  },
+  "env": {
+    "python": "3.12.13",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 8,
+    "versions": {
+      "docrooter": "0.2.0",
+      "torch": "2.14.1",
+      "transformers": "5.20.0",
+      "sentence-transformers": "6.1.0",
+      "scikit-learn": "1.9.1",
+      "typesafe-sdk": "0.7.5",
+      "pymupdf": "1.28.2"
+    },
+    "device": "mps",
+    "device_note": "MPS probe matmul took 0.51 s"
+  },
+  "corpus": "benchmarks/corpus",
+  "documents": [
+    {
+      "id": "doc_001",
+      "title": "Berkshire Hathaway Inc. 2023 Annual Report",
+      "pages": 152,
+      "gold": "financial.annual_report"
+    },
+    {
+      "id": "doc_002",
+      "title": "Tesla, Inc. Annual Report on Form 10-K for fiscal year 2023",
+      "pages": 130,
+      "gold": "financial.annual_report"
+    },
+    {
+      "id": "doc_003",
+      "title": "Amazon.com, Inc. 2023 Annual Report",
+      "pages": 92,
+      "gold": "financial.annual_report"
+    },
+    {
+      "id": "doc_004",
+      "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended June 30, 2024",
+      "pages": 56,
+      "gold": "financial.quarterly_report"
+    },
+    {
+      "id": "doc_005",
+      "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended September 30, 2023",
+      "pages": 59,
+      "gold": "financial.quarterly_report"
+    },
+    {
+      "id": "doc_006",
+      "title": "Berkshire Hathaway Chairman's Letter to Shareholders, 2023",
+      "pages": 16,
+      "gold": "financial.shareholder_letter"
+    },
+    {
+      "id": "doc_007",
+      "title": "Berkshire Hathaway Chairman's Letter to Shareholders, 2008",
+      "pages": 22,
+      "gold": "financial.shareholder_letter"
+    },
+    {
+      "id": "doc_008",
+      "title": "Amazon 2020 Shareholder Letter with the 1997 Shareholder Letter",
+      "pages": 10,
+      "gold": "financial.shareholder_letter"
+    },
+    {
+      "id": "doc_009",
+      "title": "Amazon.com Announces Second Quarter Results (Aug 1, 2024)",
+      "pages": 12,
+      "gold": "financial.earnings_release"
+    },
+    {
+      "id": "doc_010",
+      "title": "Amazon.com Announces Third Quarter Results (Oct 31, 2024)",
+      "pages": 12,
+      "gold": "financial.earnings_release"
+    },
+    {
+      "id": "doc_011",
+      "title": "Erste Abwicklungsanstalt Debt Issuance Programme Prospectus dated 14 May 2024",
+      "pages": 113,
+      "gold": "financial.prospectus"
+    },
+    {
+      "id": "doc_012",
+      "title": "EnBW Debt Issuance Programme Prospectus 2024",
+      "pages": 222,
+      "gold": "financial.prospectus"
+    },
+    {
+      "id": "doc_013",
+      "title": "Postal Realty Trust 2025 Notice of Annual Meeting of Stockholders and Proxy Statement",
+      "pages": 63,
+      "gold": "financial.proxy_statement"
+    },
+    {
+      "id": "doc_014",
+      "title": "WisdomTree, Inc. 2024 Notice of Annual Meeting and Proxy Statement",
+      "pages": 161,
+      "gold": "financial.proxy_statement"
+    },
+    {
+      "id": "doc_015",
+      "title": "Sample Non-Disclosure Agreement for conditional access to Sensitive but Unclassified information (IRS procurement attachment)",
+      "pages": 4,
+      "gold": "legal.contract"
+    },
+    {
+      "id": "doc_016",
+      "title": "NIST Cooperative Research and Development Agreement (CRADA) template, 2018",
+      "pages": 10,
+      "gold": "legal.contract"
+    },
+    {
+      "id": "doc_017",
+      "title": "Apple Privacy Policy (updated July 30, 2025)",
+      "pages": 1,
+      "gold": "legal.terms_policy"
+    },
+    {
+      "id": "doc_018",
+      "title": "Terms of Use (GoWhere support service)",
+      "pages": 19,
+      "gold": "legal.terms_policy"
+    },
+    {
+      "id": "doc_019",
+      "title": "Terms of Service for the Fieldwork Performance Evaluation online service",
+      "pages": 8,
+      "gold": "legal.terms_policy"
+    },
+    {
+      "id": "doc_020",
+      "title": "Dobbs v. Jackson Women's Health Organization, No. 19-1392 (slip opinion)",
+      "pages": 213,
+      "gold": "legal.court_opinion"
+    },
+    {
+      "id": "doc_021",
+      "title": "Trump v. Anderson, No. 23-719 (per curiam slip opinion)",
+      "pages": 20,
+      "gold": "legal.court_opinion"
+    },
+    {
+      "id": "doc_022",
+      "title": "O'Connor-Ratcliff v. Garnier, No. 22-324 (per curiam, preliminary print)",
+      "pages": 6,
+      "gold": "legal.court_opinion"
+    },
+    {
+      "id": "doc_023",
+      "title": "Department of Education v. Louisiana, No. 24A78 (per curiam, preliminary print)",
+      "pages": 13,
+      "gold": "legal.court_opinion"
+    },
+    {
+      "id": "doc_024",
+      "title": "CHIPS and Science Act, Public Law 117-167",
+      "pages": 394,
+      "gold": "legal.legislation"
+    },
+    {
+      "id": "doc_025",
+      "title": "Fiscal Responsibility Act of 2023, Public Law 118-5",
+      "pages": 41,
+      "gold": "legal.legislation"
+    },
+    {
+      "id": "doc_026",
+      "title": "S. 623, Sunshine Protection Act of 2021 (as passed by the Senate)",
+      "pages": 6,
+      "gold": "legal.legislation"
+    },
+    {
+      "id": "doc_027",
+      "title": "Attention Is All You Need",
+      "pages": 15,
+      "gold": "research.research_paper"
+    },
+    {
+      "id": "doc_028",
+      "title": "Deep Residual Learning for Image Recognition",
+      "pages": 12,
+      "gold": "research.research_paper"
+    },
+    {
+      "id": "doc_029",
+      "title": "Language Models are Few-Shot Learners",
+      "pages": 75,
+      "gold": "research.research_paper"
+    },
+    {
+      "id": "doc_030",
+      "title": "On the Opportunities and Risks of Foundation Models",
+      "pages": 214,
+      "gold": "research.research_paper"
+    },
+    {
+      "id": "doc_031",
+      "title": "RFC 9110: HTTP Semantics",
+      "pages": 194,
+      "gold": "research.technical_standard"
+    },
+    {
+      "id": "doc_032",
+      "title": "RFC 9000: QUIC: A UDP-Based Multiplexed and Secure Transport",
+      "pages": 151,
+      "gold": "research.technical_standard"
+    },
+    {
+      "id": "doc_033",
+      "title": "RFC 9239: Updates to ECMAScript Media Types",
+      "pages": 13,
+      "gold": "research.technical_standard"
+    },
+    {
+      "id": "doc_034",
+      "title": "RFC 9457: Problem Details for HTTP APIs",
+      "pages": 16,
+      "gold": "research.technical_standard"
+    },
+    {
+      "id": "doc_035",
+      "title": "Google Cloud's AI Adoption Framework",
+      "pages": 37,
+      "gold": "research.white_paper"
+    },
+    {
+      "id": "doc_036",
+      "title": "Future of Jobs Report 2023 (Insight Report)",
+      "pages": 296,
+      "gold": "research.white_paper"
+    },
+    {
+      "id": "doc_037",
+      "title": "Bitcoin: A Peer-to-Peer Electronic Cash System",
+      "pages": 9,
+      "gold": "research.white_paper"
+    },
+    {
+      "id": "doc_038",
+      "title": "Bash Reference Manual, Edition 5.3",
+      "pages": 214,
+      "gold": "technical.user_manual"
+    },
+    {
+      "id": "doc_039",
+      "title": "GNU Coreutils manual",
+      "pages": 326,
+      "gold": "technical.user_manual"
+    },
+    {
+      "id": "doc_040",
+      "title": "Getting Started with Raspberry Pi Pico-series",
+      "pages": 36,
+      "gold": "technical.user_manual"
+    },
+    {
+      "id": "doc_041",
+      "title": "NE555 / SA555 / SE555 Precision Timers datasheet",
+      "pages": 39,
+      "gold": "technical.datasheet"
+    },
+    {
+      "id": "doc_042",
+      "title": "RP2040 Datasheet",
+      "pages": 642,
+      "gold": "technical.datasheet"
+    },
+    {
+      "id": "doc_043",
+      "title": "1N4148 Small Signal Fast Switching Diode datasheet",
+      "pages": 4,
+      "gold": "technical.datasheet"
+    },
+    {
+      "id": "doc_044",
+      "title": "1N4001-1N4007 1.0A Rectifier datasheet",
+      "pages": 5,
+      "gold": "technical.datasheet"
+    },
+    {
+      "id": "doc_045",
+      "title": "Monetary Policy Report, July 5, 2024",
+      "pages": 79,
+      "gold": "government.government_report"
+    },
+    {
+      "id": "doc_046",
+      "title": "Financial Stability Report, April 2024",
+      "pages": 69,
+      "gold": "government.government_report"
+    },
+    {
+      "id": "doc_047",
+      "title": "The 9/11 Commission Report",
+      "pages": 585,
+      "gold": "government.government_report"
+    },
+    {
+      "id": "doc_048",
+      "title": "Google Environmental Report 2024",
+      "pages": 86,
+      "gold": "corporate.sustainability_report"
+    },
+    {
+      "id": "doc_049",
+      "title": "NVIDIA Sustainability Report, Fiscal Year 2024",
+      "pages": 41,
+      "gold": "corporate.sustainability_report"
+    },
+    {
+      "id": "doc_050",
+      "title": "Tesla Q2 2024 Update (investor slide deck)",
+      "pages": 29,
+      "gold": "corporate.investor_presentation"
+    },
+    {
+      "id": "doc_051",
+      "title": "NVIDIA Investor Presentation Q2 FY25 (September 3, 2024)",
+      "pages": 27,
+      "gold": "corporate.investor_presentation"
+    }
+  ],
+  "parse": {
+    "engine": "auto",
+    "profile": "balanced",
+    "avg_parse_s": 6.205200982821064,
+    "per_doc_s": {
+      "doc_001": 19.9337,
+      "doc_002": 6.6208,
+      "doc_003": 3.35,
+      "doc_004": 6.8384,
+      "doc_005": 13.464,
+      "doc_006": 0.2751,
+      "doc_007": 0.5179,
+      "doc_008": 0.8319,
+      "doc_009": 0.9424,
+      "doc_010": 1.0065,
+      "doc_011": 3.1919,
+      "doc_012": 6.6261,
+      "doc_013": 3.0785,
+      "doc_014": 11.0551,
+      "doc_015": 0.0566,
+      "doc_016": 0.1822,
+      "doc_017": 0.1846,
+      "doc_018": 0.2793,
+      "doc_019": 0.2489,
+      "doc_020": 3.1429,
+      "doc_021": 0.2307,
+      "doc_022": 0.0684,
+      "doc_023": 0.1614,
+      "doc_024": 7.0312,
+      "doc_025": 0.824,
+      "doc_026": 0.0326,
+      "doc_027": 1.0541,
+      "doc_028": 1.8593,
+      "doc_029": 7.4777,
+      "doc_030": 12.7091,
+      "doc_031": 2.9105,
+      "doc_032": 2.2262,
+      "doc_033": 0.1935,
+      "doc_034": 0.1916,
+      "doc_035": 1.9794,
+      "doc_036": 32.0549,
+      "doc_037": 0.266,
+      "doc_038": 3.4438,
+      "doc_039": 5.2411,
+      "doc_040": 8.0047,
+      "doc_041": 4.5121,
+      "doc_042": 43.4397,
+      "doc_043": 0.3272,
+      "doc_044": 0.3979,
+      "doc_045": 8.2779,
+      "doc_046": 1.9053,
+      "doc_047": 14.5479,
+      "doc_048": 30.9352,
+      "doc_049": 6.094,
+      "doc_050": 11.7027,
+      "doc_051": 24.5384
+    },
+    "ocr": {
+      "ocr_pages": 1,
+      "merge_pages": 13,
+      "regions": 175,
+      "ocr_engine": {
+        "ocrmac": 51
+      },
+      "warnings": {}
+    }
+  },
+  "views": {
+    "counter": "estimate_tokens",
+    "sha256_12": {
+      "default": {
+        "doc_001": "49ce533900fd",
+        "doc_002": "6bd23048e115",
+        "doc_003": "a077b071a2ca",
+        "doc_004": "4b59393163ac",
+        "doc_005": "f5d6acf077e1",
+        "doc_006": "cf48fec61a83",
+        "doc_007": "ba317aefb94f",
+        "doc_008": "6a612a0b11f6",
+        "doc_009": "3cd98a69d245",
+        "doc_010": "6eb9451cec2a",
+        "doc_011": "bd7b050896e7",
+        "doc_012": "4d8ebef148aa",
+        "doc_013": "e5cf2e0a0e00",
+        "doc_014": "db0203369efc",
+        "doc_015": "d6ac5442d44e",
+        "doc_016": "4b2cb79a7c9d",
+        "doc_017": "33cd1ccb1ff6",
+        "doc_018": "a39509706ad6",
+        "doc_019": "7d7cd5f1d29f",
+        "doc_020": "1353ec3417e7",
+        "doc_021": "e31e1f9a97e9",
+        "doc_022": "737b3e5ca511",
+        "doc_023": "583228f6d461",
+        "doc_024": "93056677f6de",
+        "doc_025": "6fc6a98fa5d4",
+        "doc_026": "15e322b12d43",
+        "doc_027": "b7c02bc88118",
+        "doc_028": "660b7acfa9b6",
+        "doc_029": "de70e5dc7517",
+        "doc_030": "3ad62b19fe2d",
+        "doc_031": "63e0223a35ba",
+        "doc_032": "b332d4e95a6b",
+        "doc_033": "69ddc2609dd6",
+        "doc_034": "dc7d4a0865f6",
+        "doc_035": "4932a9639c1b",
+        "doc_036": "295c2911c5db",
+        "doc_037": "8d9e7ce624f0",
+        "doc_038": "680179ca2861",
+        "doc_039": "b2785490238a",
+        "doc_040": "158e9f128fd1",
+        "doc_041": "62b6b6dcdecf",
+        "doc_042": "63f974d611c3",
+        "doc_043": "314db055fa1a",
+        "doc_044": "cd2b77771d58",
+        "doc_045": "eaea62dbcc91",
+        "doc_046": "99bd3914f887",
+        "doc_047": "5a0ae11d3f11",
+        "doc_048": "2fa6baeb2e4a",
+        "doc_049": "6002c6187e97",
+        "doc_050": "8895cb2bcc09",
+        "doc_051": "f6ab57253f4d"
+      }
+    }
+  }
+}

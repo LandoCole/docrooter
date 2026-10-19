@@ -1,0 +1,171 @@
+{
+  "date": "2026-10-19",
+  "commit": "aa729eb",
+  "docrooter_path": "src/docrooter",
+  "docrooter_revision": "aa729eb",
+  "env": {
+    "python": "3.12.13",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 8,
+    "loadavg": [
+      7.396484375,
+      6.580078125,
+      5.958984375
+    ],
+    "versions": {
+      "pymupdf": "1.28.2",
+      "pdfplumber": "0.11.10",
+      "pymupdf4llm": "1.28.2",
+      "docrooter": "0.2.0"
+    }
+  },
+  "loadavg_start": [
+    7.396484375,
+    6.580078125,
+    5.958984375
+  ],
+  "documents": [
+    "doc_017",
+    "doc_043",
+    "doc_037",
+    "doc_027",
+    "doc_041",
+    "doc_045",
+    "doc_002",
+    "doc_031",
+    "doc_039",
+    "doc_042"
+  ],
+  "ocr": null,
+  "systems": {
+    "fast": {
+      "system": "fast",
+      "repeat": 3,
+      "warmup_s": 0.11,
+      "rss_start_mib": 48.7,
+      "peak_rss_mib": 204.0,
+      "docs": [
+        {
+          "id": "doc_017",
+          "pages": 1,
+          "seconds": 0.104,
+          "runs": [
+            0.1124,
+            0.1259,
+            0.104
+          ],
+          "elements": 0
+        },
+        {
+          "id": "doc_043",
+          "pages": 4,
+          "seconds": 0.0344,
+          "runs": [
+            0.0347,
+            0.0345,
+            0.0344
+          ],
+          "elements": 0
+        },
+        {
+          "id": "doc_037",
+          "pages": 9,
+          "seconds": 0.0789,
+          "runs": [
+            0.081,
+            0.0789,
+            0.079
+          ],
+          "elements": 0
+        },
+        {
+          "id": "doc_027",
+          "pages": 15,
+          "seconds": 0.1898,
+          "runs": [
+            0.2007,
+            0.2038,
+            0.1898
+          ],
+          "elements": 0
+        },
+        {
+          "id": "doc_041",
+          "pages": 39,
+          "seconds": 0.3231,
+          "runs": [
+            0.3686,
+            0.3231,
+            0.3243
+          ],
+          "elements": 0
+        },
+        {
+          "id": "doc_045",
+          "pages": 79,
+          "seconds": 0.7673,
+          "runs": [
+            0.7921,
+            0.7673,
+            0.7735
+          ],
+          "elements": 0
+        },
+        {
+          "id": "doc_002",
+          "pages": 130,
+          "seconds": 1.5603,
+          "runs": [
+            1.6104,
+            1.5712,
+            1.5603
+          ],
+          "elements": 0
+        },
+        {
+          "id": "doc_031",
+          "pages": 194,
+          "seconds": 1.7448,
+          "runs": [
+            1.7828,
+            1.7817,
+            1.7448
+          ],
+          "elements": 0
+        },
+        {
+          "id": "doc_039",
+          "pages": 326,
+          "seconds": 3.4854,
+          "runs": [
+            3.4854,
+            3.6491,
+            3.5507
+          ],
+          "elements": 0
+        },
+        {
+          "id": "doc_042",
+          "pages": 642,
+          "seconds": 5.4818,
+          "runs": [
+            5.4818,
+            6.0769,
+            6.8249
+          ],
+          "elements": 0
+        }
+      ],
+      "pages": 1439,
+      "seconds": 13.77,
+      "s_per_100_pages": 0.957
+    }
+  },
+  "loadavg_end": [
+    5.42431640625,
+    6.1328125,
+    5.822265625
+  ],
+  "pages": 1439
+}

@@ -212,3 +212,52 @@ warm-up) at `70a9a0f`:
   before the Q5 optimisations (`f3baa43`) and 1.05-1.06 s/100 pages after them (load 2.4-3.4).
 
 The criterion is met.
+
+## Element mode, OCR and the `fast` path (v0.4)
+
+Spec §10.5 asks for seconds per 100 pages in element mode for heuristic pymupdf, heuristic pdfplumber and heron, on the Q5 profiling set; for the peak memory of heron and OCR; and for `fast` to stay within 5% of v0.3's `load`.
+
+```
+PYTHONPATH=src .venv/bin/python -m benchmarks.profile_pipeline --elements
+```
+
+**How it was measured.**
+- The set is the same ten dev PDFs as Q5 (1,439 pages, 1 to 642 pages each), with no classification and no OCR engine (`ocr=None`). OCR is measured separately, below.
+- Each system runs in its own worker process, one after the other, under the one-model-process guard, so each peak RSS is that system's own.
+- After an untimed warm-up on the smallest PDF (heron's ONNX session is created there: 3.2 s), each document is loaded once.
+- Measured 2026-10-18 at `aa729eb` (`src` clean), Apple M1, 16 GB, Python 3.12.13, pymupdf 1.28.2. The load average was 2.9 at the start and 7.4 at the end, so the later systems ran on a busier machine.
+- Raw rows: `benchmarks/results/2026-10-18/profile-elements.json`.
+
+| System | s / 100 pages | Total s (1,439 pages) | x `fast` | Peak RSS |
+| --- | ---: | ---: | ---: | ---: |
+| `fast` (`load()`) | 0.99 | 14.3 | 1.0 | 200 MiB |
+| element mode, heuristic, pymupdf | 4.64 | 66.7 | 4.7 | 263 MiB |
+| element mode, heuristic, pdfplumber | 7.65 | 110.1 | 7.7 | 308 MiB |
+| element mode, heron (pymupdf + ONNX layout model) | 64.6 | 929.6 | 65 | 904 MiB |
+
+- **Heron** costs about 0.65 s per page on the CPU, rendering at the model's input size included. On DocLayNet's one-page PDFs it was 0.59 s (`elements-doclaynet.json`).
+- **The heuristic pymupdf ratio here (4.7x)** is above the 3.4x that E5c measured on all 51 dev PDFs (`element-speed.json`, commit `0e7c396`, 195 s against 56.6 s). This set contains doc_042, the 642-page RP2040 datasheet, which takes 43 s in element mode against 5.8 s in `fast`. That one document is 65% of the element-mode time. The ruled-table search is the slowest part of the object pass, and that datasheet is full of ruled register tables. E8's `RouterConfig(tables="none")` exists for that case.
+- The dev-corpus figure was not re-run. Since `0e7c396`, element mode has gained the bounded letter-spacing collapse (`8913b7a`), heron support, which leaves the heuristic path unchanged (`9ef25a5`), and E11a's tuned constants. None of these touches extraction, which is 94% of the element-mode time there.
+
+**OCR** (from `benchmarks.ocr_bench`; details in `docs/benchmarks-elements.md`). There are 60 pages at 200 dpi, with one worker process per engine.
+
+| Engine | OCR s / page | Element-mode s / page (image-only page) | Peak RSS |
+| --- | ---: | ---: | ---: |
+| ocrmac (Apple Vision) | 0.73 | 0.83 | 1,184 MiB |
+| rapidocr (onnxruntime, CPU) | 3.04 | 3.16 | 3,311 MiB |
+| tesseract 5.5.1 (binary) | 1.72 | 1.83 | 803 MiB + 263 MiB binary |
+
+Every model process is far inside the 8 GiB budget. The largest is rapidocr, at 3.3 GiB.
+
+**`fast` against v0.3 (target: within 5%).**
+- The same command was run with `--systems fast --repeat 3` (best of 3 per document), alternately against this checkout (`aa729eb`) and a `git worktree` of v0.3 (`28fbf9d`, `PYTHONPATH=<worktree>/src`), two rounds each.
+- Measured 2026-10-19, just after the run above; the load average at the start of each run was 7.4, 5.4, 3.9 and 6.0.
+- Raw rows: `benchmarks/results/2026-10-19/profile-elements-fast-v0.{3,4}-r{1,2}.json`.
+
+| Round | v0.3 (`28fbf9d`) s / 100 pages | v0.4 (`aa729eb`) s / 100 pages | Difference |
+| --- | ---: | ---: | ---: |
+| 1 (v0.4 first) | 0.931 | 0.957 | +2.8% |
+| 2 (v0.4 first) | 0.915 | 0.933 | +2.0% |
+| Best of all 6 runs per document | 0.915 | 0.922 | +0.8% |
+
+`fast` is within 5% of v0.3 in every comparison. The output is byte-identical to v0.3: `test_fast_path_frozen` checks this, and E5b checked it on all 51 dev PDFs. E5b's earlier A/B on five large PDFs found no measurable difference.

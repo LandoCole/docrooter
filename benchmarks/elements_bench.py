@@ -26,6 +26,13 @@ PDF's displayed page (``pymupdf``), the same space as element boxes.
 the run (tuning on train pages only; see ``docs/benchmarks-elements.md``). Results go to
 ``benchmarks/results/<date>/elements-doclaynet[-train].json``; ``--docs`` writes the tables into
 ``docs/benchmarks-elements.md``.
+
+``--reading-order`` (v0.4 task E11b; spec §10.2) runs on the dev corpus instead: every PDF in
+element mode (pymupdf, no OCR, the ``order_lines`` permutation recorded) and in ``fast``. It
+checks that single-column pages keep ``fast``'s line order (text checksums, body lines and all
+lines), whether XY-cut's page-global identity guard re-sorts single-column bands of pages that
+have columns, the bookmark-pair order agreement of both modes and Kendall's tau on two-column
+documents. Results: ``elements-reading-order.json``.
 """
 
 from __future__ import annotations
@@ -33,7 +40,9 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime
+import hashlib
 import json
+import re
 import time
 from collections import Counter, defaultdict
 from collections.abc import Iterator, Mapping, Sequence
@@ -508,9 +517,328 @@ def _parse_set(items: Sequence[str]) -> dict[str, float]:
     return values
 
 
+# --- reading order on the dev corpus (spec §10.2) ------------------------------------------
+
+READING_ORDER_FILE = "elements-reading-order.json"
+TWO_COLUMN_SHARE = 0.5  # a document is two-column when this share of its pages has columns
+_NUMBERED = re.compile(r"^\s*(\d{1,2}(?:\.\d{1,2})*)\.?\s+\S")
+
+Heading = tuple[str, int, int]  # (title, page, level), as benchmarks.toc
+
+
+def bookmark_pair_agreement(pred: Sequence[Heading], gold: Sequence[Heading]) -> tuple[int, int]:
+    """``(agreeing, compared)`` over consecutive gold (bookmark) pairs whose two headings both
+    match a predicted heading (``benchmarks.toc.match_headings``): a pair agrees when the
+    predicted headings come in the same order."""
+    from benchmarks.toc import match_headings
+
+    where = {g: p for p, g in match_headings(pred, gold)}
+    agree = compared = 0
+    for g in range(len(gold) - 1):
+        if g in where and g + 1 in where:
+            compared += 1
+            agree += where[g] < where[g + 1]
+    return agree, compared
+
+
+def _tau(ranks: Sequence[int]) -> float | None:
+    """Kendall's tau-a of ``ranks`` against ``0..n-1`` (``None`` below two items)."""
+    n = len(ranks)
+    if n < 2:
+        return None
+    s = sum((1 if ranks[j] > ranks[i] else -1) for i in range(n) for j in range(i + 1, n))
+    return s / (n * (n - 1) / 2)
+
+
+def kendall_tau(pred: Sequence[Heading], gold: Sequence[Heading]) -> float | None:
+    """Kendall's tau between the gold order of the matched headings and their predicted
+    order (``None`` with fewer than two matches)."""
+    from benchmarks.toc import match_headings
+
+    pairs = sorted(match_headings(pred, gold), key=lambda pg: pg[1])
+    return _tau([p for p, _ in pairs])
+
+
+def numbered_tau(pred: Sequence[Heading]) -> tuple[float | None, int]:
+    """Kendall's tau between the predicted order of the numbered headings (``3.1 Method``) and
+    the order of their numbers, with the count; a number seen twice keeps its first heading."""
+    seen: dict[tuple[int, ...], int] = {}
+    for k, (title, _, _) in enumerate(pred):
+        m = _NUMBERED.match(title)
+        if m:
+            seen.setdefault(tuple(int(x) for x in m.group(1).split(".")), k)
+    by_number = [k for _, k in sorted(seen.items())]
+    return _tau(by_number), len(by_number)
+
+
+def order_digest(texts: Sequence[str]) -> str:
+    """SHA-256 of a page's line texts in order (each line ended by a newline)."""
+    h = hashlib.sha256()
+    for text in texts:
+        h.update(text.encode("utf-8") + b"\n")
+    return h.hexdigest()
+
+
+XyBox = tuple[float, float, float, float]
+
+
+def _cuts_columns(boxes: Sequence[XyBox], text_width: float, min_gutter: float,
+                  min_gap: float) -> bool:  # fmt: skip
+    """Whether :func:`docrooter.pdf.reading_order.xy_cut_order` cuts a column gutter anywhere
+    in ``boxes``: its band, column and row cuts, replayed (it does not report this)."""
+    from docrooter.pdf import reading_order as ro
+
+    if len(boxes) < 2:
+        return False
+    runs = ro._bands(boxes, text_width)
+    stack = runs[::-1] if len(runs) > 1 else [list(range(len(boxes)))]
+    while stack:
+        group = stack.pop()
+        if len(group) < 2:
+            continue
+        if ro._column_cut(boxes, group, min_gutter, text_width) is not None:
+            return True
+        parts = ro._row_cut(boxes, group, min_gap)
+        if parts is not None:
+            stack.extend(parts[::-1])
+    return False
+
+
+def order_analysis(
+    boxes: Sequence[XyBox], *, page_width: float, median_char_width: float,
+    median_line_gap: float,
+) -> dict[str, Any]:  # fmt: skip
+    """How XY-cut treats one page's body lines (``boxes`` in extraction order).
+
+    ``columns``: a gutter is cut somewhere, so the page-global identity guard is off;
+    ``changed``: the order differs from the input. On a page with columns, each band (run of
+    full-width or of narrower lines, as the cut forms them) that has no gutter of its own is a
+    single-column band; it is ``shifted`` when its lines' relative order differs from the input
+    order, which a band-local identity guard would have kept.
+    """
+    from docrooter.pdf import reading_order as ro
+
+    out = {"columns": False, "changed": False, "bands": 0, "single_column_bands": 0,
+           "shifted_bands": 0, "shifted_lines": 0}  # fmt: skip
+    n = len(boxes)
+    if n < 2:
+        return out
+    text_width = max(b[2] for b in boxes) - min(b[0] for b in boxes)
+    if page_width > 0:
+        text_width = min(text_width, page_width)
+    min_gutter = max(ro._GUTTER_MIN, ro._GUTTER_CHARS * median_char_width)
+    min_gap = ro._GAP_FACTOR * median_line_gap
+    if not _cuts_columns(boxes, text_width, min_gutter, min_gap):
+        return out
+    order = ro.xy_cut_order(boxes, page_width=page_width, median_char_width=median_char_width,
+                            median_line_gap=median_line_gap)  # fmt: skip
+    position = {i: k for k, i in enumerate(order)}
+    out["columns"], out["changed"] = True, order != list(range(n))
+    for band in ro._bands(boxes, text_width):
+        out["bands"] += 1
+        sub = [boxes[i] for i in band]
+        if _cuts_columns(sub, text_width, min_gutter, min_gap):
+            continue
+        out["single_column_bands"] += 1
+        if sorted(band, key=position.__getitem__) != band:
+            out["shifted_bands"] += 1
+            out["shifted_lines"] += len(band)
+    return out
+
+
+def _page_stats(lines: Sequence[Any]) -> dict[str, float]:
+    """``xy_cut_order``'s page statistics, as ``reading_order._order_page`` computes them."""
+    import statistics
+
+    widths = [ln.page_width for ln in lines if ln.page_width > 0]
+    chars = [(ln.x1 - ln.x0) / len(ln.text) for ln in lines if ln.text and ln.x1 > ln.x0]
+    gaps = [ln.gap_above for ln in lines if 0 < ln.gap_above < float("inf")]
+    return {
+        "page_width": max(widths, default=0.0),
+        "median_char_width": statistics.median(chars) if chars else 0.0,
+        "median_line_gap": statistics.median(gaps) if gaps else 0.0,
+    }
+
+
+@contextlib.contextmanager
+def captured_order(sink: list[tuple[list[Any], set[int], list[int]]]) -> Iterator[None]:
+    """Record ``(lines, furniture, order)`` of every ``order_lines`` call element mode makes."""
+    from docrooter.pdf import element_mode
+
+    real = element_mode.order_lines
+
+    def spy(lines: Any, excluded: set[int], groups: Any = None) -> list[int]:
+        order = real(lines, excluded, groups)
+        sink.append((list(lines), set(excluded), list(order)))
+        return order
+
+    element_mode.order_lines = spy
+    try:
+        yield
+    finally:
+        element_mode.order_lines = real
+
+
+def page_orders(fast_lines: Sequence[Any], lines: Sequence[Any], furniture: set[int],
+                order: Sequence[int]) -> list[dict[str, Any]]:  # fmt: skip
+    """Per page: the XY-cut analysis of its body lines and whether its line order (checksum of
+    the texts) equals ``fast``'s, in full and without the furniture lines."""
+    fast_by_page: defaultdict[int, list[str]] = defaultdict(list)
+    for ln in fast_lines:
+        fast_by_page[ln.page].append(ln.text)
+    by_page: defaultdict[int, list[int]] = defaultdict(list)
+    for i, ln in enumerate(lines):
+        by_page[ln.page].append(i)
+    final: defaultdict[int, list[int]] = defaultdict(list)
+    for i in order:
+        final[lines[i].page].append(i)
+    rows = []
+    for page in sorted(set(by_page) | set(fast_by_page)):
+        idx = by_page.get(page, [])
+        body = [i for i in idx if i not in furniture]
+        page_lines = [lines[i] for i in body]
+        analysis = order_analysis(
+            [(ln.x0, ln.y0, ln.x1, ln.y1) for ln in page_lines], **_page_stats(page_lines)
+        )
+        out_idx = final.get(page, [])
+        fast_texts = fast_by_page.get(page, [])
+        rows.append({
+            "page": page, "lines": len(idx), "furniture": len(idx) - len(body),
+            **analysis,
+            "input_matches_fast": order_digest([lines[i].text for i in idx])
+            == order_digest(fast_texts),
+            "unchanged": order_digest([lines[i].text for i in out_idx])
+            == order_digest(fast_texts),
+            "body_unchanged": [i for i in out_idx if i not in furniture] == body,
+        })  # fmt: skip
+    return rows
+
+
+def reading_order(engine: str = "pymupdf") -> dict[str, Any]:
+    """Spec §10.2 on the 51 dev PDFs: the single-column checksum check, the page-global guard
+    check, bookmark-pair agreement (``fast`` vs element mode, bookmarks not used for the TOC)
+    and Kendall's tau on the two-column papers."""
+    from benchmarks import corpora
+    from benchmarks.toc import corpus_docs, predicted_headings
+    from docrooter.pdf.lines import extract_lines
+    from docrooter.pdf.load import load_pdf
+
+    gold = {d["id"]: d["gold"] for d in corpus_docs()}
+    docs: dict[str, Any] = {}
+    for record in corpora.read_manifest(corpora.DEV):
+        path = corpora.DEV / record["file"]
+        calls: list[tuple[list[Any], set[int], list[int]]] = []
+        with captured_order(calls):
+            element_doc = load_pdf(path, engine=engine, elements=True, use_bookmarks=False)
+        fast_doc = load_pdf(path, engine=engine, use_bookmarks=False)
+        fast_lines, _ = extract_lines(path, engine=engine)
+        lines, furniture, order = calls[-1]
+        pages = page_orders(fast_lines, lines, furniture, order)
+        entry: dict[str, Any] = {
+            "pages": len(pages),
+            "column_pages": sum(p["columns"] for p in pages),
+            "pages_detail": pages,
+        }
+        pred_fast, pred_el = predicted_headings(fast_doc), predicted_headings(element_doc)
+        if record["id"] in gold:
+            g = gold[record["id"]]
+            entry["bookmarks"] = {
+                "fast": bookmark_pair_agreement(pred_fast, g),
+                "elements": bookmark_pair_agreement(pred_el, g),
+                "tau_fast": kendall_tau(pred_fast, g),
+                "tau_elements": kendall_tau(pred_el, g),
+            }
+        entry["numbered"] = {"fast": numbered_tau(pred_fast), "elements": numbered_tau(pred_el)}
+        docs[record["id"]] = entry
+        print(f"{record['id']} pages {len(pages)} column pages {entry['column_pages']}",
+              flush=True)  # fmt: skip
+    return summarise_reading_order(docs, engine)
+
+
+def _pool(rows: Sequence[tuple[int, int]]) -> dict[str, Any]:
+    agree, compared = sum(r[0] for r in rows), sum(r[1] for r in rows)
+    return {"agree": agree, "pairs": compared, "share": agree / compared if compared else None}
+
+
+def summarise_reading_order(docs: Mapping[str, Any], engine: str) -> dict[str, Any]:
+    pages = [(d, p) for d, e in docs.items() for p in e["pages_detail"]]
+    single = [(d, p) for d, p in pages if not p["columns"]]
+    columns = [(d, p) for d, p in pages if p["columns"]]
+    changed_single = [
+        {"id": d, "page": p["page"], "body_unchanged": p["body_unchanged"],
+         "input_matches_fast": p["input_matches_fast"], "furniture": p["furniture"]}
+        for d, p in single if not p["unchanged"]
+    ]  # fmt: skip
+    shifted = [
+        {"id": d, "page": p["page"], "bands": p["bands"], "single_column_bands":
+         p["single_column_bands"], "shifted_bands": p["shifted_bands"],
+         "shifted_lines": p["shifted_lines"], "lines": p["lines"]}
+        for d, p in columns if p["shifted_bands"]
+    ]  # fmt: skip
+    bookmark_docs = {d: e["bookmarks"] for d, e in docs.items() if "bookmarks" in e}
+    two_column = [
+        d for d, e in docs.items() if e["pages"] and e["column_pages"] / e["pages"]
+        >= TWO_COLUMN_SHARE
+    ]  # fmt: skip
+    return {
+        "benchmark": "elements-reading-order",
+        "date": datetime.date.today().isoformat(),
+        "commit": git_revision(),
+        "engine": engine,
+        "env": collect_env(),
+        "pages": len(pages),
+        "single_column_check": {
+            "pages": len(single),
+            "unchanged": len(single) - len(changed_single),
+            "changed": changed_single,
+            "input_differs_from_fast": sum(not p["input_matches_fast"] for _, p in pages),
+        },
+        "column_pages": {
+            "pages": len(columns),
+            "changed": sum(p["changed"] for _, p in columns),
+            "bands": sum(p["bands"] for _, p in columns),
+            "single_column_bands": sum(p["single_column_bands"] for _, p in columns),
+            "shifted_bands": sum(p["shifted_bands"] for _, p in columns),
+            "shifted_lines": sum(p["shifted_lines"] for _, p in columns),
+            "lines": sum(p["lines"] for _, p in columns),
+            "pages_with_shifted_bands": shifted,
+        },
+        "bookmark_pairs": {
+            "documents": len(bookmark_docs),
+            "fast": _pool([b["fast"] for b in bookmark_docs.values()]),
+            "elements": _pool([b["elements"] for b in bookmark_docs.values()]),
+            "per_document": bookmark_docs,
+        },
+        "two_column": {
+            "rule": f">= {TWO_COLUMN_SHARE:.0%} of pages with a column gutter",
+            "documents": {
+                d: {
+                    "pages": docs[d]["pages"],
+                    "column_pages": docs[d]["column_pages"],
+                    "bookmarks": d in bookmark_docs,
+                    "numbered_tau": docs[d]["numbered"],
+                    **(
+                        {
+                            "tau_fast": bookmark_docs[d]["tau_fast"],
+                            "tau_elements": bookmark_docs[d]["tau_elements"],
+                        }
+                        if d in bookmark_docs
+                        else {}
+                    ),
+                }
+                for d in two_column
+            },
+        },  # fmt: skip
+        "column_pages_per_document": {d: [e["column_pages"], e["pages"]] for d, e in docs.items()},
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Element kinds on DocLayNet (spec §10.1)")
-    parser.add_argument("--split", choices=("train", "test"), required=True)
+    parser.add_argument("--split", choices=("train", "test"), default=None)
+    parser.add_argument(
+        "--reading-order", action="store_true", help="spec §10.2 on the dev corpus (no --split)"
+    )
     parser.add_argument("--systems", default="heuristic-pymupdf",
                         help=f"comma-separated, from {', '.join(SYSTEMS)}")  # fmt: skip
     parser.add_argument("--set", action="append", default=[], metavar="NAME=VALUE",
@@ -520,6 +848,21 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--docs", type=Path, default=None, help="also update this Markdown file")
     _guard.add_guard_argument(parser)
     args = parser.parse_args(argv)
+    if args.reading_order:
+        if args.split or args.set:
+            parser.error("--reading-order takes no --split or --set")
+        _guard.apply_env_caps()  # no model: heuristic layout, no OCR
+        result = reading_order()
+        out_dir = args.out or RESULTS_ROOT / result["date"]
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / READING_ORDER_FILE
+        path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps({k: result[k] for k in ("single_column_check", "bookmark_pairs")},
+                         indent=1, default=str)[:3000])  # fmt: skip
+        print(f"wrote {path}")
+        return
+    if args.split is None:
+        parser.error("--split is required (or pass --reading-order)")
     systems = [s.strip() for s in args.systems.split(",") if s.strip()]
     unknown = [s for s in systems if s not in SYSTEMS]
     if unknown:

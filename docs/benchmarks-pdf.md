@@ -827,3 +827,38 @@ held-out". One held-out document is 2.5 points.
     and a split cover title shifting heading levels.
   - `pdfplumber` silently returns 3 headings for the 816-page ECMA-262 specification, which is
     what drives its all-depth collapse and pulls `both` down with it.
+
+## Document type in the `balanced` profile (v0.4)
+
+Spec §10.3 asks for the dev doc-type benchmark to be re-run for `ultrabert-view` and `ultrabert-hybrid` in `balanced`, against `fast`:
+
+```
+PYTHONPATH=src .venv/bin/python -m benchmarks.pdf_bench --profile balanced \
+    --systems ultrabert-view,ultrabert-hybrid --docs docs/benchmarks-pdf.md
+```
+
+**Result: no change in accuracy.** `ultrabert-view` stays at 39/51 (0.765). `ultrabert-hybrid` stays at 42/51 (0.824), and its macro F1 moves from 0.765 to 0.762.
+
+- In `balanced`, the sections come from elements: the XY-cut reading order, the element-built TOC and OCR text for scanned pages.
+- 33 of 51 classifier inputs (view texts) differ from `fast`'s, yet only one prediction changes: `ultrabert-hybrid` on doc_036, which was already wrong both ways.
+- The OCR that `balanced` adds on the dev corpus is small: 1 page OCR'd whole, 13 scanned pages with OCR lines merged in and 175 image regions OCR'd. Region text goes to figures, not to the view.
+- **Cost.** Parsing in `balanced` takes 6.21 s/doc, against 1.47 s/doc for `fast`. That includes element typing, ocrmac on the pages and regions that need it, and the engine's creation on the first such page. Classify times are close: 0.25 s against 0.62 s for the view, and 2.6 s against 3.1 s for the hybrid, on a quieter machine.
+- **Fast reproduced.** The committed `fast` rows (2026-10-16, `53090c0`) were re-run at `aa729eb` with the same command and no `--profile` (output kept out of the repository). Both systems gave identical predictions on all 51 documents, with identical view hashes. So the comparison isolates the profile.
+- **Provenance.** The `balanced` rows say `aa729eb+dirty`: the benchmark code of this task was uncommitted when they ran, and `src/` was clean at `aa729eb`.
+
+<!-- doctype-profile:begin -->
+Corpus: `benchmarks/corpus`, 51 documents. `fast` rows are the committed `benchmarks/results/2026-10-16/pdf.json`; `balanced` rows parse each PDF with `process_many(..., profile="balanced")` (element mode, heuristic layout, `ocr=auto`) and classify it exactly as `fast` does (same systems, view and instruction). Balanced parse: pages OCR'd whole 1, scanned pages with OCR lines merged in 13, image regions OCR'd 175; OCR engine ocrmac. A `+dirty` commit marks uncommitted files under `src/` or `benchmarks/`.
+
+| System | Profile | Leaf acc | 95% CI | Macro F1 | Parse s/doc | Classify s/doc | Run |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `ultrabert-view` | fast | 0.765 (39/51) | 0.65-0.86 | 0.709 | 1.47 | 0.616 | 2026-10-16 at `53090c0`, mps |
+| `ultrabert-view` | balanced | 0.765 (39/51) | 0.65-0.86 | 0.709 | 6.21 | 0.253 | 2026-10-18 at `aa729eb+dirty`, mps |
+| `ultrabert-hybrid` | fast | 0.824 (42/51) | 0.73-0.92 | 0.765 | 1.47 | 3.094 | 2026-10-16 at `53090c0`, mps |
+| `ultrabert-hybrid` | balanced | 0.824 (42/51) | 0.73-0.92 | 0.762 | 6.21 | 2.616 | 2026-10-18 at `aa729eb+dirty`, mps |
+
+View texts that differ from `fast`'s (the classifier input): `ultrabert-view` 33 of 51, `ultrabert-hybrid` 33 of 51.
+
+Documents whose prediction changed (fast -> balanced):
+
+- `ultrabert-hybrid` doc_036: government_report -> sustainability_report (gold white_paper; wrong)
+<!-- doctype-profile:end -->

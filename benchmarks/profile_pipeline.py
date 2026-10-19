@@ -29,6 +29,16 @@ Python, so its shares overstate our own code a little; the unprofiled stage time
 next to them.
 
 Results: ``benchmarks/results/<date>/profile.json``; a Markdown summary is printed.
+
+``--elements`` (v0.4, spec §10.5) measures load speed and memory on the same ten documents
+instead, with no classification: ``fast`` (``load()``), element mode with the heuristic rules
+on pymupdf and on pdfplumber, and element mode with the heron layout model (one ONNX session for
+the run). No OCR engine runs (``ocr=None``; OCR is measured by ``benchmarks.ocr_bench``). Each
+system runs in its own worker process, one after the other, so its peak RSS is its own; after
+an untimed warm-up on the smallest document, each document is loaded ``--repeat`` times and
+the fastest run is kept. Results: ``profile-elements[-TAG].json``. ``--systems fast`` runs under
+any docrooter on ``PYTHONPATH``, so the same command against a v0.3 checkout gives the
+baseline for the "fast within 5% of v0.3" check.
 """
 
 from __future__ import annotations
@@ -266,14 +276,147 @@ def render(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+# --- element mode speed and memory (v0.4) ---------------------------------------------------
+
+ELEMENT_SYSTEMS = ("fast", "heuristic-pymupdf", "heuristic-pdfplumber", "heron")
+ELEMENTS_FILE = "profile-elements"
+
+
+def _peak_rss_mib() -> float:
+    import resource
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss  # bytes on macOS, KiB on Linux
+    return round(peak / (1024 * 1024 if sys.platform == "darwin" else 1024), 1)
+
+
+def _loader(system: str) -> tuple[Any, Any]:
+    """``(load(path), engine to close)`` for one system; heron's session is created here."""
+    if system == "fast":
+        from docrooter import load
+
+        return load, None
+    from docrooter.pdf.load import load_pdf
+
+    if system == "heron":
+        from docrooter.layout import get_layout_engine
+
+        engine = get_layout_engine("heron")
+        return (lambda path: load_pdf(path, engine="pymupdf", elements=True, layout=engine)), engine
+    pdf_engine = system.split("-", 1)[1]
+    return (lambda path: load_pdf(path, engine=pdf_engine, elements=True)), None
+
+
+def element_worker(system: str, paths: Sequence[Path], repeat: int) -> dict[str, Any]:
+    """Load every document with ``system``, ``repeat`` times each (the fastest is kept)."""
+    rss_start = _peak_rss_mib()
+    started = time.perf_counter()
+    load_doc, engine = _loader(system)
+    try:
+        load_doc(min(paths, key=lambda p: p.stat().st_size))  # warm-up: imports, session
+        warmup_s = time.perf_counter() - started
+        rows = []
+        for path in paths:
+            runs = []
+            for _ in range(repeat):
+                clock = time.perf_counter()
+                doc = load_doc(path)
+                runs.append(time.perf_counter() - clock)
+            elements = getattr(doc, "elements", None)
+            rows.append({
+                "id": path.stem, "pages": doc.meta.get("n_pages"), "seconds": round(min(runs), 4),
+                "runs": [round(r, 4) for r in runs],
+                "elements": len(elements) if elements is not None else None,
+            })  # fmt: skip
+            print(f"{system} {path.stem} {rows[-1]['pages']:4d}p {min(runs):7.2f}s", flush=True)
+    finally:
+        if engine is not None:
+            engine.close()
+    return {
+        "system": system,
+        "repeat": repeat,
+        "warmup_s": round(warmup_s, 2),
+        "rss_start_mib": rss_start,
+        "peak_rss_mib": _peak_rss_mib(),
+        "docs": rows,
+    }
+
+
+def summarise_elements(raw: dict[str, Any]) -> dict[str, Any]:
+    pages = sum(r["pages"] for r in raw["docs"])
+    seconds = sum(r["seconds"] for r in raw["docs"])
+    return {
+        **raw,
+        "pages": pages,
+        "seconds": round(seconds, 3),
+        "s_per_100_pages": round(100 * seconds / pages, 3) if pages else None,
+    }
+
+
+def run_elements(args: argparse.Namespace) -> int:
+    from benchmarks.toc import collect_env, git_revision
+
+    manifest = {row["id"]: row for row in corpora.read_manifest(corpora.DEV)}
+    ids = [i for i in args.docs.split(",") if i]
+    systems = [s.strip() for s in args.systems.split(",") if s.strip()]
+    unknown = [s for s in systems if s not in ELEMENT_SYSTEMS]
+    if unknown:
+        raise SystemExit(f"unknown system: {', '.join(unknown)}")
+    out_dir = args.out or RESULTS_ROOT / datetime.date.today().isoformat()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    CACHE.mkdir(parents=True, exist_ok=True)
+    result: dict[str, Any] = {
+        "date": datetime.date.today().isoformat(),
+        "commit": git_revision(),
+        **imported_docrooter(Path(__file__).parent.parent),
+        "env": collect_env(),
+        "loadavg_start": list(os.getloadavg()),
+        "documents": ids,
+        "ocr": None,
+        "systems": {},
+    }
+    for system in systems:
+        scratch = CACHE / f"elements-{system}.json"
+        cmd = [sys.executable, "-m", "benchmarks.profile_pipeline", "--elements-worker", system,
+               "--docs", ",".join(ids), "--repeat", str(args.repeat), "--worker-out",
+               str(scratch)]  # fmt: skip
+        subprocess.run(cmd, check=True)
+        raw = json.loads(scratch.read_text(encoding="utf-8"))
+        result["systems"][system] = summarise_elements(raw)
+        s = result["systems"][system]
+        print(f"{system}: {s['s_per_100_pages']} s/100 pages, peak RSS {s['peak_rss_mib']} MiB",
+              flush=True)  # fmt: skip
+    result["loadavg_end"] = list(os.getloadavg())
+    result["pages"] = sum(manifest[i]["pages"] for i in ids)
+    name = f"{ELEMENTS_FILE}-{args.tag}.json" if args.tag else f"{ELEMENTS_FILE}.json"
+    path = out_dir / name
+    path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    print(f"wrote {path}", file=sys.stderr)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Profile the default local pipeline")
     parser.add_argument("--docs", default=",".join(DOC_IDS), help="comma-separated dev ids")
     parser.add_argument("--out", type=Path, default=None, help="results dir (default: dated)")
     parser.add_argument("--backend", default=BACKEND, help=f"backend spec (default {BACKEND})")
+    parser.add_argument("--elements", action="store_true", help="element-mode speed (v0.4)")
+    parser.add_argument("--systems", default=",".join(ELEMENT_SYSTEMS), help="with --elements")
+    parser.add_argument("--repeat", type=int, default=1, help="with --elements: runs per doc")
+    parser.add_argument("--tag", default=None, help="with --elements: result file suffix")
+    parser.add_argument("--elements-worker", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--worker-out", type=Path, default=None, help=argparse.SUPPRESS)
     _guard.add_guard_argument(parser)
     args = parser.parse_args(argv)
+    if args.elements_worker:
+        _guard.apply_env_caps()  # the parent holds the one-model-process check
+        manifest = {row["id"]: row for row in corpora.read_manifest(corpora.DEV)}
+        paths = [corpora.DEV / manifest[i]["file"] for i in args.docs.split(",") if i]
+        raw = element_worker(args.elements_worker, paths, args.repeat)
+        args.worker_out.write_text(json.dumps(raw), encoding="utf-8")
+        return 0
     _guard.single_model_process("profile_pipeline", allow_concurrent=args.allow_concurrent)
+    if args.elements:
+        return run_elements(args)
 
     from benchmarks.toc import collect_env, git_revision
     from docrooter.backends import registry

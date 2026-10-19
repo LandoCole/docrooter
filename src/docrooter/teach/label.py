@@ -713,6 +713,14 @@ class _Run:
         element (reused from current prescreen rows), then each task's percentile scores and
         asked tags. Stops early (leaving the tasks unscored) when ``over()``."""
         started = self.clock()
+        topic_tasks = [t for t in tasks if t.topic]
+        for begin in range(0, len(topic_tasks), batch_size):
+            if over():
+                return
+            self._shortlist(topic_tasks[begin : begin + batch_size])
+        if self.full:  # no function questions: no cosines, percentiles or weak rows
+            self.report.embed_seconds = round(self.clock() - started, 3)
+            return
         tags = function_tags(self.keys.functions)
         cosines = np.zeros((len(picks), len(tags)))
         stored: dict[int, LabelRow] = {}
@@ -733,14 +741,6 @@ class _Run:
                 cosines[i] = [float(cosine[tag]) for tag in tags]
             else:
                 missing.append(i)
-        topic_tasks = [t for t in tasks if t.topic]
-        for begin in range(0, len(topic_tasks), batch_size):
-            if over():
-                return
-            self._shortlist(topic_tasks[begin : begin + batch_size])
-        if self.full:  # no function questions: no cosines, percentiles or weak rows
-            self.report.embed_seconds = round(self.clock() - started, 3)
-            return
         for begin in range(0, len(missing), batch_size):
             if over():
                 return

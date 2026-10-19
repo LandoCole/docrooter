@@ -6,10 +6,24 @@ Fakes only (the fixtures of test_label): no torch, mlx or network.
 from __future__ import annotations
 
 import pytest
-from test_label import PAPER_TEXTS, RecordingTeacher, WordEmbedder, _add
+from test_label import (
+    PAPER_TEXTS,
+    FakeClock,
+    RecordingTeacher,
+    WordEmbedder,
+    _add,
+    _elements,
+    _sha,
+)
 
-from docrooter.corpus import SKIPPED_KINDS, Corpus
-from docrooter.tagger.pipeline import RESERVED_LABELERS, TRAINING_LABELERS, _fingerprint
+from docrooter.corpus import SKIPPED_KINDS, Corpus, CorpusElement, ManifestRecord
+from docrooter.tagger.pipeline import (
+    RESERVED_LABELERS,
+    TRAINING_LABELERS,
+    _fingerprint,
+    tag_corpus,
+    train_elements,
+)
 from docrooter.teach.label import (
     PRESCREEN_LABELER,
     TEACHER_FULL_LABELER,
@@ -158,3 +172,82 @@ def test_cli_full_labels_calib_and_gold(corpus, monkeypatch):
     assert corpus.labelers() == [TEACHER_FULL_LABELER]
     stray = CliRunner().invoke(app, ["teach", "label", str(corpus.dir), "--splits", "gold"])
     assert stray.exit_code == 1 and "--full" in stray.output
+
+
+def _add_rows(corpus: Corpus, doc_id: str, split: str, rows) -> None:
+    record = ManifestRecord(
+        id=doc_id, sha256=_sha(doc_id), split=split, doc_type_hint="financial.annual_report"
+    )
+    corpus.add_document(record, _elements(doc_id, rows), [1])
+
+
+def test_per_doc_cap_is_ignored_in_full_mode(tmp_path):
+    corpus = Corpus(tmp_path / "store")
+    rows = [("paragraph", ["Properties"], f"We lease office number {i}.") for i in range(5)]
+    _add_rows(corpus, "long0", "calib", rows)
+    spec = SampleSpec(mode="full", splits=("calib",), per_doc=2, target=3, floor=1)
+    assert len(sample_elements(corpus, SampleSpec(per_doc=2, splits=("calib",)))) == 2
+    assert len(sample_elements(corpus, spec)) == 5
+    report = label_corpus(corpus, RecordingTeacher(), WordEmbedder(), sample=spec)
+    assert report.sampled == report.topic_labelled == 5 and report.target == 5
+    assert len(corpus.labels(TEACHER_FULL_LABELER)) == 5
+
+
+def test_textless_elements_are_skipped_as_in_normal_mode(tmp_path):
+    corpus = Corpus(tmp_path / "store")
+    rows = [
+        ("paragraph", ["Properties"], "We lease offices."),
+        ("paragraph", ["Properties"], ""),
+        ("table", ["Properties"], ""),  # no text, but a table's markdown is its content
+        ("list_item", ["Properties"], "Headquarters, leased."),
+    ]
+    record = ManifestRecord(
+        id="blank0", sha256=_sha("blank0"), split="calib", doc_type_hint="financial.annual_report"
+    )
+    elements = _elements("blank0", rows)
+    blank = CorpusElement(
+        doc_id="blank0",
+        element_id="e9",
+        kind="paragraph",
+        text="   \n",
+        heading_path=["Properties"],
+        section_title="Properties",
+        page=1,
+    )
+    corpus.add_document(record, [*elements, blank], [1])
+    normal = SampleSpec(per_doc=100, splits=("calib",))
+    full = SampleSpec(mode="full", splits=("calib",))
+    ids = {p.element.element_id for p in sample_elements(corpus, full)}
+    assert ids == {"e0", "e2", "e3"}  # blank and whitespace-only paragraphs skipped
+    assert {p.element.element_id for p in sample_elements(corpus, normal)} == ids
+    label_corpus(corpus, RecordingTeacher(), WordEmbedder(), sample=full)
+    assert {k.element_id for k in corpus.labels(TEACHER_FULL_LABELER)} == ids
+
+
+def test_full_mode_ceiling_stop_records_and_resumes(corpus):
+    total = len(_content_ids(corpus, "calib", "gold"))
+    clock = FakeClock()
+    teacher = RecordingTeacher(clock=clock, tick=3600.0)  # each teacher call takes an hour
+    report = label_corpus(
+        corpus, teacher, WordEmbedder(), sample=FULL, ceiling_hours=0.5, batch_size=4, clock=clock
+    )
+    assert report.stopped_by_ceiling and report.mode == "full"
+    assert report.sampled == total > 8
+    assert report.topic_labelled == 4 and report.labelled_total == 4
+    assert report.target == report.floor == total and report.below_floor
+    assert report.seconds >= 0.5 * 3600
+    assert len(corpus.labels(TEACHER_FULL_LABELER)) == 4
+
+    rest = label_corpus(corpus, RecordingTeacher(), WordEmbedder(), sample=FULL)
+    assert not rest.stopped_by_ceiling and not rest.below_floor
+    assert rest.skipped == 4 and rest.topic_labelled == total - 4
+    assert len(corpus.labels(TEACHER_FULL_LABELER)) == total
+
+
+def test_training_and_tagging_refuse_full_mode(corpus):
+    with pytest.raises(ValueError, match="full mode"):
+        train_elements(corpus, "mlx:fake@1", corpus.dir / "bundle", sample=FULL)
+    assert not (corpus.dir / "labels").exists()  # refused before any work
+    with pytest.raises(ValueError, match="training chain"):
+        tag_corpus(corpus, None, labeler=TEACHER_FULL_LABELER)  # type: ignore[arg-type]
+    assert not (corpus.dir / "labels").exists()

@@ -97,14 +97,23 @@ order, without furniture or `contents`.
 
 ### Reading order
 
-Pages are read with a recursive XY-cut: full-width boxes split a page into bands, vertical
-gutters inside a band make columns, and the pieces are visited top to bottom and left to right.
-A page with no column gutter keeps the extractor's order exactly. A gutter that runs between the
-row-aligned labels and numbers of an unruled table is not a column boundary, so financial
-tables keep their rows together.
+Pages are read with a column-first XY-cut:
 
-The heuristic order has limits. A table with wide text cells can still be cut as if it were two
-columns, and the axis labels of a chart have no meaningful order. The layout model orders by
+- Boxes at least 60% of the text width wide (a single-column line, a wide heading) cut the page
+  into bands.
+- Inside a band, a vertical gutter (at least 8 pt or three character widths wide, with two lines
+  on each side and the sides overlapping by half of the shorter one) makes columns. The left
+  column is read before the right one, whatever their lengths, and a title or heading over or
+  across the columns comes first.
+- Without a gutter the band is cut at its largest horizontal gap. A section or table under two
+  columns is cut off from them.
+- A page with no column gutter keeps the extractor's order exactly.
+- A gutter that runs between the labels and the figures of an unruled table is not a column
+  boundary (a side of figures, or a narrow column of cells, makes a table), so financial tables
+  keep their rows together.
+
+The heuristic order has limits. A table whose cells are all words can still be cut as if it were
+two columns, and the axis labels of a chart have no meaningful order. The layout model orders by
 region instead (see below).
 
 ### Page furniture
@@ -112,8 +121,8 @@ region instead (see below).
 Running headers, footers and page numbers are moved out of the body flow in element mode, by
 design: lines in the upper half of the page go to the start of that page's elements and lines
 in the lower half go to its end. Their text is not in `Section.text`. In `fast` mode they stay
-where the extractor put them. On the 4,519 dev-corpus pages where XY-cut finds no gutter, the
-body order equals `fast`'s, and 272 of those pages differ from `fast` only in where furniture
+where the extractor put them. On the 4,482 dev-corpus pages where XY-cut finds no gutter, the
+body order equals `fast`'s, and 266 of those pages differ from `fast` only in where furniture
 sits (`benchmarks/results/2026-10-19/elements-reading-order.json`).
 
 ### Markdown
@@ -173,7 +182,8 @@ per system:
 
 Source: `benchmarks/results/2026-10-18/profile-elements.json`; method in
 [Performance and memory](../benchmarks/performance.md). They were measured before the XY-cut
-table fix, which adds one cheap test per candidate gutter.
+table fix and the column-first rewrite of the reading order, which cost more: on the 642-page
+datasheet of the profiling set the order step went from 0.14 s to 3.3 s of about 43 s.
 
 Most of element mode's extra cost is the search for ruled tables. `tables="none"` skips it, and
 is the speed switch for documents full of ruled tables, such as datasheets. Set it in a

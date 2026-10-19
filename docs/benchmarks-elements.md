@@ -4,7 +4,7 @@
 
 **Data.** [DocLayNet](https://github.com/DS4SD/DocLayNet) (Pfitzmann et al., KDD 2022), licence [CDLA-Permissive-1.0](https://cdla.io/permissive-1-0/): 80,863 human-annotated pages from six document categories, with 11 layout classes. The benchmark reads the Hugging Face re-packaging `docling-project/DocLayNet-v1.2` at revision `0daf93102e2efce76c3e11a274a5e0d0969391d3`. It holds each page's born-digital single-page PDF in a binary column, beside the gold boxes and the PDF text cells inside each box. `benchmarks/doclaynet.py` pins every parquet shard by SHA-256 (the LFS object id at that revision). It downloads every shard of a split, because the shards are sorted by category, checks each one, samples, writes the sampled PDFs to the git-ignored `benchmarks/.cache/doclaynet/`, and then deletes the shards.
 
-**Provenance: these results predate the XY-cut table fix.** Every DocLayNet number in this section (§10.1: the test and train tables, the tuning log and the disclosure) was produced at or before commit `213979e`, with `ee2a829` checked against it, and so before `c09b9f7` ("XY-cut keeps row-aligned tables together"). That fix changed element building: over the 51 dev PDFs, pymupdf's element count went from 90,908 to 89,410 (the lines are the same, 316,617; 89,414 after the later short-columns fix, `a0830ea`). The DocLayNet scores may therefore move, and they were not re-scored, because the test split has already been scored twice (see the disclosure below) and a third scoring would no longer be a held-out measurement. Treat them as describing the code at `213979e`. The dev-corpus checks and the reading-order, OCR and speed sections below say which commit they were made at.
+**Provenance: these results predate the XY-cut table fix.** Every DocLayNet number in this section (§10.1: the test and train tables, the tuning log and the disclosure) was produced at or before commit `213979e`, with `ee2a829` checked against it, and so before `c09b9f7` ("XY-cut keeps row-aligned tables together"). That fix changed element building: over the 51 dev PDFs, pymupdf's element count went from 90,908 to 89,410 (the lines are the same, 316,617; 89,516 after the later reading-order rewrite, `1a02fcb`). The DocLayNet scores may therefore move, and they were not re-scored, because the test split has already been scored twice (see the disclosure below) and a third scoring would no longer be a held-out measurement. Treat them as describing the code at `213979e`. The dev-corpus checks and the reading-order, OCR and speed sections below say which commit they were made at.
 
 **Sample.** 400 test-split pages and 400 train-split pages, stratified over the six categories with an equal share each (67 pages for each of the first four categories in name order, 66 for patents and scientific articles), drawn with seed `20261018`. DocLayNet's train and test splits share no documents. Thresholds were tuned on the train pages only. The test pages have been scored twice, both times after tuning. The second scoring was made for correctness, not for score: see the disclosure below.
 
@@ -307,9 +307,9 @@ Every other constant keeps its starting value, including `FIGURE_MIN_AREA` 0.02,
 
 ### Dev-corpus checks (final constants; commit given per line)
 
-- **TOC no-regression (spec §10.3):** `benchmarks.toc --engines pymupdf --elements` on the 24 bookmarked dev PDFs gives depth <= 2 micro F1 **0.7071** in element mode, against 0.7031 for `fast`. That meets the 0.703 target (`benchmarks/results/2026-10-19/toc-elements.json`, commit `a0830ea`; 0.7071 at `c09b9f7` too). The value at `213979e`, before the XY-cut table fix, was 0.7074 (`2026-10-18/toc-elements.json`). Tuning did not change it.
+- **TOC no-regression (spec §10.3):** `benchmarks.toc --engines pymupdf --elements` on the 24 bookmarked dev PDFs gives depth <= 2 micro F1 **0.7083** in element mode, against 0.7031 for `fast`. That meets the 0.703 target (`benchmarks/results/2026-10-19/toc-elements.json`, commit `1a02fcb`). It was 0.7071 at `c09b9f7` and `a0830ea`, and 0.7074 at `213979e`, before the XY-cut table fix. Tuning did not change it.
 - **Ownership invariant:** on all 51 dev PDFs, every line with text is in exactly one element. There were 0 failures and no empty non-figure element.
-  - pymupdf, after the short-columns fix (`a0830ea`): 316,617 lines, 89,414 elements, 0 failures (it was 89,410 at `c09b9f7` and 90,908 at `213979e`).
+  - pymupdf, after the column-first rewrite (`1a02fcb`): 316,617 lines, 89,516 elements, 0 failures (it was 89,414 at `a0830ea`, 89,410 at `c09b9f7` and 90,908 at `213979e`).
   - pdfplumber: 331,104 lines, 95,779 elements, counted at `ee2a829`, before the XY-cut table fix. It was not re-counted.
 
 ## Reading order (spec §10.2)
@@ -320,7 +320,7 @@ PYTHONPATH=src .venv/bin/python -m benchmarks.elements_bench --reading-order
 
 Each dev PDF is loaded twice with pymupdf and no OCR: in element mode, recording the line list and the permutation that `order_lines` returns, and as `fast`. Bookmarks are off for the TOC in both, as in the TOC benchmark.
 
-- **Results:** `benchmarks/results/2026-10-19/elements-reading-order.json`, from commit `a0830ea`: the row-alignment fix below (`c09b9f7`) plus the short-columns fix (see the last subsection of this section) and clean code. The run at `c09b9f7` was overwritten; its figures are quoted below as *after the row-alignment fix*.
+- **Results:** `benchmarks/results/2026-10-19/elements-reading-order.json`, from commit `1a02fcb`: the column-first XY-cut of the last subsection of this section, with clean code. The runs at `c09b9f7` (the row-alignment fix below) and at `a0830ea` (the short-columns patch) were overwritten; their figures are quoted below as *after the row-alignment fix* and *after the short-columns fix*. **The tables, spot checks and per-document figures between here and the last subsection describe the XY-cut of `c09b9f7`**; the last subsection gives what changed.
 - **Before the fix:** the same code measured `src` at `2f3825a`, unchanged since `aa729eb`. That run is quoted below as *before*; it was kept out of the repository.
 - **Superseded:** `2026-10-18/elements-reading-order.json` is the first E11b run, made before the fix.
 
@@ -330,10 +330,10 @@ The run covers 5,036 pages with at least one text line.
 
 `xy_cut_order` returns the input order exactly when it cuts no column gutter on a page (the identity guard).
 
-- **Pages with no gutter (4,519 after the short-columns fix; 4,520 at `c09b9f7`).** Their body order equals `fast`'s by construction. That is a property of the code, not a measurement: a page that a reader would call single-column but that XY-cut cuts anyway is simply not in this set.
+- **Pages with no gutter (4,482 after the column-first rewrite; 4,520 at `c09b9f7`).** Their body order equals `fast`'s by construction. That is a property of the code, not a measurement: a page that a reader would call single-column but that XY-cut cuts anyway is simply not in this set.
 - **The non-trivial checks on these pages:**
   - the element-mode line list equals `fast`'s `extract_lines` on all 5,036 pages (checksums of the line texts in order);
-  - with furniture included, 4,247 of 4,519 no-gutter pages equal `fast`. The other 272 differ only in where furniture lines sit: element mode puts running headers, footers and page numbers at the page's start or end, by the E5b design. doc_030 has 106 such pages, doc_042 86 and doc_002 17.
+  - with furniture included, 4,216 of 4,482 no-gutter pages equal `fast`. The other 266 differ only in where furniture lines sit: element mode puts running headers, footers and page numbers at the page's start or end, by the E5b design. doc_030 has 106 such pages, doc_042 86 and doc_002 17.
 
 ### Non-circular check: lines moved on cut pages of single-column documents
 
@@ -360,12 +360,12 @@ Unit tests pin the new rule:
 
 Mostly single-column documents (gutters on less than 50% of their pages):
 
-| | Before (`2f3825a` src) | After the row-alignment fix (`c09b9f7`) | After the short-columns fix (`a0830ea`) |
-| --- | --- | --- | --- |
-| Documents | 46 | 47 (doc_045 drops to 36 of 73 column pages) | 47 |
-| Pages with a cut | 228 | 221 | 222 |
-| Body lines moved on those pages | 5,755 (of 20,692) | 5,425 (of 19,352) | 5,429 (of 19,428) |
-| ... on the same 46 documents | 5,755 | 4,545 | 4,549 |
+| | Before (`2f3825a` src) | After the row-alignment fix (`c09b9f7`) | After the short-columns fix (`a0830ea`) | After the column-first rewrite (`1a02fcb`) |
+| --- | --- | --- | --- | --- |
+| Documents | 46 | 47 (doc_045 drops to 36 of 73 column pages) | 47 | 45 (doc_011 and doc_045 now have a gutter on 58 of 113 and 42 of 73 pages) |
+| Pages with a cut | 228 | 221 | 222 | 147 |
+| Body lines moved on those pages | 5,755 (of 20,692) | 5,425 (of 19,352) | 5,429 (of 19,428) | 2,225 (of 10,544) |
+| ... on the same 46 documents | 5,755 | 4,545 | 4,549 | not comparable (the document set changed) |
 
 | Document | Pages with a cut, before -> after | Lines moved, before -> after |
 | --- | --- | --- |
@@ -407,6 +407,8 @@ So 6 of 10 are true multi-column layouts. Two are tables whose cells are wide te
 | --- | --- | --- | --- | --- | --- |
 | 517 | 507 | 1,195 | 670 | **2** | 64 of 59,160 |
 
+The row above is the XY-cut of `a0830ea`. For the column-first rewrite (`1a02fcb`) a band is a part of the cut: a region cut at a gutter, or a maximal part with no gutter (a title, a table, a section under columns). There are 554 pages with a gutter, 545 reordered, 3,797 bands, 2,945 single-column bands, and 58 shifted bands with 2,042 lines (of 62,969). A single-column band is cut at its horizontal gaps, which can re-sort its lines by y; the shifted bands are those where that moved a line (mostly figure labels and tables, which have no order to keep).
+
 Both shifted bands are in doc_036 (Future of Jobs Report): a chart's source note on p28, and a chart's label column on p44. No prose band moved, so the guard stays page-global.
 
 **Bookmark-pair order agreement.** This runs on the 24 dev PDFs with at least 5 bookmarks. Headings are matched to bookmarks as in the TOC benchmark (title ratio >= 0.85, page within 1). For each pair of consecutive bookmarks whose two headings both match, the pair agrees when the headings come out in the same order.
@@ -433,9 +435,25 @@ Ruling: its gold is its own section numbering. The numbered headings ("3.1 ...")
 - doc_049 lost column cuts on four pages: its GRI index tables (pp. 27, 30, 31, 38), which now keep row order.
 - doc_036 (no bookmarks) also crosses the 50% line. Its numbered "headings" are the numbered items of its guide panels, laid out in grids (pages 89-92 and 259-260), not section numbers, so they are no gold for it.
 
-**Short columns under a heading (E12 review fix, `a0830ea`).** A heading over one of two short columns of unequal length (for example 16 pt over two 10 pt columns of 5 and 4 lines at 12 pt leading) read the right column first. The heading stretched the left side upwards, so the two sides shared 56% of the band, under the 60% a gutter needs. No gutter was cut, and the extractor's order was kept, which for PyMuPDF puts the shorter column first. The fix: when the coverage test fails, it is repeated without up to two boxes of one side that end above the other side's top (a heading, not text). A tall column beside a short one, with nothing above the short one's top, is still not a gutter. The earlier idea of lowering the row-cut threshold was tried and rejected: at the lower threshold the row cut shreds a whole two-column page into rows before its gutter is found (the golden two-column PDF broke).
-- *Test:* 72 generated PDFs (leading 12, 13, 14 and 15 pt; column lengths 5/4, 6/5, 4/3, 7/5, 5/6 and 6/6; a short, medium and wide heading) in `tests/unit/pdf/test_element_mode.py`. Before the fix 8 of them read the right column first (12 and 13 pt leading with the short heading); none do now. A wider sweep that also varies the heading-to-column spacing (288 variants) went from 30 failures to 0.
-- *Dev corpus, before (`c09b9f7`) and after (`a0830ea`):* pages with a gutter 516 -> 517 (doc_013 p62, a proxy card, is now cut: one line moves); lines moved on mostly single-column documents 5,425 -> 5,429 (doc_012 p156 moves 3 more, doc_013 1 more); bookmark-pair agreement 1,652 of 1,654 in both; Kendall tau (doc_028, doc_049) unchanged; TOC depth <= 2 micro F1 in element mode 0.7071 in both (`2026-10-19/toc-elements.json`, re-run at `a0830ea`).
+**Column-first reading order (E12 fix rounds 1 and 2, `a0830ea` then `70dd2ca` to `1a02fcb`).**
+
+*The bug.* A heading over one of two short columns of unequal length (for example 16 pt over two 10 pt columns of 5 and 4 lines at 12 pt leading) read the right column first. The line-gap median left out the zero gaps of tight leading, so the row-cut threshold was above every gap that separates a heading from its columns; the heading stayed in the column block and stretched one side, so the sides shared under 60% of the band; no gutter was cut, and the extractor's order was kept, which for PyMuPDF puts the shorter column first. The first patch (`a0830ea`, set aside up to two boxes above the other side's top) closed one shape of it. The re-review's grid of 960 layouts (a title or not; a short, medium and wide heading, the medium one ending inside the gutter; column lengths 5/4 to 12/3; leading 11 to 15 pt; two heading spacings; a section under the columns or not) still read the right column first in **300** of them (381 at `5e7daaf`).
+
+*The rewrite.* `xy_cut_order` is now column-first (controller ruling): spanning boxes (60% of the text width) cut a region into bands; in a band only the other boxes are projected onto x, a gutter is a valley of at least 8 pt or three character widths with two boxes (two that are 20% of the text width) on each side and y-ranges overlapping by half of the shorter side, and up to three titles or headings that cross it are separators; the left side is read before the right, band by band; a region with no gutter is cut at its largest gap; and the line-gap median counts the zero gaps. Two additions were needed to keep what the old coverage test did incidentally, now that every region is judged alone:
+- a section break under columns (a gap of 1.25 line heights with a gutter above it and a box across the gutter below it) is cut first, so a table or a section under two columns is not read as the end of one of them;
+- the table guard of `c09b9f7` also treats a side of figures (a line that is mostly digits) as cells, whatever the width of the line, and checks a projection with three or more columns column by column (a cover page of name, ticker and exchange). Without them, doc_003, doc_004 and doc_001 read the labels of a statement before its figures again.
+
+A cheaper first try, lowering the row-cut threshold, was rejected: it cut the golden two-column page into rows before its gutter was seen. Two existing unit tests changed with the ruling: a short column beside a tall one is now a gutter (its y-range lies inside the tall one's: the 50% rule is of the shorter side), and the full-width test uses a 290 pt heading (spanning is 60%, not 75%).
+
+*Tests.* `test_columns_read_left_then_right_over_a_grid_of_layouts` regenerates the 960 layouts and allows at most 19 failures (2%); **0 fail** (300 at the re-review's HEAD). The 72-PDF parametrised test of the first fix and the box-level tests also pass.
+
+*Dev corpus, before (`a0830ea`) and after (`1a02fcb`).*
+- Line invariant: every line with text in exactly one element, 0 failures; 316,617 lines, 89,414 -> 89,516 elements.
+- `benchmarks.toc --elements`: element-mode depth <= 2 micro F1 0.7071 -> **0.7083** (target >= 0.703; `fast` 0.7031).
+- Lines moved on the mostly single-column documents (the proxy for "single-column pages are left alone"): doc_003 0 -> 0, doc_004 0 -> 0, doc_001 5 -> **19** (target <= 20). doc_001 has 3 cut pages: p136 (9 lines moved: a two-column table of company and description) and p151 (10: the directors' biographies in two columns) move lines, a third moves none. doc_005 5 -> 0, doc_007 6 -> 0, doc_009 and doc_010 3 -> 0, doc_051 5 -> 0. Documents that gain lines moved are the ones with real column pages that were read across before (doc_012 172 -> 224, doc_014 24 -> 53, doc_042 54 -> 93, doc_041 21 -> 72 with chart and diagram labels, doc_031 0 -> 14 and doc_043 0 -> 10 with one page each).
+- Pages with a gutter 517 -> 554; doc_011 (a bilingual prospectus in parallel columns) and doc_045 now have a gutter on 58 of 113 and 42 of 73 pages and leave the mostly single-column set.
+- Kendall tau: doc_028 (section numbers) 1.000 (11 headings) -> 1.000; doc_049 1.000 -> 1.000; doc_045 0.800 -> 0.800; doc_036's numbered items 0.410 -> 0.600. Bookmark-pair agreement 1,652 of 1,654 -> 1,651 of 1,653 (the same two disagreements).
+- Time: the order step over doc_042 (47,743 lines) took 0.14 s before the rewrite and 3.3 s after (15.3 s in the first column-first version, before the search was bounded); doc_001 0.03 -> 0.27 s. The TOC benchmark's element mode took 5.08 -> 5.24 s per document in the same runs (the load average differs).
 
 **TOC and the line invariant after the fix.**
 - `benchmarks.toc --engines pymupdf --elements` (`2026-10-19/toc-elements.json`) gives depth <= 2 micro F1 **0.7071** in element mode, against 0.7031 for `fast`. The target is >= 0.703, and the value before the fix was 0.7074.

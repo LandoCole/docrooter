@@ -80,15 +80,21 @@ class EchoTagger:
 
 
 def test_topic_metrics_primary_and_end_to_end():
-    # By hand: classes rf, other, perf, properties (the union of gold and predicted labels).
+    # By hand: the classes are those in gold (rf, other, perf); the stray "properties"
+    # prediction is only a miss of its gold class, not a zero class of its own.
     gold = [f"{AR}.risk_factors", f"{AR}.risk_factors", f"{AR}.other", f"{FD}.performance"]
     pred = [f"{AR}.risk_factors", f"{AR}.other", f"{AR}.other", f"{AR}.properties"]
     m = bench.topic_metrics(gold, pred)
     assert m["n"] == 4
     assert m["accuracy"] == pytest.approx(0.5)
-    assert m["macro_p"] == pytest.approx((1 + 0.5 + 0 + 0) / 4)
-    assert m["macro_r"] == pytest.approx((0.5 + 1 + 0 + 0) / 4)
-    assert m["macro_f1"] == pytest.approx((2 / 3 + 2 / 3) / 4)
+    assert (m["macro_over"], m["classes"]) == ("gold_classes", 3)
+    assert set(m["per_class"]) == set(gold)
+    assert m["macro_p"] == pytest.approx((1 + 0.5 + 0) / 3)
+    assert m["macro_r"] == pytest.approx((0.5 + 1 + 0) / 3)
+    assert m["macro_f1"] == pytest.approx((2 / 3 + 2 / 3) / 3)
+    # The class set depends on gold only: another system's stray labels do not change it.
+    other = bench.topic_metrics(gold, [f"{AR}.risk_factors", AR, f"{AR}.other", "x.y"])
+    assert other["classes"] == 3 and set(other["per_class"]) == set(gold)
     # Hierarchical over family -> leaf: overlaps 2 + 1 + 2 + 0 of 8 predicted and 8 gold nodes.
     assert m["hierarchical"] == pytest.approx({"p": 5 / 8, "r": 5 / 8, "f1": 5 / 8})
     # A family-level prediction (an untrained leaf) earns the family node only.
@@ -166,6 +172,8 @@ def test_ece():
     assert bench.ece([1.0, 1.0], [True, True]) == 0.0
     assert bench.ece([0.0], [False]) == 0.0  # confidence 0 falls in the first bin
     assert bench.ece([], []) is None
+    # 0.2 x 15 is 3.0000000000000004 in floats: 0.2 still belongs to the bin (2/15, 3/15].
+    assert bench.ece([0.2, 0.19], [True, False]) == pytest.approx(abs(0.5 - 0.195))
     assert bench.ECE_BINS == 15
 
 
@@ -281,6 +289,15 @@ def test_element_evidence_mix_fixed_weights():
     spread = bench.implied_doc_types({FD: 1.0}, view)
     assert spread["financial.prospectus"] == pytest.approx(0.5)
     assert spread["financial.fact_sheet"] == pytest.approx(0.5)
+
+    # A view that sums to less than 1 (leaf_probs keep the top 10 nodes) is renormalised
+    # first, so the mix is 0.7/0.3 in effect: 0.7 x 0.3/0.5 and 0.7 x 0.2/0.5 + 0.3.
+    short = {"financial.annual_report": 0.3, "research.research_paper": 0.2}
+    assert bench.normalise_view(short, list(view))["financial.annual_report"] == pytest.approx(0.6)
+    mixed = bench.mix_doc_type(short, {"research_paper": 1.0})
+    assert mixed["financial.annual_report"] == pytest.approx(0.42)
+    assert mixed["research.research_paper"] == pytest.approx(0.58)
+    assert sum(mixed.values()) == pytest.approx(1.0)
 
     # The evidence is the mean unconstrained family distribution of the tagged elements.
     tags = [
@@ -458,6 +475,13 @@ def test_run_keyword_system_writes_results_with_provenance(tmp_path, monkeypatch
     runs = json.loads((out / bench.RESULTS_FILE).read_text(encoding="utf-8"))["runs"]
     got = [(r["system"], r["n"], r["subset"]) for r in runs]
     assert got == [("keyword", 4, None), ("kw-2", 2, 2)]
+    # A subset run of the same system is its own row too: it never replaces the full run.
+    assert (
+        bench.main(["run", "--system", "keyword", "--subset", "2", "--device", "cpu", *common]) == 0
+    )
+    runs = json.loads((out / bench.RESULTS_FILE).read_text(encoding="utf-8"))["runs"]
+    got = [(r["system"], r["n"], r["subset"]) for r in runs]
+    assert got == [("keyword", 4, None), ("kw-2", 2, 2), ("keyword", 2, 2)]
 
 
 # --- drivers, with the models faked ---------------------------------------------------------
@@ -495,7 +519,10 @@ class FakeBundle(EchoTagger):
         self.closed = True
 
 
-def test_learning_curve_point_trains_the_nested_subset_once(tmp_path, monkeypatch, no_guard):
+def curve_setup(tmp_path, monkeypatch, doc_id="x"):
+    """A gold store, a train-elements work dir (24 confident examples of ``doc_id``, 10
+    function rows, fingerprint ``abc``) and faked training; returns the argv to extend with
+    ``--fractions``, the examples, the trained calls and the store."""
     from docrooter.tagger import bundle as bundle_module
     from docrooter.tagger import train as train_module
     from docrooter.tagger.functions import FunctionRow
@@ -505,7 +532,7 @@ def test_learning_curve_point_trains_the_nested_subset_once(tmp_path, monkeypatc
     work = tmp_path / "work"
     work.mkdir()
     examples = [
-        Example(text=f"t{k}", path=[AR, f"{AR}.{leaf}"], doc_id="x", section_id=f"e{k}")
+        Example(text=f"t{k}", path=[AR, f"{AR}.{leaf}"], doc_id=doc_id, section_id=f"e{k}")
         for k, leaf in enumerate(["other"] * 16 + ["properties"] * 8)
     ]
     write_jsonl(work / "train.jsonl", [e.model_dump(exclude_none=True) for e in examples])
@@ -514,7 +541,6 @@ def test_learning_curve_point_trains_the_nested_subset_once(tmp_path, monkeypatc
     write_jsonl(work / "functions-train.jsonl", [r.model_dump() for r in rows])
     write_jsonl(work / "functions-calib.jsonl", [rows[0].model_dump()])
     (work / "dataset.json").write_text(json.dumps({"fingerprint": "abc"}), encoding="utf-8")
-
     trained = []
 
     def fake_train(dataset, function_rows, **options):
@@ -528,10 +554,28 @@ def test_learning_curve_point_trains_the_nested_subset_once(tmp_path, monkeypatc
         "load",
         classmethod(lambda cls, path, device=None: FakeBundle()),
     )
-    out = tmp_path / "results"
-    argv = ["learning-curve", "--stage", "A", "--fractions", "1/2", "--work", str(work)]
+    argv = ["learning-curve", "--stage", "A", "--work", str(work)]
     argv += ["--bundle-root", str(tmp_path / "bundles"), "--store", str(corpus.dir)]
-    argv += ["--gold", str(gold), "--out", str(out), "--device", "cpu"]
+    argv += ["--gold", str(gold), "--out", str(tmp_path / "results"), "--device", "cpu"]
+    return argv, examples, trained, corpus
+
+
+def write_teacher_labels(store: Path, rows) -> None:
+    (store / "labels").mkdir(parents=True, exist_ok=True)
+    write_jsonl(store / "labels" / "teacher.jsonl", rows)
+
+
+def teacher_label(doc_id, element_id, teacher="mlx:org/model@rev1#float16", source=None):
+    provenance = {"teacher": teacher, **({"source": source} if source else {})}
+    return {"doc_id": doc_id, "element_id": element_id, "text_sha1": "0" * 40,
+            "facet": "topic", "probs": {"a": 1.0}, "provenance": provenance}  # fmt: skip
+
+
+def test_learning_curve_point_trains_the_nested_subset_once(tmp_path, monkeypatch, no_guard):
+    base, examples, trained, corpus = curve_setup(tmp_path, monkeypatch)
+    out = tmp_path / "results"
+    write_teacher_labels(corpus.dir, [teacher_label("x", "e0")])
+    argv = [*base, "--fractions", "1/2"]
     assert bench.main(argv) == 0
     ((ids, n_rows, options),) = trained
     assert len(ids) == 12 and n_rows == 5  # stratified: 8 of 16 "other", 4 of 8 "properties"
@@ -546,6 +590,12 @@ def test_learning_curve_point_trains_the_nested_subset_once(tmp_path, monkeypatc
         "trained",
     )
     assert run["macro_f1"] == 1.0 and run["dataset"] == "abc"
+    # Provenance: the labelling teacher with its dtype, the label files' hashes, no gold.
+    (teacher,) = run["training"]["teachers"]
+    assert (teacher["name"], teacher["dtype"]) == ("mlx:org/model@rev1#float16", "float16")
+    assert set(run["training"]["label_files_sha256"]) == {"teacher"}
+    assert run["gold_leakage_check"] == {"checked": 25, "without_doc_id": 0}
+    assert run["active_learning_examples"] == 0
     info = json.loads((tmp_path / "bundles" / "stage-a-1of2" / "tagger.json").read_text())["info"]
     assert info["learning_curve"]["examples"] == 12
 
@@ -571,12 +621,127 @@ def test_learning_curve_runs_each_fraction_in_its_own_process(tmp_path, monkeypa
     assert all(c[c.index("--out") + 1] == str(tmp_path) for c in commands)
 
 
+def test_learning_curve_refuses_gold_split_training_data(tmp_path, monkeypatch, no_guard):
+    base, _, trained, _ = curve_setup(tmp_path, monkeypatch, doc_id="doca")  # a gold document
+    with pytest.raises(bench.GoldTextError, match="gold-split"):
+        bench.main([*base, "--fractions", "1/2"])
+    assert trained == []
+
+
+def test_full_bundle_must_be_the_pre_active_learning_confident_set(tmp_path, monkeypatch, no_guard):
+    base, _, trained, corpus = curve_setup(tmp_path, monkeypatch)
+    full = tmp_path / "full"
+
+    def full_bundle(info):
+        full.mkdir(exist_ok=True)
+        (full / "tagger.json").write_text(json.dumps({"info": info}), encoding="utf-8")
+        return [*base, "--fractions", "1", "--full-bundle", str(full)]
+
+    current = {"stage": "A", "train_elements": {"stage": "A", "dataset": "abc"}}
+    with pytest.raises(SystemExit, match="confident-set fingerprint"):
+        bench.main(full_bundle({**current, "train_elements": {"stage": "A", "dataset": "old"}}))
+    with pytest.raises(SystemExit, match="stage B bundle"):
+        bench.main(full_bundle({"stage": "B", "train_elements": {"stage": "B", "dataset": "abc"}}))
+    with pytest.raises(SystemExit, match="pre-active-learning"):
+        bench.main(full_bundle({**current, "active_learning": {"n": 3000}}))
+    # The confident set itself holds an element the active-learning round labelled.
+    write_teacher_labels(corpus.dir, [teacher_label("x", "e3", source="active_learning")])
+    with pytest.raises(SystemExit, match="pre-active-learning"):
+        bench.main(full_bundle(current))
+    assert trained == []
+
+    write_teacher_labels(corpus.dir, [teacher_label("x", "e3")])
+    assert bench.main(full_bundle(current)) == 0
+    assert trained == []  # reused, not trained
+    (run,) = json.loads((tmp_path / "results" / bench.CURVE_FILE).read_text())["runs"]
+    assert (run["fraction"], run["how"]) == ("1", "reused")
+
+
+class FakeEngine:
+    """A teacher engine: picks each item's first option, answers every question 0.1."""
+
+    name = "mlx:fake/model@abc#float16"
+
+    def choose(self, items, *, instruction, prefix_key=None, prefix_options=None):
+        return [{item.options[0][0]: 1.0} for item in items]
+
+    def yes_no(self, items, *, question):
+        return [0.1] * len(items)
+
+    def close(self):
+        pass
+
+
+def test_teacher_items_per_second_is_counted(tmp_path):
+    from docrooter.tagger.element_tags import TeacherTagger
+
+    engine = FakeEngine()
+    tagger = TeacherTagger("mlx:fake/model@abc", teacher=engine)
+    items = [item("d", f"e{k}", AR, f"{AR}.shareholder_letter") for k in range(3)]
+    result = bench.evaluate_tagger(tagger, items)
+    # The primary pass only (not the warm-up): one topic choice and 12 questions per element.
+    assert result["teacher_items"] == 3 * 13
+    assert result["teacher_items_per_s"] > 0
+    assert tagger.teacher is engine  # restored
+    assert bench.evaluate_tagger(EchoTagger(), items)["teacher_items"] is None
+    gold = write_jsonl(tmp_path / "g.jsonl", [])
+    prov = bench.provenance("teacher:mlx:fake/model@abc", tagger, gold_path=gold)
+    assert (prov["teacher"]["name"], prov["teacher"]["dtype"]) == (FakeEngine.name, "float16")
+
+
+def test_student_run_records_the_labelling_teacher(tmp_path, monkeypatch, no_guard):
+    corpus, gold = gold_store(tmp_path)
+    write_teacher_labels(
+        corpus.dir,
+        [teacher_label("x", "e1"), teacher_label("x", "e2", source="active_learning")],
+    )
+    (corpus.dir / "labels" / "prescreen.jsonl").write_text("", encoding="utf-8")
+    work = corpus.dir / bench.WORK_DIR
+    work.mkdir()
+    (work / "dataset.json").write_text(json.dumps({"fingerprint": "fp1"}), encoding="utf-8")
+    settings = {"teacher": "mlx:org/model@rev1"}
+    (work / "label.json").write_text(json.dumps({"settings": settings}), encoding="utf-8")
+    bundle_dir = tmp_path / "bundle"
+    bundle_dir.mkdir()
+    (bundle_dir / "tagger.json").write_text("{}", encoding="utf-8")
+    student = FakeBundle({"stage": "B", "train_elements": {"stage": "B", "dataset": "fp1"}})
+    student.path = bundle_dir
+    monkeypatch.setattr(bench, "build_tagger", lambda spec, **options: student)
+    out = tmp_path / "results"
+    argv = ["run", "--system", "stage-b", "--tagger", str(bundle_dir), "--store", str(corpus.dir)]
+    assert bench.main([*argv, "--gold", str(gold), "--out", str(out), "--device", "cpu"]) == 0
+    (run,) = json.loads((out / bench.RESULTS_FILE).read_text(encoding="utf-8"))["runs"]
+    prov = run["provenance"]
+    assert prov["bundle_sha256"] == bench.bundle_sha256(bundle_dir)
+    assert prov["bundle_info"]["train_elements"] == {"stage": "B", "dataset": "fp1"}
+    training = prov["training"]
+    (teacher,) = training["teachers"]
+    assert teacher == {
+        "name": "mlx:org/model@rev1#float16",
+        "rows": 2,
+        "engine": "mlx",
+        "model": "org/model",
+        "revision": "rev1",
+        "dtype": "float16",
+    }
+    assert training["active_learning_rows"] == 1
+    assert set(training["label_files_sha256"]) == {"teacher", "prescreen"}
+    assert training["label_settings"] == settings
+    assert training["dataset_fingerprint"] == "fp1" and prov["bundle_matches_dataset"] is True
+    assert run["calibration"] is not None  # a student: ECE before and after temperature
+
+
 def fake_analysis(leaf, leaf_probs, elements=()):
     from types import SimpleNamespace
 
     best = SimpleNamespace(node_ids=[leaf] if leaf else [])
-    doc_type = SimpleNamespace(best=best, confidence=0.9, leaf_probs=leaf_probs)
+    doc_type = SimpleNamespace(best=best, confidence=0.9, leaf_probs=leaf_probs, source="fake")
     return SimpleNamespace(doc_type=doc_type, document=SimpleNamespace(elements=list(elements)))
+
+
+def data_inputs_ok(out):
+    data = json.loads((out / bench.GOLD_DOCTYPES_FILE).read_text(encoding="utf-8"))
+    return "neutral" in data["inputs"]
 
 
 def test_gold_doctypes_writes_what_run_reads(tmp_path, monkeypatch, no_guard):
@@ -598,7 +763,9 @@ def test_gold_doctypes_writes_what_run_reads(tmp_path, monkeypatch, no_guard):
     seen = {}
 
     def fake_process_many(paths, **config):
+        paths = list(paths)
         seen.update(config, paths=[Path(p).name for p in paths])
+        seen.update(full_paths=[str(p) for p in paths], readable=[Path(p).is_file() for p in paths])
         yield fake_analysis("financial.annual_report", {"financial.annual_report": 0.9})
         yield fake_analysis(None, {})
 
@@ -606,11 +773,19 @@ def test_gold_doctypes_writes_what_run_reads(tmp_path, monkeypatch, no_guard):
     out = tmp_path / "results"
     common = ["--store", str(corpus.dir), "--gold", str(gold), "--out", str(out), "--device", "cpu"]
     assert bench.main(["gold-doctypes", "--pdf-dir", str(pdfs), *common]) == 0
-    assert seen["paths"] == ["doca.pdf", "docb.pdf"]
+    # The model sees neutral copies, never a source-revealing id (the view's title falls back
+    # to the file stem).
+    shas = [hashlib.sha256(f"%PDF-{d}".encode()).hexdigest() for d in ("doca", "docb")]
+    assert seen["paths"] == [f"doc_{sha[:12]}.pdf" for sha in shas]
+    assert not [p for p in seen["full_paths"] if "doca" in p or "docb" in p]
+    assert all(bench.NEUTRAL_NAME.fullmatch(name) for name in seen["paths"])
+    assert seen["readable"] == [True, True]  # the copies exist while the model reads them
+    assert data_inputs_ok(out)
     assert seen["profile"] == "balanced" and seen["escalate"] == "none"
     assert seen["element_tags"] == "none"
     data = json.loads((out / bench.GOLD_DOCTYPES_FILE).read_text(encoding="utf-8"))
     assert data["documents"]["docb"]["family"] == "generic"  # no doc type: the generic family
+    assert data["doc_type_sources"] == ["fake"]
     assert data["family_agreement"] == {"agree": 1, "n": 2}
     assert bench.read_predicted_families(out / bench.GOLD_DOCTYPES_FILE, gold) == {
         "doca": AR,
@@ -629,7 +804,9 @@ def test_doctype_evidence_reports_view_and_fixed_mix(tmp_path, monkeypatch, no_g
     from benchmarks import corpora
 
     dev = tmp_path / "dev"
-    dev.mkdir()
+    (dev / "pdfs").mkdir(parents=True)
+    for name in ("doc_1", "doc_2"):
+        (dev / "pdfs" / f"{name}.pdf").write_bytes(f"%PDF-{name}".encode())
     write_jsonl(
         dev / "manifest.jsonl",
         [
@@ -647,10 +824,11 @@ def test_doctype_evidence_reports_view_and_fixed_mix(tmp_path, monkeypatch, no_g
     seen = {}
 
     def fake_process_many(paths, **config):
-        seen.update(config)
+        seen.update(config, names=[Path(p).name for p in paths])
         view = {"financial.annual_report": 0.5, "research.research_paper": 0.4}
         yield fake_analysis("financial.annual_report", view, paper_tags)
-        yield fake_analysis("financial.annual_report", {"financial.annual_report": 0.8})
+        # The rooter abstains (low confidence) although its view's argmax is right.
+        yield fake_analysis(None, {"financial.annual_report": 0.3})
 
     monkeypatch.setattr(docrooter.rooter, "process_many", fake_process_many)
     bundle = tmp_path / "bundle"
@@ -660,17 +838,29 @@ def test_doctype_evidence_reports_view_and_fixed_mix(tmp_path, monkeypatch, no_g
     argv = ["doctype-evidence", "--bundle", str(bundle), "--out", str(out), "--device", "cpu"]
     assert bench.main(argv) == 0
     assert seen["element_tags"] == str(bundle) and seen["profile"] == "accurate"
+    assert all(bench.NEUTRAL_NAME.fullmatch(name) for name in seen["names"])
+    assert not [n for n in seen["names"] if n in ("doc_1.pdf", "doc_2.pdf")]
     data = json.loads((out / bench.EVIDENCE_FILE).read_text(encoding="utf-8"))
     assert data["weights"] == {"view": 0.7, "elements": 0.3, "tuned": False}
+    manifest_sha = hashlib.sha256((dev / "manifest.jsonl").read_bytes()).hexdigest()
+    assert data["dev_manifest_sha256"] == manifest_sha
     first, second = data["rows"]
+    # pred_view is the rooter's own doc type; the view is renormalised before the mix.
     assert (first["pred_view"], first["pred_mix"], first["n_tagged"]) == (
         "financial.annual_report",
         "research.research_paper",
         1,
     )
-    assert second["evidence"] == {} and second["pred_mix"] == second["pred_view"]
+    assert first["view_mass"] == pytest.approx(0.9) and first["view_leaves"] == 2
+    assert first["view_top3"]["financial.annual_report"] == pytest.approx(0.5 / 0.9, abs=1e-4)
+    p_paper = 0.7 * 0.4 / 0.9 + 0.3 * 0.9
+    assert first["mix_top3"]["research.research_paper"] == pytest.approx(p_paper, abs=1e-4)
+    assert (second["pred_view"], second["pred_view_argmax"]) == (None, "financial.annual_report")
+    assert second["evidence"] == {} and second["pred_mix"] == "financial.annual_report"
+    assert second["view_top3"] == {"financial.annual_report": 1.0}
     summary = data["summary"]
-    assert (summary["view_accuracy"], summary["mix_accuracy"]) == (0.5, 1.0)
-    assert (summary["changed"], summary["fixed"], summary["broken"]) == (1, 1, 0)
+    assert (summary["view_accuracy"], summary["view_argmax_accuracy"]) == (0.0, 0.5)
+    assert summary["mix_accuracy"] == 1.0
+    assert (summary["changed"], summary["fixed"], summary["broken"]) == (2, 2, 0)
     assert summary["no_evidence"] == 1
     assert data["bundle_sha256"] == bench.bundle_sha256(bundle)

@@ -25,10 +25,11 @@ The element tagger (spec §11) is measured on an independently annotated gold se
 ## Scoring
 
 - **Two modes.** *Primary*: the family comes from the gold document's known type; the program targets apply here. *End to end*: the family of the doc type the rooter predicts. Both are reported.
-- **Topic:** accuracy and macro P/R/F1 per family and overall, and hierarchical F1 over family → leaf.
+- **Topic:** accuracy and macro P/R/F1 per family and overall, and hierarchical F1 over family → leaf. Macro averages run over the classes present in gold (per family, that family's gold classes), so every system is scored on the same class set; a prediction outside it counts only as a miss.
 - **Function:** micro and macro F1, and per-tag F1.
 - **Calibration:** expected calibration error (15 bins) before and after temperature scaling.
-- **Throughput and memory:** elements/s and peak memory per system, each in its own process under the one-model guard.
+- **Throughput and memory:** elements/s and peak memory per system, each in its own process under the one-model guard. The teacher's items/s counts the items it was actually asked.
+- **No source hints:** every PDF a model reads is a neutral copy named `doc_<sha256[:12]>.pdf`, because the doc-type view falls back to the file name for a title and the corpus ids name their source.
 
 ## Results
 
@@ -40,7 +41,7 @@ _Results pending._ The student trained on 1/8, 1/4, 1/2 and all of the confident
 
 ## Document type with element evidence (dev corpus)
 
-_Results pending._ Each dev document scored by its view alone, and by the fixed mix `0.7 · view + 0.3 · element evidence` (never tuned on dev).
+_Results pending._ Each dev document scored by the rooter's own doc type (the v0.3/v0.4 baseline), and by the fixed mix `0.7 · view + 0.3 · element evidence` (never tuned on dev). The view is the rooter's top-10 leaf distribution renormalised over the doc-type leaves, so the two parts each sum to 1.
 
 ## Reproducing
 

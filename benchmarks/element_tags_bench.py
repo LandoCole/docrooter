@@ -25,10 +25,12 @@ is their gold family reuse the primary tags.
 
 **Metrics.**
 
-- topic: accuracy and macro P/R/F1 over the leaves (the union of gold and predicted labels,
-  zero for an undefined ratio), overall and per gold family, and hierarchical P/R/F1 over
-  family -> leaf (each label's ancestor set without the root; a family-level prediction earns
-  the family node). The headline is the overall macro F1 in primary mode;
+- topic: accuracy and macro P/R/F1 over the classes present in gold (overall, and per gold
+  family over that family's gold classes), so the class set depends on the gold set only and is
+  the same for every system; a prediction outside it counts as a miss of its gold class, never
+  as a class of its own (``macro_over: "gold_classes"``). Hierarchical P/R/F1 over family ->
+  leaf (each label's ancestor set without the root; a family-level prediction earns the family
+  node). The headline is the overall macro F1 in primary mode;
 - function: micro and macro F1 and per-tag P/R/F1 over the 12 tags. A tag nobody labelled or
   predicted has no F1 and is left out of the macro (``tags_scored`` says how many count);
 - calibration: ECE over :data:`ECE_BINS` equal-width bins of the top-label confidence (topic:
@@ -37,12 +39,19 @@ is their gold family reuse the primary tags.
   embeddings computed once.
 
 **Throughput and memory.** elements/s over the primary pass after a one-element warm-up (the
-load), and the process's peak footprint (:mod:`benchmarks.memory_check`). One system per
-process, under :mod:`benchmarks._guard`.
+load); for a teacher, also the items it was asked in that pass, counted, per second; and the
+process's peak footprint (:mod:`benchmarks.memory_check`). One system per process, under
+:mod:`benchmarks._guard`.
+
+**No source hints.** Every PDF a model reads (``gold-doctypes``, ``doctype-evidence``) is
+passed as a neutral copy, ``doc_<sha256[:12]>.pdf`` in a temporary directory
+(:func:`neutral_copies`): the doc-type view's title falls back to the file stem, and gold
+document ids name their source, hence their family.
 
 **Results** go to ``benchmarks/results/<date>/element-tags*.json`` with provenance: commit,
-gold sha256, bundle sha256, teacher name and dtype, doc-type file sha256. No element text is
-written.
+gold sha256, bundle sha256, the evaluated teacher's name and dtype, and for a student the
+labelling teacher's engine name(s) with dtype, the label files' sha256 and the confident set's
+fingerprint (:func:`training_provenance`), doc-type file sha256. No element text is written.
 
 Commands (each loads at most one model set; run them one at a time)::
 
@@ -56,8 +65,9 @@ Commands (each loads at most one model set; run them one at a time)::
         --bundle benchmarks/.cache/bundles/element-tagger-v1
 
 ``doctype-evidence`` scores the dev corpus only (the held-out corpus is not run in v0.5): the
-rooter's view distribution, and the fixed mix ``0.7 · view + 0.3 · element evidence``
-(:func:`mix_doc_type`), never tuned.
+rooter's own doc type (``best``, with its abstention: the v0.3/v0.4 baseline), and the fixed
+mix ``0.7 · view + 0.3 · element evidence`` (:func:`mix_doc_type`), never tuned, of the view
+renormalised over the doc-type leaves it holds (``leaf_probs`` keeps the top 10 nodes only).
 """
 
 from __future__ import annotations
@@ -70,11 +80,14 @@ import json
 import math
 import os
 import platform
+import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from collections import Counter, defaultdict
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -116,7 +129,7 @@ ELEMENT_WEIGHT = 0.3
 LEARNING_CURVE_FRACTIONS = (0.125, 0.25, 0.5, 1.0)
 TEACHER_SUBSET = 300
 FUNCTION_THRESHOLD = 0.5  # docrooter.tagger.bundle.FUNCTION_THRESHOLD
-TEACHER_PASSES = 13  # TeacherTagger: one topic choice and 12 yes/no questions per element
+MACRO_OVER = "gold_classes"
 
 ULTRABERT = "dmis-lab/UltraBERT-Embed-150M"
 TEACHER_4B = (
@@ -334,22 +347,24 @@ def hierarchical_prf(
 def topic_metrics(
     gold: Sequence[str], pred: Sequence[str | None], taxonomy: Any = None
 ) -> dict[str, Any]:
-    """Accuracy, macro P/R/F1 over the union of gold and predicted labels (an undefined ratio
-    counts 0), per-class scores and hierarchical P/R/F1. A ``None`` prediction is a miss."""
+    """Accuracy, macro P/R/F1 over the classes present in ``gold`` (an undefined ratio counts
+    0; a predicted label outside them is only a miss of its gold class), per-class scores and
+    hierarchical P/R/F1. A ``None`` prediction is a miss."""
     if len(gold) != len(pred):
         raise ValueError(f"{len(gold)} gold labels but {len(pred)} predictions")
     n = len(gold)
     pairs = Counter(zip(gold, pred, strict=True))
     gold_n, pred_n = Counter(gold), Counter(p for p in pred if p is not None)
-    classes = sorted(set(gold_n) | set(pred_n))
+    classes = sorted(gold_n)
     per_class = {}
     for c in classes:
         tp = pairs[(c, c)]
         per_class[c] = {**_prf(tp, pred_n[c] - tp, gold_n[c] - tp), "support": gold_n[c]}
-    hits = sum(pairs[(c, c)] for c in classes)
     return {
         "n": n,
-        "accuracy": hits / n if n else None,
+        "accuracy": sum(pairs[(c, c)] for c in classes) / n if n else None,
+        "macro_over": MACRO_OVER,
+        "classes": len(classes),
         "macro_p": _mean([v["p"] for v in per_class.values()]),
         "macro_r": _mean([v["r"] for v in per_class.values()]),
         "macro_f1": _mean([v["f1"] for v in per_class.values()]),
@@ -402,7 +417,9 @@ def ece(
         raise ValueError(f"{conf.size} confidences but {hits.size} outcomes")
     if conf.size == 0:
         return None
-    bins = np.clip(np.ceil(conf * n_bins).astype(int) - 1, 0, n_bins - 1)
+    # Rounded first, so a confidence on a bin edge stays in its bin despite float noise
+    # (0.2 x 15 = 3.0000000000000004).
+    bins = np.clip(np.ceil(np.round(conf * n_bins, 9)).astype(int) - 1, 0, n_bins - 1)
     total = 0.0
     for b in np.unique(bins):
         mask = bins == b
@@ -524,6 +541,41 @@ def _memoised_embed(tagger: Any) -> Any:
             tagger.embed = own
 
 
+class _CountingTeacher:
+    """Stands in for a ``TeacherTagger``'s engine while it is scored: counts the items it is
+    asked (topic choices and yes/no questions), so the teacher's items/s is measured, not
+    derived."""
+
+    def __init__(self, teacher: Any) -> None:
+        self._teacher = teacher
+        self.items = 0
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._teacher, name)
+
+    def choose(self, items: Sequence[Any], **options: Any) -> Any:
+        self.items += len(items)
+        return self._teacher.choose(items, **options)
+
+    def yes_no(self, items: Sequence[Any], **options: Any) -> Any:
+        self.items += len(items)
+        return self._teacher.yes_no(items, **options)
+
+
+@contextlib.contextmanager
+def _counted_teacher(tagger: Any) -> Iterator[_CountingTeacher | None]:
+    teacher = getattr(tagger, "teacher", None)
+    if teacher is None or not callable(getattr(teacher, "choose", None)):
+        yield None
+        return
+    counter = _CountingTeacher(teacher)
+    tagger.teacher = counter
+    try:
+        yield counter
+    finally:
+        tagger.teacher = teacher
+
+
 def _calibration(
     tagger: Any, items: Sequence[GoldItem], calibrated: Sequence[TagRow]
 ) -> dict[str, Any]:
@@ -560,15 +612,19 @@ def evaluate_tagger(
             raise ValueError(f"no predicted doc type for gold document(s) {missing[:10]}")
     taxonomy = taxonomy if taxonomy is not None else _topics()
     gold_families = [it.family for it in items]
-    with _memoised_embed(tagger):
+    teacher_items = None
+    with _memoised_embed(tagger), _counted_teacher(tagger) as counter:
         started = time.perf_counter()
         if items:
             tagger.tag([items[0].element], items[0].family)  # the model loads here
         load_s = time.perf_counter() - started
         cache: dict[tuple[int, str], TagRow] = {}
+        asked_before = counter.items if counter is not None else 0
         started = time.perf_counter()
         primary = _tag_all(tagger, items, gold_families, cache)
         tag_s = time.perf_counter() - started
+        if counter is not None:
+            teacher_items = counter.items - asked_before
         e2e = e2e_families = None
         if predicted_families is not None:
             e2e_families = [predicted_families[it.doc_id] for it in items]
@@ -605,6 +661,10 @@ def evaluate_tagger(
         "load_s": round(load_s, 3),
         "tag_s": round(tag_s, 3),
         "elements_per_s": round(len(items) / max(tag_s, 1e-9), 3),
+        "teacher_items": teacher_items,
+        "teacher_items_per_s": (
+            round(teacher_items / max(tag_s, 1e-9), 3) if teacher_items is not None else None
+        ),
         "primary": score_mode(items, primary, taxonomy),
         "end_to_end": end_to_end,
         "calibration": calibration,
@@ -803,12 +863,7 @@ def provenance(
         "bundle": _display(bundle) if bundle is not None else None,
         "bundle_sha256": bundle_sha256(bundle) if bundle is not None else None,
         "bundle_info": (
-            {
-                k: info.get(k)
-                for k in ("stage", "base_model", "examples", "untrained_leaves", "calibration")
-            }
-            if isinstance(info, dict)
-            else None
+            {k: info.get(k) for k in BUNDLE_INFO_KEYS} if isinstance(info, dict) else None
         ),
         "temperatures": dict(tagger.temperatures) if bundle is not None else None,
         "teacher": (
@@ -821,6 +876,161 @@ def provenance(
         ),
         "doc_types_sha256": file_sha256(doc_types_path) if doc_types_path is not None else None,
     }
+
+
+LABEL_FILES = ("teacher", "prescreen", "weak")  # the store's labellers (docrooter.teach.label)
+BUNDLE_INFO_KEYS = (
+    "stage",
+    "base_model",
+    "examples",
+    "untrained_leaves",
+    "calibration",
+    "train_elements",
+    "learning_curve",
+    "active_learning",
+)
+
+
+def training_provenance(store: str | os.PathLike[str]) -> dict[str, Any]:
+    """Where a student's training data came from, read from the corpus store: the engine
+    name(s) of the teacher that labelled it, with dtype (each teacher label row's provenance),
+    how many rows came from the active-learning round, the sha256 of each label file, the
+    labelling settings (``train-elements/label.json``) and the confident set's fingerprint
+    (``train-elements/dataset.json``)."""
+    root = Path(store)
+    labels = root / "labels"
+    files = {
+        name: file_sha256(labels / f"{name}.jsonl")
+        for name in LABEL_FILES
+        if (labels / f"{name}.jsonl").is_file()
+    }
+    teachers: Counter[str] = Counter()
+    active_learning = 0
+    for row in _teacher_rows(root):
+        provenance = row.get("provenance") or {}
+        teachers[str(provenance.get("teacher"))] += 1
+        active_learning += provenance.get("source") == "active_learning"
+    work = root / WORK_DIR
+    marker = _read_json_file(work / "label.json") or {}
+    dataset = _read_json_file(work / "dataset.json") or {}
+    return {
+        "teachers": [
+            {"name": name, "rows": n, **teacher_parts(name)} for name, n in teachers.items()
+        ],
+        "active_learning_rows": active_learning,
+        "label_files_sha256": files,
+        "label_settings": marker.get("settings"),
+        "dataset_fingerprint": dataset.get("fingerprint"),
+    }
+
+
+def _teacher_rows(store: Path) -> Iterator[dict[str, Any]]:
+    """The rows of the store's ``labels/teacher.jsonl`` (none when it is absent)."""
+    path = store / "labels" / "teacher.jsonl"
+    if not path.is_file():
+        return
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue  # a torn last line, as the store's readers skip it
+            if isinstance(row, dict):
+                yield row
+
+
+def active_learning_keys(store: str | os.PathLike[str]) -> set[tuple[str, str]]:
+    """``(doc_id, element_id)`` of the elements the active-learning round sent to the teacher
+    (rows whose provenance ``source`` is ``active_learning``)."""
+    return {
+        (str(row.get("doc_id")), str(row.get("element_id")))
+        for row in _teacher_rows(Path(store))
+        if (row.get("provenance") or {}).get("source") == "active_learning"
+    }
+
+
+def check_no_gold(
+    datasets: Mapping[str, Sequence[Any]], corpus: Any, items: Sequence[GoldItem]
+) -> dict[str, int]:
+    """Refuse training data holding a gold-split element: an example whose ``doc_id`` is a
+    gold-split document (or a gold element's key). Returns how many examples were checked and
+    how many had no ``doc_id`` to check."""
+    gold_docs = {r.id for r in corpus.manifest() if r.split == "gold"}
+    gold_docs |= {it.doc_id for it in items}
+    errors = []
+    checked = unchecked = 0
+    for name, examples in datasets.items():
+        for example in examples:
+            if example.doc_id is None:
+                unchecked += 1
+                continue
+            checked += 1
+            if example.doc_id in gold_docs:
+                errors.append(
+                    f"{name}: {example.doc_id}/{example.section_id} is a gold-split element"
+                )
+    if errors:
+        raise GoldTextError(errors)
+    return {"checked": checked, "without_doc_id": unchecked}
+
+
+def check_full_bundle(
+    info: Mapping[str, Any], *, stage: str, dataset: str | None, active_learning_examples: int
+) -> None:
+    """Refuse ``--full-bundle`` as the curve's 1/1 point unless it was trained, at the curve's
+    stage, on the current confident set (its recorded fingerprint is ``dataset``), before the
+    active-learning round."""
+    recorded = info.get("train_elements") or {}
+    problems = []
+    if dataset is None or recorded.get("dataset") != dataset:
+        problems.append(
+            f"its confident-set fingerprint {recorded.get('dataset')!r} is not the current "
+            f"one {dataset!r}"
+        )
+    if recorded.get("stage", info.get("stage")) != stage:
+        problems.append(f"it is a stage {recorded.get('stage', info.get('stage'))} bundle")
+    if "active_learning" in info or active_learning_examples:
+        problems.append(
+            "it is not pre-active-learning (the bundle or the confident set holds "
+            f"active-learning labels: {active_learning_examples} examples)"
+        )
+    if problems:
+        raise SystemExit(
+            f"--full-bundle cannot be the stage {stage} curve's 1/1 point: "
+            + "; ".join(problems)
+            + ". Leave out --full-bundle to train the 1/1 point on the curve's confident set."
+        )
+
+
+def _read_json_file(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+@contextlib.contextmanager
+def neutral_copies(
+    paths: Sequence[Path], sha256s: Sequence[str] | None = None
+) -> Iterator[list[Path]]:
+    """Each PDF under a neutral name, ``doc_<sha256[:12]>.pdf``, in a temporary directory
+    removed afterwards (a hard link where possible, else a copy). A model must never see a
+    source-revealing file name: the doc-type view's title falls back to the file stem."""
+    with tempfile.TemporaryDirectory(prefix="docrooter-neutral-") as tmp:
+        out = []
+        for k, path in enumerate(paths):
+            sha = sha256s[k] if sha256s is not None else file_sha256(path)
+            target = Path(tmp) / f"doc_{sha[:12]}.pdf"
+            if not target.exists():
+                try:
+                    os.link(path, target)
+                except OSError:
+                    shutil.copyfile(path, target)
+            out.append(target)
+        yield out
+
+
+NEUTRAL_NAME = re.compile(r"doc_[0-9a-f]{12}\.pdf")
 
 
 def _set_device(device: str | None, spec: str = "") -> str:
@@ -948,6 +1158,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                 doc_types_path=args.doc_types,
                 enriched_path=enriched,
             )
+            if prov["bundle"] is not None:
+                prov["training"] = training_provenance(args.store)
+                recorded = ((prov["bundle_info"] or {}).get("train_elements") or {}).get("dataset")
+                prov["bundle_matches_dataset"] = (
+                    recorded is not None and recorded == prov["training"]["dataset_fingerprint"]
+                )
         finally:
             close = getattr(tagger, "close", None)
             if callable(close):
@@ -964,11 +1180,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         "provenance": prov,
         **_environment(),
     }
-    if spec.startswith("teacher:"):
-        row["teacher_passes_per_element"] = TEACHER_PASSES
-        row["teacher_items_per_s"] = round(result["elements_per_s"] * TEACHER_PASSES, 3)
     path = _out_dir(args.out) / RESULTS_FILE
-    _merge_row(path, row, ("system", "device"), {"disclosure": DISCLOSURE, "runs": []})
+    header = {"disclosure": DISCLOSURE, "macro_over": MACRO_OVER, "runs": []}
+    _merge_row(path, row, ("system", "device", "subset"), header)
     topic = result["primary"]["topic"]
     log(
         f"{args.system}: topic macro F1 {topic['macro_f1']:.3f}, accuracy {topic['accuracy']:.3f}; "
@@ -1012,10 +1226,12 @@ def cmd_gold_doctypes(args: argparse.Namespace) -> int:
     from benchmarks.memory_check import MpsSampler
 
     documents: dict[str, dict[str, Any]] = {}
+    sources: set[str] = set()
     started = time.perf_counter()
-    with MpsSampler() as sampler:
+    shas = [records[d].sha256 for d in doc_ids]
+    with MpsSampler() as sampler, neutral_copies(paths, shas) as neutral:
         analyses = process_many(
-            paths,
+            neutral,
             profile=args.profile,
             doc_type=args.doc_type,
             sections="none",
@@ -1028,6 +1244,8 @@ def cmd_gold_doctypes(args: argparse.Namespace) -> int:
             for doc_id, analysis in zip(doc_ids, analyses, strict=True):
                 result = analysis.doc_type
                 leaf = result.best.node_ids[-1] if result and result.best.node_ids else None
+                if result is not None:
+                    sources.add(result.source)
                 documents[doc_id] = {
                     "doc_type": leaf,
                     "confidence": round(result.confidence, 4) if result else None,
@@ -1041,6 +1259,8 @@ def cmd_gold_doctypes(args: argparse.Namespace) -> int:
         "gold_sha256": file_sha256(args.gold),
         "profile": args.profile,
         "doc_type_backend": args.doc_type,
+        "doc_type_sources": sorted(sources),
+        "inputs": "neutral copies, doc_<sha256[:12]>.pdf (no document id reaches the model)",
         "device": device,
         "commit": _commit(),
         "date": datetime.date.today().isoformat(),
@@ -1057,7 +1277,8 @@ def cmd_gold_doctypes(args: argparse.Namespace) -> int:
 
 
 def _top3(probs: Mapping[str, float]) -> dict[str, float]:
-    return {k: round(v, 4) for k, v in sorted(probs.items(), key=lambda kv: -kv[1])[:3]}
+    ranked = sorted(((k, v) for k, v in probs.items() if v > 0), key=lambda kv: -kv[1])
+    return {k: round(v, 4) for k, v in ranked[:3]}
 
 
 # --- learning curve ------------------------------------------------------------------------------
@@ -1139,9 +1360,20 @@ def run_curve_point(args: argparse.Namespace, fraction: float) -> dict[str, Any]
         "dataset": dataset.get("fingerprint"),
     }
     out = args.bundle_root / f"stage-{args.stage.lower()}-{label.replace('/', 'of')}"
-    items = gold_items(read_gold(args.gold), _corpus(args.store))
+    corpus = _corpus(args.store)
+    items = gold_items(read_gold(args.gold), corpus)
+    leakage = check_no_gold({"train": train, "calib": list(calib)}, corpus, items)
+    al_keys = active_learning_keys(args.store)
+    al_examples = sum((e.doc_id, e.section_id) in al_keys for e in train)
+    training = training_provenance(args.store)
     started = time.perf_counter()
     if fraction >= 1 and args.full_bundle is not None:
+        check_full_bundle(
+            _bundle_info(args.full_bundle),
+            stage=args.stage,
+            dataset=wanted["dataset"],
+            active_learning_examples=al_examples,
+        )
         tagger, how, out = (
             ElementTagger.load(args.full_bundle, device=args.device),
             "reused",
@@ -1190,6 +1422,9 @@ def run_curve_point(args: argparse.Namespace, fraction: float) -> dict[str, Any]
         "elements_per_s": result["elements_per_s"],
         "untrained_leaves": info.get("untrained_leaves"),
         "budget": info.get("budget"),
+        "gold_leakage_check": leakage,
+        "active_learning_examples": al_examples,
+        "training": training,
         "bundle": _display(out),
         "bundle_sha256": bundle_sha256(out),
         "gold_sha256": file_sha256(args.gold),
@@ -1274,14 +1509,25 @@ def implied_doc_types(
     return out
 
 
+def normalise_view(view: Mapping[str, float], doc_types: Sequence[str]) -> dict[str, float]:
+    """``view`` over ``doc_types`` (other keys dropped), scaled to sum to 1 (all zeros when it
+    has no mass there): the rooter's ``leaf_probs`` keep only the top 10 nodes, so they sum to
+    less than 1, which would otherwise tilt the fixed 0.7/0.3 mix towards the elements."""
+    kept = {t: max(0.0, float(view.get(t, 0.0))) for t in doc_types}
+    mass = sum(kept.values())
+    return {t: v / mass for t, v in kept.items()} if mass > 0 else kept
+
+
 def mix_doc_type(
     view: Mapping[str, float],
     family_probs: Mapping[str, float],
     doc_types: Sequence[str] | None = None,
 ) -> dict[str, float]:
     """``VIEW_WEIGHT · view + ELEMENT_WEIGHT · implied`` (spec §11: 0.7 / 0.3, fixed, never
-    tuned), over the doc-type leaves."""
+    tuned), over the doc-type leaves; the view is first renormalised over them
+    (:func:`normalise_view`), so both parts sum to 1 and the weights are what they say."""
     doc_types = list(doc_types) if doc_types is not None else _doc_type_leaves()
+    view = normalise_view(view, doc_types)
     implied = implied_doc_types(family_probs, view, doc_types)
     return {
         t: VIEW_WEIGHT * float(view.get(t, 0.0)) + ELEMENT_WEIGHT * implied[t] for t in doc_types
@@ -1320,9 +1566,10 @@ def cmd_doctype_evidence(args: argparse.Namespace) -> int:
     log(f"doctype-evidence: {len(entries)} dev documents, profile {args.profile}, {args.bundle}")
     rows = []
     started = time.perf_counter()
-    with MpsSampler() as sampler:
+    paths = [corpora.DEV / e["file"] for e in entries]
+    with MpsSampler() as sampler, neutral_copies(paths) as neutral:
         analyses = process_many(
-            [corpora.DEV / e["file"] for e in entries],
+            neutral,
             profile=args.profile,
             doc_type=args.doc_type,
             sections="none",
@@ -1334,17 +1581,22 @@ def cmd_doctype_evidence(args: argparse.Namespace) -> int:
         with contextlib.closing(analyses):
             for entry, analysis in zip(entries, analyses, strict=True):
                 result = analysis.doc_type
-                view = {
+                raw = {
                     k: v for k, v in (result.leaf_probs if result else {}).items() if k in leaves
                 }
+                view = normalise_view(raw, leaves)
                 tags = [(el.tags or {}).get("topic") for el in analysis.document.elements]
                 evidence = element_family_evidence(tags)
-                mixed = mix_doc_type(view, evidence, leaves) if evidence else dict(view)
+                mixed = mix_doc_type(view, evidence, leaves) if evidence else view
+                best = result.best.node_ids[-1] if result and result.best.node_ids else None
                 row = {
                     "doc_id": entry["id"],
                     "gold": entry["label"],
-                    "pred_view": _argmax(view, leaves),
+                    "pred_view": best,  # the rooter's own doc type: the v0.3/v0.4 baseline
+                    "pred_view_argmax": _argmax(view, leaves),
                     "pred_mix": _argmax(mixed, leaves),
+                    "view_leaves": len(raw),
+                    "view_mass": round(sum(raw.values()), 6),
                     "n_tagged": sum(t is not None for t in tags),
                     "evidence": {k: round(v, 4) for k, v in (evidence or {}).items()},
                     "view_top3": _top3(view),
@@ -1355,12 +1607,20 @@ def cmd_doctype_evidence(args: argparse.Namespace) -> int:
                 log(f"{entry['id']}: view {view_pred}, mix {mix_pred} (gold {entry['label']})")
     n = len(rows)
     view_hits = [r["pred_view"] == r["gold"] for r in rows]
+    argmax_hits = [r["pred_view_argmax"] == r["gold"] for r in rows]
     mix_hits = [r["pred_mix"] == r["gold"] for r in rows]
     from benchmarks.pdf_bench import bootstrap_ci
 
     data = {
         "corpus": "dev",
         "weights": {"view": VIEW_WEIGHT, "elements": ELEMENT_WEIGHT, "tuned": False},
+        "view": (
+            "the doc-type leaves among the rooter's leaf_probs (its top 10 nodes), renormalised "
+            "to sum to 1 before the mix; pred_view is the rooter's own best doc type (with its "
+            "low-confidence abstention), pred_view_argmax and pred_mix are argmaxes"
+        ),
+        "inputs": "neutral copies, doc_<sha256[:12]>.pdf",
+        "dev_manifest_sha256": file_sha256(corpora.DEV / "manifest.jsonl"),
         "profile": args.profile,
         "doc_type_backend": args.doc_type,
         "bundle": _display(args.bundle),
@@ -1372,6 +1632,7 @@ def cmd_doctype_evidence(args: argparse.Namespace) -> int:
             "n": n,
             "view_accuracy": sum(view_hits) / n if n else None,
             "view_ci95": bootstrap_ci(view_hits),
+            "view_argmax_accuracy": sum(argmax_hits) / n if n else None,
             "mix_accuracy": sum(mix_hits) / n if n else None,
             "mix_ci95": bootstrap_ci(mix_hits),
             "changed": sum(r["pred_view"] != r["pred_mix"] for r in rows),

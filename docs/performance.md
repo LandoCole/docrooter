@@ -247,7 +247,7 @@ PYTHONPATH=src .venv/bin/python -m benchmarks.profile_pipeline --elements
 | rapidocr (onnxruntime, CPU) | 3.04 | 3.16 | 3,311 MiB |
 | tesseract 5.5.1 (binary) | 1.72 | 1.83 | 803 MiB + 263 MiB binary |
 
-Every model process is far inside the 8 GiB budget. The largest is rapidocr, at 3.3 GiB.
+Every model process is far inside the 8 GiB budget. The largest is rapidocr, at 3.2 GiB.
 
 **`fast` against v0.3 (target: within 5%).**
 - The stamps say `aa729eb` (`src`), with the measuring code of `2f3825a`, as above. `fast` does not run XY-cut, so the later fix cannot affect these rows.

@@ -38,7 +38,7 @@ available, in this order:
 3. `rapidocr`, with `docrooter[ocr]`.
 
 Tesseract is first for accuracy. `ocrmac` comes before `rapidocr` for speed and memory (0.73
-against 3.04 s per page, 1.2 against 3.3 GiB at peak), although `rapidocr` is the more accurate
+against 3.04 s per page, 1.2 against 3.2 GiB at peak), although `rapidocr` is the more accurate
 of the two.
 
 With none available, `auto` becomes `none`: pages that need OCR keep their text layer and the
@@ -152,5 +152,5 @@ the extractor found them.
 
 At most one model-loading process runs at a time, inside the 8 GiB budget (see
 [Memory and performance](memory-performance.md)). The largest model process measured was
-RapidOCR at 3.3 GiB; heron peaked at 904 MiB. `process_many` loads each engine once for the whole
+RapidOCR at 3.2 GiB; heron peaked at 904 MiB. `process_many` loads each engine once for the whole
 run.

@@ -88,7 +88,7 @@ def resolve_auto_ocr() -> str | None:
     ``rapidocr``; ``None`` when there is none. Tesseract is first for accuracy (character error
     rate 0.058, against 0.089 for rapidocr and 0.102 for ocrmac; ``docs/benchmarks-elements.md``).
     ocrmac comes before rapidocr for speed and memory (0.73 against 3.04 s per page, 1.2 against
-    3.3 GiB), although rapidocr is the more accurate of the two."""
+    3.2 GiB), although rapidocr is the more accurate of the two."""
     if shutil.which("tesseract"):
         return "tesseract"
     if sys.platform == "darwin" and _has_module("ocrmac"):

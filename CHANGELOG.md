@@ -110,7 +110,7 @@ held-out evaluation, the repository essentials, and (v0.4) elements, OCR and the
 - **`ocr="auto"` resolves to `tesseract` (the binary on PATH), then `ocrmac` (macOS), then
   `rapidocr`.** Tesseract comes first for accuracy (character error rate 0.058, against 0.089
   for rapidocr and 0.102 for ocrmac, which also fails on legal pages and table columns). ocrmac
-  comes before rapidocr for speed and memory (0.73 against 3.04 s per page, 1.2 against 3.3 GiB),
+  comes before rapidocr for speed and memory (0.73 against 3.04 s per page, 1.2 against 3.2 GiB),
   although rapidocr is the more accurate of the two. The first draft of the rooter preferred
   ocrmac on macOS.
 - New extras `layout`, `ocr` and `ocr-mac`, all included in `all`; Python 3.10 gains `tomli` in

@@ -285,7 +285,7 @@ Table: Table 1. Revenue by segment (millions); 4×3
 - **OCR.** `ocr="auto"` picks Tesseract (if the binary is on PATH), then Apple Vision (macOS),
   then RapidOCR: tesseract first for accuracy (character error rate 0.058, against 0.089 for
   RapidOCR and 0.102 for Apple Vision), Apple Vision before RapidOCR for speed and memory (0.73
-  against 3.04 s per page, 1.2 against 3.3 GiB).
+  against 3.04 s per page, 1.2 against 3.2 GiB).
 
 From the shell: `docrooter elements report.pdf`, `docrooter process report.pdf --profile
 accurate --chunks --out analysis.json` and `docrooter config show --profile balanced`. See the

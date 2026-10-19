@@ -28,3 +28,6 @@ coverage.xml
 
 # The documentation site, built by `mkdocs build`
 /site/
+
+# Local, third-party PDFs dropped into tests/ by hand (never committed)
+tests/_*.pdf

@@ -1,0 +1,606 @@
+"""``select()``: which elements to read for a need, at a completeness (spec §6, §7).
+
+Everything is fake and torch-free: documents are built by hand, the tagger tags "risk" texts
+with the risk-factors topic, the embedder maps "risk" texts (and needs) to one direction and
+everything else to another, and the combiners are hand-set logistic weights.
+"""
+
+import time
+
+import numpy as np
+import pytest
+
+from docrooter import Document, RouterConfig
+from docrooter.classify.normalize import NormalizationResult, SectionNorm
+from docrooter.classify.results import DocTypeResult, PathResult
+from docrooter.elements.models import Element, TableData, TagResult
+from docrooter.rooter.analysis import Analysis
+from docrooter.select import Field
+from docrooter.select.crc import DialTable
+from docrooter.select.relevance import FEATURE_NAMES, Combiner
+from docrooter.select.selection import SELECTOR_FILE, Selection, Selector, select
+from docrooter.views import estimate_tokens
+
+RISK = Field(
+    id="annual_report.risk_factors",
+    label="Risk factors",
+    description="The risks the company faces.",
+    topics=["annual_report.risk_factors"],
+    functions=["risk_disclosure"],
+    query="What are the main risks the company faces?",
+)
+LEGAL = Field(
+    id="annual_report.legal_proceedings",
+    label="Legal proceedings",
+    description="Lawsuits.",
+    topics=["annual_report.legal_proceedings"],
+)
+FUND_FEES = Field(
+    id="fund_document.fees",
+    label="Fees",
+    description="Fees and expenses.",
+    topics=["fund_document.fees_and_expenses"],
+)
+ANNUAL_REPORT = "financial.annual_report"
+PROSPECTUS = "financial.prospectus"  # a fund document
+
+
+# --- fakes -------------------------------------------------------------------------------------
+
+
+def _combiner(feature_names, weights: dict[str, float], intercept: float = -5.0) -> Combiner:
+    names = list(feature_names)
+    return Combiner.from_dict(
+        {
+            "format": "docrooter-relevance-combiner",
+            "version": 1,
+            "feature_names": names,
+            "l2": 1.0,
+            "max_iter": 100,
+            "mean": [0.0] * len(names),
+            "scale": [1.0] * len(names),
+            "coef": [weights.get(name, 0.0) for name in names],
+            "intercept": intercept,
+            "n_train": 10,
+            "n_docs": 2,
+            "converged": True,
+        }
+    )
+
+
+# The full field combiner listens to p_topic only, the fallbacks and the query combiner to sim
+# only: p = sigmoid(10 * x - 5), about 0.993 for x = 1 and 0.0067 for x = 0.
+FIELD = _combiner(FEATURE_NAMES, {"p_topic": 10.0})
+FALLBACK = _combiner(("sim", "section_hit"), {"sim": 10.0})
+QUERY = _combiner(FEATURE_NAMES, {"sim": 10.0})
+HIGH = 1.0 / (1.0 + np.exp(-5.0))
+LOW = 1.0 / (1.0 + np.exp(5.0))
+
+
+def _dial(n: int = 100, family: str = "annual_report", combiner: Combiner = FIELD) -> DialTable:
+    """λ̂(0.9) = 0.5 for n = 100; capped at 0.9 for n < 9 (1/(n+1) > 0.1)."""
+    return DialTable(
+        family=family,
+        n=n,
+        n_docs=n,
+        n_excluded=0,
+        grid=(0.5, 0.9),
+        curve_lambdas=[0.0, 0.5, 1.0],
+        curve_risk=[0.0, 0.0, 1.0],
+        combiner_fingerprint=combiner.fingerprint(),
+    )
+
+
+def _selector(**dials: DialTable) -> Selector:
+    return Selector(
+        field=FIELD,
+        field_fallback=FALLBACK,
+        query=QUERY,
+        query_fallback=FALLBACK,
+        dials=dials or {"annual_report": _dial()},
+    )
+
+
+def _topic(leaf: str) -> TagResult:
+    return TagResult(labels=[leaf], probs={leaf: 1.0}, confidence=1.0, source="fake")
+
+
+class FakeTagger:
+    """Tags "risk" texts with the family's risk leaf (annual reports) and anything else with
+    the family's catch-all; records the families it was asked for."""
+
+    def __init__(self, path=None):
+        self.calls: list[tuple[int, str]] = []
+        self.path = path
+
+    def tag(self, elements, family):
+        self.calls.append((len(elements), family))
+        out = []
+        for element in elements:
+            risky = "risk" in element.text.lower() and family == "annual_report"
+            out.append({"topic": _topic(f"{family}.risk_factors" if risky else f"{family}.other")})
+        return out
+
+
+class FakeEmbedder:
+    """Two directions: texts that mention risk, and everything else (no recipe: bare prompts)."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def encode(self, texts, prompt=""):
+        self.calls += 1
+        return np.array([[1.0, 0.0] if "risk" in t.lower() else [0.0, 1.0] for t in texts])
+
+
+# --- documents ---------------------------------------------------------------------------------
+
+
+def make_doc(items, sections=None) -> Document:
+    """Sections s1 and s2 (and s3 when given), and ``items`` as ``(kind, text, section_id,
+    **fields)`` in reading order, ids e0, e1, …"""
+    doc = Document.from_sections(
+        sections or [{"title": "Factors", "level": 1}, {"title": "Statements", "level": 1}]
+    )
+    elements = []
+    for index, (kind, text, section_id, *rest) in enumerate(items):
+        fields = rest[0] if rest else {}
+        if kind in ("heading", "title") and "level" not in fields:
+            fields = {"level": 1, **fields}
+        elements.append(
+            Element(
+                id=f"e{index}",
+                kind=kind,
+                text=text,
+                boxes=[],
+                order=index,
+                section_id=section_id,
+                **fields,
+            )
+        )
+    doc.elements = elements
+    for element in elements:
+        if element.section_id in doc.sections:
+            doc.sections[element.section_id].element_ids.append(element.id)
+    return doc
+
+
+RISK_TABLE = TableData(rows=[["Risk exposure", "Amount"], ["Rates", "10"]], header_rows=1)
+PLAIN_TABLE = TableData(rows=[["Plain", "numbers"], ["1", "2"]], header_rows=1)
+
+
+def expansion_doc() -> Document:
+    return make_doc(
+        [
+            ("heading", "Factors", "s1"),  # e0
+            ("paragraph", "This section opens the discussion.", "s1"),  # e1 first paragraph
+            ("paragraph", "Some filler about operations.", "s1"),  # e2
+            ("paragraph", "More filler about our offices.", "s1"),  # e3 previous of e4
+            ("paragraph", "Interest rate risk could harm our results.", "s1"),  # e4 RELEVANT
+            ("paragraph", "Filler after that one.", "s1"),  # e5
+            ("heading", "Statements", "s2"),  # e6
+            ("paragraph", "The statements follow.", "s2"),  # e7 first paragraph
+            ("paragraph", "Filler before the table.", "s2"),  # e8 previous of e9
+            (
+                "table",
+                "Risk exposure Amount Rates 10",
+                "s2",
+                {"table": RISK_TABLE, "caption_id": "e10"},
+            ),  # e9 RELEVANT
+            ("caption", "Table 1. Exposures", "s2", {"caption_for": "e9"}),  # e10
+            ("paragraph", "Closing filler.", "s2"),  # e11
+            ("page_footer", "Page 1", "s2"),  # e12
+            ("heading", "Notes", "s3"),  # e13
+            ("caption", "Table 2. Risk summary", "s3", {"caption_for": "e15"}),  # e14 RELEVANT
+            ("table", "Plain numbers 1 2", "s3", {"table": PLAIN_TABLE, "caption_id": "e14"}),
+        ],
+        sections=[
+            {"title": "Factors", "level": 1},
+            {"title": "Statements", "level": 1},
+            {"title": "Notes", "level": 1},
+        ],
+    )
+
+
+def analysis_of(doc: Document, doc_type: str | None = ANNUAL_REPORT, sections=None) -> Analysis:
+    result = None
+    if doc_type is not None:
+        result = DocTypeResult(
+            source="test", best=PathResult(node_ids=[doc_type.split(".")[0], doc_type])
+        )
+    return Analysis(
+        document=doc, doc_type=result, sections=sections, config=RouterConfig(profile="fast")
+    )
+
+
+def selectable_ids(doc: Document) -> list[str]:
+    return [e.id for e in doc.elements if e.kind not in ("page_footer", "figure")]
+
+
+def tokens_of(doc: Document, ids) -> int:
+    by_id = {e.id: e for e in doc.elements}
+    return sum(estimate_tokens(by_id[i].text) for i in ids)
+
+
+# --- tests -------------------------------------------------------------------------------------
+
+
+def test_completeness_one_returns_everything():
+    doc = expansion_doc()
+    analysis = analysis_of(doc)
+    for need in (RISK, [RISK, LEGAL], "anything at all"):
+        result = select(analysis, need, completeness=1.0)  # no selector, tagger or embedder
+        assert isinstance(result, Selection)
+        assert result.element_ids == selectable_ids(doc)
+        assert result.guarantee is True
+        assert result.threshold is None
+        assert result.expected_recall == 1.0
+        assert result.capped is False
+        assert result.relevant_expected is None
+        assert result.token_share == 1.0
+        assert result.tokens == tokens_of(doc, selectable_ids(doc))
+    assert select(analysis, RISK, completeness=1.0).need == RISK.id
+    assert select(analysis, "the query", completeness=1.0).need == "the query"
+    # Even an empty document is "everything".
+    empty = select(analysis_of(make_doc([])), RISK, completeness=1.0)
+    assert empty.element_ids == [] and empty.tokens == 0 and empty.guarantee is True
+
+
+def test_threshold_from_dial_and_guarantee_flag(tmp_path):
+    doc = expansion_doc()
+    analysis = analysis_of(doc)
+    tagger, embedder = FakeTagger(), FakeEmbedder()
+    result = select(
+        analysis, RISK, completeness=0.9, selector=_selector(), tagger=tagger, embedder=embedder
+    )
+    assert result.threshold == 0.5  # λ̂(0.9) of the dial
+    assert result.guarantee is True
+    assert result.expected_recall == 0.9  # the CRC target
+    assert result.capped is False and result.doc_type_mismatch is False
+    assert result.relevant_expected == pytest.approx(3 * HIGH + 9 * LOW)
+    assert {"e4", "e9", "e14"} <= set(result.element_ids)  # every relevant element
+    assert not {"e2", "e5", "e11"} & set(result.element_ids)  # filler outside the expansion
+    assert tagger.calls == [(12, "annual_report")]  # untagged: tagged in the field's family
+    assert analysis.document.elements[4].tags is None  # the analysis is left as it was
+
+    # A capped dial returns the whole document, with the trivial guarantee.
+    capped = select(
+        analysis,
+        RISK,
+        completeness=0.9,
+        selector=_selector(annual_report=_dial(n=5)),
+        tagger=FakeTagger(),
+        embedder=FakeEmbedder(),
+    )
+    assert capped.capped is True and capped.guarantee is True
+    assert capped.threshold is None and capped.expected_recall == 1.0
+    assert capped.element_ids == selectable_ids(doc)
+
+    # A list of fields of one family is one need; mixed families are refused.
+    both = select(
+        analysis,
+        [RISK, LEGAL],
+        selector=_selector(),
+        tagger=FakeTagger(),
+        embedder=FakeEmbedder(),
+    )
+    assert both.guarantee is True and both.need == f"{RISK.id},{LEGAL.id}"
+    with pytest.raises(ValueError, match="famil"):
+        select(analysis, [RISK, FUND_FEES], selector=_selector(), embedder=FakeEmbedder())
+
+    # No selector below 1.0 is an error that says how to make one.
+    with pytest.raises(ValueError, match="docrooter fit-selector"):
+        select(analysis, RISK, completeness=0.9, tagger=FakeTagger(), embedder=FakeEmbedder())
+
+    # The selector is found in the tagger's bundle directory, and loads from a file too.
+    _selector().save(tmp_path)
+    assert (tmp_path / SELECTOR_FILE).is_file()
+    found = select(analysis, RISK, tagger=FakeTagger(path=tmp_path), embedder=FakeEmbedder())
+    assert found.model_dump() == result.model_dump()
+    loaded = Selector.load(tmp_path / SELECTOR_FILE)
+    assert loaded.to_dict() == _selector().to_dict()
+    by_path = select(
+        analysis, RISK, selector=tmp_path, tagger=FakeTagger(), embedder=FakeEmbedder()
+    )
+    assert by_path.model_dump() == result.model_dump()
+
+    # A dial calibrated on another combiner is refused at load.
+    data = _selector().to_dict()
+    data["dials"]["annual_report"]["combiner_fingerprint"] = "0" * 64
+    with pytest.raises(ValueError, match="another combiner"):
+        Selector.from_dict(data)
+
+
+def test_expansion_adds_previous_same_section_heading_first_paragraph_and_whole_tables():
+    doc = expansion_doc()
+    result = select(
+        analysis_of(doc),
+        RISK,
+        selector=_selector(),
+        tagger=FakeTagger(),
+        embedder=FakeEmbedder(),
+    )
+    # core: e4, e9 (a table) and e14 (a caption)
+    # e4  -> e3 (previous, same section), e0 (heading), e1 (first paragraph)
+    # e9  -> e8 (previous), e6 (heading), e7 (first paragraph), e10 (its caption)
+    # e14 -> e13 (previous and heading), e15 (its table, kept whole with its caption)
+    expected = ["e0", "e1", "e3", "e4", "e6", "e7", "e8", "e9", "e10", "e13", "e14", "e15"]
+    assert result.element_ids == expected  # in reading order
+    assert result.tokens == tokens_of(doc, expected)  # headings and captions count
+    assert result.token_share == pytest.approx(
+        tokens_of(doc, expected) / tokens_of(doc, selectable_ids(doc))
+    )
+
+    # The previous element is only added within the same section.
+    doc2 = make_doc(
+        [
+            ("heading", "Factors", "s1"),  # e0
+            ("paragraph", "Filler in the first section.", "s1"),  # e1
+            ("heading", "Statements", "s2"),  # e2
+            ("paragraph", "Risk is everywhere.", "s2"),  # e3 RELEVANT, first of s2
+        ]
+    )
+    result2 = select(
+        analysis_of(doc2), RISK, selector=_selector(), tagger=FakeTagger(), embedder=FakeEmbedder()
+    )
+    assert result2.element_ids == ["e2", "e3"]
+
+
+def test_budget_mode_no_guarantee():
+    doc = expansion_doc()
+    analysis = analysis_of(doc)
+    group_e4 = ["e0", "e1", "e3", "e4"]
+    group_e9 = ["e6", "e7", "e8", "e9", "e10"]
+    group_e14 = ["e13", "e14", "e15"]
+    # Room for the first group (by relevance, then reading order) and the third, not the second.
+    budget = tokens_of(doc, group_e4) + tokens_of(doc, group_e14)
+    assert tokens_of(doc, group_e9) > tokens_of(doc, group_e14)
+    result = select(
+        analysis,
+        RISK,
+        completeness=0.9,
+        budget=budget,
+        selector=_selector(),
+        tagger=FakeTagger(),
+        embedder=FakeEmbedder(),
+    )
+    assert result.guarantee is False and result.over_budget is False
+    assert result.tokens <= budget
+    assert result.element_ids == sorted(group_e4 + group_e14, key=lambda i: int(i[1:]))
+    assert result.threshold is None
+    content_p = {"e1": LOW, "e3": LOW, "e4": HIGH, "e14": HIGH, "e15": LOW}
+    assert result.expected_recall == pytest.approx(sum(content_p.values()) / (3 * HIGH + 9 * LOW))
+    assert result.expected_recall < 1.0
+
+    # A larger budget takes everything relevant, and still makes no guarantee.
+    big = select(
+        analysis,
+        RISK,
+        budget=10_000,
+        selector=_selector(),
+        tagger=FakeTagger(),
+        embedder=FakeEmbedder(),
+    )
+    assert big.guarantee is False and big.tokens <= 10_000
+    assert {"e4", "e9", "e14"} <= set(big.element_ids)
+
+    with pytest.raises(ValueError, match="budget"):
+        select(analysis, RISK, budget=0, selector=_selector())
+    with pytest.raises(ValueError, match="budget"):  # 1.0 always means the whole document
+        select(analysis, RISK, completeness=1.0, budget=100)
+
+
+def test_query_need_never_guaranteed():
+    doc = expansion_doc()
+    analysis = analysis_of(doc)
+    result = select(
+        analysis,
+        "What are the main risks?",
+        completeness=0.9,
+        selector=_selector(),
+        tagger=FakeTagger(),
+        embedder=FakeEmbedder(),
+    )
+    assert result.guarantee is False
+    assert result.need == "What are the main risks?"
+    assert result.doc_type_mismatch is False
+    # Model estimate: the shortest prefix by p whose share of sum(p) reaches 0.9. By
+    # similarity, e15 is relevant too: its table text carries its caption, "Risk summary".
+    total = 4 * HIGH + 8 * LOW
+    assert result.relevant_expected == pytest.approx(total)
+    assert result.expected_recall == pytest.approx(4 * HIGH / total)
+    assert 0.9 <= result.expected_recall < 1.0
+    assert result.threshold == pytest.approx(HIGH)  # the p of the last element taken
+    assert {"e4", "e9", "e14", "e15"} <= set(result.element_ids)
+    assert not {"e2", "e5", "e11"} & set(result.element_ids)
+
+    # Ties are kept together: with every p equal, the whole set is the shortest prefix.
+    flat = _selector()
+    flat.query = _combiner(FEATURE_NAMES, {}, intercept=0.0)  # p = 0.5 everywhere
+    tied = select(analysis, "anything", selector=flat, tagger=FakeTagger(), embedder=FakeEmbedder())
+    assert tied.threshold == pytest.approx(0.5) and tied.expected_recall == pytest.approx(1.0)
+    assert tied.element_ids == selectable_ids(doc)
+
+    # A blank query is refused.
+    with pytest.raises(ValueError, match="query"):
+        select(analysis, "   ", selector=_selector())
+
+
+def test_doc_type_mismatch_retags_and_drops_guarantee():
+    doc = expansion_doc()
+    for element in doc.elements:  # tagged as a fund document, as process() would have
+        if element.kind in ("paragraph", "table", "caption"):
+            element.tags = {"topic": _topic("fund_document.other")}
+    analysis = analysis_of(doc, doc_type=PROSPECTUS)
+    tagger = FakeTagger()
+    result = select(analysis, RISK, selector=_selector(), tagger=tagger, embedder=FakeEmbedder())
+    assert tagger.calls == [(12, "annual_report")]  # re-tagged within the field's family
+    assert result.doc_type_mismatch is True
+    assert result.guarantee is False
+    assert result.capped is False
+    assert {"e4", "e9", "e14"} <= set(result.element_ids)  # the re-tagged topics count
+    assert analysis.document.elements[4].tags["topic"].labels == ["fund_document.other"]
+
+    # Without a tagger there is no re-tag: the similarity fallback, flagged, no guarantee.
+    bare = select(analysis, RISK, selector=_selector(), embedder=FakeEmbedder())
+    assert bare.doc_type_mismatch is True and bare.guarantee is False
+    assert {"e4", "e9", "e14"} <= set(bare.element_ids)
+
+    # A field of the document's family is no mismatch.
+    fund = select(analysis, FUND_FEES, selector=_selector(), embedder=FakeEmbedder())
+    assert fund.doc_type_mismatch is False
+
+
+def test_no_relevant_elements_needs_defined_readout():
+    doc = make_doc(
+        [
+            ("heading", "Fund overview", "s1"),
+            ("paragraph", "The fund invests in bonds.", "s1"),
+            ("paragraph", "It is managed by a team.", "s1"),
+            ("heading", "Statements", "s2"),
+            ("paragraph", "Net assets grew.", "s2"),
+        ]
+    )
+    analysis = analysis_of(doc)
+    kwargs = {"tagger": FakeTagger(), "embedder": FakeEmbedder()}
+    # Guaranteed path: no element reaches λ̂, so nothing is selected; recall is undefined.
+    result = select(analysis, RISK, selector=_selector(), **kwargs)
+    assert result.relevant_expected == pytest.approx(3 * LOW)
+    assert result.expected_recall is None
+    assert result.element_ids == [] and result.tokens == 0 and result.chunks == []
+    assert result.guarantee is True  # the calibrated threshold was applied
+    # A capped dial does not turn "nothing relevant" into the whole document.
+    capped = select(analysis, RISK, selector=_selector(annual_report=_dial(n=5)), **kwargs)
+    assert capped.capped is True and capped.guarantee is False
+    assert capped.expected_recall is None and capped.element_ids == []
+    # Estimate path (a query) and budget mode: never the whole document either.
+    query = select(analysis, "risk", selector=_selector(), **kwargs)
+    assert query.expected_recall is None and query.element_ids == []
+    budget = select(analysis, RISK, budget=1_000, selector=_selector(), **kwargs)
+    assert budget.expected_recall is None and budget.element_ids == []
+    assert budget.over_budget is False
+
+
+def test_select_linear_time():
+    n_sections, per_section = 300, 20  # 6,300 elements
+    sections = [{"title": f"Part {i}", "level": 1} for i in range(n_sections)]
+    items = []
+    for s in range(n_sections):
+        items.append(("heading", f"Part {s}", f"s{s + 1}"))
+        for j in range(per_section):
+            text = f"Paragraph {j} of part {s} with some ordinary words in it"
+            if j % 7 == 3:
+                text += " and a risk"
+            items.append(("paragraph", text, f"s{s + 1}"))
+    doc = make_doc(items, sections=sections)
+    tags = {
+        True: {"topic": _topic("annual_report.risk_factors")},
+        False: {"topic": _topic("annual_report.other")},
+    }
+    for element in doc.elements:
+        if element.kind == "paragraph":
+            element.tags = tags["risk" in element.text]
+    labels = NormalizationResult(
+        doc_type=ANNUAL_REPORT,
+        taxonomy="section_types/annual_report",
+        sections={
+            f"s{s + 1}": SectionNorm(canonical="risk_factors", label="Risk", title=f"Part {s}")
+            for s in range(0, n_sections, 2)
+        },
+    )
+    analysis = analysis_of(doc, sections=labels)
+    assert len(doc.elements) > 5_000
+    start = time.perf_counter()
+    result = select(analysis, RISK, selector=_selector(), embedder=FakeEmbedder())
+    budgeted = select(analysis, RISK, budget=20_000, selector=_selector(), embedder=FakeEmbedder())
+    query = select(analysis, "risk", selector=_selector(), embedder=FakeEmbedder())
+    elapsed = time.perf_counter() - start
+    assert result.guarantee is True and budgeted.tokens <= 20_000 and query.element_ids
+    assert elapsed < 2.0, f"select() took {elapsed:.2f}s on {len(doc.elements)} elements"
+
+
+def test_no_tagger_fallback_no_guarantee():
+    doc = expansion_doc()
+    analysis = analysis_of(doc)  # untagged, and no tagger given
+    result = select(analysis, RISK, selector=_selector(), embedder=FakeEmbedder())
+    assert result.guarantee is False
+    assert result.expected_recall is not None and result.expected_recall < 1.0
+    # The full combiner would see p_topic = 0 everywhere and select nothing; the fallback ranks
+    # by similarity and finds every relevant element.
+    assert {"e4", "e9", "e14"} <= set(result.element_ids)
+
+    # Some elements tagged, not all: still the fallback.
+    doc.elements[4].tags = {"topic": _topic("annual_report.risk_factors")}
+    partial = select(analysis, RISK, selector=_selector(), embedder=FakeEmbedder())
+    assert partial.guarantee is False
+
+    # No embedder either: structure only (section labels), and no guarantee.
+    labels = NormalizationResult(
+        doc_type=ANNUAL_REPORT,
+        taxonomy="section_types/annual_report",
+        sections={"s1": SectionNorm(canonical="risk_factors", label="Risk", title="Factors")},
+    )
+    fallback = _selector()
+    fallback.field_fallback = _combiner(("sim", "section_hit"), {"section_hit": 10.0})
+    structural = select(analysis_of(doc, sections=labels), RISK, selector=fallback)
+    assert structural.guarantee is False
+    assert {"e1", "e2", "e3", "e4", "e5"} <= set(structural.element_ids)  # section s1
+    assert "e9" not in structural.element_ids
+
+
+def test_tiny_budget():
+    doc = expansion_doc()
+    analysis = analysis_of(doc)
+    kwargs = {"selector": _selector(), "tagger": FakeTagger(), "embedder": FakeEmbedder()}
+    result = select(analysis, RISK, budget=1, **kwargs)
+    # The most relevant element (the first of the tied best, in reading order) alone.
+    assert result.element_ids == ["e4"]
+    assert result.over_budget is True and result.guarantee is False
+    assert result.tokens == tokens_of(doc, ["e4"]) > 1
+    assert result.expected_recall == pytest.approx(HIGH / (3 * HIGH + 9 * LOW))
+
+    # A budget that fits the best element but nothing with its expansion: the element alone.
+    small = make_doc(
+        [("heading", "Factors", "s1"), ("paragraph", "Risk could harm our results.", "s1")]
+    )
+    fits = select(analysis_of(small), RISK, budget=tokens_of(small, ["e1"]), **kwargs)
+    assert fits.element_ids == ["e1"] and fits.over_budget is False
+
+
+def test_chunks_from_selected_elements():
+    doc = expansion_doc()
+    result = select(
+        analysis_of(doc), RISK, selector=_selector(), tagger=FakeTagger(), embedder=FakeEmbedder()
+    )
+    chunked = [i for c in result.chunks for i in c.element_ids]
+    assert sorted(chunked, key=lambda i: int(i[1:])) == result.element_ids  # each exactly once
+    assert [c.id for c in result.chunks] == [f"c{i}" for i in range(len(result.chunks))]
+    # Contiguous spans are merged, gaps are not bridged: e1 and e3 are apart (e2 is not read).
+    by_element = {i: c for c in result.chunks for i in c.element_ids}
+    assert by_element["e0"] is by_element["e1"]
+    assert by_element["e3"] is by_element["e4"]
+    assert by_element["e1"] is not by_element["e3"]
+    assert "filler about operations" not in " ".join(c.text for c in result.chunks)
+    # A table chunk holds its caption.
+    assert by_element["e9"] is by_element["e10"]
+    assert by_element["e14"] is by_element["e15"]
+    assert all(c.heading_path for c in result.chunks)
+
+
+def test_selector_validation():
+    with pytest.raises(ValueError, match="fallback"):
+        Selector(field=FIELD, field_fallback=FIELD, query=QUERY, query_fallback=FALLBACK, dials={})
+    with pytest.raises(ValueError, match="all the features"):
+        Selector(
+            field=FALLBACK, field_fallback=FALLBACK, query=QUERY, query_fallback=FALLBACK, dials={}
+        )
+    with pytest.raises(ValueError, match="family"):
+        Selector(
+            field=FIELD,
+            field_fallback=FALLBACK,
+            query=QUERY,
+            query_fallback=FALLBACK,
+            dials={"contract": _dial()},
+        )
+    with pytest.raises(ValueError, match="completeness"):
+        select(analysis_of(expansion_doc()), RISK, completeness=1.5, selector=_selector())

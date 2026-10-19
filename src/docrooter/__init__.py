@@ -30,6 +30,7 @@ from docrooter.ocr.registry import register_ocr_engine
 from docrooter.pdf.load import load_pdf
 from docrooter.rooter import Analysis, RouterConfig, process, process_many
 from docrooter.runtime import configure
+from docrooter.select import Field, Selection, Selector, builtin_fields, load_fields, select
 from docrooter.summarize import Summary, summarize
 from docrooter.taxonomies import builtin_taxonomy, list_builtin_taxonomies
 from docrooter.taxonomy import Taxonomy, TaxonomyNode
@@ -57,6 +58,7 @@ __all__ = [
     "Element",
     "ElementKind",
     "EmbeddingSet",
+    "Field",
     "FigureData",
     "Flat",
     "Greedy",
@@ -65,6 +67,8 @@ __all__ = [
     "RouterConfig",
     "Section",
     "SectionView",
+    "Selection",
+    "Selector",
     "Summary",
     "Taxonomy",
     "TaxonomyError",
@@ -74,6 +78,7 @@ __all__ = [
     "TrainedModel",
     "UnknownTaxonomyError",
     "__version__",
+    "builtin_fields",
     "builtin_taxonomy",
     "calibrate",
     "chunk",
@@ -84,12 +89,14 @@ __all__ = [
     "evaluate",
     "list_builtin_taxonomies",
     "load",
+    "load_fields",
     "load_pdf",
     "normalize_sections",
     "process",
     "process_many",
     "register_layout_engine",
     "register_ocr_engine",
+    "select",
     "summarize",
     "train",
 ]

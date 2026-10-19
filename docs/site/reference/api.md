@@ -3,9 +3,10 @@
 Everything below is importable from the top-level package (`from docrooter import ...`) and
 listed in `docrooter.__all__`, except the result, event and backend types at the end, which
 are returned by these functions or needed to extend them. This page is generated from the
-docstrings. (`process`, `summarize` and `embed` are documented from the modules that define
-them, `docrooter.rooter.process`, `docrooter.summarize` and `docrooter.embed`, whose names they
-share; import them from `docrooter`.)
+docstrings. (`process`, `summarize`, `embed` and `select` are documented from the modules that
+define them, `docrooter.rooter.process`, `docrooter.summarize`, `docrooter.embed` and
+`docrooter.select.selection`, as their names are taken by modules; import them from
+`docrooter`.)
 
 ## Loading documents
 
@@ -60,6 +61,20 @@ share; import them from `docrooter`.)
 ::: docrooter.embed.embed
 
 ::: docrooter.EmbeddingSet
+
+## Selection
+
+::: docrooter.select.selection.select
+
+::: docrooter.Selection
+
+::: docrooter.Selector
+
+::: docrooter.Field
+
+::: docrooter.builtin_fields
+
+::: docrooter.load_fields
 
 ## Taxonomies
 

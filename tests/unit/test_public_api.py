@@ -61,6 +61,13 @@ PUBLIC_NAMES = [
     "Summary",
     # v0.5
     "TagResult",
+    # v0.6
+    "Field",
+    "builtin_fields",
+    "load_fields",
+    "select",
+    "Selection",
+    "Selector",
 ]
 
 

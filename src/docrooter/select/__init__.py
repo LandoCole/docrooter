@@ -15,20 +15,25 @@ from docrooter.select.fields import (
     validate_fields,
 )
 from docrooter.select.relevance import CONTENT_KINDS, FEATURE_NAMES, Combiner, features
+from docrooter.select.selection import SELECTOR_FILE, Selection, Selector, select
 
 __all__ = [
     "CONTENT_KINDS",
     "DEFAULT_GRID",
     "FEATURE_NAMES",
+    "SELECTOR_FILE",
     "CalibUnit",
     "Combiner",
     "DialTable",
     "Field",
+    "Selection",
+    "Selector",
     "builtin_fields",
     "calibrate_dial",
     "crc_threshold",
     "features",
     "list_builtin_field_sets",
     "load_fields",
+    "select",
     "validate_fields",
 ]

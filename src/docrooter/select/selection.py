@@ -101,6 +101,7 @@ __all__ = [
     "need_features",
     "need_texts",
     "prepare",
+    "readout",
     "select",
     "similarities",
 ]
@@ -142,6 +143,28 @@ class Selection(BaseModel):
     doc_type_mismatch: bool = False
     relevant_expected: float | None = None
     over_budget: bool = False
+
+
+def readout(selection: Selection) -> str:
+    """The one-line readout of a selection, e.g. "≈ 90% of relevant content kept · 3,240 tokens
+    (12%) · guaranteed on calibration-like documents". The CLI and the playground both print
+    this, so their wording cannot drift."""
+    parts: list[str] = []
+    if selection.expected_recall is None:
+        parts.append("no relevant content expected")
+    else:
+        kept = f"≈ {selection.expected_recall:.0%} of relevant content kept"
+        parts.append(kept if selection.guarantee else f"{kept} (estimate)")
+    parts.append(f"{selection.tokens:,} tokens ({selection.token_share:.0%})")
+    if selection.capped:
+        parts.append("dial capped by calibration size")
+    elif selection.guarantee:
+        parts.append("guaranteed on calibration-like documents")
+    if selection.doc_type_mismatch:
+        parts.append("doc type mismatch")
+    if selection.over_budget:
+        parts.append("the most relevant element alone exceeds the budget")
+    return " · ".join(parts)
 
 
 # --- the selector ------------------------------------------------------------------------------

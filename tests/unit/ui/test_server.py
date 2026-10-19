@@ -1389,3 +1389,387 @@ def test_serve_element_tags_option(monkeypatch, tag_bundle, tmp_path):
     jev = CliRunner().invoke(cli.app, ["serve", "--element-tags", "teacher:jev:jev-1.13.0"])
     assert jev.exit_code == 1 and "2.3(b)" in jev.output
     assert len(started) == 1
+
+
+# --- the completeness dial ------------------------------------------------------------------
+
+RISK_ID = "annual_report.risk_factors"
+
+
+def _combiner(feature_names, weights, intercept=-5.0):
+    from docrooter.select.relevance import Combiner
+
+    names = list(feature_names)
+    return Combiner.from_dict(
+        {
+            "format": "docrooter-relevance-combiner",
+            "version": 1,
+            "feature_names": names,
+            "l2": 1.0,
+            "max_iter": 100,
+            "mean": [0.0] * len(names),
+            "scale": [1.0] * len(names),
+            "coef": [weights.get(name, 0.0) for name in names],
+            "intercept": intercept,
+            "n_train": 10,
+            "n_docs": 2,
+            "converged": True,
+        }
+    )
+
+
+def fake_selector(embedder="fakeenc:m"):
+    """Hand-set combiners (the field one listens to p_topic, the others to sim) and one dial for
+    the annual-report family: λ̂(0.9) = 0.5, capped for a target no calibration set reaches."""
+    from docrooter.select.crc import DialTable
+    from docrooter.select.relevance import FEATURE_NAMES
+    from docrooter.select.selection import FALLBACK_FEATURES, Selector
+
+    field = _combiner(FEATURE_NAMES, {"p_topic": 10.0})
+    dial = DialTable(
+        family="annual_report",
+        n=100,
+        n_docs=100,
+        n_excluded=0,
+        grid=(0.5, 0.9),
+        curve_lambdas=[0.0, 0.5, 1.0],
+        curve_risk=[0.0, 0.0, 1.0],
+        combiner_fingerprint=field.fingerprint(),
+    )
+    fallback = _combiner(FALLBACK_FEATURES, {"sim": 10.0})
+    return Selector(
+        field=field,
+        field_fallback=fallback,
+        query=_combiner(FEATURE_NAMES, {"sim": 10.0}),
+        query_fallback=fallback,
+        dials={"annual_report": dial},
+        embedder=embedder,
+    )
+
+
+class FakeEncoder:
+    """A model-free embedder: texts that mention risk, and everything else."""
+
+    made = 0
+    closed = 0
+
+    def __init__(self, *args, **kwargs):
+        type(self).made += 1
+
+    def encode(self, texts, prompt=""):
+        import numpy as np
+
+        return np.array([[1.0, 0.0] if "risk" in t.lower() else [0.0, 1.0] for t in texts])
+
+    def close(self):
+        type(self).closed += 1
+
+
+@pytest.fixture
+def selector_file(tmp_path, monkeypatch):
+    monkeypatch.setitem(registry._KINDS, "fakeenc", FakeEncoder)
+    monkeypatch.setattr(FakeEncoder, "made", 0)
+    monkeypatch.setattr(FakeEncoder, "closed", 0)
+    path = tmp_path / "selector.json"
+    fake_selector().save(path)
+    return path
+
+
+def make_selector_client(selector_file, backend="keyword"):
+    app = server.create_app(backend, selector=str(selector_file))
+    return TestClient(app, base_url="http://127.0.0.1:8765")
+
+
+def tagged_analysis(n_filler=20):
+    """An annual report of tagged paragraphs: three about risk, the rest filler."""
+    from docrooter import Document
+    from docrooter.classify.results import DocTypeResult, PathResult
+    from docrooter.elements.models import Element, TagResult
+    from docrooter.rooter.analysis import Analysis
+
+    doc = Document.from_sections([{"title": "Factors", "level": 1}])
+    items = [("heading", "Factors")]
+    for k in range(n_filler):
+        items.append(("paragraph", f"Filler sentence number {k} about the offices."))
+        if k % 7 == 3:
+            items.append(("paragraph", f"Interest rate risk could harm our results {k}."))
+    elements = []
+    for i, (kind, text) in enumerate(items):
+        risky = "risk" in text.lower()
+        leaf = f"annual_report.{'risk_factors' if risky else 'other'}"
+        tags = None
+        if kind == "paragraph":
+            tags = {
+                "topic": TagResult(labels=[leaf], probs={leaf: 1.0}, confidence=1.0, source="t")
+            }
+        elements.append(
+            Element(
+                id=f"e{i}",
+                kind=kind,
+                text=text,
+                boxes=[],
+                order=i,
+                section_id="s1",
+                tags=tags,
+                **({"level": 1} if kind == "heading" else {}),
+            )
+        )
+    doc.elements = elements
+    doc_type = DocTypeResult(
+        source="test", best=PathResult(node_ids=["financial", "financial.annual_report"])
+    )
+    return Analysis(document=doc, doc_type=doc_type, config=RouterConfig(profile="balanced"))
+
+
+def inject(client, analysis=None):
+    """A finished run with a hand-built analysis, as if the worker had kept it."""
+    playground = client.app.state.playground
+    run_obj = server.Run("injected", "report.pdf", "pdf", 1, {"profile": "balanced"})
+    run_obj.status = "done"
+    playground.runs[run_obj.id] = run_obj
+    playground.keep(run_obj.id, analysis or tagged_analysis())
+    return run_obj.id
+
+
+def select_post(client, run_id, need=RISK_ID, completeness=0.9, **body):
+    return client.post(
+        f"/api/runs/{run_id}/select", json={"need": need, "completeness": completeness, **body}
+    )
+
+
+def test_select_endpoint_returns_selection(selector_file):
+    with make_selector_client(selector_file) as client:
+        run_id = inject(client)
+        response = select_post(client, run_id)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["need"] == RISK_ID and body["completeness"] == 0.9
+        assert body["guarantee"] is True and body["expected_recall"] == 0.9
+        assert body["capped"] is False and body["doc_type_mismatch"] is False
+        assert body["readout"].startswith("≈ 90% of relevant content kept · ")
+        assert body["readout"].endswith("guaranteed on calibration-like documents")
+        assert 0 < body["token_share"] < 1 and body["tokens"] > 0
+        assert body["truncated"] is False and body["selected_total"] == len(body["element_ids"])
+        analysis = client.app.state.playground.analyses[run_id]
+        risky = [e.id for e in analysis.document.elements if "risk" in e.text.lower()]
+        assert set(risky) <= set(body["element_ids"])
+        assert len(body["element_ids"]) < len(analysis.document.elements)
+        assert "chunks" not in body
+
+        # a free-text query has no guarantee: its readout says it is an estimate
+        query = select_post(client, run_id, "interest rate risk", 0.9).json()
+        assert query["guarantee"] is False and "(estimate)" in query["readout"]
+        assert query["need"] == "interest rate risk"
+
+        # several fields of one family are one need
+        both = select_post(client, run_id, [RISK_ID, "annual_report.legal_proceedings"]).json()
+        assert both["need"] == f"{RISK_ID},annual_report.legal_proceedings"
+
+        # c = 1.0 is the whole document, with no selector or model involved
+        whole = select_post(client, run_id, RISK_ID, 1.0).json()
+        assert whole["guarantee"] is True and whole["expected_recall"] == 1.0
+        assert whole["selected_total"] == len(analysis.document.elements)
+
+        # the embedder was loaded through the pool, once, and the pool holds it
+        assert client.app.state.playground.backends.spec == "fakeenc:m"
+        assert FakeEncoder.made == 1
+
+        fields = client.get("/api/fields").json()
+        assert set(fields) >= {"annual_report", "fund_document", "contract"}
+        assert {"id": RISK_ID, "label": "Risk factors"}.items() <= next(
+            f for f in fields["annual_report"] if f["id"] == RISK_ID
+        ).items()
+        assert set(fields["annual_report"][0]) == {"id", "label", "description"}
+        assert client.get("/api/backends").json()["selector"] == "selector.json"
+    assert FakeEncoder.closed == 1  # closed with the pool at shutdown
+
+
+def test_select_runs_through_a_real_run_and_keeps_three_analyses(selector_file):
+    with make_selector_client(selector_file) as client:
+        ids = [run(client, f"{n}.md", MARKDOWN, profile="balanced")[0] for n in range(4)]
+        evicted = select_post(client, ids[0], RISK_ID, 1.0)
+        assert evicted.status_code == 404 and "run it again" in evicted.json()["detail"]
+        assert select_post(client, "nope", RISK_ID, 1.0).status_code == 404
+        kept = select_post(client, ids[3], RISK_ID, 1.0)
+        assert kept.status_code == 200 and kept.json()["guarantee"] is True
+        assert list(client.app.state.playground.analyses) == ids[1:]
+        # a markdown document has no annual-report type: the field is a mismatch, no guarantee
+        mismatch = select_post(client, ids[3], RISK_ID, 0.9).json()
+        assert mismatch["doc_type_mismatch"] is True and mismatch["guarantee"] is False
+        # the detail names the family whose fields belong to the document
+        assert client.get(f"/api/runs/{ids[3]}").json()["field_family"] == "research_paper"
+        fast_id, _ = run(client, profile="fast")
+        fast = select_post(client, fast_id, RISK_ID, 1.0)
+        assert fast.status_code == 409 and "Balanced" in fast.json()["detail"]
+
+
+def test_select_without_a_selector_serves_the_whole_document_only(client):
+    run_id = inject(client)
+    refused = select_post(client, run_id, RISK_ID, 0.9)
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "no selector: fit one with docrooter fit-selector"
+    assert client.get("/api/backends").json()["selector"] is None
+    whole = select_post(client, run_id, RISK_ID, 1.0)
+    assert whole.status_code == 200 and whole.json()["guarantee"] is True
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"need": RISK_ID},  # no completeness
+        {"need": RISK_ID, "completeness": 1.5},
+        {"need": RISK_ID, "completeness": -0.1},
+        {"need": RISK_ID, "completeness": "0.9"},
+        {"need": RISK_ID, "completeness": True},
+        '{"need": "annual_report.risk_factors", "completeness": NaN}',  # raw JSON text
+        "not json",
+        {"need": "x" * 501, "completeness": 0.9},
+        {"need": "  ", "completeness": 0.9},
+        {"need": [], "completeness": 0.9},
+        {"need": ["annual_report.risk_factors", "a query"], "completeness": 0.9},
+        {"need": [RISK_ID, "fund_document.fees"], "completeness": 0.9},
+        {"need": 5, "completeness": 0.9},
+        {"need": RISK_ID, "completeness": 0.9, "budget": 0},
+        {"need": RISK_ID, "completeness": 1.0, "budget": 100},
+        [1, 2],
+    ],
+)
+def test_select_bad_requests_are_400(selector_file, body):
+    with make_selector_client(selector_file) as client:
+        run_id = inject(client)
+        url = f"/api/runs/{run_id}/select"
+        response = (
+            client.post(url, content=body) if isinstance(body, str) else client.post(url, json=body)
+        )
+        assert response.status_code == 400, response.text
+        assert isinstance(response.json()["detail"], str)
+    assert FakeEncoder.made == 0  # refused before any model was loaded
+
+
+def test_select_query_may_be_500_characters(selector_file):
+    with make_selector_client(selector_file) as client:
+        run_id = inject(client)
+        assert select_post(client, run_id, "x" * 500, 1.0).status_code == 200
+
+
+def test_select_payload_bounded(selector_file, monkeypatch):
+    with make_selector_client(selector_file) as client:
+        run_id = inject(client, tagged_analysis(n_filler=80))
+        total = len(client.app.state.playground.analyses[run_id].document.elements)
+        monkeypatch.setattr(server, "MAX_TOC_ENTRIES", 5)
+        for completeness in (1.0, 0.9):
+            response = select_post(client, run_id, RISK_ID, completeness)
+            body = response.json()
+            assert len(body["element_ids"]) <= 5
+            assert body["truncated"] is (body["selected_total"] > 5)
+        whole = select_post(client, run_id, RISK_ID, 1.0)
+        body = whole.json()
+        assert body["selected_total"] == total and len(body["element_ids"]) == 5
+        assert body["truncated"] is True
+        assert body["element_ids"] == [f"e{i}" for i in range(5)]  # the first, in reading order
+        assert "chunks" not in body
+        assert "Filler sentence" not in whole.text  # no element text, only ids
+        assert set(body) == {
+            "readout",
+            "need",
+            "completeness",
+            "threshold",
+            "tokens",
+            "token_share",
+            "expected_recall",
+            "guarantee",
+            "capped",
+            "doc_type_mismatch",
+            "relevant_expected",
+            "over_budget",
+            "element_ids",
+            "selected_total",
+            "truncated",
+        }
+
+
+def test_dial_presets(selector_file, client):
+    page = client.get("/").text
+    for element in ('id="select-slider"', 'min="0.5"', 'max="1"', 'step="0.01"'):
+        assert element in page
+    for element in ('id="select-field"', 'id="select-query"', 'id="select-readout"'):
+        assert element in page
+    script = client.get("/static/app.js").text
+    for name, value in (
+        ("Lean", 0.8),
+        ("Balanced", 0.9),
+        ("Thorough", 0.98),
+        ("Whole document", 1.0),
+    ):
+        assert f'{{ name: "{name}", value: {value} }}' in script
+    assert "250" in script  # the readout is debounced
+
+    # the presets are monotone in tokens: a higher completeness never reads less
+    with make_selector_client(selector_file) as selecting:
+        run_id = inject(selecting, tagged_analysis(n_filler=60))
+        for need in (RISK_ID, "interest rate risk"):
+            tokens = [
+                select_post(selecting, run_id, need, value).json()["tokens"]
+                for value in (0.8, 0.9, 0.98, 1.0)
+            ]
+            assert tokens == sorted(tokens), (need, tokens)
+        whole = select_post(selecting, run_id, RISK_ID, 1.0).json()
+        assert whole["tokens"] == tokens[-1] and whole["token_share"] == 1.0
+
+
+def test_textcontent_only(client):
+    script = client.get("/static/app.js").text
+    for sink in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval("):
+        assert sink not in script, sink
+    # the readout and badges are set as text; selected elements get a class, never markup
+    assert '$("select-readout").textContent' in script
+    assert "function selectBadges(" in script and 'h("span", { class: "badge' in script
+    assert 'classList.toggle("is-selected"' in script
+    assert "is-selected" in client.get("/static/style.css").text
+    page = client.get("/").text
+    assert (
+        'id="select-panel"' in page and 'id="el-selected-only"' not in page
+    )  # built by the script
+    assert "<script>" not in page and " onclick=" not in page
+
+
+def test_select_embedder_follows_the_single_model_rule(selector_file, monkeypatch):
+    monkeypatch.setitem(registry._KINDS, "closing", ClosingBackend)
+    monkeypatch.setattr(ClosingBackend, "made", 0)
+    monkeypatch.setattr(ClosingBackend, "closed", 0)
+    with make_selector_client(selector_file, backend="closing") as client:
+        run_id, events = run(client, "a.md", MARKDOWN)
+        assert events[-1]["data"]["status"] == "done"
+        assert (ClosingBackend.made, ClosingBackend.closed) == (1, 0)
+        for _ in range(2):  # the encoder replaces the classifier in the pool, then is reused
+            assert select_post(client, run_id, RISK_ID, 0.9).status_code == 200
+        assert (ClosingBackend.closed, FakeEncoder.made, FakeEncoder.closed) == (1, 1, 0)
+        assert client.app.state.playground.backends.spec == "fakeenc:m"
+        _, events = run(client, "b.md", MARKDOWN)  # the next run takes its backend back
+        assert events[-1]["data"]["status"] == "done"
+        assert (FakeEncoder.closed, ClosingBackend.made) == (1, 2)
+
+
+def test_selector_is_found_in_the_element_tags_bundle(tag_bundle, selector_file, monkeypatch):
+    import shutil
+
+    shutil.copy(selector_file, tag_bundle / "selector.json")
+    app = server.create_app("keyword", element_tags=str(tag_bundle))
+    assert app.state.playground.selector is not None
+    app = server.create_app("keyword", element_tags=str(tag_bundle), selector=str(selector_file))
+    assert app.state.playground.selector_name == "selector.json"
+    with pytest.raises(Exception, match="no selector"):
+        server.create_app("keyword", selector=str(selector_file.parent / "nope.json"))
+
+
+def test_serve_selector_option(monkeypatch, selector_file, tmp_path):
+    import uvicorn
+
+    started = []
+    monkeypatch.setattr(uvicorn.Server, "run", lambda self: started.append(self.config.app))
+    result = CliRunner().invoke(cli.app, ["serve", "--selector", str(selector_file)])
+    assert result.exit_code == 0, result.output
+    assert started[0].state.playground.selector is not None
+    missing = CliRunner().invoke(cli.app, ["serve", "--selector", str(tmp_path / "nope.json")])
+    assert missing.exit_code == 1 and "no selector" in missing.output
+    assert len(started) == 1

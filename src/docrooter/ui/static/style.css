@@ -393,6 +393,47 @@ button:disabled { opacity: 0.5; cursor: default; }
 .facts dt { font-size: 0.75rem; color: var(--muted); }
 .facts dd { font-weight: 600; }
 
+/* --- the completeness dial ------------------------------------------------------------- */
+
+.select-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--rule);
+}
+.select-panel[hidden] { display: none; }
+.select-panel h3 { font-size: 0.8125rem; font-weight: 600; color: var(--muted); margin: 0; }
+.select-needs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.75rem; }
+.text-input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+}
+.text-input:hover { border-color: var(--muted); }
+.select-dial { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.select-dial label { font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
+.select-dial output { font-weight: 400; color: var(--muted); margin-left: 0.4rem; }
+.select-dial input[type="range"] { flex: 1 1 12rem; min-width: 9rem; accent-color: var(--model); }
+.presets { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+button.preset { padding: 0.3rem 0.65rem; font-size: 0.8125rem; }
+button.preset[aria-pressed="true"] { border-color: var(--model); color: var(--model); background: var(--model-soft); }
+.select-readout { font-size: 1.0625rem; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.select-readout.is-error { color: var(--bad); font-weight: 500; font-size: 0.9375rem; }
+.select-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.select-badges:empty, .select-note:empty { display: none; }
+.badge.select-badge { font-size: 0.75rem; font-weight: 600; padding: 0.1rem 0.5rem; border-radius: 999px; }
+.badge.select-badge[data-kind="estimate"] { background: var(--bad-soft); color: var(--warn); }
+.badge.select-badge[data-kind="capped"] { background: var(--model-soft); color: var(--model); }
+.badge.select-badge[data-kind="mismatch"] { background: var(--bad-soft); color: var(--warn); }
+.badge.select-badge[data-kind="over-budget"] { background: var(--bad-soft); color: var(--bad); }
+.selected-only { margin-right: auto; align-items: center; }
+
 .tabs {
   display: flex;
   gap: 0.25rem;
@@ -490,6 +531,9 @@ details[open] > summary .toc-twisty { transform: rotate(90deg); }
 .el summary::-webkit-details-marker { display: none; }
 .el-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; padding: 0.3rem 0.25rem; border-radius: 4px; }
 .el:hover > .el-row, .el summary:hover .el-row { background: var(--ground); }
+.el.is-selected { background: var(--doc-soft); box-shadow: inset 3px 0 0 var(--doc); border-radius: 4px; }
+.el.is-selected:hover > .el-row, .el.is-selected summary:hover .el-row { background: transparent; }
+.el.is-unselected { display: none; }
 .el-text { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; font-size: 0.875rem; }
 .tag-chips { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; }
 .chip.tag-topic { background: var(--model-soft); color: var(--model); }
@@ -556,6 +600,7 @@ pre.json {
   :root { --name-w: 6.5rem; --dur-w: 3.75rem; --gap: 0.5rem; }
   .clock { font-size: 1.75rem; }
   .bar-row { grid-template-columns: minmax(6rem, 9rem) minmax(0, 1fr) 3rem; }
+  .select-needs { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {

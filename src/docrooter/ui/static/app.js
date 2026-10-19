@@ -36,8 +36,19 @@ const ELEMENT_KIND_FAMILY = {
   page_header: "furniture", page_footer: "furniture", page_number: "furniture", footnote: "furniture",
 };
 
+const PRESETS = [
+  { name: "Lean", value: 0.8 },
+  { name: "Balanced", value: 0.9 },
+  { name: "Thorough", value: 0.98 },
+  { name: "Whole document", value: 1.0 },
+];
+const SELECT_DEBOUNCE_MS = 250;
+const NO_SELECTOR_NOTE = "No selector: fit one with docrooter fit-selector, then start the playground with --selector. Only the whole document can be selected until then.";
+
 const state = {
   backends: null,
+  fields: null, // family -> [{id, label, description}], loaded once
+  select: null, // the dial of the shown run, see renderSelect
   lastFile: null,
   runId: null,
   source: null, // EventSource of the live run
@@ -280,6 +291,7 @@ function resetRun(title) {
   state.endT = null;
   cancelAnimationFrame(state.frame);
   setBusy(false); // a run left behind keeps going on the server; new uploads queue after it
+  stopSelect();
   $("stages").replaceChildren();
   $("axis").replaceChildren();
   $("timeline-empty").hidden = false;
@@ -548,6 +560,7 @@ async function showResult(runId) {
   renderFacts(run);
   renderToc(run);
   renderElements(run);
+  renderSelect(run);
   renderType(run);
   renderSections(run);
   renderJson(run);
@@ -693,10 +706,10 @@ function elementRow(el) {
     h("span", { class: "el-text" }, el.text || "(no text)"), // the server marks a cut with "…"
     tagChips(el.tags),
   );
-  if (!el.summary.length) return h("li", { class: "el" }, head);
+  if (!el.summary.length) return h("li", { class: "el", "data-id": el.id }, head);
   return h(
     "li",
-    { class: "el" },
+    { class: "el", "data-id": el.id },
     h(
       "details",
       {},
@@ -735,7 +748,8 @@ function renderElements(run) {
   );
   const counts = Object.entries(run.element_counts ?? {}).map(([kind, n]) => `${num(n)} ${kindName(kind)}`);
   if (run.element_tags) counts.push(`tags by ${run.element_tags.source} (${tagName(run.element_tags.family)} topics)`);
-  const setAll = (state) => groups.forEach((g) => (g.open = state));
+  const setAll = (open) => groups.forEach((g) => (g.open = open));
+  const selectedOnly = h("input", { type: "checkbox", id: "el-selected-only", disabled: true, onchange: applySelection });
   const note = run.elements_truncated
     ? h(
         "p",
@@ -751,12 +765,201 @@ function renderElements(run) {
       h(
         "div",
         { class: "toolbar" },
+        h("label", { class: "check selected-only" }, selectedOnly, h("span", {}, "Show selected only")),
         h("button", { type: "button", class: "secondary", onclick: () => setAll(true) }, "Expand all"),
         h("button", { type: "button", class: "secondary", onclick: () => setAll(false) }, "Collapse all"),
       ),
       ...groups,
     ].filter(Boolean),
   );
+}
+
+// --- the completeness dial ------------------------------------------------------------------
+
+// The state of the dial for the shown run. `selected` is a Set of element ids once a selection
+// has been read, else null; `seq` numbers the requests so a slow answer never overwrites a newer.
+function newSelectState(run) {
+  return { runId: run.id, family: run.field_family, selected: null, timer: 0, controller: null, seq: 0 };
+}
+
+function stopSelect() {
+  const dial = state.select;
+  state.select = null;
+  if (!dial) return;
+  clearTimeout(dial.timer);
+  if (dial.controller) dial.controller.abort();
+}
+
+function selectBadges(selection) {
+  const found = [];
+  if (!selection.guarantee) found.push(["estimate", "The recall is the model's own estimate, not a guarantee"]);
+  if (selection.capped) found.push(["capped", "Too few calibration documents reach this completeness, so the whole document is kept"]);
+  if (selection.doc_type_mismatch) found.push(["mismatch", "The field belongs to another document type than this document's"]);
+  if (selection.over_budget) found.push(["over-budget", "The most relevant element alone is over the token budget"]);
+  const labels = { estimate: "estimate", capped: "dial capped by calibration size", mismatch: "doc type mismatch", "over-budget": "over budget" };
+  return found.map(([kind, title]) => h("span", { class: "badge select-badge", "data-kind": kind, title }, labels[kind]));
+}
+
+// Mark the selected elements in the Elements tab, and hide the rest when asked to.
+function applySelection() {
+  const dial = state.select;
+  const selected = dial?.selected ?? null;
+  const toggle = $("el-selected-only");
+  if (toggle) toggle.disabled = selected === null;
+  const only = Boolean(toggle?.checked) && selected !== null;
+  const panel = $("panel-elements");
+  for (const item of panel.querySelectorAll("li.el")) {
+    const on = selected !== null && selected.has(item.dataset.id);
+    item.classList.toggle("is-selected", on);
+    item.classList.toggle("is-unselected", only && !on);
+  }
+  for (const group of panel.querySelectorAll("details.el-page")) {
+    group.hidden = only && !group.querySelector("li.el.is-selected");
+  }
+}
+
+function currentNeed() {
+  const query = $("select-query").value.trim();
+  return query || $("select-field").value || null;
+}
+
+function showReadout(text, isError = false) {
+  $("select-readout").textContent = text;
+  $("select-readout").classList.toggle("is-error", isError);
+}
+
+async function runSelect() {
+  const dial = state.select;
+  if (!dial) return;
+  clearTimeout(dial.timer);
+  const need = currentNeed();
+  if (dial.controller) dial.controller.abort();
+  if (!need) {
+    dial.selected = null;
+    $("select-badges").replaceChildren();
+    $("select-note").replaceChildren();
+    showReadout("Pick a field or type a query to see what would be sent.");
+    applySelection();
+    return;
+  }
+  const controller = new AbortController();
+  dial.controller = controller;
+  const seq = ++dial.seq;
+  try {
+    const response = await fetch(`/api/runs/${encodeURIComponent(dial.runId)}/select`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ need, completeness: Number($("select-slider").value) }),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(await errorText(response));
+    const selection = await response.json();
+    if (state.select !== dial || dial.seq !== seq) return;
+    dial.selected = new Set(selection.element_ids);
+    $("select-readout").textContent = selection.readout;
+    $("select-readout").classList.remove("is-error");
+    $("select-badges").replaceChildren(...selectBadges(selection));
+    const shown = selection.truncated ? ` Highlighting the first ${num(selection.element_ids.length)}.` : "";
+    $("select-note").textContent = `${num(selection.selected_total)} elements selected, with their headings and neighbours.${shown}`;
+    applySelection();
+  } catch (error) {
+    if (error.name === "AbortError" || state.select !== dial || dial.seq !== seq) return;
+    dial.selected = null;
+    $("select-badges").replaceChildren();
+    $("select-note").replaceChildren();
+    showReadout(error.message, true);
+    applySelection();
+  }
+}
+
+function scheduleSelect() {
+  const dial = state.select;
+  if (!dial) return;
+  clearTimeout(dial.timer);
+  dial.timer = setTimeout(runSelect, SELECT_DEBOUNCE_MS);
+}
+
+function syncDial() {
+  const value = Number($("select-slider").value);
+  $("select-value").textContent = value.toFixed(2);
+  for (const button of $("select-presets").querySelectorAll("button")) {
+    button.setAttribute("aria-pressed", String(Number(button.dataset.value) === value));
+  }
+}
+
+async function fieldGroups(family) {
+  if (!state.fields) {
+    try {
+      state.fields = await getJSON("/api/fields");
+    } catch {
+      state.fields = {};
+    }
+  }
+  const families = Object.keys(state.fields).sort((a, b) => (a === family ? -1 : b === family ? 1 : a.localeCompare(b)));
+  return families.map((name) =>
+    h(
+      "optgroup",
+      { label: name === family ? `${name.replace(/_/g, " ")} (this document)` : name.replace(/_/g, " ") },
+      state.fields[name].map((f) => h("option", { value: f.id, title: f.description }, f.label)),
+    ),
+  );
+}
+
+async function renderSelect(run) {
+  stopSelect();
+  const panel = $("select-panel");
+  panel.hidden = !run.elements_total;
+  if (!run.elements_total) return;
+  const dial = newSelectState(run);
+  state.select = dial;
+  const hasSelector = Boolean(state.backends?.selector);
+  const slider = $("select-slider");
+  slider.value = hasSelector ? "0.9" : "1";
+  slider.disabled = !hasSelector;
+  $("select-query").value = "";
+  $("select-presets").replaceChildren(
+    ...PRESETS.map((preset) =>
+      h(
+        "button",
+        {
+          type: "button",
+          class: "secondary preset",
+          "data-value": preset.value,
+          "aria-pressed": "false",
+          disabled: !hasSelector && preset.value !== 1.0,
+          onclick: () => {
+            slider.value = String(preset.value);
+            syncDial();
+            runSelect();
+          },
+        },
+        preset.name,
+      ),
+    ),
+  );
+  $("select-note").textContent = hasSelector ? "" : NO_SELECTOR_NOTE;
+  showReadout("Pick a field or type a query to see what would be sent.");
+  $("select-badges").replaceChildren();
+  syncDial();
+  const groups = await fieldGroups(run.field_family);
+  if (state.select !== dial) return;
+  $("select-field").replaceChildren(h("option", { value: "" }, "Choose a field…"), ...groups);
+  applySelection();
+}
+
+function setupSelect() {
+  $("select-slider").addEventListener("input", () => {
+    syncDial();
+    scheduleSelect();
+  });
+  $("select-field").addEventListener("change", () => {
+    if ($("select-field").value) $("select-query").value = "";
+    runSelect();
+  });
+  $("select-query").addEventListener("input", () => {
+    if ($("select-query").value.trim()) $("select-field").value = "";
+    scheduleSelect();
+  });
 }
 
 function renderType(run) {
@@ -926,5 +1129,6 @@ async function openRun(runId) {
 
 setupDrop();
 setupTabs();
+setupSelect();
 loadOptions().catch((error) => setStatus(`Could not load the options: ${error.message}`, true));
 refreshHistory();

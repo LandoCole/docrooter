@@ -94,6 +94,27 @@
       <section class="results" aria-labelledby="results-heading" id="results" hidden>
         <h2 id="results-heading" class="visually-hidden">Results</h2>
         <dl id="facts" class="facts"></dl>
+        <section id="select-panel" class="select-panel" aria-labelledby="select-heading" hidden>
+          <h3 id="select-heading">What to send to an LLM</h3>
+          <div class="select-needs">
+            <div class="field">
+              <label for="select-field">Field</label>
+              <select id="select-field"></select>
+            </div>
+            <div class="field">
+              <label for="select-query">or a free-text query</label>
+              <input type="text" id="select-query" class="text-input" maxlength="500" autocomplete="off" placeholder="e.g. interest rate risk">
+            </div>
+          </div>
+          <div class="select-dial">
+            <label for="select-slider">Completeness <output id="select-value" for="select-slider">0.90</output></label>
+            <input type="range" id="select-slider" min="0.5" max="1" step="0.01" value="0.9" aria-describedby="select-readout">
+            <div id="select-presets" class="presets" role="group" aria-label="Completeness presets"></div>
+          </div>
+          <p id="select-readout" class="select-readout" role="status" aria-live="polite"></p>
+          <p id="select-badges" class="select-badges"></p>
+          <p id="select-note" class="note"></p>
+        </section>
         <div class="tabs" role="tablist" aria-label="Results">
           <button type="button" role="tab" id="tab-toc" aria-controls="panel-toc" aria-selected="true">Contents</button>
           <button type="button" role="tab" id="tab-elements" aria-controls="panel-elements" aria-selected="false" tabindex="-1">Elements</button>

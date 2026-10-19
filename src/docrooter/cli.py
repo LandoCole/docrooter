@@ -1509,24 +1509,10 @@ def _parse_needs(values: list[str]) -> Any:
 
 
 def _readout(selection: Any) -> str:
-    """The one-line readout of a selection, e.g. "≈ 90% of relevant content kept · 3,240 tokens
-    (12%) · guaranteed on calibration-like documents"."""
-    parts: list[str] = []
-    if selection.expected_recall is None:
-        parts.append("no relevant content expected")
-    else:
-        kept = f"≈ {selection.expected_recall:.0%} of relevant content kept"
-        parts.append(kept if selection.guarantee else f"{kept} (estimate)")
-    parts.append(f"{selection.tokens:,} tokens ({selection.token_share:.0%})")
-    if selection.capped:
-        parts.append("dial capped by calibration size")
-    elif selection.guarantee:
-        parts.append("guaranteed on calibration-like documents")
-    if selection.doc_type_mismatch:
-        parts.append("doc type mismatch")
-    if selection.over_budget:
-        parts.append("the most relevant element alone exceeds the budget")
-    return " · ".join(parts)
+    """The one-line readout of a selection (shared with the playground)."""
+    from docrooter.select.selection import readout
+
+    return readout(selection)
 
 
 @app.command("select")
@@ -1771,6 +1757,14 @@ def serve(
             "embedding:<model>, teacher:<engine spec>); the Elements tab shows the tags.",
         ),
     ] = None,
+    selector: Annotated[
+        Path | None,
+        typer.Option(
+            "--selector",
+            help="selector.json (or a folder holding one) for the completeness dial; default: "
+            "the --element-tags bundle's. Without one only the whole document can be selected.",
+        ),
+    ] = None,
 ) -> None:
     """Start the local playground: upload a document and watch it being processed."""
     import threading
@@ -1782,7 +1776,9 @@ def serve(
         check_backend_spec(backend)
         if env_file is not None:
             load_env_file(env_file)
-        application = create_app(backend, host=host, port=port, element_tags=element_tags)
+        application = create_app(
+            backend, host=host, port=port, element_tags=element_tags, selector=selector
+        )
     err = Console(stderr=True, highlight=False)
     if not _is_loopback(host):
         err.print(

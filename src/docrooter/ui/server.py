@@ -17,6 +17,16 @@ Started with ``element_tags`` (``docrooter serve --element-tags BUNDLE``), the w
 that tagger once, on the first run in element mode, tags every such run's content elements in
 the family of its document type, and closes the tagger on shutdown; the elements then carry
 their tags (``tags``) and the result names the tagger and family (``element_tags``).
+
+The completeness dial (spec v0.6 §7): the last :data:`MAX_KEPT_ANALYSES` runs in element mode
+keep their analysis, and ``POST /api/runs/{id}/select`` reads it with
+:func:`docrooter.select.selection.select` for a field or a query at a completeness, returning
+the :func:`~docrooter.select.selection.readout` line, the selection's numbers and the selected
+element ids (never their text). ``GET /api/fields`` lists the built-in fields. ``docrooter
+serve --selector`` (or a ``selector.json`` in the ``--element-tags`` bundle) supplies the
+fitted selector; without one only the whole document (completeness 1.0) can be selected. A
+selection that needs a model (the selector's embedder, the tagger) runs on the worker thread,
+between runs, so one model is loaded at a time.
 """
 
 from __future__ import annotations
@@ -41,7 +51,7 @@ from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 from docrooter._extras import require
@@ -68,15 +78,21 @@ from docrooter.classify.normalize import (  # noqa: E402
 from docrooter.classify.results import DocTypeResult  # noqa: E402
 from docrooter.document import Document  # noqa: E402
 from docrooter.document.load import load  # noqa: E402
+from docrooter.errors import DocrooterError  # noqa: E402
 from docrooter.layout import registry as layout_registry  # noqa: E402
 from docrooter.ocr import registry as ocr_registry  # noqa: E402
 from docrooter.pdf.load import ENGINES  # noqa: E402
 from docrooter.rooter import DEFAULT_PROFILE, PROFILES, RouterConfig, process  # noqa: E402
+from docrooter.rooter.analysis import Analysis  # noqa: E402
 from docrooter.rooter.process import _LazyOcr, _tag_elements  # noqa: E402
 from docrooter.rooter.profiles import jev_key_set  # noqa: E402
 from docrooter.summarize import Summary  # noqa: E402
 from docrooter.taxonomies import builtin_taxonomy, family_for_doc_type  # noqa: E402
 from docrooter.taxonomy import Taxonomy  # noqa: E402
+
+if TYPE_CHECKING:
+    from docrooter.select.fields import Field as SelectField
+    from docrooter.select.selection import Selection, Selector
 
 __all__ = [
     "MAX_TEXT_UPLOAD_BYTES",
@@ -117,6 +133,11 @@ phrases)."""
 MAX_PAGES = 2000
 HISTORY = 20
 """Runs kept in memory; the oldest is dropped when a new one arrives."""
+MAX_KEPT_ANALYSES = 3
+"""Runs whose analysis is kept for the dial (a document and its tags are far larger than a run's
+JSON); the oldest is dropped first, and selecting on it says to run the file again."""
+MAX_QUERY_CHARS = 500
+"""Longest free-text need the select endpoint accepts."""
 KEEPALIVE_SECONDS = 15.0
 MAX_PENDING = 8
 """Jobs that may wait behind the running one; more get 503."""
@@ -427,6 +448,7 @@ class Run:
             "elements_truncated": result.get("elements_truncated", False),
             "element_counts": result.get("element_counts"),
             "element_tags": result.get("element_tags"),
+            "field_family": result.get("field_family"),
             "routes": result.get("routes"),
         }
 
@@ -646,22 +668,66 @@ def build_result(
         "elements_truncated": len(doc.elements) > len(elements),
         "element_counts": element_counts,
         "element_tags": element_tags,
+        "field_family": family_for_doc_type(best.node_ids[-1] if best.node_ids else ""),
         "routes": routes,
     }
+
+
+@dataclass(eq=False)
+class _Task:
+    """A call for the worker thread, queued between runs: its result (or exception) is handed
+    to ``future`` on the event loop. Used for selections that load a model, so models are only
+    ever touched from the worker."""
+
+    fn: Callable[[], Any]
+    loop: asyncio.AbstractEventLoop
+    future: asyncio.Future[Any]
+
+    def run(self) -> None:
+        try:
+            value = self.fn()
+        except BaseException as exc:  # handed to the awaiting handler, which decides
+            self._settle(exc=exc)
+        else:
+            self._settle(value=value)
+
+    def fail(self, exc: BaseException) -> None:
+        self._settle(exc=exc)
+
+    def _settle(self, value: Any = None, exc: BaseException | None = None) -> None:
+        def deliver() -> None:
+            if self.future.done():
+                return
+            if exc is not None:
+                self.future.set_exception(exc)
+            else:
+                self.future.set_result(value)
+
+        with suppress(RuntimeError):
+            self.loop.call_soon_threadsafe(deliver)
 
 
 class Playground:
     """Run history, the job queue and its worker thread, and the backend pool."""
 
-    def __init__(self, default_backend: str, element_tags: str | None = None) -> None:
+    def __init__(
+        self,
+        default_backend: str,
+        element_tags: str | None = None,
+        selector: Selector | None = None,
+        selector_name: str | None = None,
+    ) -> None:
         self.default_backend = default_backend
         self.element_tags = element_tags
+        self.selector = selector
+        self.selector_name = selector_name
+        self.analyses: OrderedDict[str, Analysis] = OrderedDict()
         self._tagger: Any = None
         self.doc_types = builtin_taxonomy(DOC_TYPES)
         self.backends = BackendPool(self.doc_types)
         self.engines = EnginePool()
         self.runs: OrderedDict[str, Run] = OrderedDict()
-        self.jobs: queue.Queue[Job | None] = queue.Queue(maxsize=MAX_PENDING)
+        self.jobs: queue.Queue[Job | _Task | None] = queue.Queue(maxsize=MAX_PENDING)
         self._worker: threading.Thread | None = None
         self._current: Job | None = None  # the job the worker is running
         self.streams_ended = False
@@ -691,7 +757,9 @@ class Playground:
                 job = self.jobs.get_nowait()
             except queue.Empty:
                 break
-            if job is not None:
+            if isinstance(job, _Task):
+                job.fail(HTTPException(503, "The server is stopping."))
+            elif job is not None:
                 _unlink(job.path)
         self.jobs.put(None)  # room for it: the queue was just emptied, and only we add
         if self._worker is not None:
@@ -712,11 +780,54 @@ class Playground:
         self.jobs.put_nowait(job)
         self.runs[run.id] = run
         while len(self.runs) > HISTORY:
-            self.runs.popitem(last=False)
+            dropped, _ = self.runs.popitem(last=False)
+            self.analyses.pop(dropped, None)
+
+    def keep(self, run_id: str, analysis: Analysis) -> None:
+        """Keep the analysis of a run for the dial, dropping the oldest beyond
+        :data:`MAX_KEPT_ANALYSES`. Event loop thread only."""
+        self.analyses[run_id] = analysis
+        while len(self.analyses) > MAX_KEPT_ANALYSES:
+            self.analyses.popitem(last=False)
+
+    async def on_worker(self, fn: Callable[[], Any]) -> Any:
+        """The result of ``fn()`` run on the worker thread after the jobs ahead of it
+        (``queue.Full`` when :data:`MAX_PENDING` already wait)."""
+        loop = asyncio.get_running_loop()
+        task = _Task(fn, loop, loop.create_future())
+        self.jobs.put_nowait(task)
+        return await task.future
+
+    def select(
+        self, analysis: Analysis, need: SelectField | list[SelectField] | str, completeness: float
+    ) -> Selection:
+        """:func:`~docrooter.select.selection.select` with this server's selector, tagger and
+        embedder. The embedder is the selector's recorded spec, taken from the backend pool: a
+        pooled backend of that spec is reused, otherwise the pooled model is closed first, so
+        one model is held. Worker thread only, unless ``completeness`` is 1.0 (no model)."""
+        from docrooter.select.selection import select
+
+        if completeness >= 1.0:
+            return select(analysis, need, completeness=1.0)
+        selector = self.selector
+        assert selector is not None  # the endpoint checked
+        embedder = None if selector.embedder is None else self.backends.get(selector.embedder)
+        tagger = self.tagger() if self.element_tags is not None else None
+        return select(
+            analysis,
+            need,
+            completeness=completeness,
+            selector=selector,
+            tagger=tagger,
+            embedder=embedder,
+        )
 
     def _work(self) -> None:
         try:
             while (job := self.jobs.get()) is not None:
+                if isinstance(job, _Task):
+                    job.run()
+                    continue
                 self._current = job
                 try:
                     self._execute(job)
@@ -816,6 +927,16 @@ class Playground:
             result = build_result(
                 doc, run.filename, doc_type, norm, self.doc_types, summaries, tagged
             )
+            if doc.elements:  # the fast profile builds none: nothing for the dial to read
+                config = RouterConfig.resolve(profile=options["profile"])
+                analysis = Analysis(
+                    document=doc,
+                    doc_type=doc_type,
+                    sections=norm,
+                    summaries=summaries,
+                    config=config,
+                )
+                job.post(self.keep, run.id, analysis)
             status = "done"
         except Exception as exc:
             message = job.redact(str(exc)) or type(exc).__name__
@@ -1080,18 +1201,22 @@ def create_app(
     host: str = "127.0.0.1",
     port: int = 8765,
     element_tags: str | None = None,
+    selector: str | os.PathLike[str] | None = None,
 ) -> FastAPI:
     """The playground app; ``backend_spec`` is the backend selected by default. ``host`` and
     ``port`` are where it is served: only requests addressed to them are answered (see
     :class:`HostGuard`). ``element_tags`` (a tagger bundle directory, ``embedding:<model>`` or
     ``teacher:<engine spec>``; checked here, loaded on the first run in element mode) tags the
-    elements of every run that has them."""
+    elements of every run that has them. ``selector`` (a ``selector.json`` or a folder holding
+    one, read here; by default the ``selector.json`` of the ``element_tags`` bundle, if it has
+    one) enables the completeness dial below 1.0."""
     check_backend_spec(backend_spec)
     if element_tags is not None:
         from docrooter.tagger.element_tags import check_spec
 
         check_spec(element_tags)
-    playground = Playground(backend_spec, element_tags)
+    loaded, selector_name = _load_selector(selector, element_tags)
+    playground = Playground(backend_spec, element_tags, loaded, selector_name)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -1134,7 +1259,12 @@ def create_app(
             "max_upload_bytes": MAX_UPLOAD_BYTES,
             "max_text_upload_bytes": MAX_TEXT_UPLOAD_BYTES,
             "element_tags": playground.tagger_name,
+            "selector": playground.selector_name,
         }
+
+    @app.get("/api/fields")
+    async def fields() -> dict[str, list[dict[str, str]]]:
+        return _builtin_field_listing()
 
     @app.post("/api/runs", status_code=202)
     async def create_run(request: Request) -> dict[str, str]:
@@ -1188,6 +1318,48 @@ def create_app(
     async def run_detail(run_id: str) -> dict[str, Any]:
         return get_run(run_id).detail()
 
+    @app.post("/api/runs/{run_id}/select")
+    async def select_elements(run_id: str, request: Request) -> dict[str, Any]:
+        _check_origin(request)
+        run = get_run(run_id)
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "Send a JSON body.") from None
+        need, completeness, budget = _select_request(body)
+        analysis = playground.analyses.get(run_id)
+        if analysis is None:
+            if run.finished and run.options.get("profile") == "fast":
+                raise HTTPException(
+                    409, "The fast profile builds no elements: run the file again with Balanced."
+                )
+            raise HTTPException(
+                404,
+                f"No analysis kept for run {run_id!r} (only the last {MAX_KEPT_ANALYSES} runs "
+                "with elements are kept): run it again.",
+            )
+        if completeness < 1.0 and playground.selector is None:
+            raise HTTPException(409, NO_SELECTOR)
+        try:
+            if budget is not None and completeness >= 1.0:
+                raise ValueError(
+                    "A token budget cannot be combined with completeness 1.0, which always "
+                    "means the whole document."
+                )
+            if completeness >= 1.0:  # no model: answer now, whatever the worker is doing
+                selection = playground.select(analysis, need, completeness)
+            else:
+                selection = await playground.on_worker(
+                    lambda: playground.select(analysis, need, completeness)
+                )
+        except queue.Full:
+            raise HTTPException(
+                503, f"{MAX_PENDING} jobs are already waiting; try later."
+            ) from None
+        except (ValueError, DocrooterError, ImportError) as exc:  # a missing extra says how
+            raise HTTPException(400, str(exc)[:_ERROR_CHARS]) from None
+        return _selection_out(selection)
+
     @app.get("/api/runs/{run_id}/events")
     async def run_events(run_id: str, request: Request) -> StreamingResponse:
         run = get_run(run_id)
@@ -1200,6 +1372,102 @@ def create_app(
         )
 
     return app
+
+
+NO_SELECTOR = "no selector: fit one with docrooter fit-selector"
+
+
+def _load_selector(
+    path: str | os.PathLike[str] | None, element_tags: str | None
+) -> tuple[Selector | None, str | None]:
+    """The fitted selector and its file name: ``path`` (``selector.json`` or a folder holding
+    one), else the ``selector.json`` of the ``element_tags`` bundle when there is one, else
+    none. Raises ``DocrooterError`` when ``path`` holds none."""
+    from docrooter.select.selection import SELECTOR_FILE, Selector
+
+    if path is None and element_tags is not None:
+        bundle = Path(element_tags)
+        if bundle.is_dir() and (bundle / SELECTOR_FILE).is_file():
+            path = bundle / SELECTOR_FILE
+    if path is None:
+        return None, None
+    chosen = Path(path)
+    file = chosen / SELECTOR_FILE if chosen.is_dir() else chosen
+    return Selector.load(chosen), file.name
+
+
+def _builtin_field_listing() -> dict[str, list[dict[str, str]]]:
+    """The built-in fields as the picker shows them: family to ``id``, ``label``, ``description``
+    of each field."""
+    from docrooter.select.fields import builtin_fields, list_builtin_field_sets
+
+    return {
+        family: [
+            {"id": f.id, "label": f.label, "description": f.description}
+            for f in builtin_fields(family)
+        ]
+        for family in list_builtin_field_sets()
+    }
+
+
+def _select_request(body: Any) -> tuple[Any, float, int | None]:
+    """The need (a built-in field, a list of fields of one family, or a free-text query),
+    completeness and token budget of a select request; 400 for anything malformed."""
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Send a JSON object with need and completeness.")
+    completeness = body.get("completeness")
+    if (
+        isinstance(completeness, bool)
+        or not isinstance(completeness, (int, float))
+        or not 0.0 <= completeness <= 1.0  # also false for NaN
+    ):
+        raise HTTPException(400, "completeness must be a number from 0 to 1.")
+    budget = body.get("budget")
+    if budget is not None and (
+        isinstance(budget, bool) or not isinstance(budget, int) or budget < 1
+    ):
+        raise HTTPException(400, "budget must be a whole number of tokens, 1 or more.")
+    return _need(body.get("need")), float(completeness), budget
+
+
+def _need(value: Any) -> Any:
+    """A need from its JSON form: a field id, a list of field ids (of one family), or any
+    other string as a free-text query of at most :data:`MAX_QUERY_CHARS` characters."""
+    from docrooter.select.fields import builtin_fields, list_builtin_field_sets
+
+    known = {f.id: f for family in list_builtin_field_sets() for f in builtin_fields(family)}
+    if isinstance(value, list):
+        unknown = [v for v in value if not isinstance(v, str) or v.strip() not in known]
+        if not value or unknown:
+            raise HTTPException(400, "A list of needs must hold built-in field ids only.")
+        fields = [known[v.strip()] for v in value]
+        if len({f.family for f in fields}) > 1:
+            raise HTTPException(400, "The fields of one need must be of one family.")
+        return fields[0] if len(fields) == 1 else fields
+    if not isinstance(value, str) or not value.strip():
+        raise HTTPException(400, "need must be a field id, a list of field ids or a query.")
+    if value.strip() in known:
+        return known[value.strip()]
+    if len(value) > MAX_QUERY_CHARS:
+        raise HTTPException(400, f"A query may be at most {MAX_QUERY_CHARS} characters.")
+    return value
+
+
+def _selection_out(selection: Selection) -> dict[str, Any]:
+    """The selection as the page gets it: the readout, the numbers, and the first
+    :data:`MAX_TOC_ENTRIES` selected ids (the page lists no more elements than that). No chunk
+    text, so the answer stays small however large the selection."""
+    from docrooter.select.selection import readout
+
+    out = selection.model_dump(mode="json", exclude={"chunks", "element_ids"})
+    ids = selection.element_ids
+    return {
+        "readout": readout(selection),
+        **out,
+        "element_ids": ids[:MAX_TOC_ENTRIES],
+        "selected_total": len(ids),
+        "truncated": len(ids) > MAX_TOC_ENTRIES,
+    }
 
 
 def _is_decimal(value: str) -> bool:

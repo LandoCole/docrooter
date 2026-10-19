@@ -38,3 +38,9 @@ class MissingExtraError(DocrooterError, ImportError):
 
     It is an ``ImportError`` too, so ``except ImportError`` keeps working.
     """
+
+
+class TeacherNotAllowedError(DocrooterError, ValueError):
+    """Raised for a teacher model that may not label training data: TypeSafe's Jev, whose
+    output may never be used to train, distil or calibrate another model (TypeSafe MCA
+    §2.3(b)). It is a ``ValueError`` too, like other bad teacher specs."""

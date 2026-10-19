@@ -2,9 +2,10 @@ import sys
 
 import pytest
 
-# Unit tests must never pull in torch, onnxruntime or an OCR engine. Snapshot at import time so
-# a package that something else imported before the unit tests ran does not count against them.
-_FORBIDDEN = ("torch", "onnxruntime", "rapidocr", "ocrmac")
+# Unit tests must never pull in torch, onnxruntime, mlx or an OCR engine. Snapshot at import
+# time so a package that something else imported before the unit tests ran does not count against
+# them.
+_FORBIDDEN = ("torch", "onnxruntime", "rapidocr", "ocrmac", "mlx", "mlx_lm")
 _AT_START = {name for name in _FORBIDDEN if name in sys.modules}
 _reported: set[str] = set()
 

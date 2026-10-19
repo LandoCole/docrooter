@@ -66,6 +66,9 @@ ocr-mac = ["ocrmac>=1.0; sys_platform == 'darwin'"]
 # Layout model: Docling's heron (Apache-2.0) as ONNX on onnxruntime, weights fetched by
 # huggingface_hub at a pinned revision, pages rendered by pypdfium2 when pymupdf is absent.
 layout = ["onnxruntime>=1.18", "pypdfium2>=4.30", "huggingface_hub>=0.23"]
+# Teacher LLM for corpus labelling (docrooter.teach): mlx-lm on Apple silicon. The transformers
+# teacher engine (hf:) uses the `models` extra.
+teach-mlx = ["mlx-lm>=0.32; sys_platform=='darwin' and platform_machine=='arm64' and python_version>='3.11'"]
 all = ["docrooter[models,pdf,pdf-mit,llm,jev,ui,ocr,ocr-mac,layout]"]
 
 [project.urls]
@@ -115,8 +118,9 @@ markers = [
     "models: downloads and runs ML models",
     "ocr: runs real OCR engines (rapidocr, ocrmac, tesseract)",
     "layout: runs the heron layout model (onnxruntime, downloads its weights)",
+    "teach: runs a teacher LLM (mlx-lm, downloads its weights)",
 ]
-addopts = "-m 'not models and not ocr and not layout'"
+addopts = "-m 'not models and not ocr and not layout and not teach'"
 filterwarnings = [
     # PyMuPDF's SWIG bindings; nothing docrooter can fix.
     "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
@@ -191,6 +195,10 @@ module = [
     "pypdfium2.*",
     "huggingface_hub",
     "huggingface_hub.*",
+    "mlx",
+    "mlx.*",
+    "mlx_lm",
+    "mlx_lm.*",
     "tomli",
 ]
 ignore_missing_imports = true

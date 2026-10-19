@@ -302,9 +302,14 @@ def test_short_fragments_between_full_width_lines_are_not_columns():
 def test_a_table_with_a_narrow_column_of_cells_between_two_wide_ones_keeps_its_rows():
     # name, ticker, exchange (doc_004 p1): the ticker column makes it a table whichever valley
     # is tried, and the rows are in the extractor's order
-    boxes = []
+    boxes = [
+        (61.0, 286.0, 294.0, 297.0),  # "Securities registered pursuant to Section 12(b)", bridging
+        (110.0, 298.0, 185.0, 309.0),
+        (267.0, 298.0, 340.0, 309.0),
+        (369.0, 298.0, 555.0, 309.0),
+    ]
     for k in range(8):
-        y = 300.0 + 12 * k
+        y = 312.0 + 12 * k
         boxes += [
             (36.0, y, 161.0, y + 10),
             (285.0, y, 315.0, y + 10),

@@ -214,9 +214,12 @@ def _find_gutter(
     if len(body) < 2 * _COLUMN_MIN_BOXES:
         return None
     by_y = sorted(body, key=lambda i: ((boxes[i][1] + boxes[i][3]) / 2, i))
-    if len(by_y) > _PRECHECK_BOXES and not _valleys(
-        boxes, by_y[_CROSSING : len(by_y) - _CROSSING], min_gutter
-    ):
+    core = (
+        _valleys(boxes, by_y[_CROSSING : len(by_y) - _CROSSING], min_gutter)
+        if len(by_y) > 2 * _CROSSING
+        else []
+    )
+    if len(by_y) > _PRECHECK_BOXES and not core:
         return None  # a big region without a valley once the most boxes are set aside has none
     combos = sorted(
         ((p, q) for p in range(_CROSSING + 1) for q in range(_CROSSING + 1)),
@@ -227,7 +230,8 @@ def _find_gutter(
             continue
         valleys = _valleys(boxes, by_y[p : len(by_y) - q], min_gutter)
         for lo, hi in valleys:
-            found = _validate(boxes, body, (lo, hi), valleys, text_width, numeric)
+            columns = core if len(core) > len(valleys) else valleys  # the table check's columns
+            found = _validate(boxes, body, (lo, hi), columns, text_width, numeric)
             if found is not None:
                 left, right, crossing = found
                 return left, right, [*spanning, *crossing]

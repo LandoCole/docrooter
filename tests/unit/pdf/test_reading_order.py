@@ -284,3 +284,30 @@ def test_order_lines_keeps_the_rows_of_a_table_of_figures():
         for i, y in zip(range(12), (300 + 14 * (k // 2) for k in range(12)), strict=True)
     ]
     assert order_lines(words, set()) == list(range(0, 12, 2)) + list(range(1, 12, 2))
+
+
+def test_short_fragments_between_full_width_lines_are_not_columns():
+    # a single-column page of full-width lines with a few short lines and a bold keyword set
+    # apart on the right (doc_031 p110): the short boxes of different rows are no two columns
+    boxes = []
+    for k in range(10):
+        y = 100.0 + 14 * k
+        if k in (2, 5, 8):
+            boxes += [(66.0, y, 297.0, y + 10), (398.0, y, 506.0, y + 10)]
+        else:
+            boxes.append((66.0, y, 520.0, y + 10))
+    assert cut(boxes) == list(range(len(boxes)))
+
+
+def test_a_table_with_a_narrow_column_of_cells_between_two_wide_ones_keeps_its_rows():
+    # name, ticker, exchange (doc_004 p1): the ticker column makes it a table whichever valley
+    # is tried, and the rows are in the extractor's order
+    boxes = []
+    for k in range(8):
+        y = 300.0 + 12 * k
+        boxes += [
+            (36.0, y, 161.0, y + 10),
+            (285.0, y, 315.0, y + 10),
+            (369.0, y, 555.0, y + 10),
+        ]
+    assert cut(boxes, page_width=594.0) == list(range(len(boxes)))

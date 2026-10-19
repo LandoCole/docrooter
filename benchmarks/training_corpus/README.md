@@ -120,20 +120,35 @@ The fetcher rewrites this block at the end of every non-dry run.
 
 <!-- counts:begin -->
 
-Last fetch: target 2, 4 documents in the manifest (train 4, calib 0, gold 0).
+Last fetch: target 1100, 1100 documents in the manifest (train 925, calib 62, gold 113).
 
 | Source | Scaled target | Documents | Made up | Shortfall | Status |
 | - | - | - | - | - | - |
-| cuad | 2 | 2 | 0 | 0 | ok |
-| **total** | 2 | 2 | | | |
+| ir_annual_reports | 250 | 250 | 0 | 0 | ok |
+| fund_docs | 150 | 150 | 0 | 0 | ok |
+| govinfo_gao | 150 | 150 | 0 | 0 | ok |
+| crs | 100 | 100 | 0 | 0 | ok |
+| fed | 60 | 60 | 0 | 0 | ok |
+| arxiv | 150 | 150 | 0 | 0 | ok |
+| uscourts | 100 | 100 | 0 | 0 | ok |
+| rfc | 40 | 40 | 0 | 0 | ok |
+| cuad | 100 | 100 | 0 | 0 | ok |
+| **total** | 1100 | 1100 | | | |
 
 Realised splits per source (hash-assigned, so stratified in expectation):
 
 | Source | train | calib | gold | gold % |
 | - | - | - | - | - |
-| ir_annual_reports | 2 | 0 | 0 | 0.0 |
-| cuad | 2 | 0 | 0 | 0.0 |
+| ir_annual_reports | 216 | 9 | 25 | 10.0 |
+| fund_docs | 124 | 9 | 17 | 11.3 |
+| govinfo_gao | 119 | 9 | 22 | 14.7 |
+| crs | 90 | 6 | 4 | 4.0 |
+| fed | 55 | 4 | 1 | 1.7 |
+| arxiv | 126 | 11 | 13 | 8.7 |
+| uscourts | 82 | 7 | 11 | 11.0 |
+| rfc | 31 | 3 | 6 | 15.0 |
+| cuad | 82 | 4 | 14 | 14.0 |
 
-Drops this run: none.
+Drops this run: excluded 74.
 
 <!-- counts:end -->

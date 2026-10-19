@@ -9,6 +9,7 @@ the performance page) are not in a results file; the pages say so where they app
 | --- | --- | --- |
 | [PDF benchmarks (dev corpus)](pdf.md) | 51 real PDFs, 18 document types | TOC extraction, document type, section normalisation |
 | [Held-out evaluation](heldout.md) | 40 different PDFs, frozen before any run | The same three tasks, once, with no tuning |
+| [Element kinds (DocLayNet)](elements.md) | 400 DocLayNet test pages, six categories | Element kinds against human layout labels |
 | [Public datasets](public-datasets.md) | EDGAR-CORPUS 10-K items, DBpedia classes, LEDGAR clauses | Zero-shot section classification by backend |
 | [Performance and memory](performance.md) | ten PDFs, 1-642 pages; a training run | Peak memory, where the time goes, load speed |
 

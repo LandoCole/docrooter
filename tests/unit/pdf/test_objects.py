@@ -229,6 +229,41 @@ def test_rotated_page_boxes_are_in_display_space(engine, tmp_path, rotation):
     assert 0 <= line.x0 < line.x1 <= dw and 0 <= line.y0 < line.y1 <= dh
 
 
+@pytest.mark.parametrize("rotation", [0, 90])
+def test_cropped_page_boxes_are_in_cropbox_space(engine, tmp_path, rotation):
+    """A page whose CropBox is offset inside its MediaBox: boxes are relative to the CropBox
+    (the displayed page), as pymupdf reports them, and text outside it (a printer's slug) is
+    dropped. pdfplumber used to report MediaBox coordinates here."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=600, height=800)
+    page.insert_text((100, 150), "Cropped heading text", fontsize=14)
+    page.insert_text((10, 20), "SLUG printer mark 30/3/05", fontsize=8)
+    page.insert_image(pymupdf.Rect(100, 200, 220, 260), stream=_png(), keep_proportion=False)
+    page.draw_rect(pymupdf.Rect(300, 300, 460, 380), color=(0, 0, 0), fill=(0.5, 0.5, 0.9))
+    page.set_cropbox(pymupdf.Rect(40, 60, 560, 760))  # 520 x 700, corner at (40, 60)
+    if rotation:
+        page.set_rotation(rotation)
+    path = _save(doc, tmp_path)
+
+    (p,) = extract_page_objects(path, engine=engine)
+    if rotation == 0:
+        assert (p.width, p.height) == (520, 700)
+        image, chart = (60, 140, 180, 200), (260, 240, 420, 320)
+        (line,) = p.lines
+        assert line.text == "Cropped heading text"
+        assert line.x0 == pytest.approx(60, abs=1)
+        assert 120 - 60 < line.y0 < line.y1 < 160 - 60
+        assert (line.page_width, line.page_height) == (520, 700)
+    else:  # displayed 700 x 520: the cropped page turned clockwise
+        assert (p.width, p.height) == (700, 520)
+        image, chart = (500, 60, 560, 180), (380, 260, 460, 420)
+    assert not any("SLUG" in ln.text for ln in p.lines)
+    (ibox,) = p.images
+    assert (ibox.x0, ibox.y0, ibox.x1, ibox.y1) == pytest.approx(image, abs=1)
+    (dbox,) = p.drawings
+    assert (dbox.x0, dbox.y0, dbox.x1, dbox.y1) == pytest.approx(chart, abs=1)
+
+
 def _heavy_pdf(tmp_path, n_paths):
     doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)

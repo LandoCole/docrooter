@@ -812,9 +812,10 @@ def test_order_must_be_a_permutation():
 
 def test_threshold_constants():
     # Tuned on DocLayNet train pages in E11a (docs/benchmarks-elements.md has the log); the
-    # spec §5.3 starting values were 0.02, 1.5, 0.25, 0.9 and 1.5.
+    # spec §5.3 starting values were 1.5, 0.25, 0.9 and 1.5. The figure thresholds keep the
+    # spec / E5a values (controller ruling: statement rows and banners must not be figures).
     assert (el.FIGURE_MIN_AREA, el.FIGURE_MAX_TEXT_DENSITY, el.CAPTION_MAX_DISTANCE_LINES) == (
-        0.005, 0.5, 5.0,
+        0.02, 0.5, 5.0,
     )  # fmt: skip
     assert (el.FOOTNOTE_BOTTOM_SHARE, el.FOOTNOTE_MAX_SIZE_RATIO, el.LIST_INDENT_STEP) == (
         0.3, 0.85, 8.0,
@@ -823,7 +824,7 @@ def test_threshold_constants():
         0.30, 1.75, 0.5,
     )  # fmt: skip
     assert el.FIRST_LINE_INDENT == 8.0
-    assert (el.FIGURE_MAX_TEXT_COVERAGE, el.FIGURE_PROSE_MIN_WORDS) == (0.4, 5)
+    assert (el.FIGURE_MAX_TEXT_COVERAGE, el.FIGURE_PROSE_MIN_WORDS) == (0.3, 5)
 
 
 # --- generated PDFs through the real pipeline ----------------------------------------------

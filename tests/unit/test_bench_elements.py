@@ -9,9 +9,9 @@ from benchmarks.elements_bench import (
     CLASSES,
     KIND_TO_CLASS,
     ScoredPage,
+    box_iou,
     class_of,
     gold_to_points,
-    iou,
     match_boxes,
     score,
     text_coverage,
@@ -23,12 +23,12 @@ def box(x0, y0, x1, y1, page=1):
     return Box(page=page, x0=x0, y0=y0, x1=x1, y1=y1)
 
 
-def test_iou():
-    assert iou(box(0, 0, 10, 10), box(0, 0, 10, 10)) == pytest.approx(1.0)
-    assert iou(box(0, 0, 10, 10), box(5, 0, 15, 10)) == pytest.approx(50 / 150)
-    assert iou(box(0, 0, 10, 10), box(20, 20, 30, 30)) == 0.0
-    assert iou(box(0, 0, 10, 10), box(0, 0, 10, 10, page=2)) == 0.0
-    assert iou(box(0, 0, 0, 10), box(0, 0, 0, 10)) == 0.0  # zero area
+def test_box_iou():
+    assert box_iou(box(0, 0, 10, 10), box(0, 0, 10, 10)) == pytest.approx(1.0)
+    assert box_iou(box(0, 0, 10, 10), box(5, 0, 15, 10)) == pytest.approx(50 / 150)
+    assert box_iou(box(0, 0, 10, 10), box(20, 20, 30, 30)) == 0.0
+    assert box_iou(box(0, 0, 10, 10), box(0, 0, 10, 10, page=2)) == 0.0
+    assert box_iou(box(0, 0, 0, 10), box(0, 0, 0, 10)) == 0.0  # zero area
 
 
 def test_greedy_one_to_one_matching():

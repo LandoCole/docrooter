@@ -118,7 +118,7 @@ __all__ = [
 
 # Spec §5.3 starting estimates, tuned on 400 DocLayNet train pages in E11a (the tuning log, with
 # the starting values, is in docs/benchmarks-elements.md).
-FIGURE_MIN_AREA = 0.005  # share of the page area
+FIGURE_MIN_AREA = 0.02  # share of the page area
 FIGURE_MAX_TEXT_DENSITY = 0.5  # text lines per 1,000 pt² inside a vector region
 CAPTION_MAX_DISTANCE_LINES = 5.0  # caption line heights between a caption and its target
 FOOTNOTE_BOTTOM_SHARE = 0.3  # bottom share of the page where footnotes sit
@@ -129,7 +129,7 @@ PARAGRAPH_GAP_RATIO = 1.75  # x the region's median line gap
 PARAGRAPH_SIZE_DELTA = 0.5  # pt
 FIRST_LINE_INDENT = 8.0  # pt
 # Task E5a additions (see the module docstring).
-FIGURE_MAX_TEXT_COVERAGE = 0.4  # share of a figure box covered by text lines
+FIGURE_MAX_TEXT_COVERAGE = 0.3  # share of a figure box covered by text lines
 FIGURE_BACKGROUND_PAGE_SHARE = 0.5  # an image or vector region this large with text on it
 # is a page background or frame
 FIGURE_GRID_MIN_ROWS = 3  # rows of two or more lines sharing a column edge ...

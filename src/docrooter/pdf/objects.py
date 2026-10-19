@@ -726,10 +726,38 @@ def _extract_pdfplumber(
     return out
 
 
+def _crop_offset(page: Any) -> tuple[Any, float, float]:
+    """The page cut to its CropBox, and the CropBox's top-left corner in pdfplumber's (MediaBox)
+    coordinates. pymupdf reports everything relative to the CropBox (the displayed page), so a
+    page whose CropBox differs from its MediaBox is cropped (objects outside it, such as printer
+    marks, are dropped) and every box is then shifted by that corner. Otherwise the page as is.
+    The fast path (``extract_lines``) is not changed by this."""
+    crop = tuple(float(v) for v in getattr(page, "cropbox", page.bbox))
+    if all(abs(a - b) < 0.01 for a, b in zip(crop, page.bbox, strict=True)):
+        return page, 0.0, 0.0
+    try:
+        cropped = page.crop(crop, relative=False, strict=False)
+    except Exception:  # a malformed CropBox: keep the MediaBox
+        _log.debug("cannot crop page %s to %s", page.page_number, crop, exc_info=True)
+        return page, 0.0, 0.0
+    return cropped, crop[0], crop[1]
+
+
+def _shifted(raw: Iterable[float], dx: float, dy: float) -> _RawBox:
+    x0, y0, x1, y1 = (float(v) for v in raw)
+    return (x0 - dx, y0 - dy, x1 - dx, y1 - dy)
+
+
 def _pdfplumber_page(page: Any, page_index: int, find_tables: bool = True) -> PageObjects:
     number = page_index + 1
+    page, dx, dy = _crop_offset(page)
     width, height = float(page.width), float(page.height)  # displayed size; /Rotate applied
-    lines = _finalise(_pdfplumber_page_rows(page, page_index))
+    text_rows = _pdfplumber_page_rows(page, page_index)
+    for row in text_rows:
+        row["x0"], row["y0"], row["x1"], row["y1"] = _shifted(
+            (row["x0"], row["y0"], row["x1"], row["y1"]), dx, dy
+        )
+    lines = _finalise(text_rows)
 
     char_count = garbled = 0
     for char in page.chars:
@@ -737,11 +765,14 @@ def _pdfplumber_page(page: Any, page_index: int, find_tables: bool = True) -> Pa
         char_count, garbled = char_count + t, garbled + g
 
     images = _boxes(
-        number, ((i["x0"], i["top"], i["x1"], i["bottom"]) for i in page.images), width, height
+        number,
+        (_shifted((i["x0"], i["top"], i["x1"], i["bottom"]), dx, dy) for i in page.images),
+        width,
+        height,
     )
     shapes = [*page.rects, *page.lines, *page.curves]
     drawings, flags = _drawing_clusters(
-        number, [(s["x0"], s["top"], s["x1"], s["bottom"]) for s in shapes],
+        number, [_shifted((s["x0"], s["top"], s["x1"], s["bottom"]), dx, dy) for s in shapes],
         _PDFPLUMBER_GAP, width, height,
     )  # fmt: skip
     tables: list[tuple[Box, list[list[str]]]] = []
@@ -754,7 +785,7 @@ def _pdfplumber_page(page: Any, page_index: int, find_tables: bool = True) -> Pa
             settings = {"vertical_strategy": "lines", "horizontal_strategy": "lines"}
             for table in page.find_tables(table_settings=settings):
                 rows = _table_rows(table.extract())
-                box = _to_box(number, table.bbox, width, height)
+                box = _to_box(number, _shifted(table.bbox, dx, dy), width, height)
                 if box is not None and _is_table(rows):
                     tables.append((box, rows))
         except Exception:  # one odd page must not fail the document

@@ -53,6 +53,16 @@ CATEGORIES = (
     "financial_reports", "government_tenders", "laws_and_regulations", "manuals", "patents",
     "scientific_articles",
 )  # fmt: skip
+# The default sample (SAMPLE_SIZE pages, SEED) of each split: ``sample_digest`` of its manifest
+# and the manifest file's SHA-256. ``prepare`` checks them; the benchmark checks the digest.
+EXPECTED_SAMPLE_DIGEST = {
+    "test": "cdda52423f79229ec0d90bfb99e9f3eef6ebad1b9478b09f2c5c9d5acf59ef2e",
+    "train": "0c3f954742783766ee11b5c5b5fc404f3894c60b0dc07bfbf2aba680e2b04a34",
+}
+EXPECTED_MANIFEST_SHA256 = {
+    "test": "755192e44398b7fedbf17cc94d603c3a3cd65683814e291fca9af4424de3c045",
+    "train": "1ab2ad541df3eac4f5517bf9b4b974bca1d739c6ae05c2cbbd1038d13d474069",
+}
 CLASS_NAMES = {
     1: "Caption", 2: "Footnote", 3: "Formula", 4: "List-item", 5: "Page-footer",
     6: "Page-header", 7: "Picture", 8: "Section-header", 9: "Table", 10: "Text", 11: "Title",
@@ -405,6 +415,12 @@ def download(name: str, raw: Path) -> Path:
     return path
 
 
+def sample_digest(records: list[dict[str, Any]]) -> str:
+    """SHA-256 over the sampled pages' ids and PDF checksums, in manifest order."""
+    text = "\n".join(f"{r['id']} {r['pdf_sha256']}" for r in records)
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
 def allocation(total: int) -> dict[str, int]:
     """Pages per category: an equal share, the first categories taking the remainder."""
     base, extra = divmod(total, len(CATEGORIES))
@@ -478,7 +494,12 @@ def prepare(split: str, total: int = SAMPLE_SIZE, keep: bool = False) -> Path:
     records.sort(key=lambda r: (r["category"], r["shard"], r["row"]))
     manifest = CACHE / f"{split}.jsonl"
     manifest.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in records))
-    print(f"{split}: {len(records)} pages -> {manifest} (sha256 {sha256(manifest)})")
+    digest, file_sha = sample_digest(records), sha256(manifest)
+    print(f"{split}: {len(records)} pages -> {manifest} (sha256 {file_sha}, sample {digest})")
+    if total == SAMPLE_SIZE and (
+        digest != EXPECTED_SAMPLE_DIGEST[split] or file_sha != EXPECTED_MANIFEST_SHA256[split]
+    ):
+        raise SystemExit(f"{split}: the sample differs from the pinned one (sample {digest})")
     return manifest
 
 

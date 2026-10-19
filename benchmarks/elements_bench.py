@@ -33,7 +33,6 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime
-import hashlib
 import json
 import time
 from collections import Counter, defaultdict
@@ -104,14 +103,11 @@ def _intersection(a: Box, b: Box) -> float:
     return w * h if w > 0 and h > 0 else 0.0
 
 
-def iou(a: Box, b: Box) -> float:
+def box_iou(a: Box, b: Box) -> float:
     """Intersection over union of two boxes (0 on different pages or for zero area)."""
     inter = _intersection(a, b)
     union = _area(a) + _area(b) - inter
     return inter / union if inter > 0 and union > 0 else 0.0
-
-
-_iou = iou  # ``match_boxes`` names its threshold ``iou``
 
 
 def match_boxes(
@@ -123,7 +119,6 @@ def match_boxes(
     prediction's kind maps to the gold class; a kind with no class never matches then.
     Candidates are taken highest IoU first (ties: lower indexes), each box used once.
     """
-    threshold = iou
     candidates = []
     for p, (pbox, kind) in enumerate(pred):
         mapped = class_of(kind)
@@ -132,8 +127,8 @@ def match_boxes(
         for g, (gbox, cls) in enumerate(gold):
             if same_class and mapped != cls:
                 continue
-            value = _iou(pbox, gbox)
-            if value >= threshold and value > 0:
+            value = box_iou(pbox, gbox)
+            if value >= iou and value > 0:
                 candidates.append((-value, p, g))
     candidates.sort()
     used_p: set[int] = set()
@@ -384,10 +379,15 @@ def target_check(result: Mapping[str, Any]) -> dict[str, Any]:
     return out
 
 
-def manifest_digest(records: Sequence[Mapping[str, Any]]) -> str:
-    """SHA-256 over the sampled pages' ids and PDF checksums, in manifest order."""
-    text = "\n".join(f"{r['id']} {r['pdf_sha256']}" for r in records)
-    return hashlib.sha256(text.encode()).hexdigest()
+def thresholds() -> dict[str, float]:
+    """The effective numeric element thresholds of :mod:`docrooter.pdf.elements`."""
+    from docrooter.pdf import elements as rules
+
+    return {
+        name: getattr(rules, name)
+        for name in sorted(rules.__all__)
+        if isinstance(getattr(rules, name), int | float)
+    }
 
 
 def evaluate(
@@ -396,17 +396,21 @@ def evaluate(
 ) -> dict[str, Any]:  # fmt: skip
     """Score ``systems`` on the sampled pages of ``split``, with threshold ``values``."""
     records = doclaynet.load_manifest(split)[:limit]
+    digest = doclaynet.sample_digest(records)
+    if limit is None and digest != doclaynet.EXPECTED_SAMPLE_DIGEST[split]:
+        raise SystemExit(f"the cached {split} sample is not the pinned one (digest {digest})")
     result: dict[str, Any] = {
         "benchmark": "elements-doclaynet", "split": split,
         "date": datetime.date.today().isoformat(), "commit": git_revision(),
         "source": {"repo": doclaynet.REPO, "revision": doclaynet.REVISION,
                    "licence": doclaynet.LICENCE, "citation": doclaynet.CITATION},
         "sample": {"pages": len(records), "seed": doclaynet.SEED,
-                   "digest": manifest_digest(records),
+                   "digest": digest,
                    "per_category": dict(sorted(Counter(r["category"] for r in records).items()))},
         "iou": IOU, "overrides": dict(values or {}), "env": collect_env(), "systems": {},
     }  # fmt: skip
     with overrides(values or {}):
+        result["thresholds"] = thresholds()
         for name in systems:
             pages, notes = run_system(name, split, records, verbose=verbose)
             result["systems"][name] = {**score(pages), **notes}

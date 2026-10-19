@@ -29,7 +29,7 @@ from docrooter.classify.results import DocTypeResult, PathResult
 from docrooter.corpus.store import text_sha1
 from docrooter.elements.models import Box, Element, TagResult
 from docrooter.rooter.analysis import Analysis
-from docrooter.select import Field
+from docrooter.select import Field, calibration_of
 from docrooter.select.crc import DialTable
 from docrooter.select.relevance import FEATURE_NAMES, Combiner
 from docrooter.select.selection import Selection, Selector, prepare
@@ -344,6 +344,7 @@ def _fake_document():
         query=_combiner(FEATURE_NAMES, {"sim": 10.0}),
         query_fallback=fallback,
         dials={"annual_report": dial},
+        calibrated_fields=calibration_of([RISK, LEGAL]),
     )
     doc = Document.from_sections([{"title": "Factors", "level": 1}])
     texts = [

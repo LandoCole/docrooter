@@ -54,7 +54,12 @@ from docrooter.backends.base import close_backend
 from docrooter.corpus.store import Corpus, ManifestRecord, calib_half, is_calib_crc, text_sha1
 from docrooter.errors import DocrooterError
 from docrooter.select.crc import CalibUnit, calibrate_dial
-from docrooter.select.fields import Field, builtin_fields, list_builtin_field_sets
+from docrooter.select.fields import (
+    Field,
+    builtin_fields,
+    calibration_of,
+    list_builtin_field_sets,
+)
 from docrooter.select.relevance import Combiner
 from docrooter.select.selection import (
     FALLBACK_FEATURES,
@@ -422,6 +427,11 @@ def fit_selector(
         }
     )
     meta["documents"]["skipped_no_fields"] = dict(sorted(skipped.items()))
+    # only the fields of a family that ended with a dial were calibrated; select() guarantees
+    # recall for these (id and fingerprint) and for nothing else
+    calibrated = calibration_of(
+        [f for family, fs in fields.items() if family in selector.dials for f in fs]
+    )
     return Selector(
         field=selector.field,
         field_fallback=selector.field_fallback,
@@ -430,6 +440,7 @@ def fit_selector(
         dials=selector.dials,
         embedder=_spec_of(embedder),
         meta=meta,
+        calibrated_fields=calibrated,
     )
 
 

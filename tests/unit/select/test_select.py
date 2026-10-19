@@ -16,7 +16,7 @@ from docrooter.classify.results import DocTypeResult, PathResult
 from docrooter.elements.models import Element, TableData, TagResult
 from docrooter.errors import DocrooterError
 from docrooter.rooter.analysis import Analysis
-from docrooter.select import Field
+from docrooter.select import Field, calibration_of, field_fingerprint
 from docrooter.select.crc import DialTable
 from docrooter.select.relevance import FEATURE_NAMES, Combiner
 from docrooter.select.selection import (
@@ -26,6 +26,7 @@ from docrooter.select.selection import (
     Selector,
     need_features,
     prepare,
+    readout,
     select,
 )
 from docrooter.views import estimate_tokens
@@ -112,6 +113,7 @@ def _selector(
         query=query,
         query_fallback=FALLBACK,
         dials=dials or {"annual_report": _dial()},
+        calibrated_fields=calibration_of([RISK, LEGAL, FUND_FEES]),
     )
 
 
@@ -722,3 +724,96 @@ def test_spec_tagger_closed_on_bad_result(monkeypatch):
             embedder=FakeEmbedder(),
         )
     assert Broken.closed is True
+
+
+# --- the guarantee only covers the fields the dial was calibrated on ---------------------------
+
+
+def _select_risk(need, selector=None, completeness=0.9):
+    return select(
+        analysis_of(expansion_doc()),
+        need,
+        completeness=completeness,
+        selector=selector or _selector(),
+        tagger=FakeTagger(),
+        embedder=FakeEmbedder(),
+    )
+
+
+def test_a_calibrated_field_is_guaranteed():
+    result = _select_risk(RISK)
+    assert result.guarantee is True and result.uncalibrated_field is False
+    assert "field not calibrated" not in readout(result)
+
+
+def test_a_user_field_with_a_calibrated_id_but_other_topics_is_not_guaranteed():
+    edited = RISK.model_copy(update={"topics": ["annual_report.legal_proceedings"]})
+    assert edited.id == RISK.id and field_fingerprint(edited) != field_fingerprint(RISK)
+    result = _select_risk(edited)
+    assert result.guarantee is False and result.uncalibrated_field is True
+    assert result.capped is False and result.threshold is None  # no dial threshold
+    assert "field not calibrated (estimate)" in readout(result)
+    # the functions are part of the fingerprint too
+    assert not _select_risk(RISK.model_copy(update={"functions": []})).guarantee
+
+
+def test_an_unknown_field_is_not_guaranteed_and_a_list_needs_every_field_calibrated():
+    mine = Field(
+        id="annual_report.mine", label="Mine", description="x", topics=["annual_report.properties"]
+    )
+    result = _select_risk(mine)
+    assert result.guarantee is False and result.uncalibrated_field is True
+    both = _select_risk([RISK, mine])
+    assert both.guarantee is False and both.uncalibrated_field is True
+    assert _select_risk([RISK, LEGAL]).guarantee is True
+
+
+def test_completeness_one_is_guaranteed_for_any_need_whatever_was_calibrated():
+    mine = Field(
+        id="annual_report.mine", label="Mine", description="x", topics=["annual_report.properties"]
+    )
+    uncalibrated = Selector(
+        field=FIELD,
+        field_fallback=FALLBACK,
+        query=QUERY,
+        query_fallback=FALLBACK,
+        dials={"annual_report": _dial()},
+    )
+    for need in (mine, RISK, "a question"):
+        result = _select_risk(need, uncalibrated, completeness=1.0)
+        assert result.guarantee is True and result.uncalibrated_field is False
+
+
+def test_a_selector_without_recorded_fields_guarantees_no_field():
+    """An old selector.json has no calibrated fields: every field is then an estimate."""
+    data = _selector().to_dict()
+    del data["calibrated_fields"]
+    old = Selector.from_dict(data)
+    assert old.calibrated_fields == {}
+    result = _select_risk(RISK, old)
+    assert result.guarantee is False and result.uncalibrated_field is True
+
+
+def test_calibrated_fields_round_trip_and_are_validated(tmp_path):
+    selector = _selector()
+    assert selector.calibrated_fields["annual_report"] == {
+        RISK.id: field_fingerprint(RISK),
+        LEGAL.id: field_fingerprint(LEGAL),
+    }
+    path = selector.save(tmp_path)
+    loaded = Selector.load(path)
+    assert loaded.calibrated_fields == selector.calibrated_fields
+    assert _select_risk(RISK, loaded).guarantee is True
+    data = selector.to_dict()
+    data["calibrated_fields"] = {"annual_report": ["not", "a", "mapping"]}
+    with pytest.raises(ValueError, match="calibrated_fields"):
+        Selector.from_dict(data)
+    with pytest.raises(ValueError, match="calibrated_fields"):
+        Selector(
+            field=FIELD,
+            field_fallback=FALLBACK,
+            query=QUERY,
+            query_fallback=FALLBACK,
+            dials={},
+            calibrated_fields={"annual_report": {RISK.id: 7}},
+        )

@@ -20,7 +20,7 @@ from docrooter.corpus.store import calib_half, text_sha1
 from docrooter.elements.models import Element, TagResult
 from docrooter.errors import DocrooterError
 from docrooter.rooter.analysis import Analysis
-from docrooter.select import Field
+from docrooter.select import Field, calibration_of
 from docrooter.select.fit import CorpusPdfReader, fit_selector
 from docrooter.select.selection import Selector, select
 
@@ -296,6 +296,11 @@ def test_fit_uses_teacher_full_labels_and_partitions(store):
     assert dial.n_excluded == 4  # LEGAL is never relevant there: no CRC unit
     dial.check_combiner(selector.field)
     assert selector.embedder == "embedding:fake"
+    # The fitted fields are the calibrated ones (a family without a dial has none).
+    assert selector.calibrated_fields == calibration_of([RISK, LEGAL])
+    assert selector.is_calibrated(RISK) and not selector.is_calibrated(
+        RISK.model_copy(update={"topics": [LEGAL.topics[0]]})
+    )
 
     # Relevance is teacher-full's: the "teacher" labeller would make every row a LEGAL one.
     meta = selector.meta

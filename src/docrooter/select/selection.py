@@ -14,14 +14,18 @@ never modified.
 
 **The guarantee.** ``guarantee=True`` only when the need is fields of one family, the full field
 combiner was used, the selector has a dial for that family, the document's type maps to that
-family (spec §0.6) and there is no budget. The dial's λ̂(c) is then the threshold and
-``expected_recall`` is c: E[recall] ≥ c on documents like the calibration set. A dial capped by
-its calibration size returns the whole document (``capped=True``, recall trivially 1).
+family (spec §0.6), there is no budget, and every field of the need is one the dial was
+calibrated on (:attr:`Selector.calibrated_fields`: the field's id and a fingerprint of its
+topics and functions; a selector that records none, as in the old format, calibrated none).
+A field outside it gets an estimate with ``uncalibrated_field=True``. The dial's λ̂(c) is
+then the threshold and ``expected_recall`` is c: E[recall] ≥ c on documents like the calibration
+set. A dial capped by its calibration size returns the whole document (``capped=True``, recall
+trivially 1).
 
 **Without the guarantee** (a query, the no-tagger or no-embedder fallback, no dial for the
-family, a doc-type mismatch) the cut is the model's own estimate: the shortest prefix by p,
-ties kept together, whose share of sum(p) reaches c. ``expected_recall`` is that share, an
-estimate, and ``threshold`` the p of the last element taken.
+family, a doc-type mismatch, an uncalibrated field) the cut is the model's own estimate: the
+shortest prefix by p, ties kept together, whose share of sum(p) reaches c.
+``expected_recall`` is that share, an estimate, and ``threshold`` the p of the last element taken.
 
 **Doc-type mismatch.** When the analysis's doc type maps to another family than the field's
 (no doc type maps to ``generic``, as in :func:`~docrooter.process`), the content elements are
@@ -69,7 +73,7 @@ per-section lookups precomputed.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -82,7 +86,7 @@ from docrooter.document.models import Document
 from docrooter.elements.models import Element, TagResult
 from docrooter.errors import DocrooterError
 from docrooter.select.crc import DialTable
-from docrooter.select.fields import Field
+from docrooter.select.fields import Field, field_fingerprint
 from docrooter.select.relevance import CONTENT_KINDS, FEATURE_NAMES, Combiner, features
 from docrooter.summarize import heading_titles
 from docrooter.taxonomies import family_for_doc_type
@@ -127,7 +131,9 @@ class Selection(BaseModel):
     the relevance cut (``None`` for c = 1.0, a capped dial or a budget). ``expected_recall`` is
     the CRC target when ``guarantee`` (1.0 when capped), else the model's estimate, and
     ``None`` without the guarantee when no relevant content is expected (``relevant_expected``
-    < 0.5). ``relevant_expected`` is the expected
+    < 0.5). ``uncalibrated_field`` is ``True`` when everything else would have carried the
+    guarantee but a field of the need is not one the dial was calibrated on (it is then an
+    estimate, ``guarantee=False``). ``relevant_expected`` is the expected
     number of relevant elements, sum(p) (``None`` at c = 1.0, where nothing is scored).
     """
 
@@ -144,6 +150,7 @@ class Selection(BaseModel):
     doc_type_mismatch: bool = False
     relevant_expected: float | None = None
     over_budget: bool = False
+    uncalibrated_field: bool = False
 
 
 def readout(selection: Selection) -> str:
@@ -163,6 +170,8 @@ def readout(selection: Selection) -> str:
         parts.append("guaranteed on calibration-like documents")
     if selection.doc_type_mismatch:
         parts.append("doc type mismatch")
+    if selection.uncalibrated_field:
+        parts.append("field not calibrated (estimate)")
     if selection.over_budget:
         parts.append("the most relevant element alone exceeds the budget")
     return " · ".join(parts)
@@ -196,6 +205,7 @@ class Selector:
         dials: dict[str, DialTable],
         embedder: str | None = None,
         meta: dict[str, Any] | None = None,
+        calibrated_fields: Mapping[str, Mapping[str, str]] | None = None,
     ) -> None:
         if tuple(field.feature_names) != FEATURE_NAMES:
             raise ValueError(
@@ -222,6 +232,7 @@ class Selector:
         self._dials = dict(dials)
         self._embedder = embedder
         self._meta = json.loads(json.dumps(meta or {}))  # a JSON-safe copy
+        self._calibrated = _check_calibrated(calibrated_fields)
 
     @property
     def field(self) -> Combiner:
@@ -249,6 +260,18 @@ class Selector:
         return self._embedder
 
     @property
+    def calibrated_fields(self) -> dict[str, dict[str, str]]:
+        """Family -> {field id: fingerprint} of the fields the dial was calibrated on (a copy;
+        empty for a selector that recorded none, whose every field is then an estimate)."""
+        return {family: dict(fields) for family, fields in self._calibrated.items()}
+
+    def is_calibrated(self, field: Field) -> bool:
+        """Whether the dial of ``field``'s family was calibrated on this very field: the same
+        id and the same fingerprint of topics and functions."""
+        known = self._calibrated.get(field.family, {})
+        return known.get(field.id) == field_fingerprint(field)
+
+    @property
     def meta(self) -> dict[str, Any]:
         """What the fit recorded (a copy)."""
         result: dict[str, Any] = json.loads(json.dumps(self._meta))
@@ -261,6 +284,10 @@ class Selector:
             "embedder": self.embedder,
             "combiners": {role: getattr(self, role).to_dict() for role in _ROLES},
             "dials": {family: dial.to_dict() for family, dial in sorted(self.dials.items())},
+            "calibrated_fields": {
+                family: dict(sorted(fields.items()))
+                for family, fields in sorted(self.calibrated_fields.items())
+            },
             "meta": self.meta,
         }
 
@@ -282,6 +309,7 @@ class Selector:
             dials={family: DialTable.from_dict(d) for family, d in data["dials"].items()},
             embedder=data.get("embedder"),
             meta=data.get("meta") or {},
+            calibrated_fields=data.get("calibrated_fields"),
         )
 
     def save(self, path: str | Path) -> Path:
@@ -302,6 +330,24 @@ class Selector:
                 f"no selector at {target}; make one with `docrooter fit-selector`"
             ) from None
         return cls.from_dict(json.loads(text))
+
+
+def _check_calibrated(
+    value: Mapping[str, Mapping[str, str]] | None,
+) -> dict[str, dict[str, str]]:
+    if value is None:
+        return {}
+    problem = ValueError("calibrated_fields must map each family to {field id: fingerprint}")
+    if not isinstance(value, Mapping):
+        raise problem
+    out: dict[str, dict[str, str]] = {}
+    for family, fields in value.items():
+        if not isinstance(family, str) or not isinstance(fields, Mapping):
+            raise problem
+        if not all(isinstance(k, str) and isinstance(v, str) for k, v in fields.items()):
+            raise problem
+        out[family] = dict(fields)
+    return out
 
 
 def _selector_file(path: Path) -> Path:
@@ -712,6 +758,7 @@ def select_scored(
     chosen = selector
     index = ctx.index
     full = ctx.tagged and ctx.has_sims
+    calibrated = all(chosen.is_calibrated(f) for f in fields)
     if fields:
         combiner = chosen.field if full else chosen.field_fallback
     else:
@@ -720,7 +767,9 @@ def select_scored(
     relevant = float(p.sum())
     nothing = relevant < NO_RELEVANT_BELOW
     dial = chosen.dials.get(field_family) if field_family is not None else None
-    guaranteed = bool(fields) and full and not mismatch and dial is not None and budget is None
+    eligible = bool(fields) and full and not mismatch and dial is not None and budget is None
+    guaranteed = eligible and calibrated
+    uncalibrated = eligible and not calibrated  # would be guaranteed, but this field was not fitted
 
     capped = over_budget = False
     threshold: float | None = None
@@ -753,6 +802,7 @@ def select_scored(
         capped=capped,
         relevant=relevant,
         over_budget=over_budget,
+        uncalibrated=uncalibrated,
     )
 
 
@@ -872,6 +922,7 @@ def _selection(
     capped: bool = False,
     relevant: float | None = None,
     over_budget: bool = False,
+    uncalibrated: bool = False,
 ) -> Selection:
     positions = sorted(picked)
     tokens = sum(index.tokens[pos] for pos in positions)
@@ -890,6 +941,7 @@ def _selection(
         doc_type_mismatch=mismatch,
         relevant_expected=relevant,
         over_budget=over_budget,
+        uncalibrated_field=uncalibrated,
     )
 
 

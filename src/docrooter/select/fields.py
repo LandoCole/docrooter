@@ -12,6 +12,7 @@ Built-in sets ship as package data in ``docrooter/fields/<family>.json``. A fiel
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Sequence
 from importlib import resources
@@ -23,7 +24,15 @@ from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 from docrooter.errors import FieldError
 from docrooter.taxonomy import Taxonomy
 
-__all__ = ["Field", "builtin_fields", "list_builtin_field_sets", "load_fields", "validate_fields"]
+__all__ = [
+    "Field",
+    "builtin_fields",
+    "calibration_of",
+    "field_fingerprint",
+    "list_builtin_field_sets",
+    "load_fields",
+    "validate_fields",
+]
 
 
 class Field(BaseModel):
@@ -56,6 +65,26 @@ class Field(BaseModel):
     def family(self) -> str:
         """The element topic family: the first segment of the topic ids."""
         return self.topics[0].split(".", 1)[0]
+
+
+def field_fingerprint(field: Field) -> str:
+    """A short fingerprint of what makes a field a field to the selector: its sorted topics and
+    functions. The dial is calibrated on relevance, which topics define, and on the ranking the
+    functions strengthen; labels, descriptions and queries do not enter it."""
+    canonical = json.dumps(
+        {"topics": sorted(field.topics), "functions": sorted(field.functions)},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+def calibration_of(fields: Sequence[Field]) -> dict[str, dict[str, str]]:
+    """The calibrated-fields record of a field set: family -> {field id: fingerprint}."""
+    out: dict[str, dict[str, str]] = {}
+    for field in fields:
+        out.setdefault(field.family, {})[field.id] = field_fingerprint(field)
+    return out
 
 
 def _parse(data: Any, source: str) -> list[Field]:

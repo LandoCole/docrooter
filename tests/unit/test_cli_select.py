@@ -17,6 +17,7 @@ from docrooter.corpus.store import calib_half, text_sha1
 from docrooter.elements import Element, TagResult
 from docrooter.ocr import registry as ocr_registry
 from docrooter.rooter.analysis import Analysis
+from docrooter.select import builtin_fields, calibration_of
 from docrooter.select import fit as fit_module
 from docrooter.select.crc import DialTable
 from docrooter.select.relevance import FEATURE_NAMES, Combiner
@@ -150,6 +151,7 @@ def _selector_file(tmp_path):
         query=_combiner(FEATURE_NAMES, {"sim": 10.0}),
         query_fallback=fallback,
         dials={"annual_report": dial},
+        calibrated_fields=calibration_of(builtin_fields("annual_report")),
         embedder="embedding:fake",
     )
     return selector.save(tmp_path / "selector.json")

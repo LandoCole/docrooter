@@ -20,7 +20,7 @@ import numpy as np
 from docrooter import Analysis, Document, RouterConfig, builtin_fields, process, select
 from docrooter.classify.results import DocTypeResult, PathResult
 from docrooter.elements.models import Element, TagResult
-from docrooter.select import Selector
+from docrooter.select import Selector, calibration_of
 from docrooter.select.crc import DialTable
 from docrooter.select.relevance import FEATURE_NAMES, Combiner
 from docrooter.select.selection import readout
@@ -163,6 +163,7 @@ def hand_set_selector() -> Selector:
         query=combiner(FEATURE_NAMES, {"sim": 10.0}),
         query_fallback=fallback,
         dials={"annual_report": dial},
+        calibrated_fields=calibration_of([RISK]),  # the one field this demo "calibrated"
     )
 
 

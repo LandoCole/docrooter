@@ -1421,6 +1421,7 @@ def _combiner(feature_names, weights, intercept=-5.0):
 def fake_selector(embedder="fakeenc:m"):
     """Hand-set combiners (the field one listens to p_topic, the others to sim) and one dial for
     the annual-report family: λ̂(0.9) = 0.5, capped for a target no calibration set reaches."""
+    from docrooter.select import builtin_fields, calibration_of
     from docrooter.select.crc import DialTable
     from docrooter.select.relevance import FEATURE_NAMES
     from docrooter.select.selection import FALLBACK_FEATURES, Selector
@@ -1443,6 +1444,7 @@ def fake_selector(embedder="fakeenc:m"):
         query=_combiner(FEATURE_NAMES, {"sim": 10.0}),
         query_fallback=fallback,
         dials={"annual_report": dial},
+        calibrated_fields=calibration_of(builtin_fields("annual_report")),
         embedder=embedder,
     )
 
@@ -1694,6 +1696,7 @@ def test_select_payload_bounded(selector_file, monkeypatch):
             "doc_type_mismatch",
             "relevant_expected",
             "over_budget",
+            "uncalibrated_field",
             "element_ids",
             "selected_total",
             "truncated",
@@ -1911,3 +1914,22 @@ def test_select_on_a_running_run_says_so(client):
 def test_no_estimate_badge_without_a_relevance_estimate(client):
     script = client.get("/static/app.js").text
     assert "!selection.guarantee && selection.expected_recall !== null" in script
+
+
+def test_uncalibrated_field_has_a_badge_and_reaches_the_page(client):
+    script = client.get("/static/app.js").text
+    assert "selection.uncalibrated_field" in script
+    assert 'uncalibrated: "field not calibrated"' in script
+
+
+def test_select_endpoint_reports_a_field_the_dial_was_not_calibrated_on(selector_file):
+    data = json.loads(selector_file.read_text(encoding="utf-8"))
+    del data["calibrated_fields"]  # an old selector.json records none
+    selector_file.write_text(json.dumps(data), encoding="utf-8")
+    with make_selector_client(selector_file) as client:
+        run_id = inject(client)
+        body = select_post(client, run_id).json()
+        assert body["guarantee"] is False and body["uncalibrated_field"] is True
+        assert body["readout"].endswith("field not calibrated (estimate)")
+        whole = select_post(client, run_id, RISK_ID, 1.0).json()
+        assert whole["guarantee"] is True and whole["uncalibrated_field"] is False

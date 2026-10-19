@@ -796,8 +796,9 @@ function selectBadges(selection) {
   if (!selection.guarantee && selection.expected_recall !== null) found.push(["estimate", "The recall is the model's own estimate, not a guarantee"]);
   if (selection.capped) found.push(["capped", "Too few calibration documents reach this completeness, so the whole document is kept"]);
   if (selection.doc_type_mismatch) found.push(["mismatch", "The field belongs to another document type than this document's"]);
+  if (selection.uncalibrated_field) found.push(["uncalibrated", "The dial was not calibrated on this field, so the recall is an estimate"]);
   if (selection.over_budget) found.push(["over-budget", "The most relevant element alone is over the token budget"]);
-  const labels = { estimate: "estimate", capped: "dial capped by calibration size", mismatch: "doc type mismatch", "over-budget": "over budget" };
+  const labels = { estimate: "estimate", capped: "dial capped by calibration size", mismatch: "doc type mismatch", uncalibrated: "field not calibrated", "over-budget": "over budget" };
   return found.map(([kind, title]) => h("span", { class: "badge select-badge", "data-kind": kind, title }, labels[kind]));
 }
 

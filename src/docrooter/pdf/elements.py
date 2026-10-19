@@ -458,22 +458,26 @@ class _Builder:
         holds a heading candidate or the title, or it covers at least
         ``FIGURE_BACKGROUND_PAGE_SHARE`` of the page, its lines read as prose (the figure
         rule's prose test) and its cells hold whole paragraphs (``FRAME_MIN_LINES_PER_CELL``
-        lines per non-empty cell). A heading candidate that labels a statement row (a word
-        label, then two or more numbers: "2024 Notes | 37 | 443") is a cell, not a heading.
+        lines per non-empty cell). A table whose lines are mostly (``FIGURE_GRID_LINE_SHARE``)
+        in statement rows (a word label, then two or more numbers: "2024 Notes | 37 | 443") is
+        a table whatever it holds, a title row set as a heading included, and a heading
+        candidate that labels a statement row is a cell, not a heading.
         Prose alone does not make a frame: a statement table's long row labels, or a register
         table's descriptions, stack like a paragraph, so ``FIGURE_GRID_MIN_LABELLED_ROWS``
         statement rows, or fewer lines per cell, keep a page-sized table a table."""
         lines = [self.lines[i] for i in idxs]
         statements = statement_rows(lines)
-        labels = {id(line) for row in statements for line in row}
-        if any(i in protected and id(self.lines[i]) not in labels for i in idxs):
+        cells = {id(line) for row in statements for line in row}
+        if len(cells) >= FIGURE_GRID_LINE_SHARE * len(lines):
+            return False  # a statement table, with its title row or a bold label row
+        if any(i in protected and id(self.lines[i]) not in cells for i in idxs):
             return True
         if area(r) < FIGURE_BACKGROUND_PAGE_SHARE * obj.width * obj.height:
             return False
         if len(statements) >= FIGURE_GRID_MIN_LABELLED_ROWS:
             return False
-        cells = sum(1 for row in rows for cell in row if cell.strip())
-        if len(lines) < FRAME_MIN_LINES_PER_CELL * max(cells, 1):
+        filled = sum(1 for row in rows for cell in row if cell.strip())
+        if len(lines) < FRAME_MIN_LINES_PER_CELL * max(filled, 1):
             return False
         return is_prose(lines, min_words=FIGURE_PROSE_MIN_WORDS,
                         line_share=FIGURE_PROSE_LINE_SHARE,

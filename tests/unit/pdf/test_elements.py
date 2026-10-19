@@ -605,6 +605,21 @@ def test_heading_candidate_labelling_a_statement_row_is_a_cell():
     assert kinds(doc.build()) == ["table"]
 
 
+def test_statement_table_with_a_heading_title_row_stays_a_table():
+    # dev doc_049 p29: "GHG Emissions (MT CO2e)" is a heading candidate set as the table's
+    # title row; the rest of the ruled table is statement rows
+    rows = [row(1, "GHG Emissions (MT CO2e)", 40, 130, size=12, bold=True)]
+    cells = [["GHG Emissions (MT CO2e)", "", "", ""]]
+    for k, label in enumerate(["Scope 1", "Scope 2, market-based", "Scope 3", "Category 1"]):
+        y = 155 + 20 * k
+        values = [f"{k + 1}4,390", f"{k + 1}2,346", f"{k + 1},612"]
+        rows += [row(1, label, 40, y, x1=200)]
+        rows += [row(1, v, 300 + 100 * c, y, x1=350 + 100 * c) for c, v in enumerate(values)]
+        cells.append([label, *values])
+    doc = Doc(rows, tables={1: [((30, 125, 560, 240), cells)]}, headings=[heading(rows, 0)])
+    assert kinds(doc.build()) == ["table"]
+
+
 def test_ruled_table_with_no_lines_of_its_own_is_not_emitted():
     doc = table_doc()
     inner = ((300, 168, 520, 190), [["12", "10"]])  # nested in the first; its lines are taken

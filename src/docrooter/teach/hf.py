@@ -2,9 +2,9 @@
 
 Same prompt and scoring as the mlx engine, through the model's own chat template. Uses the
 ``models`` extra (torch and transformers), which already holds what this engine needs, so there
-is no separate ``teach`` extra. Unquantised weights take 2 bytes a parameter on MPS and CUDA
-(4 on CPU), so within an 8 GiB budget this engine suits models up to about 2B parameters;
-larger teachers belong on mlx.
+is no separate ``teach`` extra. Unquantised float16 weights take 2 bytes a parameter, so
+within an 8 GiB budget this engine suits models up to about 2B parameters; larger teachers
+belong on mlx.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from typing import Any
 
 from docrooter._extras import require
 from docrooter.backends.loading import after_model_load, prepare_model_load
-from docrooter.teach.base import LogprobTeacher
+from docrooter.teach.base import LogprobTeacher, engine_name
 
 __all__ = ["HFTeacher"]
 
@@ -39,7 +39,7 @@ class _TorchRunner:
     def score_next(
         self, state: tuple[Any, int], ids: Sequence[int], candidates: Sequence[int]
     ) -> list[float]:
-        cache, _ = state
+        cache, length = state
         torch = self.torch
         try:
             with torch.inference_mode():
@@ -53,35 +53,54 @@ class _TorchRunner:
                 picked = logprobs[torch.tensor(list(candidates), device=logprobs.device)]
                 values = [float(v) for v in picked.cpu().tolist()]
         finally:
-            cache.crop(-len(ids))  # negative: remove these tokens (any transformers 5)
+            _crop_to(cache, length)
         return values
 
     def close(self) -> None:
         self.model = None
 
 
+def _crop_to(cache: Any, length: int) -> None:
+    """Crop every layer back to ``length`` tokens (the prefix), whatever it holds now: a
+    forward pass that failed part-way may have advanced some layers and not others. A negative
+    ``crop`` removes that many tokens (transformers 5 rejects a positive one)."""
+    for layer in cache.layers:
+        excess = layer.get_seq_length() - length
+        if excess > 0:
+            layer.crop(-excess)
+
+
 class HFTeacher(LogprobTeacher):
     """A teacher on transformers: ``HFTeacher(repo, revision)``, loaded on the first item.
 
     ``device`` defaults to the runtime's choice (:func:`docrooter.configure`, else cuda, mps,
-    cpu). Weights load in float16 on MPS, bfloat16 on CUDA and float32 on CPU. Other keyword
-    arguments go to :class:`~docrooter.teach.base.LogprobTeacher`.
+    cpu). Weights load in ``dtype``: ``"float16"`` by default on every device, so the labels'
+    dtype does not depend on the machine; ``None`` keeps the checkpoint's (``"auto"``). The
+    dtype is part of :attr:`name` (``hf:<repo>@<rev>#float16``). Other keyword arguments go to
+    :class:`~docrooter.teach.base.LogprobTeacher`.
     """
 
     def __init__(
-        self, repo: str, revision: str, *, device: str | None = None, **options: Any
+        self,
+        repo: str,
+        revision: str,
+        *,
+        device: str | None = None,
+        dtype: str | None = "float16",
+        **options: Any,
     ) -> None:
         self.repo = repo
         self.revision = revision
         self.device = device
-        super().__init__(f"hf:{repo}@{revision}", loader=self._load_model, **options)
+        self.dtype = dtype
+        name = engine_name("hf", repo, revision, dtype)
+        super().__init__(name, loader=self._load_model, **options)
 
     def _load_model(self) -> tuple[Any, _TorchRunner]:
         device = prepare_model_load(self.device, self.name)
         torch = require("torch", "models")
         transformers = require("transformers", "models")
-        kind = device.split(":")[0]
-        dtype = {"mps": torch.float16, "cuda": torch.bfloat16}.get(kind, torch.float32)
+        dtype = "auto" if self.dtype is None else getattr(torch, self.dtype)
         tokenizer = transformers.AutoTokenizer.from_pretrained(self.repo, revision=self.revision)
         model = transformers.AutoModelForCausalLM.from_pretrained(
             self.repo, revision=self.revision, dtype=dtype

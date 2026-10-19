@@ -26,14 +26,22 @@ from docrooter.errors import BackendError, TeacherNotAllowedError
 from docrooter.teach import prompts
 
 __all__ = [
+    "COMPUTE_DTYPES",
     "JEV_REFUSAL",
+    "NATIVE_DTYPE",
     "LogitRunner",
     "LogprobTeacher",
+    "engine_name",
     "TeachItem",
     "TeacherEngine",
     "get_teacher",
     "label_key",
+    "refuse_jev",
+    "softmax",
 ]
+
+NATIVE_DTYPE = "native"  # the dtype part of a name when the checkpoint's own dtype is kept
+COMPUTE_DTYPES = ("float16", "bfloat16", "float32")
 
 JEV_REFUSAL = (
     "Jev cannot be a teacher: TypeSafe MCA §2.3(b) forbids using Jev output to train, distil "
@@ -117,7 +125,8 @@ class _Prefix:
     boundary_checked: bool = False
 
 
-def _softmax(values: Sequence[float]) -> list[float]:
+def softmax(values: Sequence[float]) -> list[float]:
+    """Probabilities from log-probabilities (or logits), max-shifted for stability."""
     top = max(values)
     exps = [math.exp(v - top) for v in values]
     total = sum(exps)
@@ -136,7 +145,12 @@ class LogprobTeacher:
     its own turn on top and the cache is trimmed back. A prefix is keyed by ``prefix_key`` and
     its text, so a changed instruction under the same key is prefilled again, never scored on
     a stale cache. ``use_prefix_cache=False`` prefills the prefix for every item (to measure
-    what the cache saves).
+    what the cache saves). If scoring an item raises, its prefix is dropped from the cache (a
+    forward pass that failed part-way may have left the cache past the prefix), so the next
+    item prefills it afresh.
+
+    ``name`` is the teacher's identity in labels' keys (:func:`label_key`): engines put the
+    engine, model, revision and compute dtype in it. A name that names Jev is refused.
 
     ``stats`` counts items, prefills, prefix and suffix tokens, and ``answer_mass_sum``: the
     summed full-vocabulary probability of the allowed answers (near 1 per item when the model
@@ -153,6 +167,7 @@ class LogprobTeacher:
     ) -> None:
         if max_cached_prefixes < 1:
             raise ValueError("max_cached_prefixes must be at least 1")
+        refuse_jev(name)
         self.name = name
         self.use_prefix_cache = use_prefix_cache
         self.max_cached_prefixes = max_cached_prefixes
@@ -289,6 +304,11 @@ class LogprobTeacher:
                 self._prefixes.popitem(last=False)
         return prefix
 
+    def _evict(self, prefix: _Prefix) -> None:
+        """Drop ``prefix`` from the cache, so its key is prefilled again on next use."""
+        for key in [k for k, cached in self._prefixes.items() if cached is prefix]:
+            del self._prefixes[key]
+
     def _prefill(self, ids: list[int]) -> Any:
         assert self._runner is not None
         self.stats["prefills"] += 1
@@ -310,11 +330,15 @@ class LogprobTeacher:
                     stacklevel=3,
                 )
         state = prefix.state if self.use_prefix_cache else self._prefill(prefix.ids)
-        logprobs = runner.score_next(state, ids, candidates)
+        try:
+            logprobs = runner.score_next(state, ids, candidates)
+        except BaseException:
+            self._evict(prefix)
+            raise
         self.stats["items"] += 1
         self.stats["suffix_tokens"] += len(ids)
         self.stats["answer_mass_sum"] += sum(math.exp(v) for v in logprobs)
-        return _softmax(logprobs)
+        return softmax(logprobs)
 
 
 def choice_plan(
@@ -341,7 +365,10 @@ def choice_plan(
         raise ValueError(
             f"at most {len(prompts.LETTERS)} prefix_options, got {len(prefix_options)}"
         )
-    position = {tag: i for i, (tag, _) in enumerate(prefix_options)}
+    family_tags = [tag for tag, _ in prefix_options]
+    if len(set(family_tags)) != len(family_tags):
+        raise ValueError(f"duplicate tag ids in prefix_options: {family_tags}")
+    position = {tag: i for i, tag in enumerate(family_tags)}
     missing = [tag for tag in tags if tag not in position]
     if missing:
         raise ValueError(f"options not in prefix_options: {missing}")
@@ -359,7 +386,8 @@ def label_key(
     taxonomy_hash: str,
 ) -> str:
     """The cache key of one teacher label: sha256 over the element (document, id, text sha1),
-    the facet, the teacher (engine, model and revision: :attr:`TeacherEngine.name`), the
+    the facet, the teacher (engine, model, revision and compute dtype:
+    :attr:`TeacherEngine.name`), the
     :func:`~docrooter.teach.prompts.prompt_hash` and the taxonomy's content hash. A cached
     label applies only when the key matches, so changing the prompt, the taxonomy or the
     teacher re-scores the element (Review Focus 2)."""
@@ -373,30 +401,56 @@ _JEV_PART = re.compile(r"^jev(\b|[-_.\d]|$)", re.IGNORECASE)
 
 def _names_jev(target: str) -> bool:
     """Whether a model reference names Jev: any path part that is ``jev`` or starts ``jev-``,
-    ``jev_``, ``jev.`` or ``jev<digit>``, or the ``typesafe`` organisation."""
-    parts = re.split(r"[/@:\s]+", target.strip())
-    return any(_JEV_PART.match(p) or p.lower() == "typesafe" for p in parts if p)
+    ``jev_``, ``jev.`` or ``jev<digit>``, or that starts with ``typesafe``."""
+    parts = re.split(r"[/@:#\s]+", target.strip())
+    return any(_JEV_PART.match(p) or p.lower().startswith("typesafe") for p in parts if p)
+
+
+def engine_name(engine: str, repo: str, revision: str, dtype: str | None) -> str:
+    """``<engine>:<repo>@<revision>#<dtype>`` (``#native`` when the checkpoint's dtype is
+    kept), after checking ``dtype``. The dtype is part of the name, so labels scored in
+    another dtype get other keys."""
+    if dtype is not None and dtype not in COMPUTE_DTYPES:
+        raise ValueError(f"dtype must be one of {COMPUTE_DTYPES} or None, got {dtype!r}")
+    return f"{engine}:{repo}@{revision}#{dtype or NATIVE_DTYPE}"
+
+
+def refuse_jev(name: str) -> None:
+    """Raise :class:`~docrooter.errors.TeacherNotAllowedError` when an engine name
+    (``<engine>:<model reference>``) is a Jev engine or names Jev (TypeSafe MCA §2.3(b))."""
+    engine, _, target = name.strip().partition(":")
+    if engine.strip().lower() == "jev" or _names_jev(target):
+        raise TeacherNotAllowedError(JEV_REFUSAL)
 
 
 def get_teacher(spec: str, **options: Any) -> TeacherEngine:
     """A teacher from a spec string; nothing loads until the first item.
 
-    - ``mlx:<repo>@<revision>``: :class:`~docrooter.teach.mlx.MlxTeacher` (``teach-mlx``);
-    - ``hf:<repo>@<revision>``: :class:`~docrooter.teach.hf.HFTeacher` (``models``);
+    - ``mlx:<repo>@<revision>[#<dtype>]``: :class:`~docrooter.teach.mlx.MlxTeacher`
+      (``teach-mlx``);
+    - ``hf:<repo>@<revision>[#<dtype>]``: :class:`~docrooter.teach.hf.HFTeacher` (``models``);
     - ``openai:<model>``: :class:`~docrooter.teach.openai.OpenAITeacher` (``llm``).
 
-    The revision is required: labels record it. ``jev:*``, or any spec naming Jev, raises
-    :class:`~docrooter.errors.TeacherNotAllowedError` (TypeSafe MCA §2.3(b)). ``options`` go
-    to the engine's constructor.
+    The revision is required: labels record it. The optional dtype (``float16``, ``bfloat16``,
+    ``float32``, or ``native`` for the checkpoint's own) is the compute dtype; an engine's
+    ``name`` is a spec that :func:`get_teacher` reads back to the same engine.
+
+    ``jev:*``, or any spec naming Jev, raises :class:`~docrooter.errors.TeacherNotAllowedError`
+    (TypeSafe MCA §2.3(b)); the engines refuse it at construction too. ``options`` go to the
+    engine's constructor.
     """
+    refuse_jev(spec)
     engine, sep, target = spec.strip().partition(":")
     engine = engine.strip().lower()
     target = target.strip()
-    if engine == "jev" or _names_jev(target):
-        raise TeacherNotAllowedError(JEV_REFUSAL)
     if not sep or not target:
         raise ValueError(f"bad teacher spec {spec!r}: expected mlx:, hf: or openai:<model>")
     if engine in ("mlx", "hf"):
+        target, hashmark, dtype = target.partition("#")
+        if hashmark:
+            if not dtype or "dtype" in options:
+                raise ValueError(f"bad teacher spec {spec!r}: give one dtype after '#'")
+            options["dtype"] = None if dtype == NATIVE_DTYPE else dtype
         repo, at, revision = target.rpartition("@")
         if not at or not repo or not revision:
             raise ValueError(f"bad teacher spec {spec!r}: pin a revision, {engine}:<repo>@<rev>")

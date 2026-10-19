@@ -159,6 +159,13 @@ def test_choose_rejects_bad_options():
             prefix_key="k",
             prefix_options=family,
         )
+    with pytest.raises(ValueError, match="duplicate tag ids in prefix_options"):
+        teacher.choose(
+            [TeachItem(text="x", context="", options=OPTIONS[:1])],
+            instruction="i",
+            prefix_key="k",
+            prefix_options=[OPTIONS[0], OPTIONS[1], (OPTIONS[0][0], "Again: d")],
+        )
     with pytest.raises(ValueError, match="no options"):
         teacher.choose(
             [TeachItem(text="x", context="", options=[])], instruction="i", prefix_key="k"
@@ -270,6 +277,75 @@ def test_scores_depend_on_the_right_prefix():
     assert ar2 == ar
 
 
+class StatefulRunner:
+    """A runner whose cache really changes: the state is a mutable token list that each item
+    extends and then trims back to the prefix length, and the logits depend on every token in
+    it, so state leaked from one item changes the next item's scores. A suffix holding "BOOM"
+    fails after extending the cache and before trimming it, as a forward pass that fails
+    part-way can."""
+
+    def __init__(self) -> None:
+        self.prefills = 0
+
+    def prefill(self, ids: Sequence[int]) -> dict[str, Any]:
+        self.prefills += 1
+        return {"ids": list(ids), "length": len(ids)}
+
+    def score_next(self, state: dict[str, Any], ids: Sequence[int], candidates: Sequence[int]):
+        state["ids"].extend(ids)
+        if "BOOM" in "".join(map(chr, ids)):
+            raise RuntimeError("forward pass failed")
+        seq = state["ids"]
+        logits = {ord("A"): (len(seq) % 13) / 4.0, ord("B"): (sum(seq) % 11) / 4.0}
+        table = [logits.get(i, 0.0) for i in range(256)]
+        norm = math.log(sum(math.exp(v) for v in table))
+        del state["ids"][state["length"] :]
+        return [table[c] - norm for c in candidates]
+
+    def close(self) -> None:
+        pass
+
+
+def stateful_teacher(**kw) -> tuple[LogprobTeacher, StatefulRunner]:
+    tok, runner = CharTokenizer(), StatefulRunner()
+    return LogprobTeacher("fake:state@0", loader=lambda: (tok, runner), **kw), runner
+
+
+def test_cached_and_uncached_scores_agree():
+    items = [
+        TeachItem(text="short", context=CONTEXT, options=OPTIONS),
+        TeachItem(text="a much longer element text " * 9, context="", options=OPTIONS),
+        TeachItem(text="x", context=CONTEXT, options=OPTIONS[:2]),
+        TeachItem(text="table\n| a | b |", context=CONTEXT, options=OPTIONS),
+    ]
+    cached, runner = stateful_teacher()
+    uncached, _ = stateful_teacher(use_prefix_cache=False)
+    kw = dict(instruction=INSTRUCTION, prefix_key="ar")
+    first = cached.choose(items, **kw)
+    assert cached.choose(items, **kw) == first  # scoring again on the same cache: no drift
+    assert uncached.choose(items, **kw) == first
+    assert runner.prefills == 1
+    q = "Is this financial data?"
+    assert cached.yes_no(items, question=q) == uncached.yes_no(items, question=q)
+
+
+def test_failed_item_does_not_corrupt_the_next():
+    good = TeachItem(text="a normal element", context=CONTEXT, options=OPTIONS)
+    boom = TeachItem(text="BOOM", context=CONTEXT, options=OPTIONS)
+    reference, _ = stateful_teacher(use_prefix_cache=False)
+    (expected,) = reference.choose([good], instruction=INSTRUCTION, prefix_key="ar")
+
+    teacher, runner = stateful_teacher()
+    kw = dict(instruction=INSTRUCTION, prefix_key="ar")
+    assert teacher.choose([good], **kw) == [expected]
+    with pytest.raises(RuntimeError, match="forward pass failed"):
+        teacher.choose([boom], **kw)
+    # the failed item left the cache past the prefix; the prefix was dropped and refilled
+    assert teacher.choose([good], **kw) == [expected]
+    assert runner.prefills == 2
+    assert teacher.choose([good], **kw) == [expected] and runner.prefills == 2
+
+
 def test_close_releases_the_model_and_is_lazy():
     loads = []
     tok, runner = CharTokenizer(), FakeRunner(lambda p, s: {"A": 1.0})
@@ -291,27 +367,100 @@ def test_close_releases_the_model_and_is_lazy():
 
 
 @pytest.mark.parametrize(
-    "spec", ["jev:jev-1", "JEV:latest", "jev", "openai:jev-classifier", "hf:typesafe/Jev-2@abc"]
+    "spec",
+    [
+        "jev:jev-1",
+        "JEV:latest",
+        "jev",
+        "openai:jev-classifier",
+        "openai:typesafe-jev",
+        "openai:my-JEV-model",
+        "hf:typesafe/Jev-2@abc",
+        "mlx:TypeSafeAI/model@abc",
+    ],
 )
 def test_jev_teacher_refused(spec):
     with pytest.raises(TeacherNotAllowedError, match=r"MCA §2\.3\(b\)"):
         get_teacher(spec)
 
 
+def test_jev_refused_at_engine_construction(monkeypatch):
+    from docrooter.teach.hf import HFTeacher
+    from docrooter.teach.mlx import MlxTeacher
+
+    tok, runner = CharTokenizer(), FakeRunner(lambda p, s: {})
+    constructions = [
+        lambda: MlxTeacher("typesafe/jev-1", "abc"),
+        lambda: HFTeacher("org/Jev-2", "abc"),
+        lambda: LogprobTeacher("jev:anything", loader=lambda: (tok, runner)),
+        lambda: OpenAITeacher("Jev", base_url="http://localhost:9/v1"),
+        lambda: OpenAITeacher("my-jev-model", base_url="http://localhost:9/v1"),
+        lambda: OpenAITeacher("gpt-test", base_url="https://api.typesafe.ai/v1"),
+        lambda: OpenAITeacher("gpt-test", base_url="https://TYPESAFE.AI/v1", api_key="k"),
+    ]
+    for construct in constructions:
+        with pytest.raises(TeacherNotAllowedError, match=r"MCA §2\.3\(b\)"):
+            construct()
+    # the endpoint from the environment is checked too
+    monkeypatch.setenv("DOCROOTER_LLM_BASE_URL", "https://eu.typesafe.ai/v1")
+    with pytest.raises(TeacherNotAllowedError):
+        OpenAITeacher("gpt-test")
+    monkeypatch.setenv("DOCROOTER_LLM_BASE_URL", "http://localhost:9/v1")
+    assert OpenAITeacher("gpt-test").name == "openai:gpt-test"
+
+
+PIN = "mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b"
+
+
 def test_get_teacher_parses_specs_without_loading():
-    mlx = get_teacher(
-        "mlx:mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b"
-    )
-    assert mlx.name == (
-        "mlx:mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b"
-    )
+    mlx = get_teacher(f"mlx:{PIN}")
+    assert mlx.name == f"mlx:{PIN}#float16"  # the compute dtype is part of the identity
+    assert get_teacher(f"mlx:{PIN}", dtype=None).name == f"mlx:{PIN}#native"
     hf = get_teacher("hf:Qwen/Qwen3-4B-Instruct-2507@cdbee75")
-    assert hf.name == "hf:Qwen/Qwen3-4B-Instruct-2507@cdbee75"
+    assert hf.name == "hf:Qwen/Qwen3-4B-Instruct-2507@cdbee75#float16"
     oa = get_teacher("openai:gpt-test", base_url="http://localhost:9/v1")
     assert oa.name == "openai:gpt-test"
-    for bad in ("mlx:repo", "hf:repo@", "openai:", "llama:x", "nonsense"):
+    # a name is a spec that reads back to the same engine
+    for name in (f"mlx:{PIN}#bfloat16", f"mlx:{PIN}#native", "hf:org/m@r1#float32"):
+        assert get_teacher(name).name == name
+    bad_specs = (
+        "mlx:repo",
+        "hf:repo@",
+        "openai:",
+        "llama:x",
+        "nonsense",
+        f"mlx:{PIN}#",
+        f"mlx:{PIN}#int8",
+        "hf:org/m@r1#float17",
+    )
+    for bad in bad_specs:
         with pytest.raises(ValueError):
             get_teacher(bad)
+    with pytest.raises(ValueError):
+        get_teacher(f"mlx:{PIN}#float16", dtype="bfloat16")  # two dtypes
+
+
+def test_dtype_changes_the_label_key():
+    def key(teacher: str) -> str:
+        return label_key(
+            doc_id="d",
+            element_id="e",
+            text_sha1=text_sha1("t"),
+            facet="topic",
+            teacher=teacher,
+            prompt_hash=prompt_hash(INSTRUCTION, ""),
+            taxonomy_hash="0" * 64,
+        )
+
+    names = [
+        get_teacher(f"mlx:{PIN}").name,
+        get_teacher(f"mlx:{PIN}", dtype="bfloat16").name,
+        get_teacher(f"mlx:{PIN}", dtype=None).name,
+        get_teacher("hf:org/m@r1").name,
+        get_teacher("hf:org/m@r1", dtype="bfloat16").name,
+        get_teacher("hf:org/m@r1", dtype="float32").name,
+    ]
+    assert len({key(n) for n in names}) == len(names)
 
 
 # --- Review Focus 2: prompt drift ----------------------------------------------------------------

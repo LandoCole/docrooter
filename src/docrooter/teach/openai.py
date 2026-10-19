@@ -22,13 +22,14 @@ import math
 import os
 from collections.abc import Sequence
 from typing import Any
+from urllib.parse import urlsplit
 
 from docrooter._extras import require
 from docrooter.backends._async import run_sync
 from docrooter.backends._secrets import redact
-from docrooter.errors import BackendError
+from docrooter.errors import BackendError, TeacherNotAllowedError
 from docrooter.teach import prompts
-from docrooter.teach.base import TeachItem, choice_plan
+from docrooter.teach.base import JEV_REFUSAL, TeachItem, choice_plan, softmax
 
 __all__ = ["OpenAITeacher"]
 
@@ -37,6 +38,15 @@ DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
 def _first_env(*names: str) -> str | None:
     return next((os.environ[n] for n in names if os.environ.get(n)), None)
+
+
+def refuse_jev_endpoint(model: str, base_url: str) -> None:
+    """Raise :class:`~docrooter.errors.TeacherNotAllowedError` for a model name containing
+    ``jev`` (any case) or an endpoint whose host ends in ``typesafe.ai``: Jev output may never
+    become teacher data (TypeSafe MCA §2.3(b))."""
+    host = (urlsplit(base_url).hostname or "").lower().rstrip(".")
+    if "jev" in model.lower() or host.endswith("typesafe.ai"):
+        raise TeacherNotAllowedError(JEV_REFUSAL)
 
 
 def answer_logprobs(top_logprobs: Sequence[dict[str, Any]], answers: Sequence[str]) -> list[float]:
@@ -66,14 +76,11 @@ def _logaddexp(a: float, b: float) -> float:
     return top + math.log(math.exp(a - top) + math.exp(b - top))
 
 
-def _softmax(values: Sequence[float]) -> list[float]:
-    top = max(values)
-    exps = [math.exp(v - top) for v in values]
-    return [e / sum(exps) for e in exps]
-
-
 class OpenAITeacher:
-    """A teacher behind an OpenAI-compatible chat-completions endpoint (see the module)."""
+    """A teacher behind an OpenAI-compatible chat-completions endpoint (see the module).
+
+    Refuses a model name containing ``jev`` or a ``typesafe.ai`` endpoint
+    (:func:`refuse_jev_endpoint`)."""
 
     def __init__(
         self,
@@ -85,14 +92,15 @@ class OpenAITeacher:
         concurrency: int = 8,
         top_logprobs: int = 20,
     ) -> None:
+        self.base_url = (
+            base_url or _first_env("DOCROOTER_LLM_BASE_URL", "OPENAI_BASE_URL") or DEFAULT_BASE_URL
+        ).rstrip("/")
+        refuse_jev_endpoint(model, self.base_url)
         self.model = model
         self.name = f"openai:{model}"
         self.timeout = timeout
         self.concurrency = max(1, concurrency)
         self.top_logprobs = top_logprobs
-        self.base_url = (
-            base_url or _first_env("DOCROOTER_LLM_BASE_URL", "OPENAI_BASE_URL") or DEFAULT_BASE_URL
-        ).rstrip("/")
         key = (api_key or _first_env("DOCROOTER_LLM_API_KEY", "OPENAI_API_KEY") or "").strip()
         self._api_key: str | None = key or None
         if self._api_key is None and self.base_url == DEFAULT_BASE_URL:
@@ -120,7 +128,7 @@ class OpenAITeacher:
             bodies.append(self._body(system, prompts.choose_suffix(context, text, letters, listed)))
         replies = run_sync(self._complete_all(bodies))
         return [
-            dict(zip(tags, _softmax(answer_logprobs(top, letters)), strict=True))
+            dict(zip(tags, softmax(answer_logprobs(top, letters)), strict=True))
             for (tags, letters, _), top in zip(plans, replies, strict=True)
         ]
 
@@ -133,7 +141,7 @@ class OpenAITeacher:
             context, text = self._inputs(item)
             bodies.append(self._body(system, prompts.yes_no_suffix(context, text)))
         replies = run_sync(self._complete_all(bodies))
-        return [_softmax(answer_logprobs(top, (prompts.YES, prompts.NO)))[0] for top in replies]
+        return [softmax(answer_logprobs(top, (prompts.YES, prompts.NO)))[0] for top in replies]
 
     def close(self) -> None:
         pass

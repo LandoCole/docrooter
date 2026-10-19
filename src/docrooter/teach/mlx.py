@@ -18,14 +18,16 @@ from typing import Any
 from docrooter import runtime
 from docrooter._extras import require
 from docrooter.errors import BackendError
-from docrooter.teach.base import LogprobTeacher
+from docrooter.teach.base import LogprobTeacher, engine_name
 
 __all__ = ["DEFAULT_TEACHER", "FALLBACK_TEACHER", "MlxTeacher"]
 
 DEFAULT_TEACHER = (
-    "mlx:mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b"
+    "mlx:mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b#float16"
 )
-FALLBACK_TEACHER = "mlx:mlx-community/Qwen3-8B-4bit@545dc4251c05440727734bcd94334791f6ab0192"
+FALLBACK_TEACHER = (
+    "mlx:mlx-community/Qwen3-8B-4bit@545dc4251c05440727734bcd94334791f6ab0192#float16"
+)
 
 # Architectures whose logits are exactly ``head(model.model(x))``, so the answer position's
 # logits can be computed alone instead of the full (positions x vocabulary) matrix.
@@ -80,7 +82,7 @@ class _MlxRunner:
             logprobs = (logits - mx.logsumexp(logits))[mx.array(list(candidates))]
             mx.eval(logprobs)
         finally:
-            self.cache_module.trim_prompt_cache(state.cache, len(ids))
+            _trim_to(state.cache, state.length)
         self._scored += 1
         if self._scored % _CLEAR_EVERY == 0:
             mx.clear_cache()
@@ -95,6 +97,15 @@ class _MlxRunner:
     def close(self) -> None:
         self.model = None
         self.mx.clear_cache()
+
+
+def _trim_to(cache: list[Any], length: int) -> None:
+    """Trim every layer's cache back to ``length`` tokens (the prefix), whatever it holds now:
+    a forward pass that failed part-way may have advanced some layers and not others."""
+    for layer in cache:
+        excess = layer.offset - length
+        if excess > 0:
+            layer.trim(excess)
 
 
 def _last_position_head(model: Any) -> Any:
@@ -117,7 +128,9 @@ class MlxTeacher(LogprobTeacher):
     unquantised parameters (scales, norms, embeddings): ``"float16"`` by default, which on an
     M1 scored the 20 integration items about 30% faster than the checkpoint's bfloat16 (M1 has
     no native bfloat16) with the same answers (probabilities within 0.02); ``None`` keeps the
-    checkpoint's type. Non-finite scores raise, naming the fix. Other keyword arguments go to
+    checkpoint's type. The dtype is part of :attr:`name` (``mlx:<repo>@<rev>#float16``, or
+    ``#native``), so labels from different dtypes never share a key. Non-finite scores raise,
+    naming the fix. Other keyword arguments go to
     :class:`~docrooter.teach.base.LogprobTeacher` (``use_prefix_cache``,
     ``max_cached_prefixes``).
     """
@@ -138,7 +151,8 @@ class MlxTeacher(LogprobTeacher):
         self.prefill_step = prefill_step
         self.dtype = dtype
         self._mx: Any = None
-        super().__init__(f"mlx:{repo}@{revision}", loader=self._load_model, **options)
+        name = engine_name("mlx", repo, revision, dtype)
+        super().__init__(name, loader=self._load_model, **options)
 
     def _load_model(self) -> tuple[Any, _MlxRunner]:
         mx = require("mlx.core", "teach-mlx")

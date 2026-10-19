@@ -43,6 +43,7 @@ _COLUMN_MIN_BOXES = 2  # ... at least this many of them, on each side of a gutte
 _ROW_ALIGN = 0.2  # a partner's vertical centre is within this share of the median line height
 _ROW_ALIGNED_SHARE = 0.5  # ... for at least this share of the boxes of the smaller side
 _CELL_WIDTH = 0.1  # a side whose median box is narrower than this share of the text width is cells
+_HEADING_BOXES = 2  # up to this many boxes above the other side's top are a heading, not text
 
 
 def xy_cut_order(
@@ -153,15 +154,42 @@ def _column_cut(
             and suf_wide[k] >= _COLUMN_MIN_BOXES
         ):
             shared = min(pre_hi[k - 1], suf_hi[k]) - max(pre_lo[k - 1], suf_lo[k])
-            if (height <= 0 or shared >= _GUTTER_COVERAGE * height) and not _table_rows(
-                boxes, by_x[:k], by_x[k:], text_width
-            ):
+            if (
+                height <= 0
+                or shared >= _GUTTER_COVERAGE * height
+                or _columns_under_heading(boxes, by_x[:k], by_x[k:])
+            ) and not _table_rows(boxes, by_x[:k], by_x[k:], text_width):
                 cuts.append(k)
         reach = max(reach, boxes[i][2])
     if not cuts:
         return None
     bounds = [0, *cuts, n]
     return [sorted(by_x[a:b]) for a, b in zip(bounds, bounds[1:], strict=False)]
+
+
+def _columns_under_heading(boxes: Sequence[Box], left: Sequence[int], right: Sequence[int]) -> bool:
+    """Whether the sides share enough height once a heading is set aside (E12 fix).
+
+    A heading over one column (up to :data:`_HEADING_BOXES` boxes that end above the top of the
+    other side) stretches that side upwards, so two columns of unequal length under it can share
+    less than :data:`_GUTTER_COVERAGE` of the band, and the extractor's order (shorter column
+    first) was kept. Without the heading boxes the coverage is measured again; a tall column
+    beside a short one (no boxes above the other's top) is not helped by this.
+    """
+    for tall, other in ((left, right), (right, left)):
+        other_top = min(boxes[i][1] for i in other)
+        heading = {i for i in tall if boxes[i][3] <= other_top}
+        body = [i for i in tall if i not in heading]
+        if not heading or len(heading) > _HEADING_BOXES or not body:
+            continue
+        lo = min(boxes[i][1] for i in (*body, *other))
+        hi = max(boxes[i][3] for i in (*body, *other))
+        shared = min(max(boxes[i][3] for i in body), max(boxes[i][3] for i in other)) - max(
+            min(boxes[i][1] for i in body), other_top
+        )
+        if hi > lo and shared >= _GUTTER_COVERAGE * (hi - lo):
+            return True
+    return False
 
 
 def _median(values: list[float]) -> float:

@@ -740,3 +740,38 @@ def test_merge_keeps_an_ocr_line_that_runs_past_a_short_text_line():
     # the same line, read only as far as the text layer goes, is a duplicate
     extra, _ = _new_lines([_ocr("Plant Survey", 72, 81, 200, 107)], page)
     assert extra == []
+
+
+HEADINGS = {
+    "short": "1. Business",
+    "medium": "1. Business and operating results of the group",
+    "wide": "1. Business and operating results of the group during the financial year",
+}
+COLUMN_WORDS = "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima".split()
+
+
+def _short_columns_pdf(path, *, leading, left, right, heading):
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((72, 80), HEADINGS[heading], fontsize=16, fontname="hebo")
+    for tag, x, n in (("LEFT", 72, left), ("RIGHT", 330, right)):
+        for k in range(n):
+            words = " ".join(COLUMN_WORDS[(3 * k + j) % len(COLUMN_WORDS)] for j in range(5))
+            page.insert_text((x, 110 + k * leading), f"{tag} {words}", fontsize=10)
+    return _save(doc, path)
+
+
+@pytest.mark.parametrize("heading", HEADINGS)
+@pytest.mark.parametrize("columns", [(5, 4), (6, 5), (4, 3), (7, 5), (5, 6), (6, 6)])
+@pytest.mark.parametrize("leading", [12, 13, 14, 15])
+def test_short_columns_under_a_heading_read_left_then_right(tmp_path, leading, columns, heading):
+    """Unequal short columns at tight leading used to read the right column first (the heading
+    stretched the left side, the sides shared under 60% of the band, and the extractor's
+    shorter-column-first order was kept)."""
+    path = _short_columns_pdf(
+        tmp_path / "cols.pdf", leading=leading, left=columns[0], right=columns[1], heading=heading
+    )
+    doc = load_pdf(path, elements=True)
+    body = " ".join(e.text for e in doc.elements if e.kind not in ("title", "heading"))
+    assert 0 <= body.find("LEFT") < body.find("RIGHT")
+    assert body.count("LEFT") == columns[0] and body.count("RIGHT") == columns[1]

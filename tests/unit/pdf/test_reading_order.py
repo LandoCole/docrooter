@@ -228,3 +228,22 @@ def test_narrow_text_columns_on_one_grid_are_still_columns():
     ]
     order = cut(boxes, page_width=760.0)
     assert order == [i for c in range(3) for i in range(c, 24, 3)]
+
+
+def test_columns_of_unequal_length_under_a_heading_read_left_then_right():
+    # a heading over the left column only, then 5 lines left and 4 right: the heading stretches
+    # the left side upwards, and the sides share 56% of the band, under the 60% needed
+    heading = (50.0, 60.0, 140.0, 78.0)
+    left, right = column(LEFT, 82, 5, step=12.0, h=13.8), column(RIGHT, 82, 4, step=12.0, h=13.8)
+    boxes = [heading, *left, *right]
+    order = cut(boxes, median_line_gap=12.4)
+    assert order == list(range(len(boxes)))  # the extractor's order here is right then left
+    shuffled = [heading, *right, *left]
+    assert cut(shuffled, median_line_gap=12.4) == [0, 5, 6, 7, 8, 9, 1, 2, 3, 4]
+
+
+def test_a_tall_column_beside_a_short_one_is_still_not_a_gutter_under_a_heading():
+    heading = (50.0, 60.0, 140.0, 78.0)
+    left, right = column(LEFT, 82, 12), column(RIGHT, 82, 3)
+    boxes = [heading, *left, *right]
+    assert cut(boxes) == list(range(len(boxes)))  # no cut: the input order is kept

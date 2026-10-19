@@ -14,7 +14,7 @@ from docrooter.classify import (
 from docrooter.doc_view import DocumentView
 from docrooter.document import Document, Section
 from docrooter.document.load import load
-from docrooter.elements import Box, Element, ElementKind, FigureData, TableData
+from docrooter.elements import Box, Element, ElementKind, FigureData, TableData, TagResult
 from docrooter.embed import EmbeddingSet, embed
 from docrooter.errors import (
     BackendError,
@@ -69,6 +69,7 @@ __all__ = [
     "Taxonomy",
     "TaxonomyError",
     "TableData",
+    "TagResult",
     "TaxonomyNode",
     "TrainedModel",
     "UnknownTaxonomyError",

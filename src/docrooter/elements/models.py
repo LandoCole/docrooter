@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, model_serializer
 
 ElementKind = Literal[
     "title",
@@ -61,6 +61,28 @@ class FigureData(BaseModel):
     text: str = ""  # labels and other text found inside the figure region
 
 
+Probability = Annotated[float, Field(ge=0.0, le=1.0)]
+
+
+class TagResult(BaseModel):
+    """One facet's tags on an element: the chosen labels and the evidence behind them."""
+
+    labels: list[str]  # topic: the best leaf; function: every tag over its threshold
+    probs: dict[str, Probability]  # per-label probability, calibrated when the bundle is
+    confidence: Probability  # the tagger's confidence in ``labels`` as a whole
+    source: str  # what produced the tags: a bundle, "embedding:<spec>", "teacher:<spec>"
+    # Topic only: the unconstrained family distribution, before restricting to the
+    # document's family (so doc-type evidence built on it is not circular).
+    family_probs: dict[str, Probability] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_family_probs(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        if self.family_probs is None:
+            data.pop("family_probs", None)
+        return data
+
+
 class Element(BaseModel):
     id: str  # "e0", "e1", … in reading order; stable for the same input and config
     kind: ElementKind
@@ -78,3 +100,12 @@ class Element(BaseModel):
     source: Literal["text", "ocr"] = "text"
     confidence: float | None = None  # OCR or layout-model confidence; None for text heuristics
     flags: list[str] = Field(default_factory=list)  # "continued", "low_confidence", "code", …
+    tags: dict[str, TagResult] | None = None  # facet ("topic", "function") -> its tags
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_tags(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # Keeps the JSON of untagged elements identical to v0.4's.
+        data: dict[str, Any] = handler(self)
+        if self.tags is None:
+            data.pop("tags", None)
+        return data

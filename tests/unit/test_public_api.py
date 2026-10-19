@@ -59,6 +59,8 @@ PUBLIC_NAMES = [
     "embed",
     "summarize",
     "Summary",
+    # v0.5
+    "TagResult",
 ]
 
 

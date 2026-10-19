@@ -29,6 +29,8 @@ share; import them from `docrooter`.)
 
 ::: docrooter.FigureData
 
+::: docrooter.TagResult
+
 ## The rooter
 
 ::: docrooter.rooter.process.process

@@ -1973,7 +1973,8 @@ def test_a_run_read_otherwise_than_the_fit_has_no_guarantee(selector_file):
         same = select_post(client, inject(client)).json()
         assert same["guarantee"] is True and same["fit_mismatch"] == []
         assert same["calibration_n"] == 100
-        other = inject(client, tagged_analysis(config=Config(profile="accurate")))
+        accurate = Config(profile="accurate", escalate="none")  # whatever the environment
+        other = inject(client, tagged_analysis(config=accurate))
         body = select_post(client, other).json()
         assert body["guarantee"] is False and body["fit_mismatch"] == ["layout"]
         assert body["calibration_n"] is None
@@ -2002,3 +2003,19 @@ def test_a_kept_run_records_the_backend_that_labelled_its_sections(client):
     assert analyses[labelled].config.doc_type == "keyword"
     assert analyses[labelled].sections is not None
     assert analyses[plain].config.sections == "none" and analyses[plain].sections is None
+
+
+def test_a_kept_run_records_that_nothing_was_escalated(client, monkeypatch):
+    """The playground never escalates; its kept config must say so even when the profile would
+    (accurate with TYPESAFE_API_KEY set), or select() would read it as escalated."""
+    real = RouterConfig.resolve
+
+    def keyed(**kwargs):  # a profile as it resolves with a Jev key set
+        cfg = real(**kwargs)
+        if "escalate" not in kwargs:
+            cfg = cfg.model_copy(update={"escalate": "jev:jev-1.13.0"})
+        return cfg
+
+    monkeypatch.setattr(server.RouterConfig, "resolve", staticmethod(keyed))
+    run_id, _ = run(client, "a.md", MARKDOWN, profile="balanced", normalize="true")
+    assert client.app.state.playground.analyses[run_id].config.escalate == "none"

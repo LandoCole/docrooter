@@ -9,7 +9,8 @@ to an LLM").
 With a trained bundle (a tagger and its ``selector.json``), edit the two paths in
 ``select_from_bundle`` and run ``python examples/select_for_extraction.py --bundle``. The
 guarantee needs the document read and tagged as the selector was fitted: the same profile
-(``accurate``, the corpus build's), the bundle's tagger and the selector's embedder.
+(``accurate``, the corpus build's) with escalation off, the bundle's tagger and the selector's
+embedder.
 
 docrooter selects; your application extracts. The last step here only prints the text you would
 put in your prompt.
@@ -33,8 +34,11 @@ RISK = {f.id: f for f in builtin_fields("annual_report")}["annual_report.risk_fa
 def select_from_bundle() -> None:
     """The real thing: a tagged document, a fitted selector (edit these two paths)."""
     risk = {f.id: f for f in builtin_fields("annual_report")}["annual_report.risk_factors"]
-    # read as the selector was fitted: the accurate profile, tagged by the bundle
-    analysis = process("report.pdf", profile="accurate", element_tags="bundles/tagger-a")
+    # read as the selector was fitted: the accurate profile, tagged by the bundle, and no
+    # escalation (accurate escalates sections to Jev when TYPESAFE_API_KEY is set)
+    analysis = process(
+        "report.pdf", profile="accurate", element_tags="bundles/tagger-a", escalate="none"
+    )
     selection = select(analysis, risk, completeness=0.9, selector="bundles/tagger-a")
     if selection.fit_mismatch:  # e.g. ["layout"]: read with another profile than the fit's
         print("not guaranteed: differs from the fit in", ", ".join(selection.fit_mismatch))
@@ -144,7 +148,7 @@ class KeywordTagger:
 class KeywordEmbedder:
     """One direction for texts that mention risk, another for the rest."""
 
-    name = STAND_IN.embedder
+    spec = STAND_IN.embedder
 
     def encode(self, texts, prompt=""):
         return np.array([[1.0, 0.0] if "risk" in t.lower() else [0.0, 1.0] for t in texts])
@@ -225,9 +229,8 @@ def sample_analysis() -> Analysis:
         source="example", best=PathResult(node_ids=["financial", "financial.annual_report"])
     )
     sections = NormalizationResult(doc_type=None, taxonomy="section_types/annual_report")
-    return Analysis(
-        document=doc, doc_type=result, sections=sections, config=RouterConfig(profile="accurate")
-    )
+    config = RouterConfig(profile="accurate", escalate="none")
+    return Analysis(document=doc, doc_type=result, sections=sections, config=config)
 
 
 def main() -> None:

@@ -29,7 +29,9 @@ never modified.
   embedder spec, and the analysis was read with the fit's layout engine
   (``analysis.config.layout``) and has section labels (``analysis.sections``) from the fit's
   sections backend (``analysis.config.sections``; ``"none"`` there, an unknown backend, does
-  not match). Otherwise
+  not match) with escalation off (``analysis.config.escalate == "none"``: escalation relabels
+  sections with another backend). Backends are known by their full spec (revision and recipe
+  included), never by a display name. Otherwise
   ``fit_mismatch`` lists what differs (``"tagger"``, ``"embedder"``, ``"layout"``,
   ``"sections"``, or ``"provenance"`` for a selector that recorded none, which guarantees
   nothing).
@@ -653,6 +655,7 @@ class DocContext:
     """One document read once for scoring many needs (:func:`prepare`): its index, the tags
     and section labels of its content elements, and their embeddings.
 
+    ``analysis`` is what it was prepared from: :func:`select_scored` refuses another one.
     ``element_ids`` are the content elements in reading order, the rows of
     :func:`need_features`. ``family`` is the element family the tags belong to, ``doc_family``
     the one the document's type maps to. ``tagged`` says whether every content element has a
@@ -674,7 +677,9 @@ class DocContext:
         rows: list[int],
         encoder: Any,
         embedder_spec: str | None = None,
+        analysis: Any = None,
     ) -> None:
+        self.analysis = analysis
         self.index = index
         self.family = family
         self.doc_family = doc_family
@@ -729,6 +734,7 @@ def prepare(
         vectors=None,
         rows=[],
         encoder=None,
+        analysis=analysis,
     )
     if encoder is not None:
         _embed(ctx, encoder, encoder_spec)
@@ -736,7 +742,9 @@ def prepare(
 
 
 def _embed(ctx: DocContext, encoder: Any, spec: str | None) -> None:
-    """Embed the prepared document's content elements with ``encoder`` (once)."""
+    """Embed the prepared document's content elements with ``encoder`` (once). Its identity is
+    the encoder's own full ``spec`` when it has one, else ``spec`` (what the caller resolved it
+    from), else unknown: a display ``name`` never stands in for it."""
     if not callable(getattr(encoder, "encode", None)):
         raise ValueError(
             f"the embedder {spec or _spec_of(encoder) or type(encoder).__name__!r} cannot "
@@ -746,15 +754,17 @@ def _embed(ctx: DocContext, encoder: Any, spec: str | None) -> None:
     ctx.vectors = _text_vectors(texts, encoder) if texts else np.zeros((0, 0))
     ctx.rows = rows
     ctx.encoder = encoder
-    ctx.embedder_spec = spec if spec is not None else _spec_of(encoder)
+    ctx.embedder_spec = _spec_of(encoder) or spec
 
 
 def _spec_of(value: Any) -> str | None:
-    """The spec of a backend or tagger given by spec or object (its ``spec``, else ``name``)."""
+    """The full spec of a backend or tagger given by spec or object: the string itself, or the
+    object's ``spec`` (``None`` without one; a display ``name`` may hide a revision or
+    recipe)."""
     if isinstance(value, (str, Path)):
         return str(value)
-    spec = getattr(value, "spec", None) or getattr(value, "name", None)
-    return spec if isinstance(spec, str) else None
+    spec = getattr(value, "spec", None)
+    return spec if isinstance(spec, str) and spec else None
 
 
 def _check_analysis(analysis: Any) -> None:
@@ -892,6 +902,11 @@ def select_scored(
     ``X`` from :func:`need_features` for the same ``need`` (the family of ``ctx`` must be the
     need's). Moving the completeness for a need then costs a re-threshold, with no tagging or
     embedding. Raises as :func:`select` does for a bad ``completeness`` or ``budget``."""
+    if ctx.analysis is not analysis:
+        raise ValueError(
+            "ctx was prepared from another analysis than the one given: pass the analysis "
+            "prepare() read (its reading is part of the guarantee)"
+        )
     c = _check_target(completeness, budget)
     if c == 1.0:
         return select(analysis, need, completeness=1.0)
@@ -979,8 +994,10 @@ def fit_mismatch(selector: Selector, analysis: Analysis | Document, ctx: DocCont
         or analysis.sections is None
         or provenance.sections is None
         or config.sections != provenance.sections
+        or config.escalate != "none"
     ):
-        out.append("sections")  # off, unknown ("none" in the config) or another backend
+        # off, unknown ("none" in the config), another backend, or relabelled by escalation
+        out.append("sections")
     return out
 
 

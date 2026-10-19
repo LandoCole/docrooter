@@ -93,7 +93,7 @@ class FakeTagger:
 class FakeEmbedder:
     """Two directions: texts that mention risk, and everything else."""
 
-    name = "embedding:fake"
+    spec = "embedding:fake"
 
     def encode(self, texts, prompt=""):
         return np.array([[1.0, 0.0] if "risk" in t.lower() else [0.0, 1.0] for t in texts])

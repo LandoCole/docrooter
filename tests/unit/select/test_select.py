@@ -162,9 +162,9 @@ class FakeTagger:
 
 class FakeEmbedder:
     """Two directions: texts that mention risk, and everything else (no recipe: bare prompts).
-    Its ``name`` is the spec the hand-set selector was fitted with."""
+    Its ``spec`` is the full spec the hand-set selector was fitted with."""
 
-    name = EMBEDDER_SPEC
+    spec = EMBEDDER_SPEC
 
     def __init__(self):
         self.calls = 0
@@ -268,7 +268,8 @@ def analysis_of(
         document=doc,
         doc_type=result,
         sections=sections,
-        config=config or RouterConfig(profile="accurate"),
+        # escalation off, as the fit read (accurate escalates when TYPESAFE_API_KEY is set)
+        config=config or RouterConfig(profile="accurate", escalate="none"),
     )
 
 
@@ -970,10 +971,10 @@ def test_tags_from_another_tagger_drop_the_guarantee():
 
 def test_another_embedder_drops_the_guarantee():
     class OtherEmbedder(FakeEmbedder):
-        name = "embedding:another-model"
+        spec = "embedding:another-model"
 
     class Unnamed(FakeEmbedder):
-        name = None
+        spec = None
 
     for embedder in (OtherEmbedder(), Unnamed()):
         result = select(
@@ -986,17 +987,11 @@ def test_another_embedder_drops_the_guarantee():
         assert result.guarantee is False and result.fit_mismatch == ["embedder"]
         assert READING_DIFFERS in readout(result)
     # prepare() records the spec it is told, over the encoder's own name
-    ctx = prepare(
-        analysis_of(expansion_doc()),
-        tagger=FakeTagger(),
-        encoder=Unnamed(),
-        encoder_spec=EMBEDDER_SPEC,
-    )
+    analysis = analysis_of(expansion_doc())
+    ctx = prepare(analysis, tagger=FakeTagger(), encoder=Unnamed(), encoder_spec=EMBEDDER_SPEC)
     assert ctx.embedder_spec == EMBEDDER_SPEC
     _, X = need_features(ctx, RISK)
-    same = select_scored(
-        analysis_of(expansion_doc()), ctx, X, RISK, completeness=0.9, selector=_selector()
-    )
+    same = select_scored(analysis, ctx, X, RISK, completeness=0.9, selector=_selector())
     assert same.guarantee is True and same.fit_mismatch == []
 
 
@@ -1008,11 +1003,11 @@ def test_another_reading_drops_the_guarantee():
     unlabelled = select(analysis_of(doc, sections=None), RISK, **kwargs)
     assert unlabelled.guarantee is False and unlabelled.fit_mismatch == ["sections"]
     # section labels from another backend change section_hit: no guarantee either
-    keyword = RouterConfig(profile="accurate", sections="keyword")
+    keyword = RouterConfig(profile="accurate", sections="keyword", escalate="none")
     relabelled = select(analysis_of(doc, config=keyword), RISK, **kwargs)
     assert relabelled.guarantee is False and relabelled.fit_mismatch == ["sections"]
     # labels whose backend is unknown (the config says none ran) count as another backend
-    unknown = RouterConfig(profile="accurate", sections="none")
+    unknown = RouterConfig(profile="accurate", sections="none", escalate="none")
     unrecorded = select(analysis_of(doc, config=unknown), RISK, **kwargs)
     assert unrecorded.guarantee is False and unrecorded.fit_mismatch == ["sections"]
     # every difference is listed, in a fixed order
@@ -1020,7 +1015,7 @@ def test_another_reading_drops_the_guarantee():
         analysis_of(_tagged_doc("fp-other"), sections=None, config=RouterConfig()),
         RISK,
         selector=_selector(),
-        embedder=type("E", (FakeEmbedder,), {"name": "embedding:other"})(),
+        embedder=type("E", (FakeEmbedder,), {"spec": "embedding:other"})(),
     )
     assert many.fit_mismatch == ["tagger", "embedder", "layout", "sections"]
     assert readout(many).count(READING_DIFFERS) == 1
@@ -1147,3 +1142,74 @@ def test_the_select_helpers_are_exported():
 
     for name in ("readout", "prepare", "need_features", "select_scored", "FitProvenance"):
         assert name in package.__all__ and getattr(package, name) is not None
+
+
+# --- escalation, backend identity and the analysis of a context ------------------------------
+
+
+def test_escalation_voids_the_guarantee():
+    """Escalation relabels low-confidence sections with another backend (Jev), which the fit
+    never saw: the reviewer's probe, accurate with Jev escalation and all else the fit's."""
+    escalating = RouterConfig(profile="accurate", escalate="jev:jev-1.13.0")
+    result = select(
+        analysis_of(expansion_doc(), config=escalating),
+        RISK,
+        selector=_selector(),
+        tagger=FakeTagger(),
+        embedder=FakeEmbedder(),
+    )
+    assert result.guarantee is False and result.fit_mismatch == ["sections"]
+
+
+def test_an_encoder_is_known_by_its_full_spec_not_its_name():
+    class NameOnly:
+        """Named as the fit's embedder, but with no full spec: another model could hide."""
+
+        name = EMBEDDER_SPEC
+
+        def encode(self, texts, prompt=""):
+            return FakeEmbedder().encode(texts, prompt)
+
+    result = select(
+        analysis_of(expansion_doc()),
+        RISK,
+        selector=_selector(),
+        tagger=FakeTagger(),
+        embedder=NameOnly(),
+    )
+    assert result.guarantee is False and result.fit_mismatch == ["embedder"]
+
+
+def test_an_embedding_backend_spec_carries_its_revision_and_recipe():
+    """Same model, same name; another revision or recipe is another spec. Nothing loads."""
+    from docrooter.backends.embedding import EmbeddingBackend
+    from docrooter.rooter.process import _instance_name
+
+    model = "BAAI/bge-small-en-v1.5"
+    plain = EmbeddingBackend(model)
+    pinned = EmbeddingBackend(model, revision=plain.recipe.revision)
+    other = EmbeddingBackend(model, revision="0" * 40)
+    prompt = EmbeddingBackend(model, query_prompt="Find: {instruction}\n")
+    batch = EmbeddingBackend(model, batch_size=7)  # how it batches does not change the vectors
+    assert plain.name == other.name == prompt.name == f"embedding:{model}"
+    assert plain.spec == pinned.spec == batch.spec == f"embedding:{model}"
+    assert other.spec == f"embedding:{model}@{'0' * 40}"
+    assert prompt.spec.startswith(f"embedding:{model}@") and "#recipe-" in prompt.spec
+    assert len({plain.spec, other.spec, prompt.spec}) == 3
+    # an object passed to process() is recorded by its full spec, so a sections backend of
+    # another revision or recipe is no match for the fit's either
+    assert _instance_name(other) == other.spec and _instance_name(plain) == plain.spec
+
+
+def test_select_scored_refuses_a_context_of_another_analysis():
+    analysis = analysis_of(expansion_doc())
+    ctx = prepare(analysis, tagger=FakeTagger(), encoder=FakeEmbedder())
+    _, X = need_features(ctx, RISK)
+    assert select_scored(analysis, ctx, X, RISK, completeness=0.9, selector=_selector()).guarantee
+    # the reviewer's probe: a context read as balanced, scored with an accurate analysis that
+    # shares its document
+    balanced = analysis.model_copy(update={"config": RouterConfig(profile="balanced")})
+    other_ctx = prepare(balanced, tagger=FakeTagger(), encoder=FakeEmbedder())
+    for c in (0.9, 1.0):
+        with pytest.raises(ValueError, match="prepared from another analysis"):
+            select_scored(analysis, other_ctx, X, RISK, completeness=c, selector=_selector())

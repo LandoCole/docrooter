@@ -269,7 +269,12 @@ def _instance_name(value: object) -> str:
     if isinstance(value, Classifier):
         backend = value.backend
         return backend if isinstance(backend, str) else _instance_name(backend)
-    name = getattr(value, "name", None) or getattr(value, "source", None)  # a tagger: source
+    # a backend's full spec when it has one (its name may hide a revision or recipe), else its
+    # name; a tagger: its source
+    spec = getattr(value, "spec", None)
+    if isinstance(spec, str) and spec:
+        return spec
+    name = getattr(value, "name", None) or getattr(value, "source", None)
     return str(name or type(value).__name__)
 
 

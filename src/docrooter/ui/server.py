@@ -827,6 +827,7 @@ class Playground:
         """Keep the analysis of a run for the dial, dropping the oldest beyond
         :data:`MAX_KEPT_ANALYSES`. Event loop thread only."""
         self.analyses[run_id] = analysis
+        self.scored.pop(run_id, None)  # features of a replaced analysis are not this one's
         while len(self.analyses) > MAX_KEPT_ANALYSES:
             dropped, _ = self.analyses.popitem(last=False)
             self.scored.pop(dropped, None)
@@ -856,6 +857,7 @@ class Playground:
         if (
             entry is None
             or self.selector is None
+            or entry.ctx.analysis is not analysis
             or entry.ctx.family != (family or entry.ctx.doc_family)
             or entry.need_key != key
             or entry.X is None
@@ -898,6 +900,7 @@ class Playground:
         entry = self.scored.get(run_id)
         if (
             entry is None
+            or entry.ctx.analysis is not analysis
             or entry.ctx.family != (family or entry.ctx.doc_family)
             or entry.encoder_spec != spec
         ):
@@ -1029,11 +1032,12 @@ class Playground:
             )
             if doc.elements:  # the fast profile builds none: nothing for the dial to read
                 # the backends that typed it and labelled its sections, which select()
-                # compares with the selector's fit
+                # compares with the selector's fit; the playground never escalates
                 config = RouterConfig.resolve(
                     profile=options["profile"],
                     doc_type=options["backend"],
                     sections=options["backend"] if norm is not None else "none",
+                    escalate="none",
                 )
                 analysis = Analysis(
                     document=doc,

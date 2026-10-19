@@ -152,10 +152,15 @@ def c_key(c: float) -> str:
     return f"{c:.2f}"
 
 
+_ABSOLUTE = re.compile(r"(?<![\w.)\]])/(?:[^\s'\"`,;:()<>]+/)+([^\s'\"`,;:()<>/]+)")
+
+
 def relative(text: str) -> str:
-    """``text`` with the repository's absolute path removed, so no home directory reaches a
-    committed results file."""
-    return str(text).replace(f"{REPO_ROOT}/", "").replace(str(REPO_ROOT), ".")
+    """``text`` with no absolute path left in it, so no home directory reaches a committed
+    results file: paths inside the repository become relative to it, and any other one becomes
+    ``<external>/<its last part>``."""
+    inside = str(text).replace(f"{REPO_ROOT}/", "").replace(str(REPO_ROOT), ".")
+    return _ABSOLUTE.sub(lambda match: f"<external>/{match.group(1)}", inside)
 
 
 def provenance_overrides(selector: Any, *, tagger: str | None, embedder: str | None) -> list[str]:

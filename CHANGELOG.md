@@ -79,9 +79,11 @@ element tags and a tagger you train yourself, and (v0.6) selection and the compl
     `TagResult.fingerprint` carries on every tag, the embedder spec, and the profile, layout
     engine and sections backend of the reading), and `select()` lists any difference in
     `fit_mismatch` (for example `["layout"]` for the default `balanced` profile against a selector
-    fitted with `accurate`). Below `c = 1.0` it gives no guarantee, only an estimate, for
-    free-text queries, for several fields at once (`multi_field=True`: select once per field),
-    without a tagger or embedder, with another tagger, embedder or reading than the fit's, on a
+    fitted with `accurate`, or `["sections"]` when escalation is on). Backends are compared by
+    their full spec, revision and recipe included (`EmbeddingBackend.spec`). Below `c = 1.0` it
+    gives no guarantee, only an estimate, for free-text queries, for several fields at once
+    (`multi_field=True`: select once per field), without a tagger or embedder, with another
+    tagger, embedder or reading than the fit's, on a
     document type that does not match the field's family, under a budget, for a family without
     a dial, or for a field it was not calibrated on (`uncalibrated_field=True`: the selector
     records the fitted fields that gave the dial at least one unit, by id and a fingerprint of

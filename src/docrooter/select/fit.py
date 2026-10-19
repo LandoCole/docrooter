@@ -166,8 +166,11 @@ class CorpusPdfReader:
             taxonomy=f"section_types/{family}",
             backend=self.sections_backend(),
         )
-        # record the backend that labelled the sections, as process() would have
-        config = analysis.config.model_copy(update={"sections": self.sections_spec})
+        # record the backend that labelled the sections by its full spec, as process() would
+        # have, and that nothing escalated
+        backend_spec = getattr(self.sections_backend(), "spec", None)
+        labelled_by = backend_spec if isinstance(backend_spec, str) else self.sections_spec
+        config = analysis.config.model_copy(update={"sections": labelled_by, "escalate": "none"})
         return analysis.model_copy(update={"sections": sections, "config": config})
 
     def engines(self) -> tuple[Any, Any]:
@@ -441,7 +444,8 @@ def fit_selector(
         )
     provenance = FitProvenance(
         tagger=fingerprint,
-        embedder=_spec_of(embedder),
+        # the resolved backend's full spec (revision and recipe), as select() will see it
+        embedder=_spec_of(encoder) or _spec_of(embedder),
         profile=profile,
         layout=layouts[0] if len(layouts) == 1 else None,
         sections=labelled[0] if len(labelled) == 1 and labelled[0] != "none" else None,

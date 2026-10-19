@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -41,6 +43,8 @@ class EmbeddingBackend:
     """
 
     max_candidates: int | None = None
+    # recipe fields that do not change the vectors: left out of :attr:`spec`
+    _NOT_IN_SPEC = frozenset({"batch_size", "finetune_lr", "finetune_epochs"})
 
     def __init__(
         self,
@@ -56,7 +60,7 @@ class EmbeddingBackend:
         if cache_size < 0:
             raise ValueError(f"cache_size must be >= 0, got {cache_size}")
         self.model_id = model
-        self.name = f"embedding:{model}"
+        self.name = f"embedding:{model}"  # for display; :attr:`spec` is the identity
         self.recipe: Recipe = get_recipe(
             model, revision=revision, batch_size=batch_size, **recipe_overrides
         )
@@ -78,6 +82,25 @@ class EmbeddingBackend:
         # Set while the weights in memory cannot be reloaded (a fine-tune not saved yet): a
         # load after close() then raises instead of silently building the base model.
         self._unrecoverable: str | None = None
+
+    @property
+    def spec(self) -> str:
+        """The full identity of this backend's vectors: ``embedding:<model>`` with the model's
+        registered recipe, ``embedding:<model>@<revision>`` with another revision, and a
+        ``#recipe-<hash>`` suffix when other recipe fields differ (a query prompt, a sequence
+        length). Unlike :attr:`name`, two backends with the same spec give the same vectors;
+        the selector compares this with the spec it was fitted with."""
+        base = f"embedding:{self.model_id}"
+        mine = self.recipe.model_dump(exclude=set(self._NOT_IN_SPEC))
+        default = get_recipe(self.model_id).model_dump(exclude=set(self._NOT_IN_SPEC))
+        changed = {key for key in mine if mine[key] != default[key]}
+        if not changed:
+            return base
+        revised = f"{base}@{self.recipe.revision}"
+        if changed == {"revision"}:
+            return revised
+        text = json.dumps(mine, sort_keys=True, default=str)
+        return f"{revised}#recipe-{hashlib.sha256(text.encode('utf-8')).hexdigest()[:12]}"
 
     @property
     def batch_size(self) -> int:

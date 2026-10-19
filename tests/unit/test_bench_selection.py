@@ -347,7 +347,7 @@ class FakeTagger:
 
 
 class FakeEmbedder:
-    name = EMBEDDER_SPEC
+    spec = EMBEDDER_SPEC
 
     def encode(self, texts, prompt=""):
         return np.array([[1.0, 0.0] if "risk" in t.lower() else [0.0, 1.0] for t in texts])
@@ -402,7 +402,8 @@ def _fake_document():
             source="test", best=PathResult(node_ids=["financial", "financial.annual_report"])
         ),
         sections=NormalizationResult(doc_type=None, taxonomy="section_types/annual_report"),
-        config=RouterConfig(profile="accurate"),  # the reading the fake selector was fitted on
+        # the reading the fake selector was fitted on (escalation off whatever the environment)
+        config=RouterConfig(profile="accurate", escalate="none"),
     )
     ctx = prepare(analysis, tagger=FakeTagger(), encoder=FakeEmbedder(), family="annual_report")
     return analysis, ctx, selector
@@ -899,8 +900,9 @@ def test_runtime_units_match_labels_by_id_and_hash():
 
     # a runtime reading other than the fit's (here the balanced layout) is an estimate
     balanced = analysis.model_copy(update={"config": RouterConfig(profile="balanced")})
+    balanced_ctx = prepare(balanced, tagger=FakeTagger(), encoder=FakeEmbedder())
     units, _ = bench.runtime_units(
-        balanced, ctx, labels, [RISK], selector, doc_id="d", family="annual_report"
+        balanced, balanced_ctx, labels, [RISK], selector, doc_id="d", family="annual_report"
     )
     assert units[0]["fit_mismatch"] == ["layout"]
     assert units[0]["by_c"]["0.90"]["guarantee"] is False
@@ -913,6 +915,7 @@ def test_run_gold_measures_the_runtime_path_beside_the_fit_reading():
     analysis, ctx, selector = _fake_document()
     labels = {d: _runtime_labels(analysis.document, wrong=(), missing=()) for d in ("a", "b")}
     runtime_analysis = analysis.model_copy(update={"config": RouterConfig(profile="balanced")})
+    runtime_ctx = prepare(runtime_analysis, tagger=FakeTagger(), encoder=FakeEmbedder())
 
     def record(doc_id):
         return ManifestRecord(id=doc_id, sha256="0" * 64, family_hint="annual_report", split="gold")
@@ -920,7 +923,7 @@ def test_run_gold_measures_the_runtime_path_beside_the_fit_reading():
     def read_runtime(rec):
         if rec.id == "b":
             raise DocrooterError("cannot open PDF")
-        return runtime_analysis, ctx
+        return runtime_analysis, runtime_ctx
 
     run = bench.run_gold(
         [record("a"), record("b")],
@@ -1009,4 +1012,11 @@ def test_paths_in_results_are_relative_to_the_repository():
     assert bench.relative(f"no PDF for d at {inside}") == (
         "no PDF for d at benchmarks/.cache.nosync/x.pdf"
     )
-    assert bench.relative("/elsewhere/x.pdf") == "/elsewhere/x.pdf"
+    # a path outside the repository never reaches the results: only its last part does
+    assert bench.relative("/elsewhere/bundles/tagger-a") == "<external>/tagger-a"
+    assert bench.relative("DocrooterError: no PDF for d at /home/u/pdfs/d.pdf; pass --pdf-dir") == (
+        "DocrooterError: no PDF for d at <external>/d.pdf; pass --pdf-dir"
+    )
+    assert (
+        bench.relative("slack 1/(n+1), and/or a ratio 3/4") == "slack 1/(n+1), and/or a ratio 3/4"
+    )

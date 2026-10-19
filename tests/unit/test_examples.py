@@ -323,7 +323,8 @@ def test_selection_docs_state_what_the_guarantee_is_and_is_not():
         "multi_field=True",
         "once per field",
         "fit_mismatch",
-        'profile="accurate", element_tags="bundles/tagger-a"',
+        'profile="accurate", element_tags="bundles/tagger-a", escalate="none"',
+        "escalation off",
         "need text",
     ):
         assert fact in concept, fact

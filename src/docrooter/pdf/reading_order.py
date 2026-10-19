@@ -305,7 +305,8 @@ def _validate(
             bands[bisect.bisect_left(centres, (boxes[i][0] + boxes[i][2]) / 2)].append(i)
         everyone = {*left, *right}
         for band in bands:
-            others = [i for i in everyone if i not in set(band)]
+            members = set(band)
+            others = [i for i in everyone if i not in members]
             if len(band) >= _COLUMN_MIN_BOXES and _table_rows(
                 boxes, band, others, text_width, numeric
             ):

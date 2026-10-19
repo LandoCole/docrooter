@@ -16,12 +16,16 @@ docrooter takes a PDF or Markdown file and gives you three things:
 1. **A table of contents.** It reads PDFs natively (OCR is optional, in element mode) and finds the headings from
    typography, numbering, the printed contents page and the PDF's bookmarks, then builds a
    section tree with levels and page numbers.
-2. **The document's type.** A built-in taxonomy of 18 types in 6 groups (annual report,
+2. **The document's type.** A built-in taxonomy of 19 types in 6 groups (annual report,
    contract, research paper, datasheet, ...) or your own. You get the type, a confidence you can
    gate a pipeline on, and the probabilities of the runners-up.
 3. **What each section is.** Each heading is mapped to a canonical section of its document type
    ("Item 1A. Risk Factors" becomes `risk_factors`), or classified against any taxonomy you
    write in JSON or CSV, with the full path through the tree and the decision at every step.
+
+Optionally, each paragraph, list item and table can be tagged with what it is about and what
+it does ([element tags](concepts/element-tags.md)), by a small model you
+[train on your own documents](guides/train-your-tagger.md).
 
 It runs zero-shot out of the box: small embedding models run on a laptop, and LLM backends
 (TypeSafe Jev or any OpenAI-compatible server) are optional. When zero-shot is not enough it

@@ -57,7 +57,7 @@ binary). See [OCR and layout models](guides/ocr-and-layout.md).
 
 It scores the word overlap (Jaccard) between the text and each node's label, description and
 examples. Those overlaps are small and close together, so the probabilities stay nearly flat:
-with 18 document types the winner gets well under 20%. It exists
+with 19 document types the winner gets well under 20%. It exists
 for tests and for trying the API without downloads. Use a real backend for real documents.
 
 ## How do I make the TOC better on my documents?

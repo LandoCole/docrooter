@@ -290,6 +290,7 @@
   - `enrich_taxonomy(taxonomy, terms) -> Taxonomy` (writes `keywords`);
   - `class_centroids(...)`, `gap_core_classes(scores) -> (core: list[str], gap: float)`;
   - `confident_set(labels, cores, *, keep=0.75, min_per_class=20, prob_override=0.8) -> TrainingSet`, plus a report of untrained classes;
+  - *Superseded by the controller's rank-capped decile ruling:* there is no absolute `prob_override=0.8`. The top 10% of a class by teacher probability, capped by rank, bypass the gap check; the function takes `prob_override_quantile` (see `docrooter.teach.confidence`).
   - `to_dataset(training_set, corpus) -> docrooter.train.Dataset`, with the input text `"{heading path}\n\n[{kind}] {text}"`.
 
 - [ ] **Step 1: Write the failing tests:**

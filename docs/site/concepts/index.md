@@ -28,12 +28,15 @@ docrooter is a short pipeline. Each stage is a plain function or class you can u
 - **[Elements](elements.md)** are the typed blocks of a document in reading order: paragraphs,
   list items, tables, figures, captions, footnotes and page furniture. They are optional and
   built only in element mode.
+- **[Element tags](element-tags.md)** say what an element is about (its topic) and what it does
+  (its functions). They come from a small student model you train on your own documents, and
+  are off by default.
 - **[The rooter](rooter.md)** is the configurable pipeline, `process()`: per page it chooses the
   text layer or OCR, per task an engine, in one of three profiles (`fast`, `balanced`,
   `accurate`), and it logs why.
 - **[Taxonomies](taxonomies.md)** are the categories: a tree of labelled nodes with descriptions
-  and examples, written in JSON or CSV. Two families are built in: document types and section
-  types.
+  and examples, written in JSON or CSV. Built in: document types, section types and the
+  element-tag taxonomies.
 - **[Views](views.md)** decide what text a backend sees: a section's path, title, lead sentences
   and key phrases, or a whole document's title, statistics, contents and opening text, cut to a
   token budget.

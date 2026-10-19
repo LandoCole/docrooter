@@ -30,6 +30,7 @@ analysis = process(path, profile="balanced", ocr="none", doc_type="keyword", sec
 | `doc_type`, `sections` | the default backend | the default backend | the default backend |
 | `summaries` | `none` | `centroid` | `centroid` |
 | `escalate` | `none` | `none` | `jev:jev-1.13.0` if `TYPESAFE_API_KEY` is set, else `none` |
+| `element_tags` | `none` | `none` | `none` |
 
 - **`fast`** is the v0.3 pipeline: no elements, no OCR, no summaries. Its output is
   byte-identical to calling `load()`, `classify_document()` and `normalize_sections()` yourself,
@@ -49,6 +50,11 @@ end of its page, by design; `fast` leaves those lines where the extractor found 
 
 `tables="none"` is the speed switch inside element mode: it skips the search for ruled tables,
 which is most of the extra cost over `fast`.
+
+`element_tags` is `none` in every profile. Set it to a trained bundle directory (or
+`embedding:<model>`, `teacher:<engine spec>`) and the elements of `balanced` and `accurate` carry
+a topic and function [tag](element-tags.md) each; `fast` builds no elements to tag. Train a
+bundle with [Train your own element tagger](../guides/train-your-tagger.md).
 
 ## Configuration
 
@@ -144,6 +150,7 @@ file. At most one model-loading process runs at a time, within the 8 GiB memory 
 
 ## Next
 
+- [Element tags](element-tags.md): what `element_tags` adds to each element.
 - [OCR and layout models](../guides/ocr-and-layout.md): the extras, the engines and how to add
   your own.
 - [Chunking for RAG](../guides/chunking-for-rag.md).

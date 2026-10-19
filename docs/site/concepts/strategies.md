@@ -31,7 +31,7 @@ and could only choose among its children; Beam kept *Legal* alive long enough to
 - **Beam** recovers from a near-miss at the top at a few times the cost. It is the default for
   section classification.
 - **Flat** makes one decision over all leaves, which suits wide, shallow taxonomies such as the
-  18 document types, and the section taxonomies. Trained bundles cannot use it (their heads
+  19 document types, and the section taxonomies. Trained bundles cannot use it (their heads
   decide per node).
 
 ## Thresholds and early stops

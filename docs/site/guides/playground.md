@@ -23,6 +23,7 @@ docrooter serve -b keyword --open  # pick the preselected backend, open the brow
 | `-b/--backend` | `keyword` | The backend selected when the page opens; it can be switched on the page |
 | `--open` | off | Open the page in the browser once the server is up |
 | `--env-file` | none | Read missing environment variables (such as `TYPESAFE_API_KEY`) from this file |
+| `--element-tags` | none | Tag every run's elements with this [element-tagger](../concepts/element-tags.md) bundle (or `embedding:<model>`, `teacher:<engine spec>`); the Elements tab then shows tag chips |
 
 ## Using it
 

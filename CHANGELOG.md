@@ -14,9 +14,44 @@ in the release after it.
 ## [Unreleased]
 
 Work towards the next release: memory containment, pipeline events, a local playground, a
-held-out evaluation, the repository essentials, and (v0.4) elements, OCR and the rooter.
+held-out evaluation, the repository essentials, (v0.4) elements, OCR and the rooter, and (v0.5)
+element tags and a tagger you train yourself.
 
 ### Added
+
+- **Element tags (v0.5).** Each paragraph, list item, table, caption, footnote and formula can
+  carry a **topic** (one leaf of `element_topics`: a tree of document family, then section) and
+  **functions** (any of the twelve tags of `element_functions`) in `Element.tags`, a dictionary of
+  `TagResult` (`labels`, `probs`, `confidence`, `source`, and for topics `family_probs`). Set the
+  rooter's `element_tags` task to a trained bundle directory, `embedding:<model>` (a zero-shot
+  baseline) or `teacher:<engine spec>`; it is `none` in every profile, and an untagged element
+  serialises as in v0.4. `docrooter tag FILE --bundle PATH [--json]`,
+  `docrooter tag-corpus DIR --bundle PATH` and `docrooter serve --element-tags BUNDLE` (tag chips
+  in the playground's Elements tab) use it. See
+  [docs/site/concepts/element-tags.md](docs/site/concepts/element-tags.md).
+- **Train your own tagger.** `docrooter corpus build DIR` reads PDFs into a resumable corpus store
+  (the elements of the first and some sampled pages); `docrooter teach label DIR` has a local
+  teacher LLM label topics (by multiple-choice log-probability, among an embedding shortlist) and
+  functions (yes or no); `docrooter train-elements DIR --teacher SPEC --out BUNDLE` runs the
+  labelling, a confident training set (term mining, a similarity-gap filter, a keep rule) and the
+  student's training and calibration, every stage resumable. The teacher is
+  Qwen3-4B-Instruct-2507 (Apache-2.0, 4-bit) on MLX by default (extra `teach-mlx`, Apple silicon);
+  `hf:` (extra `models`) and OpenAI-compatible `openai:` (extra `llm`) teachers work too.
+  **Jev cannot be a teacher**: TypeSafe MCA §2.3(b) forbids distillation, and docrooter refuses it
+  with a clear error; a teacher you bring is under its provider's terms. See
+  [Train your own element tagger](docs/site/guides/train-your-tagger.md) and
+  `examples/train_element_tagger.py` (a tiny corpus, no model).
+- **`financial.fact_sheet`**, a nineteenth document type: a short periodic summary of one fund or
+  share class. Fund documents have their own section taxonomy, `section_types/fund_document`.
+- **The training corpus** (a manifest and fetch scripts, `benchmarks/training_corpus/`; no PDF is
+  committed): 1,100 public native-PDF documents with 81,822 pages (925 train, 62 calibration, 113
+  gold), and a gold set of 900 elements whose labels are **Claude-annotated** (topic Cohen's
+  kappa 0.953 on 180 double-annotated elements; the annotators share one underlying model, so
+  kappa measures consistency, not human-verified correctness). EDGAR could not be used (the SEC
+  refuses the project's User-Agent), so annual reports come from issuers' own investor-relations
+  sites, mostly non-US. CUAD contracts (CC BY 4.0) are attributed in the corpus README.
+- **Element-tag benchmarks.** The harness and its method are in
+  [docs/benchmarks-element-tags.md](docs/benchmarks-element-tags.md); the results are pending.
 
 - **Elements.** Every visible part of a document is a typed `Element`: title, heading,
   paragraph, list item, table, figure, caption, footnote, formula, contents and page furniture,
@@ -107,6 +142,12 @@ held-out evaluation, the repository essentials, and (v0.4) elements, OCR and the
 
 ### Changed
 
+- **Prospectuses use the fund-document sections.** `financial.prospectus` maps to
+  `section_types/fund_document` (it was `generic`), as `financial.fact_sheet` does, so
+  `normalize_sections` on a prospectus labels its headings with fees, risks and performance
+  rather than generic sections. The document-type benchmark numbers in this changelog and the
+  docs were measured with 18 types and predate `financial.fact_sheet`; the held-out corpus has
+  not been run again.
 - **`ocr="auto"` resolves to `tesseract` (the binary on PATH), then `ocrmac` (macOS), then
   `rapidocr`.** Tesseract comes first for accuracy (character error rate 0.058, against 0.089
   for rapidocr and 0.102 for ocrmac, which also fails on legal pages and table columns). ocrmac

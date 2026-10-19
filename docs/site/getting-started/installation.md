@@ -25,6 +25,7 @@ With [uv](https://docs.astral.sh/uv/): `uv add 'docrooter[pdf,models]'`.
 | `ocr` | `rapidocr`, `onnxruntime`, `pypdfium2` | Apache-2.0 / MIT / BSD-3 and Apache-2.0; rapidocr also pulls in `opencv-python-headless` (Apache-2.0, bundles **FFmpeg, LGPL-2.1**) and `shapely` (BSD-3, bundles **GEOS, LGPL-2.1**) | The `rapidocr` engine in element mode, and page rendering without PyMuPDF |
 | `ocr-mac` | `ocrmac` (macOS only) | MIT | The `ocrmac` engine (Apple Vision) |
 | `layout` | `onnxruntime`, `pypdfium2`, `huggingface_hub` | MIT / BSD-3 and Apache-2.0 / Apache-2.0 | The `heron` layout model of the `accurate` profile (no torch) |
+| `teach-mlx` | `mlx-lm` (Apple silicon, Python 3.11+ only) | MIT | The default teacher for [training your own element tagger](../guides/train-your-tagger.md): Qwen3-4B-Instruct-2507 (Apache-2.0), 4-bit, on MLX. Not part of `all`, because it installs on one platform only |
 | `bench` | `datasets`, `pandas` | Apache-2.0 / BSD | The benchmark scripts, `DocumentResult.to_dataframe()` |
 | `all` | `models`, `pdf`, `pdf-mit`, `llm`, `jev`, `ui`, `ocr`, `ocr-mac`, `layout` | as above | Everything except `bench` |
 

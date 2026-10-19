@@ -39,7 +39,8 @@ to use the default model.
 1. `taxonomy=` if you pass one: a `Taxonomy`, or a built-in name (`"contract"` or
    `"section_types/contract"`).
 2. Otherwise the taxonomy mapped from `doc_type=`: annual and quarterly reports and proxy
-   statements use `annual_report`; contracts `contract`; research papers `research_paper`;
+   statements use `annual_report`; prospectuses and fact sheets `fund_document`; contracts
+   `contract`; research papers `research_paper`;
    manuals and datasheets `technical_document`; every other type (and an unknown one)
    `generic`. A group id such as `"financial"` uses its first leaf.
 3. With neither, it first classifies the document type with `classify_document`, using the same

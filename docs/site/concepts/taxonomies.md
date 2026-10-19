@@ -28,7 +28,7 @@ The [taxonomy formats reference](../reference/taxonomy-formats.md) shows the fiv
 
 ## Built-in taxonomies
 
-Two families ship with the package, as JSON package data. `builtin_taxonomy(name)` returns a
+Three families ship with the package, as JSON package data. `builtin_taxonomy(name)` returns a
 fresh copy; `list_builtin_taxonomies()` lists them; on the CLI they are `builtin:<name>`.
 
 ```python
@@ -37,15 +37,15 @@ print(", ".join(list_builtin_taxonomies()))
 ```
 
 ```text
-doc_types, section_types/annual_report, section_types/contract, section_types/generic, section_types/research_paper, section_types/technical_document
+doc_types, element_functions, element_topics, section_types/annual_report, section_types/contract, section_types/fund_document, section_types/generic, section_types/research_paper, section_types/technical_document
 ```
 
-**`doc_types`**: 18 document types in 6 groups. Every node has a definition written for the
+**`doc_types`**: 19 document types in 6 groups. Every node has a definition written for the
 model.
 
 | Group | Types |
 | --- | --- |
-| `financial` | `annual_report`, `quarterly_report`, `shareholder_letter`, `earnings_release`, `prospectus`, `proxy_statement` |
+| `financial` | `annual_report`, `quarterly_report`, `shareholder_letter`, `earnings_release`, `prospectus`, `proxy_statement`, `fact_sheet` |
 | `legal` | `contract`, `terms_policy`, `court_opinion`, `legislation` |
 | `research` | `research_paper`, `technical_standard`, `white_paper` |
 | `technical` | `user_manual`, `datasheet` |
@@ -53,6 +53,10 @@ model.
 | `corporate` | `sustainability_report`, `investor_presentation` |
 
 Leaf ids are prefixed by their group: `financial.annual_report`, `legal.contract`.
+`financial.fact_sheet` (new in v0.5) is a short periodic summary of one fund or share class:
+objective, fund facts, fees, performance and top holdings as of a date. It is not a full
+prospectus and not an annual report. The benchmark corpora were labelled with 18 types, before it
+existed, so their numbers do not include it.
 
 **`section_types/*`**: canonical sections for a family of documents, used by
 [section normalisation](../guides/section-normalisation.md). Each document type maps to one:
@@ -60,10 +64,16 @@ Leaf ids are prefixed by their group: `financial.annual_report`, `legal.contract
 | Section taxonomy | Used for |
 | --- | --- |
 | `section_types/annual_report` | annual reports, quarterly reports, proxy statements |
+| `section_types/fund_document` | prospectuses and fact sheets: objective, fees, strategies, risks, performance, holdings, management, purchase and sale, tax |
 | `section_types/contract` | contracts |
 | `section_types/research_paper` | research papers |
 | `section_types/technical_document` | user manuals, datasheets |
 | `section_types/generic` | every other type, and unknown ones |
+
+**`element_topics`** and **`element_functions`** (new in v0.5) tag elements rather than sections.
+`element_topics` is one tree, root, then a document family (the section taxonomy above, plus an
+`other` leaf), then the leaf; `element_functions` is a flat list of twelve multi-label tags. Both
+are described on [Element tags](element-tags.md).
 
 ## Validation
 

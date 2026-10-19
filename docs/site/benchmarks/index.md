@@ -1,15 +1,16 @@
 # Benchmarks
 
-docrooter is measured on three kinds of data. The measured numbers on these pages come from
+docrooter is measured on several kinds of data. The measured numbers on these pages come from
 results files committed under `benchmarks/results/`, produced by the scripts in `benchmarks/` at
 a recorded commit. A few figures from development runs (some memory peaks and an A/B timing on
 the performance page) are not in a results file; the pages say so where they appear.
 
 | Page | Data | What it measures |
 | --- | --- | --- |
-| [PDF benchmarks (dev corpus)](pdf.md) | 51 real PDFs, 18 document types | TOC extraction, document type, section normalisation |
+| [PDF benchmarks (dev corpus)](pdf.md) | 51 real PDFs, labelled with the 18 types that existed before `financial.fact_sheet` | TOC extraction, document type, section normalisation |
 | [Held-out evaluation](heldout.md) | 40 different PDFs, frozen before any run | The same three tasks, once, with no tuning |
 | [Element kinds (DocLayNet)](elements.md) | 400 DocLayNet test pages, six categories | Element kinds against human layout labels |
+| [Element tags (gold set)](element-tags.md) | 900 Claude-annotated elements of the training corpus's gold split | Topic and function tags against annotated labels (results pending) |
 | [Public datasets](public-datasets.md) | EDGAR-CORPUS 10-K items, DBpedia classes, LEDGAR clauses | Zero-shot section classification by backend |
 | [Performance and memory](performance.md) | ten PDFs, 1-642 pages; a training run | Peak memory, where the time goes, load speed |
 

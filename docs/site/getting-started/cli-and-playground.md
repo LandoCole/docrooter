@@ -65,6 +65,14 @@ docrooter train -t taxonomy.json -d labelled.jsonl -o bundle/
 docrooter eval -t taxonomy.json -d labelled.jsonl -b trained:bundle/
 ```
 
+**Element tags and your own tagger** (see [Train your own element tagger](../guides/train-your-tagger.md)):
+
+```bash
+docrooter corpus build corpus/ --from-manifest manifest.jsonl --pdf-dir pdfs/
+docrooter train-elements corpus/ --stage A --out bundles/tagger-a --teacher mlx:mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b
+docrooter tag report.pdf --bundle bundles/tagger-a
+```
+
 Errors are printed as `error: ...` with exit status 1, so scripts can stop on them.
 
 ## The playground

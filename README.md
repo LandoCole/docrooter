@@ -43,6 +43,9 @@ publisher in common). The held-out column is the honest estimate.
 | | `bge-view`: bge-small zero-shot | 0.608 | 0.700 |
 | TOC extraction (F1 at depth ≤ 2 against PDF bookmarks) | default engine (`pymupdf`) | 0.703 (dev-tuned) | 0.576 |
 
+- *18 types*: both corpora were labelled with the 18 types that existed then. v0.5 adds `financial.fact_sheet`
+  (19 types), so the document-type numbers predate it, and the held-out corpus has not been run
+  again.
 - *Dev-tuned*: the heading rules were tuned on the dev documents (the 24 with at least 5
   bookmarks are scored; 23 on held-out), so 0.703 is optimistic; it was 0.478 before tuning. No dev-tuned
   document-type system is in the table (the dev-tuned view, `ultrabert-view-tuned`, scored 0.843
@@ -76,6 +79,7 @@ pip install 'docrooter[models]'    # + local models (embedding, NLI, MLM) and tr
 | `ocr` | `rapidocr`, `onnxruntime`, `pypdfium2` | The `rapidocr` engine for scanned pages (element mode) |
 | `ocr-mac` | `ocrmac` (macOS only) | The `ocrmac` engine (Apple Vision) |
 | `layout` | `onnxruntime`, `pypdfium2`, `huggingface_hub` | The heron layout model of the `accurate` profile (no torch) |
+| `teach-mlx` | `mlx-lm` (Apple silicon, Python 3.11+) | The default teacher (Qwen3-4B-Instruct-2507, Apache-2.0, on MLX) for [training your own element tagger](#element-tags-v05); not in `all` |
 | `bench` | `datasets`, `pandas` | The benchmarks, `DocumentResult.to_dataframe()` |
 | `all` | `models` + `pdf` + `pdf-mit` + `llm` + `jev` + `ui` + `ocr` + `ocr-mac` + `layout` | Everything above except `bench` |
 
@@ -171,7 +175,7 @@ threshold.
 
 ## Document types, section labels and PDFs (v0.2)
 
-Two built-in taxonomies ship with the package: `doc_types` (18 document types in 6 groups) and
+Two built-in taxonomies ship with the package: `doc_types` (19 document types in 6 groups) and
 one section taxonomy per family (`list_builtin_taxonomies()` lists them; `builtin_taxonomy(name)`
 returns a fresh copy). `classify_document` labels a whole document from a `DocumentView` (its
 title, page and section counts, headings, opening text and keyphrases, within a token budget),
@@ -291,6 +295,46 @@ From the shell: `docrooter elements report.pdf`, `docrooter process report.pdf -
 accurate --chunks --out analysis.json` and `docrooter config show --profile balanced`. See the
 [element benchmarks](docs/benchmarks-elements.md) for the numbers and their commits.
 
+## Element tags (v0.5)
+
+[Elements](#elements-and-profiles-v04) say what a block is; **element tags** say what it is
+about (its **topic**, one leaf of a tree per document family, such as
+`fund_document.fees_and_expenses`) and what it does (its **functions**, any of twelve such as
+`risk_disclosure`, `obligation` or `legal_boilerplate`). Every paragraph, list item, table,
+caption, footnote and formula can carry both in `Element.tags`, so an application can read only
+the elements it needs, or gate and route by tag. Tags are off by default (`element_tags="none"`
+in every profile) and a v0.4 document serialises as before.
+
+The tagger is a BERT-class student that you train on your own documents, labelled by a local
+teacher LLM, so no model weights are published. `docrooter train-elements` runs the whole chain
+and resumes after an interruption:
+
+```bash
+docrooter corpus build corpus/ --from-manifest manifest.jsonl --pdf-dir pdfs/
+docrooter train-elements corpus/ --stage A --out bundles/tagger-a --teacher mlx:mlx-community/Qwen3-4B-Instruct-2507-4bit@50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b
+docrooter tag report.pdf --bundle bundles/tagger-a
+```
+
+- **Teachers and terms.** The default teacher is Qwen3-4B-Instruct-2507 (Apache-2.0) on MLX.
+  **Jev cannot be a teacher**: TypeSafe's MCA §2.3(b) forbids distillation, and docrooter refuses
+  it. A teacher you bring (`hf:` or an OpenAI-compatible `openai:` endpoint) is under its
+  provider's terms. CUAD contracts (CC BY 4.0) need attribution wherever you use them; the
+  [guide](docs/site/guides/train-your-tagger.md#licensing-and-terms) has the citation.
+- **Our corpus.** 1,100 public native-PDF documents with 81,822 pages (925 train, 62 calibration,
+  113 gold), as a manifest and fetch scripts under `benchmarks/training_corpus/`; no PDF is
+  committed. EDGAR could not be used (the SEC refuses the project's User-Agent), so the annual
+  reports come from issuers' own investor-relations sites, mostly non-US.
+- **Disclosures.** The 900-element gold set is Claude-annotated, and all annotators share one
+  underlying model, so the topic kappa of 0.953 (180 double-annotated elements) measures
+  consistency, not human-verified correctness. Performance depends on corpus size; the learning
+  curve is on the benchmark page.
+- **Results** are pending: [docs/benchmarks-element-tags.md](docs/benchmarks-element-tags.md).
+
+See [Element tags](docs/site/concepts/element-tags.md) for the taxonomies and
+[Train your own element tagger](docs/site/guides/train-your-tagger.md) for the steps;
+[`examples/train_element_tagger.py`](examples/train_element_tagger.py) runs the stages on a tiny
+corpus with no model.
+
 ## Command line
 
 ```bash
@@ -315,6 +359,11 @@ docrooter normalize report.md --doc-type research.research_paper --json
 docrooter elements report.pdf --kinds heading,table     # typed elements in reading order
 docrooter process report.pdf --profile accurate --chunks -o analysis.json   # the rooter
 docrooter config show --profile balanced                 # the resolved configuration, as TOML
+
+docrooter corpus build corpus/ --from-manifest manifest.jsonl --pdf-dir pdfs/   # elements into a store
+docrooter train-elements corpus/ --out bundle/ --teacher mlx:<repo>@<rev>       # label, train, calibrate
+docrooter tag report.pdf --bundle bundle/                # topic and function tag per element
+docrooter tag-corpus corpus/ --bundle bundle/ --split train --split calib
 
 docrooter eval -t taxonomy.json -d labelled.jsonl -b keyword          # accuracy, hierarchical F1
 docrooter eval -t taxonomy.json -d labelled.jsonl --format md
@@ -632,6 +681,8 @@ files committed under `benchmarks/results/`:
   normalisation on the 51-PDF dev corpus;
 - [docs/benchmarks-heldout.md](docs/benchmarks-heldout.md): the frozen run on the 40-PDF
   held-out corpus;
+- [docs/benchmarks-element-tags.md](docs/benchmarks-element-tags.md): the element tagger on a
+  Claude-annotated gold set (results pending);
 - [docs/benchmarks.md](docs/benchmarks.md): section classification, zero-shot and few-shot, on
   SEC 10-K items (EDGAR-CORPUS), DBpedia classes and LEDGAR contract clauses, with the default
   backend, training base and strategy decided under rules written down before the runs.

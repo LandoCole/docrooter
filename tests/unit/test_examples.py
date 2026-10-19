@@ -183,3 +183,83 @@ def test_readme_documents_profiles_with_the_measured_numbers():
         assert fact in section, fact
     assert "by design" in section
     assert "examples/elements_and_chunks.py" in section
+
+
+def test_train_element_tagger_example_runs_without_a_model(capsys):
+    """The example labels a tiny fact-sheet corpus with a keyword teacher and embedder (no
+    model, no network) and builds the confident set; the guide shows its output and lines."""
+    runpy.run_path(str(EXAMPLES / "train_element_tagger.py"), run_name="__main__")
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "keyword:overlap@1: 64 topics, 32 functions"
+    assert lines[1:6] == [
+        "fund_document.investment_objective: 16 labelled, 12 kept, trained",
+        "fund_document.fees_and_expenses: 16 labelled, 12 kept, trained",
+        "fund_document.principal_risks: 12 labelled, 9 kept, trained",
+        "fund_document.performance: 20 labelled, 12 kept, trained",
+        "fund_document.other: 0 labelled, 0 kept, left untrained",
+    ]
+    assert lines[-1] == "training itself needs the models extra: docrooter train-elements"
+    guide = (DOCS / "site" / "guides" / "train-your-tagger.md").read_text(encoding="utf-8")
+    assert "\n".join(lines) in guide
+
+
+def test_train_element_tagger_example_uses_the_teacher_protocol():
+    """The stand-ins implement what the real engines do, so the example cannot drift from it."""
+    from docrooter.teach import TeacherEngine
+
+    namespace = runpy.run_path(str(EXAMPLES / "train_element_tagger.py"))
+    assert isinstance(namespace["KeywordTeacher"](), TeacherEngine)
+
+
+def test_element_tag_docs_state_the_committed_facts():
+    """The corpus and gold-set facts on the pages are those of the committed files, the pages
+    carry the licensing statements and the disclosures, and none gives a tagger result."""
+    manifest = [
+        json.loads(line)
+        for line in (ROOT / "benchmarks/training_corpus/manifest.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    splits = {s: sum(r["split"] == s for r in manifest) for s in ("train", "calib", "gold")}
+    pages = sum(r["pages"] or 0 for r in manifest)
+    agreement = json.loads(
+        (ROOT / "benchmarks/training_corpus/gold_agreement.json").read_text(encoding="utf-8")
+    )
+    guide = (DOCS / "site" / "guides" / "train-your-tagger.md").read_text(encoding="utf-8")
+    concept = (DOCS / "site" / "concepts" / "element-tags.md").read_text(encoding="utf-8")
+    readme = README.read_text(encoding="utf-8")
+    facts = (
+        f"{len(manifest):,} public native-PDF documents with {pages:,} pages",
+        f"{splits['train']} in `train`, {splits['calib']} in `calib` and "
+        f"{splits['gold']} in `gold`",
+        f"{agreement['elements']} elements",
+        f"{agreement['double_annotated']} of them twice",
+        f"{agreement['topic']['kappa']:.3f}",
+    )
+    for fact in facts:
+        assert fact in guide, fact
+    assert f"{len(manifest):,} public native-PDF documents with {pages:,} pages" in readme
+    assert (
+        f"{agreement['topic']['kappa']:.3f}" in readme
+        and f"{agreement['topic']['kappa']:.3f}" in concept
+    )
+    for text in (guide, readme):
+        assert "Jev cannot be a teacher" in text
+        assert "2.3(b)" in text
+        assert "CC BY 4.0" in text
+        assert "Claude-annotated" in text
+        assert "SEC" in text
+    assert "Apache-2.0" in guide and "bound by" in guide
+    assert "consistency, not human-verified correctness" in guide
+    assert "depends on corpus size" in guide
+
+
+def test_current_docs_say_nineteen_document_types():
+    """``financial.fact_sheet`` made it 19; only the benchmark corpora (labelled before) say 18."""
+    from docrooter import builtin_taxonomy
+
+    assert len(builtin_taxonomy("doc_types").leaves()) == 19
+    pages = [README, *(DOCS / "site").rglob("*.md")]
+    for page in pages:
+        text = page.read_text(encoding="utf-8")
+        for stale in ("18 document types", "18 types in 6"):
+            assert stale not in text, f"{page.relative_to(ROOT)}: {stale!r}"

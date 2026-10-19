@@ -97,7 +97,7 @@ and releases the model it loaded before returning.
 
 ## How accurate is it?
 
-On the 51-PDF development corpus and the 40-PDF held-out corpus (18 types, 2-4 documents
+On the 51-PDF development corpus and the 40-PDF held-out corpus (18 types, labelled before `financial.fact_sheet` existed; 2-4 documents
 each):
 
 | System | Dev | Held-out |

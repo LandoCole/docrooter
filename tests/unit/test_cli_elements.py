@@ -3,6 +3,7 @@ analysis file, chunks, the profile and config options, and the errors. Keyword b
 generated PDF; no model is loaded and no OCR engine is used."""
 
 import json
+import os
 
 import pytest
 from typer.testing import CliRunner
@@ -74,7 +75,7 @@ def test_elements_cli_rejects_bad_options(pdf, config):
     bad_profile = runner.invoke(app, ["elements", str(pdf), "--profile", "turbo"])
     assert bad_profile.exit_code == 2 and "turbo" in bad_profile.output
     fast = runner.invoke(app, ["elements", str(pdf), "--profile", "fast", "--config", str(config)])
-    assert fast.exit_code == 1 and "builds no elements" in fast.output
+    assert fast.exit_code == 1 and "builds none" in fast.output
 
 
 def test_process_cli_writes_analysis_json(pdf, config, tmp_path):
@@ -107,7 +108,7 @@ def test_process_cli_chunks_need_elements(pdf, config):
         app, ["process", str(pdf), "--profile", "fast", "--config", str(config), "--chunks"]
     )
     assert result.exit_code == 1
-    assert result.output.startswith("error:") and "no elements" in result.output
+    assert result.output.startswith("error:") and "builds none" in result.output
 
 
 def test_config_show_resolves_profile(monkeypatch):
@@ -135,3 +136,50 @@ def test_config_show_output_loads_back_as_a_config(tmp_path, monkeypatch):
     path = tmp_path / "saved.toml"
     path.write_text(shown, encoding="utf-8")
     assert RouterConfig.from_file(path) == RouterConfig(profile="accurate")
+
+
+@pytest.fixture
+def no_processing(monkeypatch):
+    """Fail the test if ``process`` runs: these flags must be refused before any work."""
+    import docrooter.rooter
+
+    def boom(*args, **kwargs):
+        raise AssertionError("process() ran before the flags were checked")
+
+    monkeypatch.setattr(docrooter.rooter, "process", boom)
+
+
+def test_fast_profile_is_refused_before_processing(pdf, config, no_processing):
+    for args in (
+        ["elements", str(pdf), "--profile", "fast"],
+        ["process", str(pdf), "--profile", "fast", "--chunks"],
+    ):
+        result = runner.invoke(app, [*args, "--config", str(config)])
+        assert result.exit_code == 1, result.output
+        assert result.output.startswith("error:") and "builds none" in result.output
+    # a config file can choose the fast profile as well
+    fast_file = config.with_name("fast.toml")
+    fast_file.write_text('profile = "fast"\n', encoding="utf-8")
+    result = runner.invoke(app, ["elements", str(pdf), "--config", str(fast_file)])
+    assert result.exit_code == 1 and "builds none" in result.output
+
+
+def test_out_is_checked_before_processing(pdf, config, tmp_path, no_processing):
+    missing = tmp_path / "nope" / "analysis.json"
+    result = runner.invoke(
+        app, ["process", str(pdf), "--config", str(config), "--out", str(missing)]
+    )
+    assert result.exit_code == 2 and "does not exist" in result.output
+
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    locked.chmod(0o500)
+    try:
+        if os.access(locked, os.W_OK):  # running as root: permissions do not apply
+            pytest.skip("directory permissions are not enforced here")
+        result = runner.invoke(
+            app, ["process", str(pdf), "--config", str(config), "-o", str(locked / "a.json")]
+        )
+    finally:
+        locked.chmod(0o700)
+    assert result.exit_code == 2 and "writable" in result.output

@@ -11,6 +11,7 @@ import socket
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -1075,63 +1076,104 @@ def fake_layout(monkeypatch):
     monkeypatch.setattr(FakeLayout, "closed", 0)
 
 
-def test_engine_pool_keeps_one_set_per_profile_and_backend(fake_layout, monkeypatch):
-    monkeypatch.setattr(ocr_registry, "resolve_auto_ocr", lambda: "rapidocr")
+class FakeOcr:
+    name = "fakeocr"
+    made = 0
+    closed = 0
+
+    def __init__(self, *, lang="en"):
+        type(self).made += 1
+
+    def recognize(self, image, *, width_px, height_px, page):
+        return []
+
+    def close(self):
+        type(self).closed += 1
+
+
+@pytest.fixture
+def fake_ocr(monkeypatch):
+    monkeypatch.setattr(ocr_registry, "_FACTORIES", dict(ocr_registry._FACTORIES))
+    ocr_registry.register_ocr_engine("fakeocr", FakeOcr)
+    monkeypatch.setattr(ocr_registry, "resolve_auto_ocr", lambda: "fakeocr")
+    monkeypatch.setattr(FakeOcr, "made", 0)
+    monkeypatch.setattr(FakeOcr, "closed", 0)
+
+
+def test_engine_pool_keeps_one_set_per_profile(fake_layout, fake_ocr):
     cfg = RouterConfig(profile="accurate", layout="fakelayout")
     pool = server.EnginePool()
-    first = pool.get("accurate", "keyword", cfg)
-    assert isinstance(first["layout"], FakeLayout) and first["ocr"].name == "rapidocr"
-    assert pool.get("accurate", "keyword", cfg) == first
+    first = pool.get("accurate", cfg)
+    assert isinstance(first["layout"], FakeLayout) and first["ocr"].name == "fakeocr"
+    assert pool.get("accurate", cfg) == first
     assert (FakeLayout.made, FakeLayout.closed) == (1, 0)
+    assert FakeOcr.made == 0  # created on the first page that needs it
 
-    other = pool.get("balanced", "keyword", RouterConfig(profile="balanced"))
+    page = SimpleNamespace(page=1, x0=0, y0=0, x1=1, y1=1)
+    first["ocr"].recognize(b"", width_px=1, height_px=1, page=page)
+    assert FakeOcr.made == 1
+
+    other = pool.get("balanced", RouterConfig(profile="balanced"))
     assert (FakeLayout.made, FakeLayout.closed) == (1, 1)  # the profile changed
+    assert (FakeOcr.made, FakeOcr.closed) == (1, 1)
     assert "layout" not in other and other["ocr"] is not first["ocr"]
 
-    pool.get("accurate", "keyword", cfg)
+    pool.get("accurate", cfg)
     assert (FakeLayout.made, FakeLayout.closed) == (2, 1)
-    pool.get("accurate", "other-backend", cfg)
-    assert (FakeLayout.made, FakeLayout.closed) == (3, 2)  # the backend changed
     pool.close()
     pool.close()  # safe twice
-    assert FakeLayout.closed == 3 and pool.key is None
+    assert FakeLayout.closed == 2 and pool.key is None
 
 
 def test_engine_pool_makes_no_ocr_engine_for_none_or_without_one_installed():
     pool = server.EnginePool()
-    assert pool.get("fast", "keyword", RouterConfig(profile="fast")) == {}
-    assert pool.get("balanced", "keyword", RouterConfig(profile="balanced")) == {}  # none installed
+    assert pool.get("fast", RouterConfig(profile="fast")) == {}
+    assert pool.get("balanced", RouterConfig(profile="balanced")) == {}  # none installed
 
 
-def test_playground_reuses_engines_across_runs_and_closes_them_at_shutdown(
-    fake_layout, monkeypatch
-):
+@pytest.fixture
+def accurate_with_fake_layout(monkeypatch):
+    """The ``accurate`` profile with the counting fake standing in for heron (no extra needed)."""
     real = RouterConfig.resolve
 
     def resolve(profile=None, file=None, **overrides):
-        # the "accurate" profile with the fake engine standing in for heron
         if profile == "accurate":
             overrides = {**overrides, "layout": "fakelayout"}
         return real(profile=profile, file=file, **overrides)
 
     monkeypatch.setattr(server.RouterConfig, "resolve", staticmethod(resolve))
+    others = tuple(i for i in server.PROFILE_INFO if i.name != "accurate")
     monkeypatch.setattr(
-        server,
-        "PROFILE_INFO",
-        tuple(i for i in server.PROFILE_INFO if i.name != "accurate")
-        + (server.ProfileInfo("accurate", "Accurate", "test", ()),),
+        server, "PROFILE_INFO", others + (server.ProfileInfo("accurate", "Accurate", "test", ()),)
     )
-    with make_client() as client:
-        for _ in range(2):
-            _, events = run(client, profile="accurate")
-            assert events[-1]["data"]["status"] == "done"
-        assert (FakeLayout.made, FakeLayout.closed) == (1, 0)
-        _, events = run(client, profile="balanced")
-        assert events[-1]["data"]["status"] == "done"
-        assert FakeLayout.closed == 1
-        run(client, profile="accurate")
-        assert (FakeLayout.made, FakeLayout.closed) == (2, 1)
-    assert FakeLayout.closed == 2
+
+
+def test_playground_engine_lifetimes(fake_layout, fake_ocr, accurate_with_fake_layout, monkeypatch):
+    monkeypatch.setitem(registry._KINDS, "closing", ClosingBackend)
+    monkeypatch.setattr(ClosingBackend, "made", 0)
+    monkeypatch.setattr(ClosingBackend, "closed", 0)
+    counts = lambda: (FakeLayout.made, FakeLayout.closed)  # noqa: E731
+    with make_client("closing") as client:
+
+        def done(**options):
+            _, events = run(client, **options)
+            assert events[-1]["data"]["status"] == "done", events[-1]
+            return events
+
+        done(profile="accurate")
+        done(profile="accurate")
+        assert counts() == (1, 0)  # reused by the next run of the profile
+        done(profile="accurate", backend="keyword")  # only the classification backend changed
+        assert ClosingBackend.closed == 1
+        assert counts() == (1, 0)  # heron was not reloaded
+        done(profile="fast")  # a fast run uses no engine: heron is released
+        assert counts() == (1, 1)
+        done(profile="accurate")
+        assert counts() == (2, 1)
+        done(profile="balanced")
+        assert counts() == (2, 2)  # a profile without the layout model releases it
+    assert counts() == (2, 2)
+    assert FakeOcr.made == FakeOcr.closed  # none left open
 
 
 def test_app_js_uses_textcontent_only(client):
@@ -1156,3 +1198,47 @@ def test_page_has_the_profile_selector_and_the_elements_tab(client):
     script = client.get("/static/app.js").text
     for name in ("elements_total", "elements_truncated", "summaries", "routes", "profile"):
         assert name in script
+
+
+def pdf_with_image_regions() -> bytes:
+    """Three pages; page 2 also carries two large pictures with no text in them."""
+    doc = pymupdf.open(stream=pdf_bytes(), filetype="pdf")
+    picture = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 40))
+    picture.set_rect(picture.irect, (200, 60, 60))
+    page = doc[1]
+    page.insert_image(pymupdf.Rect(72, 300, 272, 500), pixmap=picture)
+    page.insert_image(pymupdf.Rect(300, 300, 500, 500), pixmap=picture)
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
+def test_routes_count_pages_with_image_regions(client):
+    run_id, events = run(client, data=pdf_with_image_regions())
+    routes = client.get(f"/api/runs/{run_id}").json()["routes"]
+    # every page is read once: page 2 has a region decision instead of a page decision
+    assert routes["pages"] == 3 and routes["tasks"] == {"text": 3}
+    assert routes["regions"] == 2 and routes["region_pages"] == 1
+    assert routes["needs_ocr"] == {"pages": 0, "merge_pages": 0, "regions": 2}
+    end = next(e for e in events if e["stage"] == "route" and e["data"].get("pages") is not None)
+    assert (end["data"]["pages"], end["data"]["regions"]) == (routes["pages"], routes["regions"])
+
+
+def test_route_rows_are_named_the_same_in_the_timeline_and_the_status(client):
+    script = client.get("/static/app.js").text
+    assert script.count("Choose engines") == 1  # one place names the rooter's engine choices
+    assert 'event.stage === "route" && event.data?.scope === "document"' in script
+    assert "setStatus(`${stageMeta(event).name}…`)" in script  # the status reuses the row's name
+    assert "const meta = stageMeta(event)" in script
+    assert "STAGES[event.stage]?.name" not in script
+
+
+def test_cut_element_text_gets_one_ellipsis_from_the_server_only(client):
+    body = ("# Heading\n\n" + "word " * 120 + "end. Second sentence.\n").encode()
+    run_id, _ = run(client, "long.md", body)
+    text = next(
+        e for e in client.get(f"/api/runs/{run_id}").json()["elements"] if e["kind"] == "paragraph"
+    )["text"]
+    assert text.endswith("…") and not text.endswith("……") and len(text) == 200
+    script = client.get("/static/app.js").text
+    assert "more ?" not in script and "text_chars" not in script  # the page adds none of its own

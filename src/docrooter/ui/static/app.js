@@ -294,10 +294,15 @@ function now() {
   return performance.now() / 1000 - state.t0;
 }
 
+// The name and colour family of a stage's row. The rooter's engine choices come first, as their
+// own "route" stage (scope "document"); the page decisions follow in a second one.
+function stageMeta(event) {
+  if (event.stage === "route" && event.data?.scope === "document") return { name: "Choose engines", fam: "doc" };
+  return STAGES[event.stage] ?? { name: event.stage.replace(/_/g, " "), fam: "io" };
+}
+
 function addRow(event) {
-  let meta = STAGES[event.stage] ?? { name: event.stage.replace(/_/g, " "), fam: "io" };
-  // The rooter's engine choices come first, as their own "route" stage; the page decisions follow.
-  if (event.stage === "route" && event.data?.scope === "document") meta = { name: "Choose engines", fam: "doc" };
+  const meta = stageMeta(event);
   const bar = h("div", { class: "stage-bar" });
   const dur = h("span", { class: "stage-dur" });
   const detail = h("div", { class: "stage-detail" });
@@ -473,7 +478,7 @@ function handle(event) {
   const row = state.latest.get(event.stage);
   if (event.status === "start") {
     addRow(event);
-    setStatus(`${STAGES[event.stage]?.name ?? event.stage}…`);
+    setStatus(`${stageMeta(event).name}…`);
   } else if (event.status === "progress" && row) {
     describe(row, event);
   } else if (event.status === "end" && event.stage === "job") {
@@ -654,14 +659,13 @@ const kindName = (kind) => KIND_NAMES[kind] ?? kind;
 
 function elementRow(el) {
   const family = ELEMENT_KIND_FAMILY[el.kind] ?? "body";
-  const more = el.text_chars > el.text.length;
   const head = h(
     "span",
     { class: "el-row" },
     h("span", { class: `kind kind-${family}`, title: `Element ${el.id}` }, kindName(el.kind)),
     el.source === "ocr" ? h("span", { class: "badge ocr", title: "Read by OCR" }, "OCR") : null,
     el.flags.map((f) => h("span", { class: "badge" }, f.replace(/_/g, " "))),
-    h("span", { class: "el-text" }, el.text || "(no text)", more ? "…" : ""),
+    h("span", { class: "el-text" }, el.text || "(no text)"), // the server marks a cut with "…"
   );
   if (!el.summary.length) return h("li", { class: "el" }, head);
   return h(

@@ -275,23 +275,25 @@ _FAST_ONLY_ENGINES = frozenset({"both", "pymupdf4llm"})
 
 
 class EnginePool:
-    """The OCR and layout engines of the most recent run, for its profile and backend. A run
-    with the same profile and backend reuses them; a different profile or backend closes them
-    first, which frees the layout model before another model loads. The OCR engine is created
-    on the first page that needs it. Used from the worker thread only."""
+    """The OCR and layout engines of the most recent element-mode run, keyed by profile. A run
+    with the same profile reuses them, whatever the classification backend: the layout model
+    does not depend on it. A different profile closes them first, and so does a run that needs
+    none (the ``fast`` profile, see :meth:`close`), so a loaded layout model is released as soon
+    as it is not wanted. The OCR engine is created on the first page that needs it. Used from
+    the worker thread only."""
 
     def __init__(self) -> None:
-        self.key: tuple[str, str] | None = None
+        self.key: str | None = None
         self._engines: dict[str, Any] = {}
 
-    def get(self, profile: str, backend: str, config: RouterConfig) -> dict[str, Any]:
+    def get(self, profile: str, config: RouterConfig) -> dict[str, Any]:
         """The engines for ``config`` as :func:`~docrooter.process` keywords (``ocr``,
         ``layout``); a task with no engine to share is left out and ``process`` handles it
         (``ocr="auto"`` with none installed becomes a warning in the route log)."""
-        if self.key != (profile, backend):
+        if self.key != profile:
             self.close()
             self._engines = self._build(config)
-            self.key = (profile, backend)
+            self.key = profile
         return dict(self._engines)
 
     @staticmethod
@@ -489,30 +491,40 @@ def _elements_out(
 
 
 def _routes_out(doc: Document) -> dict[str, Any] | None:
-    """The route log in short: pages by how they were read, region OCR, and each
-    configuration decision (the engines chosen). ``None`` when the run routed nothing (the
-    fast profile)."""
+    """The route log in short, or ``None`` when the run routed nothing (the fast profile).
+
+    Every page read has exactly one decision: ``page`` scope, or ``region`` scope when image
+    regions were found on a page read from its text layer. ``pages`` counts both, so it matches
+    the ``route`` stage's own end event. ``tasks`` says how each page was read (a region page
+    counts as ``text``), ``regions`` is the number of image regions (``meta["needs_ocr"]``) and
+    ``region_pages`` the pages that have any. ``decisions`` are the configuration decisions
+    (the engines chosen).
+    """
     log = doc.meta.get("routes")
     if log is None:
         return None
     tasks: dict[str, int] = {}
-    regions = 0
+    region_pages = 0
     decisions: list[dict[str, str]] = []
     for item in log:
         if item["scope"] == "page":
             tasks[item["task"]] = tasks.get(item["task"], 0) + 1
         elif item["scope"] == "region":
-            regions += 1
+            region_pages += 1
+            tasks["text"] = tasks.get("text", 0) + 1
         else:
             decisions.append(
                 {"task": item["task"], "engine": item["engine"], "reason": item["reason"]}
             )
+    needs_ocr = doc.meta.get("needs_ocr")
+    regions = needs_ocr["regions"] if needs_ocr else region_pages
     return {
         "pages": sum(tasks.values()),
         "tasks": tasks,
         "regions": regions,
+        "region_pages": region_pages,
         "decisions": decisions,
-        "needs_ocr": doc.meta.get("needs_ocr"),
+        "needs_ocr": needs_ocr,
     }
 
 
@@ -684,6 +696,7 @@ class Playground:
         here (``escalate="none"``)."""
         is_pdf = job.run.kind == "pdf"
         if options["profile"] == "fast":
+            self.engines.close()  # a fast run uses no engine: free a loaded layout model now
             pdf_options = {"engine": options["engine"], "max_pages": MAX_PAGES} if is_pdf else {}
             return load(Path(job.path), on_event=job.push, **pdf_options), {}
         overrides: dict[str, Any] = {
@@ -695,7 +708,7 @@ class Playground:
         if is_pdf:
             overrides.update(text=options["engine"], max_pages=MAX_PAGES)
         config = RouterConfig.resolve(profile=options["profile"], **overrides)
-        engines = self.engines.get(options["profile"], options["backend"], config)
+        engines = self.engines.get(options["profile"], config)
         analysis = process(Path(job.path), config=config, on_event=job.push, **engines)
         return analysis.document, analysis.summaries
 

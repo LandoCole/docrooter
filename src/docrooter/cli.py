@@ -878,6 +878,29 @@ def _parse_kinds(value: str | None) -> frozenset[str] | None:
     return frozenset(kinds)
 
 
+def _element_config(profile: str | None, config: Path | None, flag: str) -> Any:
+    """The resolved configuration, checked before any work: ``flag`` needs elements, and the
+    ``fast`` profile (layout ``none``) builds none."""
+    from docrooter.rooter import RouterConfig
+
+    resolved = RouterConfig.resolve(profile=_check_profile(profile), file=config)
+    if resolved.layout == "none":
+        raise DocrooterError(
+            f"{flag} needs elements, and profile {resolved.profile!r} builds none (layout is "
+            "'none'); use --profile balanced or accurate"
+        )
+    return resolved
+
+
+def _check_writable(out: Path) -> None:
+    """Refuse (usage error) an ``--out`` that could not be written, before the run."""
+    folder = out.parent
+    if not folder.is_dir():
+        raise typer.BadParameter(f"the folder {folder} does not exist", param_hint="--out")
+    if not os.access(folder, os.W_OK) or (out.exists() and not os.access(out, os.W_OK)):
+        raise typer.BadParameter(f"{out} is not writable", param_hint="--out")
+
+
 def _first_chars(text: str, limit: int) -> str:
     flat = " ".join(text.split())
     return flat if len(flat) <= limit else flat[: limit - 1] + "…"
@@ -909,10 +932,10 @@ def elements(
 
     wanted = _parse_kinds(kinds)
     with _errors_exit_1():
+        resolved = _element_config(profile, config, "docrooter elements")
         analysis = process(
             file,
-            config=config,
-            profile=_check_profile(profile),
+            config=resolved,
             doc_type="none",
             sections="none",
             summaries="none",
@@ -920,11 +943,6 @@ def elements(
             embeddings="none",
         )
         doc = analysis.document
-        if analysis.config.layout == "none":
-            raise DocrooterError(
-                f"profile {analysis.config.profile!r} builds no elements (layout is 'none'); "
-                "use --profile balanced or accurate"
-            )
     found = [el for el in doc.elements if wanted is None or el.kind in wanted]
     if as_json:
         typer.echo(json.dumps([el.model_dump(mode="json") for el in found], indent=2))
@@ -970,11 +988,18 @@ def process_(
     and summarises it. The JSON goes to stdout unless --out is given.
     """
     from docrooter.chunking import chunk
-    from docrooter.rooter import process
+    from docrooter.rooter import RouterConfig, process
 
+    if out is not None:
+        _check_writable(out)
     with _errors_exit_1():
+        resolved = (
+            _element_config(profile, config, "--chunks")
+            if chunks
+            else RouterConfig.resolve(profile=_check_profile(profile), file=config)
+        )
         started = time.perf_counter()
-        analysis = process(file, config=config, profile=_check_profile(profile))
+        analysis = process(file, config=resolved)
         if chunks:
             data = json.loads(analysis.to_json())
             data["chunks"] = [c.model_dump(mode="json") for c in chunk(analysis)]

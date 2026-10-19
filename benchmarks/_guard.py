@@ -32,10 +32,11 @@ ENV_CAPS: dict[str, str] = {
 MPS_CAP_VARS = (runtime.MPS_HIGH_WATERMARK_ENV, runtime.MPS_LOW_WATERMARK_ENV)
 # Processes that load models: the model benchmarks (``python -m benchmarks.<name>`` or
 # ``benchmarks/<name>.py``), the playground server, teacher labelling (``teach label``), the
-# corpus build, the element-tagger training chain and selector fitting.
+# corpus build, the element-tagger training chain, selector fitting, the selection benchmarks and
+# the extraction demo.
 _MODEL_PROCESS = re.compile(
     r"benchmarks[./](run|pdf_bench|normalize_bench|memory_check|profile_pipeline|elements_bench|ocr_bench"
-    r"|element_tags_bench)\b"
+    r"|element_tags_bench|selection_bench|evidence_qa|extraction[./]run)\b"
     r"|\bdocrooter serve\b"
     r"|\bteach label\b"
     r"|\bcorpus build\b"

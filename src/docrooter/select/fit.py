@@ -68,10 +68,13 @@ if TYPE_CHECKING:
     from docrooter.rooter.analysis import Analysis
 
 __all__ = [
+    "LABELER",
     "MAX_HASH_MISMATCH",
     "MAX_MISSING_LABELS",
     "CorpusPdfReader",
     "fit_selector",
+    "label_leaves",
+    "labels_by_document",
     "section_doc_type",
 ]
 
@@ -211,8 +214,10 @@ class _Rows:
         return {"rows": rows, "relevant": relevant, "share": relevant / rows if rows else 0.0}
 
 
-def _labels_by_document(corpus: Corpus) -> dict[str, dict[str, dict[str, str]]]:
-    """``doc_id -> element_id -> text sha1 -> teacher-full topic leaf``."""
+def labels_by_document(corpus: Corpus) -> dict[str, dict[str, dict[str, str]]]:
+    """``doc_id -> element_id -> text sha1 -> teacher-full topic leaf``. The selection benchmark
+    reads the gold documents' relevance through this and :func:`label_leaves`, so recall is
+    measured on exactly the labels and reading the selector was fitted on."""
     from docrooter.taxonomies import builtin_taxonomy
     from docrooter.teach.enrich import teacher_choices
 
@@ -228,7 +233,7 @@ def _labels_by_document(corpus: Corpus) -> dict[str, dict[str, dict[str, str]]]:
     return out
 
 
-def _relevance(
+def label_leaves(
     ctx: DocContext, labels: Mapping[str, Mapping[str, str]], doc_id: str
 ) -> tuple[list[str | None], dict[str, Any]]:
     """Each content element's teacher-full leaf (``None`` when unlabelled or mismatched), and
@@ -347,7 +352,7 @@ def fit_selector(
     )
     from docrooter.teach.shortlist import doc_family
 
-    labels = _labels_by_document(corpus)
+    labels = labels_by_document(corpus)
     calib = [r for r in corpus.manifest() if r.split == "calib"]
     fit_docs = [r for r in calib if calib_half(r.id) == "fit"]
     crc_docs = [r for r in calib if is_calib_crc(r)]
@@ -453,7 +458,7 @@ def _fit_all(
                 f"{record.id}: the full features need every content element tagged and "
                 "embedded; the tagger left some untagged"
             )
-        leaves, checks[record.id] = _relevance(ctx, labels.get(record.id, {}), record.id)
+        leaves, checks[record.id] = label_leaves(ctx, labels.get(record.id, {}), record.id)
         counts[half][family] += 1
         for field in fields[family]:
             topics = set(field.topics)

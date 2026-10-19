@@ -33,6 +33,7 @@ INCLUDES: dict[str, str] = {
     "benchmarks/heldout.md": "docs/benchmarks-heldout.md",
     "benchmarks/elements.md": "docs/benchmarks-elements.md",
     "benchmarks/element-tags.md": "docs/benchmarks-element-tags.md",
+    "benchmarks/selection.md": "docs/benchmarks-selection.md",
     "benchmarks/public-datasets.md": "docs/benchmarks.md",
     "benchmarks/performance.md": "docs/performance.md",
     "about/changelog.md": "CHANGELOG.md",

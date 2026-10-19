@@ -354,12 +354,14 @@ print("\n\n".join(chunk.text for chunk in selection.chunks))
 ```
 
 - **What `c` promises.** On documents like its calibration set, the *average* share of relevant
-  elements kept is at least `c` (conformal risk control). It is an average, not a promise about
-  any one document, and "relevant" is what the **teacher** model labelled, not a human.
-- **When it promises nothing.** Free-text queries, a missing tagger or embedder, a document type
-  that does not match the field's family, and a token budget give an estimate only
-  (`guarantee=False`). Where the calibration set is too small for `c`, the whole document comes
-  back (`capped=True`).
+  elements kept is at least `c` (conformal risk control), averaged over documents **and over the
+  fields of the family**. It is not a promise about any one document or any one field, and
+  "relevant" is what the **teacher** model labelled, not a human.
+- **When it promises nothing.** Below `c = 1.0`, free-text queries, a missing tagger or embedder,
+  a document type that does not match the field's family, a token budget, and a field the dial
+  was not calibrated on (your own, until you refit) give an estimate only (`guarantee=False`).
+  Where the calibration set is too small for `c` (only above `n/(n+1)`), the whole document comes
+  back (`capped=True`). `c = 1.0` is always the whole document.
 - **Your own corpus.** A selector is fitted, not shipped: `docrooter teach label --full`, then
   `docrooter fit-selector`. Without one only `c = 1.0` works.
 - **Results** are pending: [docs/benchmarks-selection.md](docs/benchmarks-selection.md).
@@ -399,6 +401,9 @@ docrooter corpus build corpus/ --from-manifest manifest.jsonl --pdf-dir pdfs/   
 docrooter train-elements corpus/ --out bundle/ --teacher mlx:<repo>@<rev>       # label, train, calibrate
 docrooter tag report.pdf --bundle bundle/                # topic and function tag per element
 docrooter tag-corpus corpus/ --bundle bundle/ --split train --split calib
+docrooter select report.pdf --need annual_report.risk_factors --tagger bundle/   # what to read, at c = 0.9
+docrooter teach label corpus/ --full --splits calib      # the teacher labels every calibration element
+docrooter fit-selector corpus/ --bundle bundle/ --out bundle/selector.json   # fit the dial
 
 docrooter eval -t taxonomy.json -d labelled.jsonl -b keyword          # accuracy, hierarchical F1
 docrooter eval -t taxonomy.json -d labelled.jsonl --format md

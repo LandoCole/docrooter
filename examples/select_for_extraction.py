@@ -74,6 +74,7 @@ def read_the_selection(analysis, field) -> str:
 
 def refit_with_your_fields(fields) -> None:
     """Fit a selector on your corpus with your own field set (the dial is calibrated on it)."""
+    from docrooter import builtin_fields
     from docrooter.corpus import Corpus
     from docrooter.select import fit_selector
 
@@ -81,7 +82,7 @@ def refit_with_your_fields(fields) -> None:
         Corpus("corpus/"),
         "bundles/tagger-a",
         "embedding:dmis-lab/UltraBERT-Embed-150M",
-        fields_by_family={"annual_report": fields},
+        fields_by_family={"annual_report": [*builtin_fields("annual_report"), *fields]},
         pdf_dir="corpus/pdfs",
     )
     selector.save("bundles/tagger-a/selector.json")

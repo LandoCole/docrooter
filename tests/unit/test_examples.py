@@ -313,6 +313,12 @@ def test_selection_docs_state_what_the_guarantee_is_and_is_not():
         "budget",
         "estimate only",
         "`c = 1.0` is always the whole document",
+        "average over documents and fields",
+        "Claude-annotated",
+        "Tags are not used",
+        "Below `c = 1.0`",
+        "uncalibrated_field=True",
+        "`c > n/(n+1)`",
         "pending",
     ):
         assert fact in concept, fact

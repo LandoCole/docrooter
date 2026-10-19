@@ -52,7 +52,8 @@ docrooter select report.pdf --need annual_report.risk_factors --need annual_repo
 ```
 
 Any other `--need` value is a **free-text query**, such as `--need "interest rate risk"`. A query
-works, but it never carries the guarantee (see [below](#3-read-the-selection)).
+works, but below `c = 1.0` it never carries the guarantee (see [below](#3-read-the-selection)).
+A mistyped field id is read as a query too, so check the readout: a query shows "(estimate)".
 
 **Your own field** is a JSON file. A field names the `element_topics` leaves that carry it, all in
 one family; `functions` and `query` are optional:
@@ -87,13 +88,15 @@ functions = builtin_taxonomy("element_functions")
 validate_fields(fields, topics, functions)
 ```
 
-Then pass a `Field` as the need: `select(analysis, fields[0], ...)`. Read
-[Refit on your own corpus](#refit-on-your-own-corpus) before you rely on the guarantee for it.
+Then pass a `Field` as the need: `select(analysis, fields[0], ...)`. Until you
+[refit with it](#refit-on-your-own-corpus), it works but is an estimate: the selector reports
+`uncalibrated_field=True` and `guarantee=False`.
 
 ## 2. Choose a completeness, or a budget
 
 `completeness` is the share of the relevant content you want to keep, on average over documents
-like the calibration set.
+like the calibration set and over the fields of the family (the dial pools its calibration
+units across the fields, so a single field can sit below it).
 
 | `completeness` | Use it when |
 | --- | --- |
@@ -129,21 +132,22 @@ fields. These matter before you trust it:
 
 | You see | It means | What to do |
 | --- | --- | --- |
-| `guarantee=True` | The dial's guarantee applies: on documents like its calibration set, the mean share of **teacher-relevant** elements kept is at least `c` | Rely on it on, and only on, such documents |
+| `guarantee=True` | The dial's guarantee applies: on documents like its calibration set, the mean share of **teacher-relevant** elements kept, over documents and the family's fields, is at least `c` (at `c = 1.0` it is always `True`: the whole document) | Rely on it on, and only on, such documents |
 | `guarantee=False`, "(estimate)" | The recall is the model's own estimate | Treat as an estimate; raise `c` if a miss is costly |
+| `uncalibrated_field=True` | The guarantee would have applied, but a field of the need is not one the dial was fitted with (a field of your own, one with edited topics, or any field of a `selector.json` that predates this record). The readout says "field not calibrated (estimate)" | Refit with the field, or accept an estimate |
 | `capped=True` | The calibration set was too small to reach this `c`, so the **whole document** is returned | Fine, just costlier; fit with more documents to uncap it |
 | `doc_type_mismatch=True` | The document's type maps to another family than the field's, for example an annual-report field on a prospectus. The elements were re-tagged for the field's family; the guarantee is dropped | Check the document type, or accept an estimate |
 | `over_budget=True` | The most relevant element alone is over your budget | Raise the budget |
-| `expected_recall=None` | No relevant content is expected in this document | Nothing to send; do not read it as 0 or 1 |
+| `expected_recall=None` | Without the guarantee, no relevant content is expected in this document | Nothing to send; do not read it as 0 or 1 |
 
-A query, a missing tagger or embedder, and a budget also give `guarantee=False`.
+Below `c = 1.0`, a query, a missing tagger or embedder, and a budget also give `guarantee=False`.
 [The completeness dial](../concepts/completeness-dial.md#when-there-is-no-guarantee) lists every
 case and why.
 
 **What the guarantee is against.** It is calibrated against **teacher relevance**: a local LLM
 labelled the topic of each element, and "relevant" means its topic is one of the field's. It is
-not calibrated against human labels. It is also an average: at `c = 0.9` some documents keep less
-than 90%.
+not calibrated against human labels. It is also an average, over documents and fields: at
+`c = 0.9` some documents, and some fields, keep less than 90%.
 
 ## 4. Pass the chunks to your LLM
 
@@ -215,9 +219,11 @@ family has few, expect `capped=True` at high `c`.
 **For a field set of your own:**
 
 1. Write the JSON and check it with `validate_fields` (step 1).
-2. Include it when you fit, from Python (`fit-selector` on the shell uses the built-in sets), so the dial is calibrated on units like yours:
+2. Include it when you fit, from Python (`fit-selector` on the shell uses only the built-in sets),
+   so the dial is calibrated on units like yours:
 
     ```python
+    from docrooter import builtin_fields
     from docrooter.corpus import Corpus
     from docrooter.select import fit_selector
 
@@ -225,19 +231,21 @@ family has few, expect `capped=True` at high `c`.
         Corpus("corpus/"),
         "bundles/tagger-a",
         "embedding:dmis-lab/UltraBERT-Embed-150M",
-        fields_by_family={"annual_report": fields},
+        fields_by_family={"annual_report": [*builtin_fields("annual_report"), *fields]},
         pdf_dir="corpus/pdfs",
     )
     selector.save("bundles/tagger-a/selector.json")
     ```
 
-3. `fields_by_family` replaces the built-in sets, so list every field you want in the family.
+3. `fields_by_family` replaces the built-in sets, so list every field you want guaranteed, the
+   built-in ones too. A field left out is not calibrated after the refit.
 
-A field you did not fit with still **works**, since the combiner scores any field from the same
-features, but `select()` cannot tell: it reports `guarantee=True` for any field of a family that has a dial.
-Whether that is true for your field depends on it resembling the fields the dial was calibrated
-on, and on your documents resembling the calibration documents. Check recall on a few documents
-you have labelled yourself.
+The selector records the fields it was fitted with, each by id and a fingerprint of its topics and
+functions, and `select()` guarantees recall for those and for nothing else. A field you did not
+fit with still **works**, since the combiner scores any field from the same features, but it is an
+estimate (`uncalibrated_field=True`). The guarantee for a fitted field is still only as good as
+your documents' likeness to the calibration documents: check recall on a few you have labelled
+yourself.
 
 ## Measuring it
 

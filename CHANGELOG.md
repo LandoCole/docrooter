@@ -63,17 +63,22 @@ element tags and a tagger you train yourself, and (v0.6) selection and the compl
   - **`select()`** takes a field, a list of fields of one family or a free-text query, and
     returns a `Selection`: the element ids in reading order, the `chunks`, `tokens` and
     `token_share`, `expected_recall`, `relevant_expected`, and the flags `guarantee`, `capped`,
-    `doc_type_mismatch` and `over_budget`. `readout()` is its one-line summary. `completeness=1.0`
+    `doc_type_mismatch`, `uncalibrated_field` and `over_budget`. `readout()` is its one-line summary. `completeness=1.0`
     is always the whole document and needs no model. A `budget` (tokens) replaces the dial.
     Each selected element brings its context (the previous element, the section's heading and
     first paragraph, a table's caption), so expansion can only raise recall.
   - **The dial** is conformal risk control, per element family: on documents like the calibration
-    set, the average share of relevant elements kept is at least `c`. **It is calibrated against
-    teacher relevance, not human labels**, it is an average (some documents are below `c`), its
-    1/(n+1) slack can cap it (the whole document is returned, `capped=True`), and its units come
-    from shared documents, so they are correlated. It gives no guarantee, only an estimate, for
-    free-text queries, without a tagger or embedder, on a document type that does not match the
-    field's family, under a budget, or for a family without a dial.
+    set, the average share of relevant elements kept is at least `c`, averaged over documents and
+    over the family's fields (units are pooled across fields, so one field can sit below `c`).
+    **It is calibrated against teacher relevance, not human labels**, it is an average (some
+    documents are below `c`), its 1/(n+1) slack caps it only above `c = n/(n+1)` (the whole
+    document is returned, `capped=True`), and its units come from shared documents, so they are
+    correlated. Below `c = 1.0` it gives no guarantee, only an estimate, for free-text queries,
+    without a tagger or embedder, on a document type that does not match the field's family,
+    under a budget, for a family without a dial, or for a field it was not calibrated on
+    (`uncalibrated_field=True`: the selector records the fitted fields by id and a fingerprint of
+    their topics and functions; a `selector.json` without that record guarantees no field).
+    `c = 1.0` is always the whole document and reports `guarantee=True`.
   - **`docrooter fit-selector`** fits the relevance models (on calib-fit) and the dials (on
     calib-crc) from the teacher's full labels, which `docrooter teach label --full` writes
     (`labels/teacher-full.jsonl`, never used to train the tagger). There is no built-in selector:

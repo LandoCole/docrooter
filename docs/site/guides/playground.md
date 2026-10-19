@@ -53,23 +53,27 @@ one. The `jev` backend appears only when `TYPESAFE_API_KEY` is set.
 
 ## The completeness dial
 
-With a [selector](../guides/select-for-extraction.md) and a tagger (`docrooter serve
---element-tags BUNDLE --selector SELECTOR`), a run in element mode shows a panel, *What to send
-to an LLM*, above the result tabs:
+A run in element mode shows a panel, *What to send to an LLM*, above the result tabs. With a
+[selector](../guides/select-for-extraction.md) and a tagger (`docrooter serve --element-tags
+BUNDLE --selector SELECTOR`) the whole slider works; without a selector only the whole-document
+preset (1.0) does:
 
 - **Field or query.** Pick a built-in field, or type a free-text query.
 - **Completeness.** A slider from 0.5 to 1, with presets Lean (0.8), Balanced (0.9), Thorough
   (0.98) and Whole document (1.0).
 - **Readout.** For example "≈ 90% of relevant content kept · 3,240 tokens (12%) · guaranteed on
-  calibration-like documents", with badges when it is an estimate, when the dial was capped by
-  its calibration size, when the document type does not match the field's family, or when a
-  budget was exceeded.
+  calibration-like documents" (an illustration of the line's shape, not a result), with badges
+  when it is an estimate, when the dial was capped by its calibration size, when the document
+  type does not match the field's family, when the field was not calibrated, or when a budget was
+  exceeded. The playground offers built-in fields only, and a selector made before the calibrated
+  fields were recorded shows "field not calibrated".
 - **Elements tab.** The selected elements are highlighted, and *Show selected only* hides the
   rest.
 
 The last three runs in element mode keep their analysis so the slider reacts quickly; it stays in
-memory only, like everything else, and selecting on an older run says to run the file again. Selecting loads the selector's embedding model on the worker, between
-runs, so one model is loaded at a time. What the readout does and does not promise is on
+memory only, like everything else, and selecting on an older run says to run the file again.
+Selecting loads the selector's embedding model on the worker, between runs, so one model is
+loaded at a time. What the readout does and does not promise is on
 [the completeness dial](../concepts/completeness-dial.md): "guaranteed" means teacher-relevant
 recall on documents like the calibration set, on average.
 

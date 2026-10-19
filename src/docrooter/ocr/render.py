@@ -1,8 +1,14 @@
-"""Render a PDF page (or a part of it) to a PNG for OCR."""
+"""Render a PDF page (or a part of it) to a PNG for OCR.
+
+Every render is capped at ``MAX_RENDER_PIXELS`` for the whole page: a larger page renders at a
+lower dpi (:func:`render_dpi`), so a tiny PDF with a huge page cannot make OCR or a layout model
+allocate gigabytes. A clipped render uses the whole page's dpi.
+"""
 
 from __future__ import annotations
 
 import importlib
+import math
 import struct
 import zlib
 from pathlib import Path
@@ -14,13 +20,26 @@ from docrooter._extras import require
 from docrooter.elements.models import Box
 from docrooter.errors import DocrooterError
 
-__all__ = ["render_page", "render_page_rgb"]
+__all__ = ["MAX_RENDER_PIXELS", "render_dpi", "render_page", "render_page_rgb"]
+
+MAX_RENDER_PIXELS = 25_000_000  # a letter page at 300 dpi is 8.4 MP; RGB is 75 MB at the cap
+_CAP_MARGIN = 0.999  # room for the renderers rounding the pixel size up
+
+
+def render_dpi(width_pt: float, height_pt: float, dpi: float) -> float:
+    """The dpi a ``width_pt`` x ``height_pt`` page renders at when ``dpi`` is asked: ``dpi``,
+    or lower when the page would exceed ``MAX_RENDER_PIXELS``."""
+    pixels = (width_pt * dpi / 72.0) * (height_pt * dpi / 72.0)
+    if pixels <= MAX_RENDER_PIXELS or width_pt <= 0 or height_pt <= 0:
+        return float(dpi)
+    return 72.0 * math.sqrt(MAX_RENDER_PIXELS / (width_pt * height_pt)) * _CAP_MARGIN
 
 
 def render_page(
     path: str | Path, page: int, *, dpi: int = 200, clip: Box | None = None
 ) -> tuple[bytes, int, int]:
-    """Render ``page`` (1-based) of ``path`` at ``dpi`` and return ``(png, width_px, height_px)``.
+    """Render ``page`` (1-based) of ``path`` at ``dpi`` (lowered by :func:`render_dpi` for a page
+    over ``MAX_RENDER_PIXELS``) and return ``(png, width_px, height_px)``.
 
     ``clip``, a box in the displayed page's points (``/Rotate`` applied, origin top left), renders
     only that rectangle. Uses ``pymupdf`` when it is installed and ``pypdfium2`` otherwise, so the
@@ -38,7 +57,8 @@ def render_page(
 def render_page_rgb(
     path: str | Path, page: int, *, dpi: int, extra: str = "ocr"
 ) -> tuple[Any, float, float]:
-    """Render the whole ``page`` (1-based) of ``path`` at ``dpi`` as pixels for a model.
+    """Render the whole ``page`` (1-based) of ``path`` at ``dpi`` (capped as in
+    :func:`render_page`) as pixels for a model.
 
     Returns ``(rgb, width_pt, height_pt)``: an ``uint8`` array of shape ``(height_px, width_px,
     3)`` and the displayed page's size in points (``/Rotate`` applied). Uses ``pymupdf`` when
@@ -56,7 +76,8 @@ def render_page_rgb(
                 raise DocrooterError(f"page {page} is out of range (the PDF has {len(pdf)} pages)")
             pg = pdf[page - 1]
             width_pt, height_pt = (float(v) for v in pg.get_size())
-            pixels = pg.render(scale=dpi / 72.0).to_numpy()  # BGR(A)
+            scale = render_dpi(width_pt, height_pt, dpi) / 72.0
+            pixels = pg.render(scale=scale).to_numpy()  # BGR(A)
         finally:
             pdf.close()
         if (pixels.shape[1] > pixels.shape[0]) != (width_pt > height_pt):
@@ -67,7 +88,7 @@ def render_page_rgb(
         if not 1 <= page <= len(doc):
             raise DocrooterError(f"page {page} is out of range (the PDF has {len(doc)} pages)")
         pg = doc[page - 1]
-        scale = dpi / 72.0
+        scale = render_dpi(pg.rect.width, pg.rect.height, dpi) / 72.0
         pix = pg.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False)
         n = int(pix.n)
         rgb = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, n)
@@ -84,7 +105,7 @@ def _render_pymupdf(
             raise DocrooterError(f"page {page} is out of range (the PDF has {len(doc)} pages)")
         pg = doc[page - 1]
         rect = pymupdf.Rect(clip.x0, clip.y0, clip.x1, clip.y1) if clip is not None else None
-        scale = dpi / 72.0
+        scale = render_dpi(pg.rect.width, pg.rect.height, dpi) / 72.0
         pix = pg.get_pixmap(matrix=pymupdf.Matrix(scale, scale), clip=rect, alpha=False)
         return pix.tobytes("png"), int(pix.width), int(pix.height)
 
@@ -97,8 +118,10 @@ def _render_pdfium(
     try:
         if not 1 <= page <= len(pdf):
             raise DocrooterError(f"page {page} is out of range (the PDF has {len(pdf)} pages)")
-        scale = dpi / 72.0
-        pixels = pdf[page - 1].render(scale=scale).to_numpy()  # height x width x channels, BGR(A)
+        pg = pdf[page - 1]
+        width_pt, height_pt = (float(v) for v in pg.get_size())
+        scale = render_dpi(width_pt, height_pt, dpi) / 72.0
+        pixels = pg.render(scale=scale).to_numpy()  # height x width x channels, BGR(A)
     finally:
         pdf.close()
     if clip is not None:

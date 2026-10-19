@@ -550,6 +550,9 @@ def _run_ocr(
                 decision.reason = f"needs_ocr: {decision.reason}; no OCR engine, text layer kept"
                 continue
             decision.engine = name or "ocr"
+            capped = _render_dpi(objs.width, objs.height, dpi)
+            if capped < dpi:  # a page over MAX_RENDER_PIXELS renders at a lower dpi
+                decision.metrics["dpi_capped"] = round(capped, 1)
             try:
                 if task != "text":
                     whole = Box(page=objs.page, x0=0.0, y0=0.0, x1=objs.width, y1=objs.height)
@@ -596,6 +599,12 @@ def _run_ocr(
         skipped=out.skipped,
     )
     return out
+
+
+def _render_dpi(width_pt: float, height_pt: float, dpi: int) -> float:
+    from docrooter.ocr.render import render_dpi  # numpy and the renderers load on first use
+
+    return render_dpi(width_pt, height_pt, dpi)
 
 
 def _recognize(engine: OcrEngine, path: Path, box: Box, dpi: int, *, clip: bool) -> list[OcrLine]:

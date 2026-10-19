@@ -47,7 +47,9 @@ class RouterConfig(BaseModel):
       ``none``).
     - ``escalate``: ``none`` or a backend spec that re-labels results whose confidence is below
       ``escalate_below`` (spec §7.5).
-    - ``max_pages``, ``ocr_lang``, ``ocr_dpi``: page cap, OCR language and OCR render DPI.
+    - ``max_pages``, ``ocr_lang``, ``ocr_dpi``: page cap, OCR language and OCR render DPI
+      (72 to 600; a page over ``docrooter.ocr.render.MAX_RENDER_PIXELS`` renders at a lower
+      dpi, recorded as ``dpi_capped`` in its route metrics).
 
     Engine and backend names are checked when :func:`~docrooter.process` resolves them, so
     engines registered after the configuration was built still work.
@@ -68,7 +70,7 @@ class RouterConfig(BaseModel):
     escalate_below: float = Field(0.5, ge=0.0, le=1.0)
     max_pages: int | None = Field(None, ge=1)
     ocr_lang: str = Field("en", min_length=1)
-    ocr_dpi: int = Field(200, gt=0)
+    ocr_dpi: int = Field(200, ge=72, le=600)
 
     @model_validator(mode="before")
     @classmethod

@@ -97,6 +97,8 @@ def test_unknown_key_is_error(tmp_path):
         {"escalate_below": 1.5},
         {"max_pages": 0},
         {"ocr_dpi": 0},
+        {"ocr_dpi": 71},  # final review R-I2: 72..600
+        {"ocr_dpi": 601},
         {"tables": "text"},
         {"summaries": "abstractive"},
         {"text": "pymupdf4llm"},
@@ -106,6 +108,10 @@ def test_unknown_key_is_error(tmp_path):
 def test_invalid_values_are_errors(bad):
     with pytest.raises(ValidationError):
         RouterConfig(**bad)
+
+
+def test_ocr_dpi_bounds_are_inclusive():
+    assert RouterConfig(ocr_dpi=72).ocr_dpi == 72 and RouterConfig(ocr_dpi=600).ocr_dpi == 600
 
 
 def test_toml_and_json_files(tmp_path):

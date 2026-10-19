@@ -352,6 +352,51 @@ def test_render_page_and_clip(tmp_path, monkeypatch, backend, rotation):
         render.render_page(path, 1, dpi=0)
 
 
+def _huge_pdf(tmp_path, side=3600):
+    pymupdf = pytest.importorskip("pymupdf")
+    doc = pymupdf.open()
+    page = doc.new_page(width=side, height=side)
+    pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 8, 8), False)
+    pix.set_rect(pix.irect, (200, 200, 200))
+    page.insert_image(page.rect, stream=pix.tobytes("png"), keep_proportion=False)
+    path = tmp_path / "huge.pdf"
+    doc.save(path)
+    doc.close()
+    return path
+
+
+def test_render_dpi_caps_the_pixel_count():
+    from docrooter.ocr.render import MAX_RENDER_PIXELS, render_dpi
+
+    assert MAX_RENDER_PIXELS == 25_000_000
+    assert render_dpi(612, 792, 300) == 300  # a letter page at 300 dpi is 8.4 MP: no cap
+    capped = render_dpi(3600, 3600, 200)  # 10000 x 10000 px at 200 dpi
+    assert capped < 200
+    assert (3600 * capped / 72) ** 2 <= MAX_RENDER_PIXELS
+    assert (3600 * capped / 72) ** 2 >= 0.99 * MAX_RENDER_PIXELS
+    assert render_dpi(14400, 14400, 600) > 0  # the largest PDF page still renders
+
+
+@pytest.mark.parametrize("backend", ["pymupdf", "pdfium"])
+def test_huge_page_renders_within_the_pixel_cap(tmp_path, monkeypatch, backend):
+    # Final review R-I2: a 3.6 KB PDF with a 3600 pt page asked 10000 x 10000 px at 200 dpi
+    from docrooter.ocr import render
+
+    path = _huge_pdf(tmp_path)
+    if backend == "pdfium":
+        pytest.importorskip("pypdfium2")
+        monkeypatch.setitem(sys.modules, "pymupdf", None)  # force the fallback
+    png, w, h = render.render_page(path, 1, dpi=200)
+    assert w * h <= render.MAX_RENDER_PIXELS and _png_size(png) == (w, h)
+    assert w * h >= 0.98 * render.MAX_RENDER_PIXELS  # capped, not shrunk further
+    clip = Box(page=1, x0=0, y0=0, x1=3600, y1=1800)
+    _, w, h = render.render_page(path, 1, dpi=600, clip=clip)
+    assert w * h <= render.MAX_RENDER_PIXELS / 2 + w + h
+    rgb, width_pt, height_pt = render.render_page_rgb(path, 1, dpi=200)
+    assert rgb.shape[0] * rgb.shape[1] <= render.MAX_RENDER_PIXELS
+    assert (width_pt, height_pt) == (3600, 3600)
+
+
 @pytest.mark.parametrize("lang", ["-l", "--version", "eng;rm", "eng deu", "", "eng+", "../eng"])
 def test_tesseract_rejects_invalid_language(monkeypatch, lang):
     monkeypatch.setattr("docrooter.ocr.tesseract.shutil.which", lambda name: "/opt/tess")

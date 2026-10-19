@@ -278,6 +278,31 @@ def test_scanned_pdf_with_fake_ocr_has_sections():
     assert {e.source for e in doc.elements} == {"ocr"}
 
 
+def test_huge_scanned_page_is_ocred_at_a_capped_dpi(tmp_path):
+    # Final review R-I2: the render is capped at MAX_RENDER_PIXELS and the route says so
+    from docrooter.ocr.render import MAX_RENDER_PIXELS
+
+    doc = pymupdf.open()
+    page = doc.new_page(width=3600, height=3600)
+    pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 8, 8), False)
+    pix.set_rect(pix.irect, (190, 190, 190))
+    page.insert_image(page.rect, stream=pix.tobytes("png"), keep_proportion=False)
+    path = _save(doc, tmp_path / "huge.pdf")
+    sizes = []
+
+    class Sizes(FakeOcr):
+        def recognize(self, image, *, width_px, height_px, page):
+            sizes.append(width_px * height_px)
+            return super().recognize(image, width_px=width_px, height_px=height_px, page=page)
+
+    out = load_pdf(path, elements=True, ocr=Sizes(pages={1: _ocr_page("Survey")}))
+    (route,) = out.meta["routes"]
+    assert route["task"] == "ocr" and sizes and max(sizes) <= MAX_RENDER_PIXELS
+    assert 0 < route["metrics"]["dpi_capped"] < 200
+    normal = load_pdf(GOLDEN / "scanned.pdf", elements=True, ocr=FakeOcr(pages={1: _ocr_page("A")}))
+    assert all("dpi_capped" not in r["metrics"] for r in normal.meta["routes"])
+
+
 def test_scanned_pdf_without_ocr_warns():
     doc = load_pdf(GOLDEN / "scanned.pdf", elements=True)
     assert list(doc.sections) == ["s0"] and doc.sections["s0"].text == ""

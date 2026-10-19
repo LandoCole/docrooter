@@ -401,6 +401,30 @@ def test_backends_listing(client, monkeypatch):
     assert specs[-1] == "jev:jev-1.13.0"
 
 
+def test_blank_jev_key_is_no_key_in_the_playground_and_the_profiles(client, monkeypatch):
+    # final review minor: one check (strip, then non-empty) for the server and the profiles
+    from docrooter.rooter.profiles import profile_defaults
+
+    monkeypatch.setenv("TYPESAFE_API_KEY", "   ")
+    specs = [b["spec"] for b in client.get("/api/backends").json()["backends"]]
+    assert "jev:jev-1.13.0" not in specs
+    assert profile_defaults("accurate")["escalate"] == "none"
+    assert post(client, backend="jev:jev-1.13.0").status_code == 400
+
+
+def test_summary_keyphrases_are_cut():
+    from docrooter.summarize import Summary
+    from docrooter.ui.server import MAX_KEYPHRASE_CHARS, MAX_KEYPHRASES, _summary_out
+
+    summary = Summary(key_sentences=["s"], keyphrases=["x" * 5000] * 50, method="lead")
+    out = _summary_out(summary)
+    assert len(out["keyphrases"]) == MAX_KEYPHRASES
+    assert all(len(p) == MAX_KEYPHRASE_CHARS and p.endswith("…") for p in out["keyphrases"])
+    assert _summary_out(Summary(key_sentences=[], keyphrases=["revenue growth"], method="lead"))[
+        "keyphrases"
+    ] == ["revenue growth"]
+
+
 def test_jev_needs_the_key_to_be_selectable(client, monkeypatch):
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
     assert post(client, backend="jev:jev-1.13.0").status_code == 400

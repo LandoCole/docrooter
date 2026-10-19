@@ -13,7 +13,7 @@ from typing import Any, Final
 
 from docrooter.classify.classifier import DEFAULT_BACKEND
 
-__all__ = ["DEFAULT_PROFILE", "JEV_ESCALATION", "PROFILES", "profile_defaults"]
+__all__ = ["DEFAULT_PROFILE", "JEV_ESCALATION", "PROFILES", "jev_key_set", "profile_defaults"]
 
 DEFAULT_PROFILE: Final = "balanced"
 # docrooter.backends.jev's API_KEY_ENV and DEFAULT_MODEL, repeated so that importing docrooter
@@ -61,6 +61,12 @@ PROFILES: dict[str, dict[str, Any]] = {
 when ``TYPESAFE_API_KEY`` is set; :func:`profile_defaults` applies that condition."""
 
 
+def jev_key_set() -> bool:
+    """Whether ``TYPESAFE_API_KEY`` holds a key: set and not blank. The profiles and the
+    playground's backend list use this one check."""
+    return bool(os.environ.get(API_KEY_ENV, "").strip())
+
+
 def profile_defaults(name: str) -> dict[str, Any]:
     """A copy of profile ``name``'s settings as they apply now: ``accurate`` escalates to Jev
     only when the ``TYPESAFE_API_KEY`` environment variable is set (non-blank), else
@@ -68,6 +74,6 @@ def profile_defaults(name: str) -> dict[str, Any]:
     if name not in PROFILES:
         raise ValueError(f"unknown profile {name!r}; use one of {', '.join(PROFILES)}")
     values = dict(PROFILES[name])
-    if values["escalate"] == JEV_ESCALATION and not os.environ.get(API_KEY_ENV, "").strip():
+    if values["escalate"] == JEV_ESCALATION and not jev_key_set():
         values["escalate"] = "none"
     return values

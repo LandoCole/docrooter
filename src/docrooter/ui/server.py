@@ -68,6 +68,7 @@ from docrooter.ocr import registry as ocr_registry  # noqa: E402
 from docrooter.pdf.load import ENGINES  # noqa: E402
 from docrooter.rooter import DEFAULT_PROFILE, PROFILES, RouterConfig, process  # noqa: E402
 from docrooter.rooter.process import _LazyOcr  # noqa: E402
+from docrooter.rooter.profiles import jev_key_set  # noqa: E402
 from docrooter.summarize import Summary  # noqa: E402
 from docrooter.taxonomies import builtin_taxonomy  # noqa: E402
 from docrooter.taxonomy import Taxonomy  # noqa: E402
@@ -102,6 +103,10 @@ MAX_ELEMENT_TEXT_CHARS = 200
 MAX_SUMMARY_SENTENCE_CHARS = 300
 """Characters kept of each key sentence in the result (the sentence splitter can return a very
 long one from text without full stops)."""
+MAX_KEYPHRASES = 20
+MAX_KEYPHRASE_CHARS = 80
+"""Key phrases kept per summary, and characters kept of each (a text of long tokens gives long
+phrases)."""
 MAX_PAGES = 2000
 HISTORY = 20
 """Runs kept in memory; the oldest is dropped when a new one arrives."""
@@ -195,7 +200,7 @@ def available_backends(default_spec: str) -> list[BackendInfo]:
     """The catalogue, Jev only when ``TYPESAFE_API_KEY`` is set, and ``default_spec`` (the
     ``--backend`` of ``docrooter serve``) when it is none of those."""
     found = list(CATALOGUE)
-    if os.environ.get("TYPESAFE_API_KEY"):
+    if jev_key_set():  # set and not blank, as the profiles check it
         found.append(JEV)
     if all(info.spec != default_spec for info in found):
         found.append(BackendInfo(default_spec, default_spec, "Given with --backend.", ()))
@@ -456,7 +461,9 @@ def _summary_out(summary: Summary) -> dict[str, Any]:
         "key_sentences": [
             _cut(sentence, MAX_SUMMARY_SENTENCE_CHARS) for sentence in summary.key_sentences
         ],
-        "keyphrases": list(summary.keyphrases),
+        "keyphrases": [
+            _cut(phrase, MAX_KEYPHRASE_CHARS) for phrase in summary.keyphrases[:MAX_KEYPHRASES]
+        ],
     }
 
 

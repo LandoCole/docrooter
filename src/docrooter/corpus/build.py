@@ -12,20 +12,33 @@ embeddings and escalation are switched off whatever the profile says. That keeps
 than the layout engine out of the build, and Jev output out of the corpus (it may never enter
 training data, TypeSafe MCA §2.3(b)).
 
-The build is resumable. Documents already in the store (by id or sha256) are skipped, each
-document is committed as soon as it is read (see :mod:`docrooter.corpus.store`), and a PDF
-that cannot be read is recorded in the report and the build moves on. The OCR and layout
-engines are created once, on the first document that needs reading, and closed at the end.
+The build is resumable (Review Focus 5):
+
+- documents already in the store (by id or sha256) are skipped, and each document is committed
+  as soon as it is read (see :mod:`docrooter.corpus.store`);
+- a PDF that raises while being read is recorded in the store's ``failed.jsonl`` and the build
+  moves on;
+- before reading a document the build durably notes it (``attempting.json``) and clears the
+  note afterwards. A PDF that kills the process (a native crash, the OOM killer) leaves the
+  note behind, and the next build records that document as failed ("crashed previous run")
+  instead of reading it again;
+- recorded failures are skipped on later builds unless ``retry_failed`` is set.
+
+The OCR and layout engines are created once, on the first document that needs reading, and
+closed at the end. ``ocr="auto"`` with no OCR engine installed is logged once per build and
+noted in the report's ``warnings``.
 """
 
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import random
 import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -36,32 +49,52 @@ from docrooter.rooter import RouterConfig, process
 from docrooter.rooter.process import _Engines
 from docrooter.summarize import heading_titles
 
-__all__ = ["SKIPPED_KINDS", "BuildReport", "build_corpus", "corpus_elements", "select_pages"]
+__all__ = [
+    "CRASHED",
+    "SKIPPED_KINDS",
+    "BuildReport",
+    "build_corpus",
+    "corpus_elements",
+    "select_pages",
+]
 
 SKIPPED_KINDS = frozenset({"page_header", "page_footer", "page_number", "contents"})
 """Element kinds the corpus does not store: page furniture and printed contents."""
 
 _MAX_ERROR = 300  # characters of an error message kept in the report
+CRASHED = "crashed previous run"
+"""The failure reason of a document that was being read when an earlier build died."""
+OCR_UNAVAILABLE = "ocr_unavailable"
+
+_log = logging.getLogger(__name__)
 
 Progress = Callable[[int, int, str, str], None]
-"""``on_progress(done, total, doc_id, status)``, after each document; ``status`` is ``added``,
-``skipped``, ``missing``, ``mismatched`` or ``failed``."""
+"""``on_progress(done, total, doc_id, status)``. ``status`` is ``reading`` just before a
+document is read (so the last progress line names a document that kills the process), then one
+of ``added``, ``skipped``, ``skipped_failed``, ``missing``, ``mismatched`` or ``failed`` once
+it is done with."""
 
 
 class BuildReport(BaseModel):
     """What one :func:`build_corpus` run did, by document id: ``added`` to the store,
     ``skipped`` (already there, under this id or with the same sha256), ``missing`` (no
-    ``<id>.pdf``), ``mismatched`` (the PDF's sha256 is not the record's) and ``failed`` (the
-    PDF could not be read: the error's type and message). ``pages_read`` and ``elements``
-    count what was added; ``seconds`` is the wall-clock time."""
+    ``<id>.pdf``), ``mismatched`` (the PDF's sha256 is not the record's), ``failed`` (the
+    PDF could not be read in this run: the error's type and message) and ``skipped_failed``
+    (a failure recorded by an earlier run, not retried). ``crashed`` names the document an
+    earlier run died reading, recorded as failed when this run started. ``pages_read`` and
+    ``elements`` count what was added; ``warnings`` holds ``"ocr_unavailable"`` when
+    ``ocr="auto"`` found no engine; ``seconds`` is the wall-clock time."""
 
     added: list[str] = Field(default_factory=list)
     skipped: list[str] = Field(default_factory=list)
+    skipped_failed: list[str] = Field(default_factory=list)
+    crashed: list[str] = Field(default_factory=list)
     missing: list[str] = Field(default_factory=list)
     mismatched: list[str] = Field(default_factory=list)
     failed: dict[str, str] = Field(default_factory=dict)
     pages_read: int = 0
     elements: int = 0
+    warnings: list[str] = Field(default_factory=list)
     seconds: float = 0.0
 
 
@@ -119,6 +152,7 @@ def build_corpus(
     max_pages: int = 30,
     first_pages: int = 10,
     seed: int = 0,
+    retry_failed: bool = False,
     on_progress: Progress | None = None,
 ) -> BuildReport:
     """Read the documents of ``records`` from ``pdf_dir/<id>.pdf`` into ``corpus``.
@@ -127,23 +161,32 @@ def build_corpus(
     ``None``, every ``*.pdf`` in ``pdf_dir`` is a ``train`` document whose id is its file name
     (without ``.pdf``). Each PDF must hash to its record's sha256. ``profile`` names the
     rooter profile whose text, OCR and layout engines read the pages; see the module docstring
-    for what the build switches off, which pages it reads and how it resumes. The store's
-    ``stats.json`` is updated at the end.
+    for what the build switches off, which pages it reads and how it resumes (``retry_failed``
+    reads the documents that failed in earlier runs again). The store's ``stats.json`` is
+    updated at the end.
     """
     select_pages(0, first_pages=first_pages, max_pages=max_pages)  # check the arguments
     cfg = _config(profile, max_pages)
-    folder = Path(pdf_dir)
     report = BuildReport()
     started = time.perf_counter()
+    crashed = corpus.pending_attempt()
+    if crashed is not None:
+        if not corpus.has(crashed):
+            _log.warning("%s was being read when the last build died; recorded as failed", crashed)
+            corpus.record_failure(crashed, CRASHED)
+            report.crashed.append(crashed)
+        corpus.finish_attempt()
+    folder = Path(pdf_dir)
     todo = list(records) if records is not None else _folder_records(folder, report)
-    engines = _Engines(cfg, {})
+    run = _Run(corpus, folder, cfg, report, first_pages, seed, on_progress, len(todo))
+    known_failures = {} if retry_failed else corpus.failures()
     try:
         for done, record in enumerate(todo, 1):
-            status = _build_one(corpus, record, folder, cfg, engines, report, first_pages, seed)
+            status = run.one(done, record, known_failures)
             if on_progress is not None:
                 on_progress(done, len(todo), record.id, status)
     finally:
-        engines.close()
+        run.engines.close()
     report.seconds = round(time.perf_counter() - started, 3)
     corpus.stats()
     return report
@@ -168,51 +211,92 @@ def _config(profile: str, max_pages: int) -> RouterConfig:
     return cfg
 
 
-def _build_one(
-    corpus: Corpus,
-    record: ManifestRecord,
-    folder: Path,
-    cfg: RouterConfig,
-    engines: _Engines,
-    report: BuildReport,
-    first_pages: int,
-    seed: int,
-) -> str:
-    if corpus.has(record.id) or corpus.has_sha256(record.sha256):
-        report.skipped.append(record.id)
-        return "skipped"
-    path = folder / f"{record.id}.pdf"
-    if not path.is_file():
-        report.missing.append(record.id)
-        return "missing"
-    if _sha256(path) != record.sha256:
-        report.mismatched.append(record.id)
-        return "mismatched"
-    # Created on first use and reused; a missing extra stops the build here.
-    layout, _ = engines.layout()
-    ocr, _ = engines.ocr()
-    try:
-        pages = select_pages(
-            _page_count(path, cfg.text),
-            first_pages=first_pages,
-            max_pages=cfg.max_pages or 1,
-            seed=seed,
-            doc_id=record.id,
-        )
-        analysis = process(
-            path, config=cfg, pages=pages, layout=layout, ocr="none" if ocr is None else ocr
-        )
-        elements = corpus_elements(record.id, analysis.document)
-    except (MemoryError, MissingExtraError):  # the machine or the install, not the PDF
-        raise
-    except Exception as exc:  # an unreadable PDF must not stop a long build
-        report.failed[record.id] = f"{type(exc).__name__}: {exc}"[:_MAX_ERROR]
-        return "failed"
-    corpus.add_document(record, elements, pages)
-    report.added.append(record.id)
-    report.pages_read += len(pages)
-    report.elements += len(elements)
-    return "added"
+class _Run:
+    """One build: its settings, engines and report, and how it handles one document."""
+
+    def __init__(
+        self,
+        corpus: Corpus,
+        folder: Path,
+        cfg: RouterConfig,
+        report: BuildReport,
+        first_pages: int,
+        seed: int,
+        on_progress: Progress | None,
+        total: int,
+    ) -> None:
+        self.corpus, self.folder, self.cfg, self.report = corpus, folder, cfg, report
+        self.first_pages, self.seed = first_pages, seed
+        self.on_progress, self.total = on_progress, total
+        self.engines = _Engines(cfg, {})
+
+    def one(self, done: int, record: ManifestRecord, known_failures: dict[str, Any]) -> str:
+        corpus, report = self.corpus, self.report
+        if corpus.has(record.id) or corpus.has_sha256(record.sha256):
+            report.skipped.append(record.id)
+            return "skipped"
+        if record.id in known_failures:
+            report.skipped_failed.append(record.id)
+            return "skipped_failed"
+        path = self.folder / f"{record.id}.pdf"
+        if not path.is_file():
+            report.missing.append(record.id)
+            return "missing"
+        if _sha256(path) != record.sha256:
+            report.mismatched.append(record.id)
+            return "mismatched"
+        conflict = corpus.id_conflict(record)
+        if conflict is not None:  # found before the read, not after it
+            self._fail(record.id, f"ValueError: {conflict}")
+            return "failed"
+        # Created on first use and reused; a missing extra stops the build here.
+        layout, _ = self.engines.layout()
+        ocr, _ = self.engines.ocr()
+        if self.engines.ocr_unavailable and OCR_UNAVAILABLE not in report.warnings:
+            _log.warning("ocr=auto found no OCR engine: pages that need OCR keep their text layer")
+            report.warnings.append(OCR_UNAVAILABLE)
+        if self.on_progress is not None:
+            self.on_progress(done, self.total, record.id, "reading")
+        corpus.start_attempt(record.id)
+        try:
+            pages = select_pages(
+                _page_count(path, self.cfg.text),
+                first_pages=self.first_pages,
+                max_pages=self.cfg.max_pages or 1,
+                seed=self.seed,
+                doc_id=record.id,
+            )
+            analysis = process(
+                path, config=self.cfg, pages=pages, layout=layout,
+                ocr="none" if ocr is None else ocr,
+            )  # fmt: skip
+            elements = corpus_elements(record.id, analysis.document)
+        except MemoryError:  # this document exhausted memory: record it, then stop
+            self._fail(record.id, "MemoryError")
+            raise
+        except MissingExtraError:  # the install, not the PDF
+            corpus.finish_attempt()
+            raise
+        except Exception as exc:  # an unreadable PDF must not stop a long build
+            self._fail(record.id, f"{type(exc).__name__}: {exc}"[:_MAX_ERROR])
+            return "failed"
+        except BaseException:  # the run was stopped (Ctrl+C, exit): not the PDF's fault
+            corpus.finish_attempt()
+            raise
+        try:
+            corpus.add_document(record, elements, pages)
+        finally:  # added, or the store failed (disk full): either way not a crashing PDF
+            corpus.finish_attempt()
+        report.added.append(record.id)
+        report.pages_read += len(pages)
+        report.elements += len(elements)
+        return "added"
+
+    def _fail(self, doc_id: str, reason: str) -> None:
+        """Record a failure in the report and the store, and clear the attempt note."""
+        self.report.failed[doc_id] = reason
+        self.corpus.record_failure(doc_id, reason)
+        self.corpus.finish_attempt()
 
 
 def _folder_records(folder: Path, report: BuildReport) -> list[ManifestRecord]:

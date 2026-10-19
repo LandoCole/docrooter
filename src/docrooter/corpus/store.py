@@ -7,6 +7,8 @@ Layout::
     <dir>/docs/<id>.json       the document's id, sha256, hints, pages read and elements
     <dir>/labels/<name>.jsonl  one LabelRow per line, as the labeller wrote them
     <dir>/stats.json           written by :meth:`Corpus.stats`
+    <dir>/attempting.json      the document a build is reading now (see ``start_attempt``)
+    <dir>/failed.jsonl         documents a build could not read: id, reason, timestamp
 
 Crash safety (Review Focus 5). A doc file is written to a temporary file in ``docs/`` and moved
 into place with ``os.replace``, so it is either whole or absent. Its manifest line is appended
@@ -32,6 +34,7 @@ import re
 import tempfile
 from collections import Counter
 from collections.abc import Iterable, Iterator
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, NamedTuple, get_args
 
@@ -57,6 +60,7 @@ _KINDS = frozenset(get_args(ElementKind))
 _SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _SHA1 = re.compile(r"[0-9a-f]{40}")
+_ELEMENT_KEYS = frozenset({"id", "kind", "text", "heading_path", "section_title", "page"})
 
 
 def text_sha1(text: str) -> str:
@@ -245,16 +249,18 @@ def _cut_torn_tail(f: Any) -> None:
 
 
 def _complete_lines(path: Path) -> Iterator[tuple[int, str]]:
-    """The newline-terminated, non-blank lines of ``path`` with their 1-based numbers; a torn
-    last line is skipped. A missing file has none."""
+    """The newline-terminated, non-blank lines of ``path`` with their 1-based numbers, read one
+    at a time; a torn last line is skipped. A missing file has none."""
     try:
-        raw = path.read_bytes()
+        f = open(path, "rb")
     except FileNotFoundError:
         return
-    lines = raw.split(b"\n")
-    for number, line in enumerate(lines[:-1], 1):  # the last item follows the last newline
-        if line.strip():
-            yield number, line.decode("utf-8")
+    with f:
+        for number, line in enumerate(f, 1):  # binary files split on b"\n" only
+            if not line.endswith(b"\n"):
+                return  # torn: the writer died before the newline
+            if line.strip():
+                yield number, line.decode("utf-8")
 
 
 def read_manifest(path: str | os.PathLike[str]) -> list[ManifestRecord]:
@@ -335,6 +341,23 @@ class Corpus:
         self._index()
         return sha256 in self._by_sha
 
+    def id_conflict(self, record: ManifestRecord) -> str | None:
+        """Why ``record`` cannot be added under its id (``None`` if it can, or if its bytes are
+        already in the corpus): the id is in use for other bytes, or differs only in case from
+        one in use."""
+        records = self._index()
+        if record.sha256 in self._by_sha:
+            return None
+        if record.id in records:
+            return f"document id {record.id!r} is already in the corpus with another sha256"
+        clash = self._folded.get(record.id.casefold())
+        if clash is not None:
+            return (
+                f"document id {record.id!r} differs only in case from {clash!r}, which is in the "
+                "corpus (their files would collide on a case-insensitive file system)"
+            )
+        return None
+
     def add_document(
         self, record: ManifestRecord, elements: Iterable[CorpusElement], pages_read: Iterable[int]
     ) -> bool:
@@ -349,16 +372,9 @@ class Corpus:
         records = self._index()
         if record.sha256 in self._by_sha:
             return False
-        if record.id in records:
-            raise ValueError(
-                f"document id {record.id!r} is already in the corpus with another sha256"
-            )
-        clash = self._folded.get(record.id.casefold())
-        if clash is not None:
-            raise ValueError(
-                f"document id {record.id!r} differs only in case from {clash!r}, which is in the "
-                "corpus (their files would collide on a case-insensitive file system)"
-            )
+        conflict = self.id_conflict(record)
+        if conflict is not None:
+            raise ValueError(conflict)
         stored = list(elements)
         seen: set[str] = set()
         for element in stored:
@@ -410,16 +426,23 @@ class Corpus:
             for item in doc["elements"]:
                 if kinds is not None and item["kind"] not in kinds:
                     continue
-                yield CorpusElement(
-                    doc_id=record.id,
-                    element_id=item["id"],
-                    kind=item["kind"],
-                    text=item["text"],
-                    heading_path=item["heading_path"],
-                    section_title=item["section_title"],
-                    page=item["page"],
-                    table_markdown=item.get("table_markdown"),
-                )
+                try:
+                    element = CorpusElement(
+                        doc_id=record.id,
+                        element_id=item["id"],
+                        kind=item["kind"],
+                        text=item["text"],
+                        heading_path=item["heading_path"],
+                        section_title=item["section_title"],
+                        page=item["page"],
+                        table_markdown=item.get("table_markdown"),
+                    )
+                except ValidationError as exc:
+                    raise DocrooterError(
+                        f"corpus document {self._doc_path(record.id)} holds an invalid element: "
+                        f"{exc}"
+                    ) from exc
+                yield element
 
     def _read_doc(self, record: ManifestRecord) -> dict[str, Any]:
         path = self._doc_path(record.id)
@@ -433,6 +456,16 @@ class Corpus:
             or doc.get("sha256") != record.sha256
         ):
             raise DocrooterError(f"corpus document {path} does not match its manifest record")
+        elements, pages = doc.get("elements"), doc.get("pages_read")
+        if (
+            not isinstance(elements, list)
+            or not isinstance(pages, list)
+            or not all(_is_element_item(item) for item in elements)
+        ):
+            raise DocrooterError(
+                f"corpus document {path} is malformed: it needs 'pages_read' and 'elements', and "
+                f"every element needs {', '.join(sorted(_ELEMENT_KEYS))} and a known kind"
+            )
         return doc
 
     def write_labels(self, labeler: str, rows: Iterable[LabelRow]) -> int:
@@ -464,9 +497,78 @@ class Corpus:
             return []
         return sorted(p.stem for p in folder.glob("*.jsonl") if _SAFE_NAME.fullmatch(p.stem))
 
+    def _count_label_keys(self, labeler: str) -> int:
+        """The distinct keys of ``labeler``'s rows, counted line by line (no row validation)."""
+        path = self._labels_path(labeler)
+        keys: set[tuple[Any, ...]] = set()
+        for number, line in _complete_lines(path):
+            try:
+                row = json.loads(line)
+                keys.add((row["doc_id"], row["element_id"], row["text_sha1"], row["facet"]))
+            except (ValueError, KeyError, TypeError) as exc:
+                raise DocrooterError(f"{path} line {number}: invalid label row: {exc}") from exc
+        return len(keys)
+
+    # --- build bookkeeping: the document being read, and the ones that could not be ----------
+
+    @property
+    def _attempt_path(self) -> Path:
+        return self.dir / "attempting.json"
+
+    @property
+    def _failed_path(self) -> Path:
+        return self.dir / "failed.jsonl"
+
+    def start_attempt(self, doc_id: str) -> None:
+        """Durably note that ``doc_id`` is being read, before reading it. If the process dies
+        while reading (a native crash, the OOM killer), the note survives it:
+        :meth:`pending_attempt` names the document on the next run."""
+        _check_name(doc_id, "document id")
+        data = json.dumps({"doc_id": doc_id, "started_at": _now()}) + "\n"
+        _write_atomic(self._attempt_path, data.encode("utf-8"))
+
+    def finish_attempt(self) -> None:
+        """Clear the note of :meth:`start_attempt` (the document was added, its failure
+        recorded, or the run stopped for a reason that is not the document's)."""
+        with contextlib.suppress(FileNotFoundError):
+            self._attempt_path.unlink()
+            _fsync_dir(self.dir)
+
+    def pending_attempt(self) -> str | None:
+        """The document an earlier run was reading when it died, if any."""
+        try:
+            data = json.loads(self._attempt_path.read_text(encoding="utf-8"))
+            return _check_name(data["doc_id"], "document id")
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise DocrooterError(f"cannot read {self._attempt_path}: {exc}") from exc
+
+    def record_failure(self, doc_id: str, reason: str) -> None:
+        """Append ``doc_id`` and why it could not be read to ``failed.jsonl``."""
+        _check_name(doc_id, "document id")
+        line = json.dumps({"doc_id": doc_id, "reason": reason, "timestamp": _now()})
+        _append_lines(self._failed_path, [line])
+
+    def failures(self) -> dict[str, dict[str, str]]:
+        """The recorded failures by document id (the latest for each), in first-seen order:
+        ``{"reason": ..., "timestamp": ...}``."""
+        out: dict[str, dict[str, str]] = {}
+        for number, line in _complete_lines(self._failed_path):
+            try:
+                entry = json.loads(line)
+                out[str(entry["doc_id"])] = {
+                    "reason": str(entry["reason"]),
+                    "timestamp": str(entry["timestamp"]),
+                }
+            except (ValueError, KeyError, TypeError) as exc:
+                raise DocrooterError(f"{self._failed_path} line {number}: invalid entry") from exc
+        return out
+
     def stats(self) -> dict[str, Any]:
-        """Counts of documents, elements and pages read (in all, by split, by source, by kind)
-        and of label rows by labeller; also written to ``stats.json``."""
+        """Counts of documents, elements and pages read (in all, by split, by source, by kind),
+        of label keys by labeller and of documents that failed and are not in the corpus; also
+        written to ``stats.json``."""
         records = list(self._index().values())
         by_split = {name: {"documents": 0, "elements": 0} for name in SPLITS}
         by_source: Counter[str] = Counter()
@@ -486,12 +588,21 @@ class Corpus:
             "by_split": by_split,
             "by_source": dict(sorted(by_source.items())),
             "by_kind": dict(sorted(by_kind.items())),
-            "labels": {name: len(self.labels(name)) for name in self.labelers()},
+            "labels": {name: self._count_label_keys(name) for name in self.labelers()},
+            "failed": len([d for d in self.failures() if d not in self._index()]),
         }
         if records or self.dir.exists():
             data = json.dumps(stats, indent=2, sort_keys=True) + "\n"
             _write_atomic(self.dir / "stats.json", data.encode("utf-8"))
         return stats
+
+
+def _is_element_item(item: object) -> bool:
+    return isinstance(item, dict) and _ELEMENT_KEYS <= item.keys() and item["kind"] in _KINDS
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _element_json(element: CorpusElement) -> dict[str, Any]:

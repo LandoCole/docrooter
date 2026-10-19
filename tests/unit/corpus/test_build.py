@@ -227,16 +227,153 @@ def test_build_resumes_and_records_what_it_could_not_read(tmp_path, pdfs):
     assert report.mismatched == ["swapped"] and list(report.failed) == ["corrupt"]
     assert report.failed["corrupt"].startswith("DocrooterError")
     assert seen == [
-        (1, 4, "short", "added"), (2, 4, "corrupt", "failed"), (3, 4, "missing", "missing"),
-        (4, 4, "swapped", "mismatched"),
+        (1, 4, "short", "reading"), (1, 4, "short", "added"),  # named before it is read
+        (2, 4, "corrupt", "reading"), (2, 4, "corrupt", "failed"),
+        (3, 4, "missing", "missing"), (4, 4, "swapped", "mismatched"),
     ]  # fmt: skip
     assert (tmp_path / "c" / "stats.json").exists()
+    assert list(corpus.failures()) == ["corrupt"]  # persisted
+    assert corpus.failures()["corrupt"]["reason"] == report.failed["corrupt"]
+    assert corpus.pending_attempt() is None
 
-    # A second run (after a crash, or with more records) does only the new work.
-    report = build_corpus(corpus, folder, records=records, max_pages=6, first_pages=2)
+    # A second run (after a crash, or with more records) does only the new work, and does not
+    # read the document that failed again.
+    reads = []
+
+    def progress(done, total, doc_id, status):
+        if status == "reading":
+            reads.append(doc_id)
+
+    report = build_corpus(
+        corpus, folder, records=[*records, extra[0]], max_pages=6, first_pages=2,
+        on_progress=progress,
+    )  # fmt: skip
     assert report.added == ["long"] and report.skipped == ["short"]
+    assert report.skipped_failed == ["corrupt"] and report.failed == {}
+    assert reads == ["long"]
+    report = build_corpus(corpus, folder, records=[extra[0]], retry_failed=True,
+                          on_progress=progress)  # fmt: skip
+    assert list(report.failed) == ["corrupt"] and reads == ["long", "corrupt"]
     assert [r.id for r in corpus.manifest()] == ["short", "long"]
-    assert corpus.stats()["documents"] == 2
+    assert corpus.stats()["documents"] == 2 and corpus.stats()["failed"] == 1
+
+
+def test_a_pdf_that_kills_the_build_is_not_read_again(tmp_path, pdfs, monkeypatch, caplog):
+    """Review Focus 5: the document being read is noted durably before the read. A process
+    killed mid-read (no Python cleanup) leaves the note; the next build records the document
+    as failed and skips it, so one poison PDF cannot stop every resume."""
+    folder, records = pdfs
+    corpus = Corpus(tmp_path / "c")
+    noted = []
+    real_process = build_module.process
+
+    def spy(source, **kwargs):
+        noted.append(corpus.pending_attempt())
+        return real_process(source, **kwargs)
+
+    monkeypatch.setattr(build_module, "process", spy)
+    build_corpus(corpus, folder, records=records[1:], max_pages=4, first_pages=2)
+    assert noted == ["short"] and corpus.pending_attempt() is None  # noted, then cleared
+
+    # The process dies while reading "long": its note is what a hard kill leaves behind.
+    corpus.start_attempt("long")
+    seen = []
+    report = build_corpus(
+        Corpus(tmp_path / "c"),
+        folder,
+        records=records,
+        max_pages=4,
+        first_pages=2,
+        on_progress=lambda done, total, doc_id, status: seen.append((doc_id, status)),
+    )
+    assert report.crashed == ["long"] and report.skipped_failed == ["long"]
+    assert seen == [("long", "skipped_failed"), ("short", "skipped")]
+    assert Corpus(tmp_path / "c").failures()["long"]["reason"] == "crashed previous run"
+    assert Corpus(tmp_path / "c").pending_attempt() is None
+    assert "long was being read when the last build died" in caplog.text
+
+    # Retrying reads it again (here it does not crash) and adds it.
+    report = build_corpus(
+        Corpus(tmp_path / "c"), folder, records=records, max_pages=4, first_pages=2,
+        retry_failed=True,
+    )  # fmt: skip
+    assert report.added == ["long"] and report.crashed == []
+    assert noted == ["short", "long"]
+
+    # A note for a document that did get committed (killed after the manifest line) is dropped.
+    corpus = Corpus(tmp_path / "c")
+    corpus.start_attempt("short")
+    report = build_corpus(corpus, folder, records=records, max_pages=4, first_pages=2)
+    assert report.crashed == [] and corpus.pending_attempt() is None
+
+
+@pytest.mark.parametrize("error", [KeyboardInterrupt, MemoryError])
+def test_a_stopped_run_clears_its_note_and_memory_errors_are_recorded(
+    tmp_path, pdfs, monkeypatch, error
+):
+    folder, records = pdfs
+    corpus = Corpus(tmp_path / "c")
+
+    def stop(source, **kwargs):
+        raise error()
+
+    monkeypatch.setattr(build_module, "process", stop)
+    with pytest.raises(error):
+        build_corpus(corpus, folder, records=records[1:], max_pages=4, first_pages=2)
+    assert corpus.pending_attempt() is None
+    expected = {"short": "MemoryError"} if error is MemoryError else {}
+    assert {k: v["reason"] for k, v in corpus.failures().items()} == expected
+
+
+def test_an_id_clash_is_reported_before_reading(tmp_path, pdfs, monkeypatch):
+    folder, records = pdfs
+    corpus = Corpus(tmp_path / "c")
+    build_corpus(corpus, folder, records=records[1:], max_pages=4, first_pages=2)
+    (folder / "SHORT.pdf").write_bytes((folder / "long.pdf").read_bytes())
+    clash = _record(folder / "SHORT.pdf", "SHORT")
+    monkeypatch.setattr(build_module, "process", lambda *a, **k: pytest.fail("read"))
+    report = build_corpus(corpus, folder, records=[clash])
+    assert list(report.failed) == ["SHORT"] and "differs only in case" in report.failed["SHORT"]
+
+
+def test_missing_ocr_engine_is_warned_once(tmp_path, pdfs, caplog):
+    folder, records = pdfs
+    report = build_corpus(
+        Corpus(tmp_path / "c"), folder, records=records, max_pages=4, first_pages=2
+    )
+    assert report.warnings == ["ocr_unavailable"]
+    assert caplog.text.count("ocr=auto found no OCR engine") == 1
+
+
+def _long_report_with_contents(path, n_pages=60):
+    """Page 2 is a contents page whose page labels (on the same rows, no leaders) run to 57."""
+    doc = pymupdf.open()
+    titles = ["Overview", "Strategy", "Markets", "Risks", "Results", "Governance", "Outlook"]
+    for k in range(1, n_pages + 1):
+        page = doc.new_page(width=612, height=792)
+        if k == 2:
+            page.insert_text((72, 100), "Contents", fontsize=18, fontname="hebo")
+            for j, title in enumerate(titles):
+                page.insert_text((72, 140 + 20 * j), title, fontsize=11, fontname="helv")
+                page.insert_text((520, 140 + 20 * j), str(3 + 9 * j), fontsize=11)
+        else:
+            page.insert_text((72, 100), f"Section {k}", fontsize=18, fontname="hebo")
+            page.insert_text((72, 130), f"Page {k} text in plain words.", fontsize=11)
+    doc.save(str(path))
+    doc.close()
+    return path
+
+
+def test_build_skips_contents_on_sampled_long_documents(tmp_path):
+    """Spec §5: printed contents are skipped even when their page labels point past the pages
+    read (here 8 of 60)."""
+    folder = tmp_path / "pdfs"
+    folder.mkdir()
+    pdf = _long_report_with_contents(folder / "long.pdf")
+    corpus = Corpus(tmp_path / "c")
+    build_corpus(corpus, folder, records=[_record(pdf, "long")], max_pages=8, first_pages=4)
+    page_two = [e.text for e in corpus.iter_elements() if e.page == 2]
+    assert page_two and not any("Overview" in text for text in page_two)
 
 
 def test_build_uses_the_profile_engines_without_classifying_or_escalating(
@@ -306,3 +443,18 @@ def test_cli_corpus_build_and_stats(tmp_path, pdfs):
     assert result.exit_code == 1 and "no corpus" in result.output
     result = runner.invoke(app, args[:3] + ["--profile", "turbo"])
     assert result.exit_code != 0
+
+    # The source manifest cannot be the store's own index.
+    own = args[:3] + ["--from-manifest", str(store / "manifest.jsonl"), "--pdf-dir", str(folder)]
+    result = runner.invoke(app, own)
+    assert result.exit_code == 1 and "store's own index" in result.output
+
+    # Failures are reported, skipped next time, and read again with --retry-failed.
+    (folder / "bad.pdf").write_bytes(b"%PDF-1.7\nbroken")
+    manifest.write_text(_record(folder / "bad.pdf", "bad").model_dump_json() + "\n")
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0 and "1 failed, 0 failed before" in result.output
+    assert "failed bad: DocrooterError" in result.output
+    assert "1 failed before" in runner.invoke(app, args).output
+    result = runner.invoke(app, [*args, "--retry-failed"])
+    assert "[1/1] bad: reading" in result.output and "1 failed, 0 failed before" in result.output

@@ -375,11 +375,16 @@ def compute_signals(
     n_pages: int,
     *,
     bookmarks: Sequence[tuple[int, str, int]] | None = None,
+    max_label: int | None = None,
 ) -> DocSignals:
     """Derive body size, median gap, excluded lines, printed TOC and bookmarks.
 
     Body size is the character-weighted mode of line size over all lines. The median gap is
     taken over the non-excluded lines' positive finite ``gap_above`` values.
+
+    ``n_pages`` is the number of pages read. ``max_label`` (default ``n_pages``) is the highest
+    page label a printed contents page may give: the whole document's page count when only some
+    of its pages were read, since contents point past the pages read.
     """
     excluded = _find_excluded(lines, n_pages)
     gaps = [
@@ -387,7 +392,8 @@ def compute_signals(
         for i, line in enumerate(lines)
         if i not in excluded and _MIN_POSITIVE_GAP < line.gap_above < math.inf
     ]
-    entries, toc_lines, toc_body_lines = _find_printed_toc(lines, excluded, n_pages)
+    labels = n_pages if max_label is None else max_label
+    entries, toc_lines, toc_body_lines = _find_printed_toc(lines, excluded, labels)
     return DocSignals(
         body_size=_body_size(lines),
         median_gap=statistics.median(gaps) if gaps else 0.0,

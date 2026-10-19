@@ -219,6 +219,47 @@ def test_a_doc_file_that_does_not_match_its_record_is_an_error(tmp_path):
         list(Corpus(tmp_path).iter_elements())
 
 
+@pytest.mark.parametrize(
+    "damage",
+    [
+        lambda d: d.pop("elements"),
+        lambda d: d.pop("pages_read"),
+        lambda d: d["elements"][0].pop("kind"),
+        lambda d: d["elements"][0].update(kind="nonsense"),
+        lambda d: d["elements"].append("not an element"),
+    ],
+)
+def test_a_malformed_doc_file_is_a_docrooter_error_naming_it(tmp_path, damage):
+    corpus = Corpus(tmp_path)
+    corpus.add_document(_record("a", 1), _elements("a", BODY), [1])
+    path = tmp_path / "docs" / "a.json"
+    data = json.loads(path.read_text())
+    damage(data)
+    path.write_text(json.dumps(data))
+    with pytest.raises(DocrooterError, match="a.json"):
+        list(Corpus(tmp_path).iter_elements())
+    with pytest.raises(DocrooterError, match="a.json"):
+        Corpus(tmp_path).stats()
+
+
+def test_failures_and_attempt_notes(tmp_path):
+    corpus = Corpus(tmp_path)
+    assert corpus.failures() == {} and corpus.pending_attempt() is None
+    corpus.start_attempt("a")
+    assert Corpus(tmp_path).pending_attempt() == "a"  # durable: another store object sees it
+    corpus.finish_attempt()
+    corpus.finish_attempt()  # clearing twice is fine
+    assert corpus.pending_attempt() is None
+    corpus.record_failure("a", "DocrooterError: bad")
+    corpus.record_failure("b", "crashed previous run")
+    corpus.record_failure("a", "MemoryError")
+    failures = Corpus(tmp_path).failures()
+    assert list(failures) == ["a", "b"] and failures["a"]["reason"] == "MemoryError"
+    assert failures["b"]["timestamp"].endswith("+00:00")
+    with pytest.raises(ValueError, match="document id"):
+        corpus.start_attempt("../x")
+
+
 def test_labels_keyed_by_doc_element_textsha(tmp_path):
     corpus = Corpus(tmp_path)
     corpus.add_document(_record("a", 1), _elements("a", BODY), [1])
@@ -274,7 +315,7 @@ def test_labels_keyed_by_doc_element_textsha(tmp_path):
         row(elements[0], probs={"x": float("nan")})
 
 
-def test_stats_are_computed_and_written(tmp_path):
+def test_stats_are_computed_and_written(tmp_path, monkeypatch):
     corpus = Corpus(tmp_path)
     corpus.add_document(_record("t", 1, "train"), _elements("t", BODY), [1, 2])
     corpus.add_document(_record("g", 2, "gold", title="Kept extra field"), _elements("g", BODY[:1]),
@@ -284,7 +325,13 @@ def test_stats_are_computed_and_written(tmp_path):
         [LabelRow(doc_id="t", element_id="e0", text_sha1=text_sha1("Risks"), facet="topic",
                   probs={"x": 1.0}, provenance={})],
     )  # fmt: skip
+
+    def no_full_load(self, labeler):
+        raise AssertionError("stats() must stream label files")
+
+    monkeypatch.setattr(Corpus, "labels", no_full_load)
     stats = corpus.stats()
+    monkeypatch.undo()
     assert stats == json.loads((tmp_path / "stats.json").read_text())
     assert stats["documents"] == 2 and stats["elements"] == 4 and stats["pages_read"] == 3
     assert stats["by_split"] == {
@@ -294,7 +341,7 @@ def test_stats_are_computed_and_written(tmp_path):
     }
     assert stats["by_kind"] == {"heading": 2, "paragraph": 1, "table": 1}
     assert stats["by_source"] == {"edgar_ars": 2}
-    assert stats["labels"] == {"teacher": 1}
+    assert stats["labels"] == {"teacher": 1} and stats["failed"] == 0
     assert corpus.manifest()[1].model_dump()["title"] == "Kept extra field"  # extras survive
     assert Corpus(tmp_path / "empty").stats()["documents"] == 0
 

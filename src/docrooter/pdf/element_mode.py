@@ -301,7 +301,9 @@ def _load_elements(
         bookmarks = [b for b in bookmarks if b[2] in read]
     elif n_read < n_pages:
         bookmarks = [b for b in bookmarks if b[2] <= n_read]
-    signals = compute_signals(lines, n_read, bookmarks=bookmarks)
+    # With a page subset, printed contents still point anywhere in the whole document.
+    max_label = n_pages if wanted is not None else None
+    signals = compute_signals(lines, n_read, bookmarks=bookmarks, max_label=max_label)
     groups: dict[int, tuple[float, float, float, float]] = {}
     for region, idxs in (
         apply_regions(lines, regions, min_confidence=min_conf)[1] if regions else []
@@ -313,7 +315,7 @@ def _load_elements(
         lines = [lines[i] for i in order]
         source = [source[i] for i in order]
         confidence = [confidence[i] for i in order]
-        signals = compute_signals(lines, n_read, bookmarks=bookmarks)
+        signals = compute_signals(lines, n_read, bookmarks=bookmarks, max_label=max_label)
     if stage.active:
         stage.end(bookmarks=len(signals.bookmarks), printed_toc_entries=len(signals.printed_toc))
     clock = _tick(timings, "signals", clock)

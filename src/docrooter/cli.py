@@ -1083,12 +1083,18 @@ def corpus_build(
         ),
     ] = 10,
     seed: Annotated[int, typer.Option(help="Seed of the page sample.")] = 0,
+    retry_failed: Annotated[
+        bool,
+        typer.Option("--retry-failed", help="Read documents that failed in earlier builds again."),
+    ] = False,
 ) -> None:
     """Read PDFs into a corpus store: elements of the first and sampled pages, without page
     furniture or contents.
 
     Resumable: documents already in the store are skipped, and each document is saved as soon
-    as it is read. Progress goes to stderr, the summary to stdout.
+    as it is read. Documents that failed (or crashed an earlier build) are recorded in
+    DIRECTORY/failed.jsonl and skipped unless --retry-failed. Progress goes to stderr, the
+    summary to stdout.
     """
     from docrooter.corpus import Corpus, build_corpus, read_manifest
 
@@ -1097,6 +1103,12 @@ def corpus_build(
     with _errors_exit_1():
         if not folder.is_dir():
             raise DocrooterError(f"no PDF folder at {folder}; pass --pdf-dir")
+        index = directory / "manifest.jsonl"
+        if from_manifest is not None and from_manifest.resolve() == index.resolve():
+            raise DocrooterError(
+                f"{from_manifest} is the store's own index; keep the corpus store in another "
+                "directory than the source manifest"
+            )
         records = read_manifest(from_manifest) if from_manifest is not None else None
         report = build_corpus(
             Corpus(directory),
@@ -1106,18 +1118,24 @@ def corpus_build(
             max_pages=max_pages,
             first_pages=first_pages,
             seed=seed,
+            retry_failed=retry_failed,
             on_progress=lambda done, total, doc_id, status: typer.echo(
                 f"[{done}/{total}] {doc_id}: {status}", err=True
             ),
         )
     typer.echo(
         f"{len(report.added)} added, {len(report.skipped)} skipped, {len(report.missing)} "
-        f"missing, {len(report.mismatched)} mismatched, {len(report.failed)} failed; "
+        f"missing, {len(report.mismatched)} mismatched, {len(report.failed)} failed, "
+        f"{len(report.skipped_failed)} failed before; "
         f"{report.pages_read} pages, {report.elements} elements, {report.seconds:.1f}s; "
         f"store {directory}"
     )
+    for doc_id in report.crashed:
+        typer.echo(f"crashed the previous build (recorded as failed): {doc_id}")
     for doc_id, error in report.failed.items():
         typer.echo(f"failed {doc_id}: {error}")
+    if "ocr_unavailable" in report.warnings:
+        typer.echo("warning: no OCR engine installed; pages that need OCR kept their text layer")
 
 
 @corpus_app.command("stats")

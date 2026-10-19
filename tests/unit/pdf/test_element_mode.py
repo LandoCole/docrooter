@@ -461,6 +461,37 @@ def test_pages_reads_a_page_subset(tmp_path):
         load_pdf(path, elements=True, pages=[0])
 
 
+def _long_report_with_contents(path, n_pages=60):
+    """Page 2 is a contents page whose page labels (on the same rows, no leaders) run to 57."""
+    doc = pymupdf.open()
+    titles = ["Overview", "Strategy", "Markets", "Risks", "Results", "Governance", "Outlook"]
+    for k in range(1, n_pages + 1):
+        page = doc.new_page(width=612, height=792)
+        if k == 2:
+            page.insert_text((72, 100), "Contents", fontsize=18, fontname="hebo")
+            for j, title in enumerate(titles):
+                page.insert_text((72, 140 + 20 * j), title, fontsize=11, fontname="helv")
+                page.insert_text((520, 140 + 20 * j), str(3 + 9 * j), fontsize=11)
+        else:
+            page.insert_text((72, 100), f"Section {k}", fontsize=18, fontname="hebo")
+            page.insert_text((72, 130), f"Page {k} text in plain words.", fontsize=11)
+    return _save(doc, path)
+
+
+def test_pages_subset_still_finds_contents_labelled_past_the_pages_read(tmp_path):
+    """Contents labels are bounded by the whole document's page count, not the pages read."""
+    path = _long_report_with_contents(tmp_path / "long.pdf")
+
+    def page_two(doc):
+        return [(e.kind, e.text) for e in doc.elements if e.boxes[0].page == 2]
+
+    whole = load_pdf(path, elements=True)
+    subset = load_pdf(path, elements=True, pages=list(range(1, 9)), max_pages=8)
+    assert "contents" in {kind for kind, _ in page_two(whole)}
+    assert page_two(subset) == page_two(whole)
+    assert subset.meta["printed_toc_entries"] == whole.meta["printed_toc_entries"] > 0
+
+
 def test_arguments_are_checked():
     path = GOLDEN / "single_column.pdf"
     with pytest.raises(TypeError, match="only valid with elements=True"):

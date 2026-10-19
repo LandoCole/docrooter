@@ -17,9 +17,13 @@ Each stage is resumable (Review Focus 5). Its output goes to ``<store>/train-ele
 (the bundle to ``out``), each file written whole through a temporary file, and a stage's
 marker file is written last:
 
-- ``label.json``: the label report and the run's settings. A finished labelling (not stopped
-  by its ceiling) with the same settings is not run again; an unfinished one resumes inside
-  :func:`label_corpus`, which skips the elements already labelled;
+- ``label.json``: the run's settings, the wall-clock hours labelling has spent in all runs so
+  far (updated after every teacher batch) and its status. ``ceiling_hours`` is a ceiling on
+  that total (§4.0 ruling 5: 12 h in all): each run gets what is left of it. Labelling that
+  finished, or reached the ceiling, is not run again (the labels it has are used); an
+  interrupted run resumes inside :func:`label_corpus`, which skips the elements already
+  labelled. Raising ``ceiling_hours`` lets a later run label more. Other settings (teacher,
+  embedder, sample) start a new count;
 - ``dataset.json``: the dataset's fingerprint (the bytes of the ``teacher`` and ``prescreen``
   label files, the embedder and the student's input length) and counts. The dataset is
   rebuilt when the fingerprint changes;
@@ -38,6 +42,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 from collections.abc import Callable, Iterable, Sequence
 from itertools import groupby
 from pathlib import Path
@@ -46,7 +51,7 @@ from typing import Any, Literal
 from docrooter.backends.embedding import DEFAULT_EMBEDDING_MODEL, EmbeddingBackend
 from docrooter.corpus.store import Corpus, CorpusElement, LabelKey, LabelRow
 from docrooter.tagger.bundle import CHARS_PER_TOKEN, TAGGER_MANIFEST
-from docrooter.tagger.element_tags import TAGGED_KINDS, ElementTags
+from docrooter.tagger.element_tags import TAGGED_KINDS, ElementTags, tagger_fingerprint
 from docrooter.tagger.functions import FunctionRow, function_rows
 from docrooter.tagger.train import SECONDS_PER_STEP, calibrate_tagger, train_tagger
 from docrooter.taxonomies import builtin_taxonomy
@@ -58,6 +63,7 @@ from docrooter.teach.label import (
     PRESCREEN_LABELER,
     TEACHER_LABELER,
     TOPIC_FACET,
+    WEAK_LABELER,
     SampleSpec,
     label_corpus,
 )
@@ -76,9 +82,12 @@ FUNCTIONS_CALIB_FILE = "functions-calib.jsonl"
 ENRICHED_FILE = "element_topics.enriched.json"
 TRAINING_SET_FILE = "training-set.json"
 DEFAULT_TAG_LABELER = "tagger"
+RESERVED_LABELERS = (TEACHER_LABELER, PRESCREEN_LABELER, WEAK_LABELER)
+"""Label files the training chain reads: tag_corpus never writes into them."""
 FUNCTION_FACET = "function"
 
 Say = Callable[[str], None]
+_clock = time.monotonic  # seconds; replaced in tests
 
 
 def _write_atomic(path: Path, text: str) -> None:
@@ -144,12 +153,18 @@ def train_elements(
         "functions_share": functions_share,
     }
     marker = _read_json(work / LABEL_MARKER)
-    if marker is not None and marker.get("settings") == settings:
+    if marker is None or marker.get("settings") != settings:
+        marker = {"settings": settings, "spent_hours": 0.0, "status": "new", "runs": []}
+    spent = float(marker.get("spent_hours", 0.0))
+    if marker["status"] == "complete":
         say("label: done before, skipped")
         report["label"] = "skipped"
+    elif spent >= ceiling_hours:
+        say(f"label: ceiling reached ({spent:.2f} h of {ceiling_hours:g} h), existing labels used")
+        report["label"] = "skipped"
     else:
-        say(f"label: teacher {teacher}")
-        report["label"] = _label(corpus, settings, sample, ceiling_hours, batch_size, work)
+        say(f"label: teacher {teacher}, {ceiling_hours - spent:.2f} h of the ceiling left")
+        report["label"] = _label(corpus, marker, sample, ceiling_hours, batch_size, work)
 
     fingerprint = _fingerprint(corpus, embedder, max_seq_len)
     marker = _read_json(work / DATASET_MARKER)
@@ -183,14 +198,32 @@ def train_elements(
 
 def _label(
     corpus: Corpus,
-    settings: dict[str, Any],
+    marker: dict[str, Any],
     sample: SampleSpec,
     ceiling_hours: float,
     batch_size: int,
     work: Path,
 ) -> dict[str, Any]:
+    """Run :func:`label_corpus` with what is left of the ceiling (``ceiling_hours`` minus the
+    hours earlier runs spent, kept in ``label.json``) and record the hours this run spends:
+    after every teacher batch, on any exception, and at the end. A run that stops at the
+    ceiling is as final as one that finishes (§4.0 ruling 5: "as many as fit")."""
+    settings = marker["settings"]
+    spent_before = float(marker.get("spent_hours", 0.0))
+    started = _clock()
+
+    def save(status: str, data: dict[str, Any] | None = None) -> None:
+        marker["spent_hours"] = round(spent_before + (_clock() - started) / 3600, 6)
+        marker["status"] = status
+        marker["ceiling_hours"] = ceiling_hours
+        if data is not None:
+            marker["runs"] = [*marker.get("runs", []), data]
+        _write_atomic(work / LABEL_MARKER, json.dumps(marker, indent=2))
+
+    save("running")
     engine = get_teacher(settings["teacher"])
     backend = None
+    status = "interrupted"
     try:
         backend = EmbeddingBackend(settings["embedder"])
         result = label_corpus(
@@ -198,20 +231,21 @@ def _label(
             engine,
             backend,
             sample=sample,
-            ceiling_hours=ceiling_hours,
+            ceiling_hours=ceiling_hours - spent_before,
             functions_share=settings["functions_share"],
             batch_size=batch_size,
+            on_progress=lambda done, total, report: save("running"),
         )
+        status = "stopped_by_ceiling" if result.stopped_by_ceiling else "complete"
     finally:
         engine.close()
         if backend is not None:
             backend.close()
+        if status == "interrupted":
+            save(status)  # the hours spent still count against the ceiling
     data = result.model_dump(mode="json")
-    if not result.stopped_by_ceiling:  # a stopped run resumes on the next call
-        _write_atomic(
-            work / LABEL_MARKER, json.dumps({"settings": settings, "report": data}, indent=2)
-        )
-    return data
+    save(status, data)
+    return {**data, "spent_hours": marker["spent_hours"]}
 
 
 def _fingerprint(corpus: Corpus, embedder: str, max_seq_len: int) -> str:
@@ -353,24 +387,34 @@ def tag_corpus(
     (its manifest hints, as the teacher's) in the provenance.
 
     One write per document, so a killed run loses at most the document in flight; elements
-    that already have a ``topic`` row from the same ``source`` are skipped. ``splits`` keeps
-    those splits (all of them by default). ``on_document(done, doc_id, tagged)`` follows the
-    run."""
+    that already have a ``topic`` row from the same tagger (its ``source`` and, for a bundle,
+    the content hash :func:`~docrooter.tagger.element_tags.tagger_fingerprint`, so a bundle
+    retrained in place tags again) are skipped. ``splits`` keeps those splits (all of them by
+    default, ``gold`` included). ``on_document(done, doc_id, tagged)`` follows the run.
+    ``labeler`` may not be one of :data:`RESERVED_LABELERS`: the last row of a key wins, so
+    tags written there would replace the teacher's labels in the next training run."""
+    if labeler in RESERVED_LABELERS:
+        raise ValueError(
+            f"--labeler {labeler!r} is a label file of the training chain "
+            f"({', '.join(RESERVED_LABELERS)}): tags written there would replace the teacher's "
+            "labels; choose another name, e.g. tagger"
+        )
     source = _source(tagger)
+    fingerprint = tagger_fingerprint(tagger)
     records = {r.id: r for r in corpus.manifest()}
     existing = corpus.labels(labeler)
     documents = tagged = skipped = 0
     elements = corpus.iter_elements(split=splits, kinds=TAGGED_KINDS)
     for doc_id, group in groupby(elements, key=lambda e: e.doc_id):
         found = list(group)
-        todo = [e for e in found if not _current(existing, e, source)]
+        todo = [e for e in found if not _current(existing, e, source, fingerprint)]
         skipped += len(found) - len(todo)
         if todo:
             family = doc_family(records[doc_id])
             results = tagger.tag(todo, family)
             rows = []
             for element, tags in zip(todo, results, strict=True):
-                extra = {"family": family}
+                extra = {"family": family, "tagger_hash": fingerprint}
                 for facet in ("topic", "function"):
                     if facet in tags:
                         rows.append(_row(element, facet, tags[facet], extra))
@@ -382,12 +426,22 @@ def tag_corpus(
     return {
         "labeler": labeler,
         "source": source,
+        "tagger_hash": fingerprint,
         "documents": documents,
         "tagged": tagged,
         "skipped": skipped,
     }
 
 
-def _current(existing: dict[LabelKey, LabelRow], element: CorpusElement, source: str) -> bool:
+def _current(
+    existing: dict[LabelKey, LabelRow],
+    element: CorpusElement,
+    source: str,
+    fingerprint: str | None,
+) -> bool:
     row = existing.get(LabelKey(element.doc_id, element.element_id, element.text_sha1, "topic"))
-    return row is not None and row.provenance.get("source") == source
+    return (
+        row is not None
+        and row.provenance.get("source") == source
+        and row.provenance.get("tagger_hash") == fingerprint
+    )

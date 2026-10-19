@@ -1338,17 +1338,26 @@ def tag_corpus(
     bundle: Annotated[str, typer.Option("--bundle", help=_BUNDLE_HELP)],
     split: Annotated[
         list[str] | None,
-        typer.Option(help="Only this split (train, calib or gold); repeat for several."),
+        typer.Option(
+            help="Only this split (train, calib or gold); repeat for several. Default: every "
+            "split, gold included; e.g. --split train --split calib leaves gold out."
+        ),
     ] = None,
     labeler: Annotated[
-        str, typer.Option(help="Name of the labels file: labels/<labeler>.jsonl.")
+        str,
+        typer.Option(
+            help="Name of the labels file: labels/<labeler>.jsonl (not teacher, prescreen or "
+            "weak, the training chain's own)."
+        ),
     ] = "tagger",
 ) -> None:
     """Tag a corpus store's content elements and write labels/<labeler>.jsonl: a topic and a
     function row per element, in the family of the document's manifest hints.
 
-    Resumable: one write per document, and elements already tagged by the same tagger are
-    skipped. Progress goes to stderr, the report (JSON) to stdout.
+    Every split is tagged by default, gold included: pass --split (repeatable) to restrict
+    it, e.g. --split train --split calib. Resumable: one write per document, and elements
+    already tagged by the same tagger (for a bundle, the same bundle contents) are skipped.
+    Progress goes to stderr, the report (JSON) to stdout.
     """
     from docrooter.corpus import Corpus
     from docrooter.tagger.element_tags import resolve_tagger

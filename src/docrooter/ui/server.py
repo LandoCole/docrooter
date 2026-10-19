@@ -800,7 +800,8 @@ class Playground:
                 leaf = doc_type.best.node_ids[-1] if doc_type.best.node_ids else None
                 tagged: dict[str, Any] | None = None
                 if self.element_tags is not None and options["profile"] != "fast":
-                    _tag_elements(doc, self.tagger(), leaf, self.element_tags)
+                    # the event names the bundle by its directory, never its full path
+                    _tag_elements(doc, self.tagger(), leaf, self.tagger_name or "")
                     family = family_for_doc_type(leaf or "")
                     tagged = {"source": self.tagger_name, "family": family}
                 if options["normalize"]:

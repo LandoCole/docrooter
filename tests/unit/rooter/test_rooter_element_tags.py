@@ -254,18 +254,29 @@ def test_a_bad_element_tags_instance_is_a_type_error():
 
 
 class FakeEmbedding:
-    """``score`` gives each candidate a cosine from a fixed per-id table (else 0)."""
+    """``score`` gives each candidate a cosine from a fixed per-id table (else 0); with a
+    ``word``, only texts containing it get the table's cosine for the ``gated`` tags."""
 
     name = "embedding:fake"
     temperature = 0.05
 
-    def __init__(self, favour):
+    def __init__(self, favour, word=None, gated=("risk_disclosure",)):
         self.favour = favour
+        self.word = word
+        self.gated = gated
         self.closed = 0
 
     def score(self, texts, candidates, *, instruction=None, multi_label=False):
-        row = [self.favour.get(c.node_id, 0.0) for c in candidates]
-        return Scores(np.tile(np.array(row, dtype=float), (len(texts), 1)), "similarity")
+        rows = []
+        for text in texts:
+            row = []
+            for c in candidates:
+                value = self.favour.get(c.node_id, 0.0)
+                if c.node_id in self.gated and self.word and self.word not in text:
+                    value = 0.0
+                row.append(value)
+            rows.append(row)
+        return Scores(np.array(rows, dtype=float), "similarity")
 
     def close(self):
         self.closed += 1
@@ -279,19 +290,43 @@ def _content(markdown=MARKDOWN):
 
 def test_embedding_tagger_scores_the_family_and_the_functions():
     elements = _content()
-    backend = FakeEmbedding({"annual_report.risk_factors": 0.6, "risk_disclosure": 0.5})
+    assert [e.text.startswith("Markets") for e in elements] == [False, True, False, False, False]
+    backend = FakeEmbedding(
+        {"annual_report.risk_factors": 0.6, "risk_disclosure": 0.5}, word="Markets"
+    )
     tagger = EmbeddingTagger("embedding:fake", backend=backend, batch_size=2)
     results = tagger.tag(elements, "annual_report")
     assert len(results) == len(elements)
-    topic, function = results[0]["topic"], results[0]["function"]
+    topic = results[0]["topic"]
     assert topic.labels == ["annual_report.risk_factors"]
     assert set(topic.probs) == {leaf.id for leaf in family_leaves("annual_report")}
     assert sum(topic.probs.values()) == pytest.approx(1.0, abs=1e-4)
     assert topic.source == "embedding:fake" and topic.family_probs is None
-    assert set(function.probs) == set(function_tags())
-    assert function.labels == ["risk_disclosure"]  # the only tag over 0.5 at this temperature
+
+    # the zero-shot function rule: per-tag percentiles over the whole call (both batches)
+    functions = [r["function"] for r in results]
+    assert all(set(f.probs) == set(function_tags()) for f in functions)
+    assert functions[1].probs["risk_disclosure"] == 1.0 and functions[1].labels == [
+        "risk_disclosure"
+    ]
+    assert all(f.labels == [] for i, f in enumerate(functions) if i != 1)
+    assert functions[0].probs["risk_disclosure"] == pytest.approx(0.375)  # tied lowest four
+    assert functions[0].probs["citation"] == 0.5  # a tag every element ties on: no label
+    assert functions[1].confidence == 1.0
     tagger.close()
     assert backend.closed == 1
+
+
+def test_embedding_tagger_labels_several_functions_and_none_for_a_lone_element():
+    elements = _content()
+    favour = {"risk_disclosure": 0.5, "forward_looking": 0.2}
+    backend = FakeEmbedding(favour, word="Markets", gated=tuple(favour))
+    tagger = EmbeddingTagger("embedding:fake", backend=backend)
+    both = tagger.tag(elements, "annual_report")[1]["function"]
+    assert both.labels == ["forward_looking", "risk_disclosure"]  # tags never compete
+    lone = tagger.tag(elements[1:2], "annual_report")[0]["function"]
+    assert lone.labels == [] and set(lone.probs.values()) == {0.5}
+    assert tagger.tag([], "annual_report") == []
 
 
 class FakeTeacher:

@@ -1333,6 +1333,9 @@ def test_server_tag_chips_textcontent(tag_bundle):
             assert events[-1]["data"]["status"] == "done"
             tag_end = [e for e in events if e["stage"] == "tag" and e["status"] == "end"]
             assert len(tag_end) == 1 and tag_end[0]["data"]["elements"] == 3
+            tag_start = [e for e in events if e["stage"] == "tag" and e["status"] == "start"]
+            assert tag_start[0]["data"]["engine"] == "bundle"  # the display name only
+            assert str(tag_bundle) not in json.dumps(events)  # never the filesystem path
         assert FakeTagger.made == 1 and FakeTagger.closed == 0  # loaded once, kept for runs
 
         detail = client.get(f"/api/runs/{run_id}").json()

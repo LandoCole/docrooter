@@ -33,7 +33,7 @@ MPS_CAP_VARS = (runtime.MPS_HIGH_WATERMARK_ENV, runtime.MPS_LOW_WATERMARK_ENV)
 # Processes that load models: the model benchmarks (``python -m benchmarks.<name>`` or
 # ``benchmarks/<name>.py``) and the playground server.
 _MODEL_PROCESS = re.compile(
-    r"benchmarks[./](run|pdf_bench|normalize_bench|memory_check|profile_pipeline)\b"
+    r"benchmarks[./](run|pdf_bench|normalize_bench|memory_check|profile_pipeline|elements_bench)\b"
     r"|\bdocrooter serve\b"
 )
 # Only an interpreter (or the docrooter script) running one counts; a shell or ``uv run``

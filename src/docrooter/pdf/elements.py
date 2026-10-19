@@ -116,19 +116,20 @@ __all__ = [
     "furniture_lines",
 ]
 
-# Spec §5.3 starting estimates, tuned on DocLayNet train pages in E11a.
-FIGURE_MIN_AREA = 0.02  # share of the page area
+# Spec §5.3 starting estimates, tuned on 400 DocLayNet train pages in E11a (the tuning log, with
+# the starting values, is in docs/benchmarks-elements.md).
+FIGURE_MIN_AREA = 0.005  # share of the page area
 FIGURE_MAX_TEXT_DENSITY = 0.5  # text lines per 1,000 pt² inside a vector region
-CAPTION_MAX_DISTANCE_LINES = 1.5  # caption line heights between a caption and its target
-FOOTNOTE_BOTTOM_SHARE = 0.25  # bottom share of the page where footnotes sit
-FOOTNOTE_MAX_SIZE_RATIO = 0.9  # x body size
+CAPTION_MAX_DISTANCE_LINES = 5.0  # caption line heights between a caption and its target
+FOOTNOTE_BOTTOM_SHARE = 0.3  # bottom share of the page where footnotes sit
+FOOTNOTE_MAX_SIZE_RATIO = 0.85  # x body size
 LIST_INDENT_STEP = 8.0  # pt per list depth
 FORMULA_MIN_SYMBOL_SHARE = 0.30
-PARAGRAPH_GAP_RATIO = 1.5  # x the region's median line gap
+PARAGRAPH_GAP_RATIO = 1.75  # x the region's median line gap
 PARAGRAPH_SIZE_DELTA = 0.5  # pt
 FIRST_LINE_INDENT = 8.0  # pt
 # Task E5a additions (see the module docstring).
-FIGURE_MAX_TEXT_COVERAGE = 0.3  # share of a figure box covered by text lines
+FIGURE_MAX_TEXT_COVERAGE = 0.4  # share of a figure box covered by text lines
 FIGURE_BACKGROUND_PAGE_SHARE = 0.5  # an image or vector region this large with text on it
 # is a page background or frame
 FIGURE_GRID_MIN_ROWS = 3  # rows of two or more lines sharing a column edge ...
@@ -143,7 +144,7 @@ FIGURE_GRID_MIN_LABELLED_ROWS = 2  # rows of a word label then numbers: a statem
 FIGURE_GRID_LINE_SHARE = 0.7  # share of lines in worded multi-cell rows a table needs
 FIGURE_CODE_LINE_SHARE = 0.5  # this share of monospace lines inside: a code listing
 FIGURE_LIST_MIN_ITEMS = 2  # this many list items inside: a list set on a shape
-CAPTION_MAX_LINES = 4  # a caption is a line or a short paragraph
+CAPTION_MAX_LINES = 6  # a caption is a line or a short paragraph
 CAPTION_FIRST_SIDE = {"table": "above", "figure": "below"}  # preferred when both sides fit
 
 _MIN_REGION_GAPS = 5  # a page with fewer gaps uses the document's median gap

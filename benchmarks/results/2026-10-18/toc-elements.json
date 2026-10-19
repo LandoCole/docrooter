@@ -39,7 +39,7 @@
         "f1": 0.6845718901453959,
         "level_acc": 0.5958702064896755,
         "macro_f1": 0.6339718033148637,
-        "seconds_per_doc": 1.181
+        "seconds_per_doc": 1.1899166666666667
       },
       "depth2": {
         "n_docs": 24,
@@ -51,14 +51,14 @@
         "f1": 0.7030784508440915,
         "level_acc": 0.769774011299435,
         "macro_f1": 0.5914963152786307,
-        "seconds_per_doc": 1.181
+        "seconds_per_doc": 1.1899166666666667
       },
       "docs": [
         {
           "id": "doc_001",
           "title": "Berkshire Hathaway Inc. 2023 Annual Report",
           "pages": 152,
-          "seconds": 2.292,
+          "seconds": 2.316,
           "all": {
             "p": 0.20689655172413793,
             "r": 0.2857142857142857,
@@ -84,7 +84,7 @@
           "id": "doc_003",
           "title": "Amazon.com, Inc. 2023 Annual Report",
           "pages": 92,
-          "seconds": 1.152,
+          "seconds": 1.163,
           "all": {
             "p": 0.6896551724137931,
             "r": 0.6666666666666666,
@@ -110,7 +110,7 @@
           "id": "doc_004",
           "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended June 30, 2024",
           "pages": 56,
-          "seconds": 0.7,
+          "seconds": 0.712,
           "all": {
             "p": 0.625,
             "r": 0.45454545454545453,
@@ -136,7 +136,7 @@
           "id": "doc_005",
           "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended September 30, 2023",
           "pages": 59,
-          "seconds": 0.768,
+          "seconds": 0.778,
           "all": {
             "p": 0.625,
             "r": 0.45454545454545453,
@@ -162,7 +162,7 @@
           "id": "doc_009",
           "title": "Amazon.com Announces Second Quarter Results (Aug 1, 2024)",
           "pages": 12,
-          "seconds": 0.133,
+          "seconds": 0.134,
           "all": {
             "p": 0.0,
             "r": 0.0,
@@ -188,7 +188,7 @@
           "id": "doc_010",
           "title": "Amazon.com Announces Third Quarter Results (Oct 31, 2024)",
           "pages": 12,
-          "seconds": 0.135,
+          "seconds": 0.137,
           "all": {
             "p": 0.0,
             "r": 0.0,
@@ -214,7 +214,7 @@
           "id": "doc_027",
           "title": "Attention Is All You Need",
           "pages": 15,
-          "seconds": 0.196,
+          "seconds": 0.194,
           "all": {
             "p": 0.8461538461538461,
             "r": 1.0,
@@ -240,7 +240,7 @@
           "id": "doc_029",
           "title": "Language Models are Few-Shot Learners",
           "pages": 75,
-          "seconds": 0.907,
+          "seconds": 0.925,
           "all": {
             "p": 0.5614035087719298,
             "r": 1.0,
@@ -266,7 +266,7 @@
           "id": "doc_030",
           "title": "On the Opportunities and Risks of Foundation Models",
           "pages": 214,
-          "seconds": 3.012,
+          "seconds": 3.038,
           "all": {
             "p": 0.8444444444444444,
             "r": 0.9743589743589743,
@@ -292,7 +292,7 @@
           "id": "doc_031",
           "title": "RFC 9110: HTTP Semantics",
           "pages": 194,
-          "seconds": 1.758,
+          "seconds": 1.77,
           "all": {
             "p": 0.7536585365853659,
             "r": 0.9935691318327974,
@@ -318,7 +318,7 @@
           "id": "doc_032",
           "title": "RFC 9000: QUIC: A UDP-Based Multiplexed and Secure Transport",
           "pages": 151,
-          "seconds": 1.303,
+          "seconds": 1.329,
           "all": {
             "p": 0.9519650655021834,
             "r": 0.9954337899543378,
@@ -370,7 +370,7 @@
           "id": "doc_034",
           "title": "RFC 9457: Problem Details for HTTP APIs",
           "pages": 16,
-          "seconds": 0.123,
+          "seconds": 0.132,
           "all": {
             "p": 0.967741935483871,
             "r": 0.967741935483871,
@@ -396,7 +396,7 @@
           "id": "doc_038",
           "title": "Bash Reference Manual, Edition 5.3",
           "pages": 214,
-          "seconds": 2.178,
+          "seconds": 2.204,
           "all": {
             "p": 0.9,
             "r": 0.9440559440559441,
@@ -422,7 +422,7 @@
           "id": "doc_039",
           "title": "GNU Coreutils manual",
           "pages": 326,
-          "seconds": 3.252,
+          "seconds": 3.3,
           "all": {
             "p": 0.9565217391304348,
             "r": 0.9962264150943396,
@@ -448,7 +448,7 @@
           "id": "doc_040",
           "title": "Getting Started with Raspberry Pi Pico-series",
           "pages": 36,
-          "seconds": 0.297,
+          "seconds": 0.298,
           "all": {
             "p": 0.9102564102564102,
             "r": 0.9466666666666667,
@@ -474,7 +474,7 @@
           "id": "doc_041",
           "title": "NE555 / SA555 / SE555 Precision Timers datasheet",
           "pages": 39,
-          "seconds": 0.329,
+          "seconds": 0.327,
           "all": {
             "p": 0.4878048780487805,
             "r": 0.8163265306122449,
@@ -500,7 +500,7 @@
           "id": "doc_042",
           "title": "RP2040 Datasheet",
           "pages": 642,
-          "seconds": 5.251,
+          "seconds": 5.305,
           "all": {
             "p": 0.28167877320419693,
             "r": 0.9943019943019943,
@@ -526,7 +526,7 @@
           "id": "doc_045",
           "title": "Monetary Policy Report, July 5, 2024",
           "pages": 79,
-          "seconds": 0.764,
+          "seconds": 0.777,
           "all": {
             "p": 0.6666666666666666,
             "r": 0.6086956521739131,
@@ -552,7 +552,7 @@
           "id": "doc_046",
           "title": "Financial Stability Report, April 2024",
           "pages": 69,
-          "seconds": 0.533,
+          "seconds": 0.517,
           "all": {
             "p": 0.9285714285714286,
             "r": 1.0,
@@ -578,7 +578,7 @@
           "id": "doc_048",
           "title": "Google Environmental Report 2024",
           "pages": 86,
-          "seconds": 2.381,
+          "seconds": 2.337,
           "all": {
             "p": 0.22613065326633167,
             "r": 0.8181818181818182,
@@ -604,7 +604,7 @@
           "id": "doc_049",
           "title": "NVIDIA Sustainability Report, Fiscal Year 2024",
           "pages": 41,
-          "seconds": 0.448,
+          "seconds": 0.447,
           "all": {
             "p": 0.35,
             "r": 0.9333333333333333,
@@ -630,7 +630,7 @@
           "id": "doc_050",
           "title": "Tesla Q2 2024 Update (investor slide deck)",
           "pages": 29,
-          "seconds": 0.195,
+          "seconds": 0.191,
           "all": {
             "p": 1.0,
             "r": 0.034482758620689655,
@@ -656,7 +656,7 @@
           "id": "doc_051",
           "title": "NVIDIA Investor Presentation Q2 FY25 (September 3, 2024)",
           "pages": 27,
-          "seconds": 0.119,
+          "seconds": 0.109,
           "all": {
             "p": 0.56,
             "r": 0.5185185185185185,
@@ -681,16 +681,16 @@
       ],
       "note": null,
       "date": "2026-10-18",
-      "commit": "8913b7a",
+      "commit": "d951b11+dirty",
       "loadavg_start": [
-        2.68798828125,
-        2.64697265625,
-        2.27783203125
+        3.4990234375,
+        3.64208984375,
+        3.32666015625
       ],
       "loadavg_end": [
-        3.2685546875,
-        2.76513671875,
-        2.33056640625
+        3.2275390625,
+        3.56298828125,
+        3.30908203125
       ]
     },
     "pymupdf+elements": {
@@ -724,15 +724,15 @@
       ],
       "all": {
         "n_docs": 24,
-        "n_pred": 3085,
+        "n_pred": 3083,
         "n_gold": 1872,
         "n_match": 1704,
-        "p": 0.5523500810372771,
+        "p": 0.5527084009082063,
         "r": 0.9102564102564102,
-        "f1": 0.6875126084325197,
+        "f1": 0.6877901109989908,
         "level_acc": 0.596830985915493,
-        "macro_f1": 0.6386453927832972,
-        "seconds_per_doc": 4.945833333333334
+        "macro_f1": 0.6389253442793696,
+        "seconds_per_doc": 5.0337499999999995
       },
       "depth2": {
         "n_docs": 24,
@@ -744,14 +744,14 @@
         "f1": 0.7074018877297567,
         "level_acc": 0.7710674157303371,
         "macro_f1": 0.5967203918842862,
-        "seconds_per_doc": 4.945833333333334
+        "seconds_per_doc": 5.0337499999999995
       },
       "docs": [
         {
           "id": "doc_001",
           "title": "Berkshire Hathaway Inc. 2023 Annual Report",
           "pages": 152,
-          "seconds": 17.154,
+          "seconds": 17.496,
           "all": {
             "p": 0.20689655172413793,
             "r": 0.2857142857142857,
@@ -777,7 +777,7 @@
           "id": "doc_003",
           "title": "Amazon.com, Inc. 2023 Annual Report",
           "pages": 92,
-          "seconds": 3.137,
+          "seconds": 3.204,
           "all": {
             "p": 0.6896551724137931,
             "r": 0.6666666666666666,
@@ -803,7 +803,7 @@
           "id": "doc_004",
           "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended June 30, 2024",
           "pages": 56,
-          "seconds": 6.097,
+          "seconds": 6.295,
           "all": {
             "p": 0.625,
             "r": 0.45454545454545453,
@@ -829,7 +829,7 @@
           "id": "doc_005",
           "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended September 30, 2023",
           "pages": 59,
-          "seconds": 10.69,
+          "seconds": 10.908,
           "all": {
             "p": 0.625,
             "r": 0.45454545454545453,
@@ -855,7 +855,7 @@
           "id": "doc_009",
           "title": "Amazon.com Announces Second Quarter Results (Aug 1, 2024)",
           "pages": 12,
-          "seconds": 0.819,
+          "seconds": 0.837,
           "all": {
             "p": 0.0,
             "r": 0.0,
@@ -881,7 +881,7 @@
           "id": "doc_010",
           "title": "Amazon.com Announces Third Quarter Results (Oct 31, 2024)",
           "pages": 12,
-          "seconds": 0.816,
+          "seconds": 0.836,
           "all": {
             "p": 0.0,
             "r": 0.0,
@@ -907,7 +907,7 @@
           "id": "doc_027",
           "title": "Attention Is All You Need",
           "pages": 15,
-          "seconds": 0.744,
+          "seconds": 0.749,
           "all": {
             "p": 0.8461538461538461,
             "r": 1.0,
@@ -933,7 +933,7 @@
           "id": "doc_029",
           "title": "Language Models are Few-Shot Learners",
           "pages": 75,
-          "seconds": 1.358,
+          "seconds": 1.384,
           "all": {
             "p": 0.5614035087719298,
             "r": 1.0,
@@ -959,7 +959,7 @@
           "id": "doc_030",
           "title": "On the Opportunities and Risks of Foundation Models",
           "pages": 214,
-          "seconds": 4.515,
+          "seconds": 4.574,
           "all": {
             "p": 0.8444444444444444,
             "r": 0.9743589743589743,
@@ -985,7 +985,7 @@
           "id": "doc_031",
           "title": "RFC 9110: HTTP Semantics",
           "pages": 194,
-          "seconds": 2.728,
+          "seconds": 2.782,
           "all": {
             "p": 0.7536585365853659,
             "r": 0.9935691318327974,
@@ -1011,7 +1011,7 @@
           "id": "doc_032",
           "title": "RFC 9000: QUIC: A UDP-Based Multiplexed and Secure Transport",
           "pages": 151,
-          "seconds": 2.043,
+          "seconds": 2.099,
           "all": {
             "p": 0.9519650655021834,
             "r": 0.9954337899543378,
@@ -1037,7 +1037,7 @@
           "id": "doc_033",
           "title": "RFC 9239: Updates to ECMAScript Media Types",
           "pages": 13,
-          "seconds": 0.184,
+          "seconds": 0.187,
           "all": {
             "p": 0.9629629629629629,
             "r": 0.9629629629629629,
@@ -1063,7 +1063,7 @@
           "id": "doc_034",
           "title": "RFC 9457: Problem Details for HTTP APIs",
           "pages": 16,
-          "seconds": 0.196,
+          "seconds": 0.187,
           "all": {
             "p": 0.967741935483871,
             "r": 0.967741935483871,
@@ -1089,7 +1089,7 @@
           "id": "doc_038",
           "title": "Bash Reference Manual, Edition 5.3",
           "pages": 214,
-          "seconds": 3.219,
+          "seconds": 3.296,
           "all": {
             "p": 0.9,
             "r": 0.9440559440559441,
@@ -1115,7 +1115,7 @@
           "id": "doc_039",
           "title": "GNU Coreutils manual",
           "pages": 326,
-          "seconds": 4.862,
+          "seconds": 5.015,
           "all": {
             "p": 0.9565217391304348,
             "r": 0.9962264150943396,
@@ -1167,13 +1167,13 @@
           "id": "doc_041",
           "title": "NE555 / SA555 / SE555 Precision Timers datasheet",
           "pages": 39,
-          "seconds": 3.183,
+          "seconds": 3.228,
           "all": {
-            "p": 0.5333333333333333,
+            "p": 0.5405405405405406,
             "r": 0.8163265306122449,
-            "f1": 0.6451612903225806,
+            "f1": 0.6504065040650406,
             "level_acc": 0.975,
-            "n_pred": 75,
+            "n_pred": 74,
             "n_gold": 49,
             "n_match": 40,
             "n_level_ok": 39
@@ -1193,7 +1193,7 @@
           "id": "doc_042",
           "title": "RP2040 Datasheet",
           "pages": 642,
-          "seconds": 36.933,
+          "seconds": 37.349,
           "all": {
             "p": 0.28282009724473256,
             "r": 0.9943019943019943,
@@ -1219,7 +1219,7 @@
           "id": "doc_045",
           "title": "Monetary Policy Report, July 5, 2024",
           "pages": 79,
-          "seconds": 2.498,
+          "seconds": 2.632,
           "all": {
             "p": 0.6956521739130435,
             "r": 0.6956521739130435,
@@ -1245,7 +1245,7 @@
           "id": "doc_046",
           "title": "Financial Stability Report, April 2024",
           "pages": 69,
-          "seconds": 1.721,
+          "seconds": 1.742,
           "all": {
             "p": 0.9285714285714286,
             "r": 1.0,
@@ -1271,13 +1271,13 @@
           "id": "doc_048",
           "title": "Google Environmental Report 2024",
           "pages": 86,
-          "seconds": 11.22,
+          "seconds": 11.363,
           "all": {
-            "p": 0.24271844660194175,
+            "p": 0.24390243902439024,
             "r": 0.9090909090909091,
-            "f1": 0.3831417624521073,
+            "f1": 0.38461538461538464,
             "level_acc": 0.78,
-            "n_pred": 206,
+            "n_pred": 205,
             "n_gold": 55,
             "n_match": 50,
             "n_level_ok": 39
@@ -1297,7 +1297,7 @@
           "id": "doc_049",
           "title": "NVIDIA Sustainability Report, Fiscal Year 2024",
           "pages": 41,
-          "seconds": 2.094,
+          "seconds": 2.132,
           "all": {
             "p": 0.3488372093023256,
             "r": 1.0,
@@ -1323,7 +1323,7 @@
           "id": "doc_050",
           "title": "Tesla Q2 2024 Update (investor slide deck)",
           "pages": 29,
-          "seconds": 1.342,
+          "seconds": 1.367,
           "all": {
             "p": 1.0,
             "r": 0.034482758620689655,
@@ -1349,7 +1349,7 @@
           "id": "doc_051",
           "title": "NVIDIA Investor Presentation Q2 FY25 (September 3, 2024)",
           "pages": 27,
-          "seconds": 0.504,
+          "seconds": 0.505,
           "all": {
             "p": 0.5185185185185185,
             "r": 0.5185185185185185,
@@ -1374,16 +1374,16 @@
       ],
       "note": null,
       "date": "2026-10-18",
-      "commit": "8913b7a",
+      "commit": "d951b11+dirty",
       "loadavg_start": [
-        3.2685546875,
-        2.76513671875,
-        2.33056640625
+        3.2275390625,
+        3.56298828125,
+        3.30908203125
       ],
       "loadavg_end": [
-        2.6728515625,
-        2.69970703125,
-        2.35546875
+        3.0107421875,
+        3.4169921875,
+        3.28564453125
       ]
     }
   },
@@ -1393,9 +1393,9 @@
     "machine": "arm64",
     "cpu_count": 8,
     "loadavg": [
-      2.68798828125,
-      2.64697265625,
-      2.27783203125
+      3.4990234375,
+      3.64208984375,
+      3.32666015625
     ],
     "versions": {
       "pymupdf": "1.28.2",
@@ -1415,8 +1415,8 @@
       "fast_depth2_micro_f1": 0.7030784508440915,
       "elements_depth2_micro_f1": 0.7074018877297567,
       "delta": 0.004323436885665166,
-      "fast_seconds_per_doc": 1.181,
-      "elements_seconds_per_doc": 4.945833333333334,
+      "fast_seconds_per_doc": 1.1899166666666667,
+      "elements_seconds_per_doc": 5.0337499999999995,
       "per_doc_deltas": [
         {
           "id": "doc_041",

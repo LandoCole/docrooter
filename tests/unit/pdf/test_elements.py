@@ -461,6 +461,8 @@ def long_caption_doc():
         "and a third line",
         "and a fourth line",
         "and a fifth line",
+        "and a sixth line",
+        "and a seventh line",
     ]
     rows = [row(1, "Figure 4: A long caption", 100, 305, x1=400)]
     rows += [row(1, t, 100, 319 + 14 * k, x1=400) for k, t in enumerate(rest)]
@@ -766,13 +768,14 @@ def test_chart_keeps_its_labels_caption_and_the_paragraph_above():
     )
 
 
-def test_caption_takes_at_most_four_lines():
-    assert el.CAPTION_MAX_LINES == 4
+def test_caption_takes_at_most_six_lines():
+    assert el.CAPTION_MAX_LINES == 6  # 4 before the E11a tuning
     elements = long_caption_doc().build()
     assert of_kind(elements, "caption")[0].text == (
         "Figure 4: A long caption continues on a second line and a third line and a fourth line"
+        " and a fifth line and a sixth line"
     )
-    assert [e.text for e in of_kind(elements, "paragraph")] == ["and a fifth line"]
+    assert [e.text for e in of_kind(elements, "paragraph")] == ["and a seventh line"]
 
 
 def test_caption_side_and_kind_preferences():
@@ -808,16 +811,19 @@ def test_order_must_be_a_permutation():
 
 
 def test_threshold_constants():
+    # Tuned on DocLayNet train pages in E11a (docs/benchmarks-elements.md has the log); the
+    # spec §5.3 starting values were 0.02, 1.5, 0.25, 0.9 and 1.5.
     assert (el.FIGURE_MIN_AREA, el.FIGURE_MAX_TEXT_DENSITY, el.CAPTION_MAX_DISTANCE_LINES) == (
-        0.02, 0.5, 1.5,
+        0.005, 0.5, 5.0,
     )  # fmt: skip
     assert (el.FOOTNOTE_BOTTOM_SHARE, el.FOOTNOTE_MAX_SIZE_RATIO, el.LIST_INDENT_STEP) == (
-        0.25, 0.9, 8.0,
+        0.3, 0.85, 8.0,
     )  # fmt: skip
     assert (el.FORMULA_MIN_SYMBOL_SHARE, el.PARAGRAPH_GAP_RATIO, el.PARAGRAPH_SIZE_DELTA) == (
-        0.30, 1.5, 0.5,
+        0.30, 1.75, 0.5,
     )  # fmt: skip
     assert el.FIRST_LINE_INDENT == 8.0
+    assert (el.FIGURE_MAX_TEXT_COVERAGE, el.FIGURE_PROSE_MIN_WORDS) == (0.4, 5)
 
 
 # --- generated PDFs through the real pipeline ----------------------------------------------

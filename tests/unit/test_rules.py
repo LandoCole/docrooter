@@ -274,3 +274,13 @@ def test_scope_alone_is_not_a_technical_standard():
     rules = doc_type_rules(builtin_taxonomy("doc_types"))
     tags = {"standard.scope": 0.9, "general.findings": 0.9, "general.recommendations": 0.9}
     assert "research.technical_standard" not in match_rules(rules, tags).candidates
+
+
+def test_barred_lists_every_type_an_exclude_argues_against():
+    rules = {
+        "a": DocTypeRules(requires=[["x"]]),
+        "b": DocTypeRules(requires=[["y"]], excludes=["x"]),  # no required group met
+    }
+    match = match_rules(rules, {"x": 0.9})
+    assert match.candidates == ["a"] and match.barred == ["b"]
+    assert match.excluded == []  # b was neither a candidate nor a near miss

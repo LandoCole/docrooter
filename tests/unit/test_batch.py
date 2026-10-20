@@ -48,6 +48,7 @@ SECTIONS = {
     "Legal proceedings": "disclosure.legal_proceedings",
     "Opinion": "law.opinion",
     "Syllabus": "law.syllabus",
+    "Sustainability": "esg.sustainability",
 }
 
 
@@ -387,7 +388,8 @@ def test_batched_rule_gate_needs_two_supporting_sections():
     assert result.decided_by == "model" and "low_support" in result.flags
     siblings = [n.id for n in DOC_TYPES.children("legal")]
     assert result.candidates[0] == "legal.court_opinion"
-    assert set(result.candidates) == set(siblings)
+    # legislation excludes law.opinion: a sibling the rules argue against is not offered
+    assert set(result.candidates) == set(siblings) - {"legal.legislation"}
     (doc_call,) = fake.of("document")
     assert result.doc_type == "legal.court_opinion"
 
@@ -723,3 +725,20 @@ def test_per_item_log_rows_say_how_the_answer_was_read(tmp_path):
     assert sections and all(r["confidence_source"] == "text" and r["probs"] == {} for r in sections)
     document = rows[-1]
     assert document["stage"] == "document" and document["label"] is None
+
+
+def test_batched_low_support_keeps_the_near_misses():
+    doc = Document.from_sections(
+        [
+            {"title": "Sustainability", "level": 1, "text": "Our emissions fell this year."},
+            {"title": "Our business", "level": 1, "text": "We make and sell widgets."},
+        ]
+    )
+    fake = FakeLLM(doc_type="financial.annual_report")
+    result = classify(doc, backend=llm(fake))
+    assert result.decided_by == "model"
+    assert {"low_support", "near_miss"} <= set(result.flags)
+    assert result.candidates[0] == "corporate.sustainability_report"
+    assert "financial.annual_report" in result.candidates  # a near miss (section 6.3)
+    assert "corporate.investor_presentation" in result.candidates
+    assert result.doc_type == "financial.annual_report"

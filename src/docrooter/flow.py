@@ -10,7 +10,8 @@ Two flows (spec G3):
   - **by rules**, with no document-level call, when a single candidate's supporting tags are all
     at least ``decide_conf``;
   - **by the model** among the candidates only, plus the near misses when there is no candidate
-    or a single undecided one (flagged ``near_miss``);
+    or a single undecided one (flagged ``near_miss``), plus, when one type is still alone, its
+    doc-type siblings that no ``excludes`` hit argues against (flagged ``low_support``);
   - **by fallback** among every doc type when fewer than two types are left to offer; with none
     at all it is flagged ``rules_unmet``.
 
@@ -61,8 +62,8 @@ confidence is ``None`` (``confidence_source="text"``); such a tag counts for the
 asked again by ``cascade``, and a document answer read this way has no confidence either. With
 batched calls, or when any supporting tag is a text answer, a lone candidate is decided by rules
 only when at least two tagged sections, in total, support its required groups. With fewer it
-takes the ``low_support`` path: the candidate and its doc-type siblings are offered to the
-model. A per-item reply that names no option is never
+takes the ``low_support`` path: the candidate, its near misses and, when it is still alone, its
+doc-type siblings are offered to the model. A per-item reply that names no option is never
 read as the first option: the section gets the ``other`` leaf below the last answered step
 (or ``general.other``) at confidence 0, the document no type, and the result is flagged
 ``unparsed``.
@@ -713,16 +714,18 @@ class _Run:
                 doc_type=(match.decided, confidence),
             )
         offered = list(match.candidates)
-        if weak:  # batched tags: one section is too little to decide on
-            flags.append("low_support")
-            offered += _siblings(self.doc_types, offered[0])
-        elif len(offered) <= 1 and match.near_misses:
+        low_support = weak  # tags without probabilities: one section is too little
+        if len(offered) <= 1 and match.near_misses:  # section 6.3: with its near misses
             offered += [t for t in match.near_misses if t not in offered]
             flags.append("near_miss")
-        if len(offered) == 1 and not weak:
-            # a lone undecided candidate or near miss: offer it with its doc-type siblings
+        if len(offered) == 1:
+            # a lone undecided candidate or near miss: offer it with its doc-type siblings,
+            # but not those the rules' excludes argue against
+            low_support = True
+            siblings = _siblings(self.doc_types, offered[0])
+            offered += [t for t in siblings if t not in match.barred]
+        if low_support:
             flags.append("low_support")
-            offered += _siblings(self.doc_types, offered[0])
         if len(offered) >= 2:
             decision = self.decide_document(_restricted(self.doc_types, offered), doc_level)
             decided_by: DecidedBy = "model"

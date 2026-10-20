@@ -189,7 +189,8 @@ def test_lone_undecided_candidate_is_offered_with_its_siblings():
     assert "low_support" in result.flags and "near_miss" not in result.flags
     siblings = [n.id for n in builtin_taxonomy("doc_types").children("legal")]
     assert result.candidates[0] == "legal.court_opinion"
-    assert set(result.candidates) == set(siblings)
+    # not legislation: its excludes name law.opinion, which the document has
+    assert set(result.candidates) == set(siblings) - {"legal.legislation"}
     (doc_call,) = backend.of("document")
     assert doc_call[1] == result.candidates
 

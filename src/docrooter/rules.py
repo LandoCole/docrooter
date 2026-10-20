@@ -39,7 +39,9 @@ class RuleMatch(BaseModel):
 
     ``support`` maps each candidate and near miss to the section ids that met its required
     groups, one per group (the group's strongest tag), with their confidences. ``excluded``
-    lists the types an ``excludes`` hit removed.
+    lists the types an ``excludes`` hit removed. ``barred`` lists every type with an
+    ``excludes`` hit, whether or not it met a group: a type the rules argue against, which a
+    caller should not offer as a sibling either.
 
     When every candidate hit an exclude, the candidates are kept rather than emptied: they are
     in ``waived`` and ``excludes_waived`` is true. The rules' own evidence argued against them,
@@ -53,6 +55,7 @@ class RuleMatch(BaseModel):
     decided: str | None = None
     support: dict[str, dict[str, float]] = Field(default_factory=dict)
     excluded: list[str] = Field(default_factory=list)
+    barred: list[str] = Field(default_factory=list)
     waived: list[str] = Field(default_factory=list)
     excludes_waived: bool = False
 
@@ -92,6 +95,8 @@ def match_rules(
     barred: set[str] = set()
 
     for doc_type, rule in rules.items():
+        if any(covers(e, sid) for e in rule.excludes for sid, _ in present):
+            barred.add(doc_type)
         met: dict[str, float] = {}
         missing = 0
         for group in rule.requires:
@@ -107,8 +112,6 @@ def match_rules(
         typical_hits[doc_type] = sum(
             any(covers(t, sid) for sid, _ in present) for t in rule.typical
         )
-        if any(covers(e, sid) for e in rule.excludes for sid, _ in present):
-            barred.add(doc_type)
         if missing == 0:
             candidates.append(doc_type)
         elif missing == 1:
@@ -140,6 +143,7 @@ def match_rules(
         decided=decided,
         support={k: v for k, v in support.items() if k in candidates or k in near_misses},
         excluded=excluded,
+        barred=[i for i in rules if i in barred],
         waived=waived,
         excludes_waived=bool(waived),
     )

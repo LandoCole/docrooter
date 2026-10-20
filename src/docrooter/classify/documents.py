@@ -17,6 +17,7 @@ from docrooter.classify.results import DocTypeResult, PathResult, Step
 from docrooter.classify.strategies import Beam, Flat, Greedy
 from docrooter.doc_view import DocumentView
 from docrooter.document import Document
+from docrooter.ladder import Level, check_level_and_view
 from docrooter.taxonomy import Taxonomy
 from docrooter.views import SectionView, estimate_tokens
 
@@ -41,6 +42,7 @@ def classify_document(
     backend: str | Backend = DEFAULT_BACKEND,
     strategy: Greedy | Beam | Flat | None = None,
     view: DocumentView | None = None,
+    level: Level | None = None,
     instruction: str | None = DEFAULT_INSTRUCTION,
     mode: Mode = "view",
     threshold: float = 0.0,
@@ -58,11 +60,17 @@ def classify_document(
     from a spec string is released before returning; pass a backend instance to reuse one
     across calls.
 
+    ``level`` (see :mod:`docrooter.ladder`) renders the document with
+    ``document_view(level)`` and, in the sections and hybrid modes, each section with
+    ``section_view(level)``; ``level=None`` keeps the default views. Passing both ``level`` and
+    ``view`` raises ``ValueError``.
+
     ``on_event`` receives pipeline :class:`~docrooter.events.Event` objects: ``model_load``
     (when a backend loads its model; it comes first, because the view counts tokens with the
     model's tokenizer), ``view``, ``classify`` (its end carries ``type`` and ``confidence``) and
     a final ``done``.
     """
+    check_level_and_view(level, view)  # before a model loads
     with (
         events.pipeline_run(on_event),
         Classifier(taxonomy, backend, **classifier_kwargs) as classifier,
@@ -70,6 +78,7 @@ def classify_document(
         return classifier.classify_documents(
             [doc],
             view=view,
+            level=level,
             mode=mode,
             strategy=strategy,
             threshold=threshold,
@@ -86,8 +95,10 @@ def classify_documents(
     strategy: Greedy | Beam | Flat | None = None,
     threshold: float | None = None,
     instruction: str | None = None,
+    section_view: SectionView = SECTION_VIEW,
 ) -> list[DocTypeResult]:
-    """The implementation of :meth:`Classifier.classify_documents`."""
+    """The implementation of :meth:`Classifier.classify_documents`; ``section_view`` renders
+    the sections in the sections and hybrid modes."""
     strategy = strategy if strategy is not None else Flat()
     if not isinstance(strategy, (Greedy, Beam, Flat)):
         raise TypeError(f"strategy must be Greedy, Beam or Flat, got {type(strategy).__name__}")
@@ -117,6 +128,7 @@ def classify_documents(
     tokens = 0
     view_texts: dict[str, str] = {}
     rendered: dict[int, str] = {}
+    truncated: dict[int, bool] = {}
     weights: dict[int, dict[str, int]] = {}  # doc index -> section key -> token weight
     section_texts: dict[str, str] = {}
     for i, doc in enumerate(docs):
@@ -124,6 +136,7 @@ def classify_documents(
             continue
         shown = view.render(doc, count)
         rendered[i] = shown.text
+        truncated[i] = shown.truncated
         tokens += shown.n_tokens
         if mode != "sections":
             view_texts[f"v{i}"] = rendered[i]
@@ -131,7 +144,7 @@ def classify_documents(
             leaves = [
                 s for s in doc.leaves() if s.text.strip() or (s.level > 0 and s.title.strip())
             ]
-            section_views = SECTION_VIEW.render_all(doc, [s.id for s in leaves], count)
+            section_views = section_view.render_all(doc, [s.id for s in leaves], count)
             for section in leaves:
                 key = f"s{i}:{section.id}"
                 section_texts[key] = section_views[section.id].text
@@ -154,7 +167,7 @@ def classify_documents(
     out: list[DocTypeResult] = []
     for i, doc in enumerate(docs):
         if i not in rendered or (mode == "sections" and i not in weights):
-            out.append(_empty(doc, mode, rendered.get(i, "")))
+            out.append(_empty(doc, mode, rendered.get(i, ""), truncated.get(i, False)))
             continue
         view_result = results.get(f"v{i}")
         section_results = [(results[k], w) for k, w in weights.get(i, {}).items()]
@@ -190,6 +203,7 @@ def classify_documents(
                 confidence=confidence,
                 leaf_probs=_top(dist, LEAF_PROBS_TOP),
                 view_text=rendered[i],
+                truncated=truncated[i],
                 timings={"classify": per_doc},
                 mode=mode,  # type: ignore[arg-type]
             )
@@ -297,11 +311,12 @@ def _root_probs(
     }
 
 
-def _empty(doc: Document, mode: str, view_text: str) -> DocTypeResult:
+def _empty(doc: Document, mode: str, view_text: str, truncated: bool) -> DocTypeResult:
     return DocTypeResult(
         source=doc.source,
         best=PathResult(node_ids=[], stopped_reason="empty_text"),
         view_text=view_text,
+        truncated=truncated,
         timings={"classify": 0.0},
         mode=mode,  # type: ignore[arg-type]
     )

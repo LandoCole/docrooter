@@ -12,6 +12,7 @@ from docrooter.classify.classifier import DEFAULT_BACKEND, Classifier
 from docrooter.classify.documents import classify_document
 from docrooter.classify.strategies import Flat
 from docrooter.document import Document, Section
+from docrooter.ladder import Level, check_level_and_view, section_view
 from docrooter.taxonomies import DOC_TYPE_TO_SECTION_TAXONOMY, builtin_taxonomy
 from docrooter.taxonomy import Taxonomy
 from docrooter.views import SectionView
@@ -66,6 +67,7 @@ def normalize_sections(
     levels: Sequence[int] = (1, 2),
     classifier: Classifier | None = None,
     view: SectionView | None = None,
+    level: Level | None = None,
     on_event: events.EventSink | None = None,
 ) -> NormalizationResult:
     """Map each section of ``doc`` at ``levels`` to a canonical section of a section taxonomy.
@@ -84,6 +86,10 @@ def normalize_sections(
     ``text`` or ``keyphrases``), a section with a blank title but some text is rendered with
     its lead added, so its view is not empty.
 
+    ``level`` (see :mod:`docrooter.ladder`) renders the sections with ``section_view(level)``
+    and is passed on to the doc-type step; ``level=None`` keeps the defaults above. Passing both
+    ``level`` and ``view`` raises ``ValueError``.
+
     A prebuilt ``classifier`` must be built on the chosen taxonomy (else ``ValueError``); it
     classifies as configured and also supplies the backend for the doc-type step. A model
     loaded here from a spec string is released before returning; a prebuilt ``classifier``
@@ -93,10 +99,15 @@ def normalize_sections(
     (``view``, ``classify``) when it runs, then ``normalize`` (with ``model_load`` inside it when
     the section classifier loads a model) and a final ``done``.
     """
+    check_level_and_view(level, view)
+    if level is not None:
+        view = section_view(level)
     owned: list[Backend | Classifier] = []  # what this call loaded, closed when it returns
     with events.pipeline_run(on_event):
         try:
-            return _normalize(doc, doc_type, taxonomy, backend, levels, classifier, view, owned)
+            return _normalize(
+                doc, doc_type, taxonomy, backend, levels, classifier, view, level, owned
+            )
         finally:
             # Before ``done``: the memory is released by the time a listener sees it.
             for item in owned:
@@ -111,6 +122,7 @@ def _normalize(
     levels: Sequence[int],
     classifier: Classifier | None,
     view: SectionView | None,
+    level: Level | None,
     owned: list[Backend | Classifier],
 ) -> NormalizationResult:
     confidence: float | None = None
@@ -132,7 +144,7 @@ def _normalize(
                 backend = doc_type_backend = _resolved(backend)
                 if isinstance(spec, str):
                     owned.append(backend)
-            result = classify_document(doc, doc_types, backend=doc_type_backend)
+            result = classify_document(doc, doc_types, backend=doc_type_backend, level=level)
             doc_type = result.best.node_ids[-1] if result.best.node_ids else None
             confidence = result.confidence
         elif doc_type not in DOC_TYPE_TO_SECTION_TAXONOMY:

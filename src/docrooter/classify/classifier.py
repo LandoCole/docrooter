@@ -22,6 +22,7 @@ from docrooter.classify.results import DocTypeResult, DocumentResult, PathResult
 from docrooter.classify.strategies import Beam, Flat, Greedy
 from docrooter.doc_view import DocumentView
 from docrooter.document import Document, Section
+from docrooter.ladder import Level, check_level_and_view, document_view, section_view
 from docrooter.taxonomy import Taxonomy
 from docrooter.views import SectionView, estimate_tokens
 
@@ -310,6 +311,7 @@ class Classifier:
         docs: Sequence[Document],
         *,
         view: DocumentView | None = None,
+        level: Level | None = None,
         mode: str = "view",
         strategy: Greedy | Beam | Flat | None = None,
         threshold: float | None = None,
@@ -344,18 +346,29 @@ class Classifier:
         ``on_event`` receives pipeline :class:`~docrooter.events.Event` objects (``model_load``
         when a model loads, before ``view``, then ``classify`` and ``done``); see
         :func:`~docrooter.classify_document`.
-        """
-        from docrooter.classify.documents import classify_documents
 
+        ``level`` (see :mod:`docrooter.ladder`) renders each document with
+        ``document_view(level)`` and, in the sections and hybrid modes, each leaf section with
+        ``section_view(level)`` instead of the default title and lead. ``level=None`` keeps the
+        default views. Passing both ``level`` and ``view`` raises ``ValueError``.
+        """
+        from docrooter.classify.documents import SECTION_VIEW, classify_documents
+
+        check_level_and_view(level, view)
+        if level is not None:
+            view, sections_view = document_view(level), section_view(level)
+        else:
+            view, sections_view = view or DocumentView(), SECTION_VIEW
         with events.pipeline_run(on_event):
             return classify_documents(
                 self,
                 docs,
-                view or DocumentView(),
+                view,
                 mode,
                 strategy=strategy,
                 threshold=threshold,
                 instruction=instruction,
+                section_view=sections_view,
             )
 
     def prepare_texts(self, texts: Sequence[str]) -> list[str]:

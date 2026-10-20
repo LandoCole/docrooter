@@ -11,9 +11,9 @@ from pydantic import BaseModel, field_validator
 from docrooter.document import Document, Section
 from docrooter.keyphrases import document_frequencies, drop_contained, scored_keyphrases
 from docrooter.pdf.signals import normalize_title
-from docrooter.views import RenderedView, estimate_tokens, render_budgeted
+from docrooter.views import _WORDS_PER_TOKEN, RenderedView, estimate_tokens, render_budgeted
 
-_FIELD_NAMES = ("title", "stats", "toc", "lead", "keyphrases")
+_FIELD_NAMES = ("title", "stats", "toc", "lead", "keyphrases", "text")
 
 # Leading numbering already in a heading ("1.", "2.3", "IV."), replaced by the view's own. A
 # bare number of four or more digits is a year ("2024 Annual Report"), not numbering.
@@ -47,9 +47,12 @@ class DocumentView(BaseModel):
     Fields: ``title`` (document title, else the source file's stem), ``stats`` (page and
     section counts), ``toc`` (numbered headings down to ``toc_depth``, at most
     ``toc_entries``), ``lead`` (the first ``lead_words`` words of body text, skipping cover,
-    notice, contents and similar boilerplate sections) and ``keyphrases`` (section keyphrases
-    pooled by summed score). Budgeting works as in ``SectionView``: the first field that does not
-    fit is cut to the longest word prefix that does, and the view is never empty.
+    notice, contents and similar boilerplate sections), ``keyphrases`` (section keyphrases
+    pooled by summed score) and ``text`` (the whole body text in reading order, boilerplate
+    included; not a default field). Budgeting works as in ``SectionView``: the first field that
+    does not fit is cut to the longest word prefix that does, and the view is never empty. The
+    body text is gathered only up to the words the budget could ever hold, so a long document is
+    never counted whole.
     """
 
     fields: tuple[str, ...] = ("title", "stats", "toc", "lead", "keyphrases")
@@ -87,6 +90,10 @@ class DocumentView(BaseModel):
         if name == "lead":
             lead = _lead(doc, self.lead_words)
             return ("Lead:", lead) if lead else None
+        if name == "text":
+            # One word past the cap, so render_budgeted sees (and flags) a cut.
+            text = _body_text(doc, _WORDS_PER_TOKEN * self.max_tokens + 1)
+            return ("Text:", text) if text else None
         phrases = _pooled_keyphrases(doc, self.keyphrases)
         return ("Key phrases:", ", ".join(phrases)) if phrases else None
 
@@ -141,6 +148,16 @@ def _lead(doc: Document, n_words: int) -> str:
             break
         if section.text.strip() and not _is_boilerplate(section):
             words.extend(section.text.split()[: n_words - len(words)])
+    return " ".join(words)
+
+
+def _body_text(doc: Document, max_words: int) -> str:
+    """The first ``max_words`` words of all body text, in reading order."""
+    words: list[str] = []
+    for section in doc.walk():
+        if len(words) >= max_words:
+            break
+        words.extend(section.text.split()[: max_words - len(words)])
     return " ".join(words)
 
 

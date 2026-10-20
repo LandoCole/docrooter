@@ -590,7 +590,8 @@ def test_report_pending_and_tables(tmp_path):
     assert "| kw | per_item | sections_first | `terms`: 89.0 at 200 tokens" in picks
     assert "| kw | batched | sections_first | `headings`: 89.0 at 50 tokens" in picks
     llm = bench.render_report([result("q", "doc_first", "full", 0.9, 9, spec="openai:~/m")])
-    assert "mlx_lm.server" in llm and "`q`" in llm
+    assert "a local server, not a hosted model" in llm and "`q`" in llm
+    assert "mlx_lm.server" not in llm  # the server is not recorded, so it is not named
     path = tmp_path / "results"
     path.mkdir()
     for k, r in enumerate(runs):
@@ -600,3 +601,52 @@ def test_report_pending_and_tables(tmp_path):
     assert out.read_text() == text
     with pytest.raises(SystemExit):  # a mistyped results directory is not "results pending"
         bench.main(["report", "--results", str(tmp_path / "missing"), "--out", str(out)])
+
+
+def test_disclosures_name_the_same_model_annotators_and_the_rules_revision():
+    text = " ".join(bench.render_report([]).split())
+    assert "all Claude (the same underlying model)" in text
+    assert "κ measures consistency, not correctness" in text
+    assert (
+        "Doc-type rules were revised once after a reviewer checked them against the section "
+        "gold. Gold-split doc-type numbers are therefore development numbers; the held-out run "
+        "is the clean measure."
+    ) in text
+    assert "section macro-F1 is over the gold leaves" in text
+
+
+def test_a_document_that_fails_to_read_is_one_error(tmp_path):
+    def unreadable():
+        raise RuntimeError(SECRET_TEXT)
+
+    extra = bench.DocInput("d2", "legal.contract", unreadable)
+    result = _run(tmp_path, extra=extra)
+    failed = result["documents"][1]
+    assert failed["error"] == "RuntimeError" and failed["pred"] is None
+    assert result["metrics"]["errors"] == 1 and SECRET_TEXT not in json.dumps(result)
+
+
+def test_a_limited_run_never_overwrites_a_full_one():
+    config = bench.Config("doc_first", "terms", "terms", "batched")
+    full = bench.result_name("kw", "gold", config)
+    smoke = bench.result_name("kw", "gold", config, limit=3)
+    assert full != smoke and "limit3" in smoke and smoke.endswith(".json")
+
+
+def test_report_warns_when_rows_ran_at_different_code_versions():
+    def row(fingerprint, sha, dirty=False):
+        return {
+            "backend": {"label": "kw", "spec": "keyword"},
+            "config": {"flow": "doc_first", "section_level": "terms", "doc_level": "terms",
+                       "calls": "batched"},
+            "docs": "gold",
+            "settings": {"limit": None, "code_fingerprint": fingerprint},
+            "code": {"git_sha": sha, "dirty": dirty},
+            "documents": [],
+            "metrics": {"documents": 0, "errors": 0, "doc_type": {"accuracy": 1.0}},
+        }  # fmt: skip
+
+    same = bench._code_versions([row("f1", "a" * 40), row("f1", "a" * 40)])
+    assert same == []
+    mixed = " ".join(bench._code_versions([row("f1", "a" * 40), row("f2", "b" * 40, True)]))
+    assert "2 code versions" in mixed and "dirty" in mixed

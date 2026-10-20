@@ -51,6 +51,7 @@ ignores the local server it sends its requests to.
 from __future__ import annotations
 
 import argparse
+import collections
 import datetime
 import functools
 import hashlib
@@ -282,13 +283,16 @@ def score_sections(
     ``absent``, one whose title's SHA-1 differs is ``title_mismatch``; both are excluded from
     scoring. ``raw`` keeps a predicted label that is not itself the catalogue id, and
     ``unmapped`` marks one with no catalogue id. ``section_taxonomy`` is the taxonomy the tags'
-    labels belong to (see :func:`catalogue_label`)."""
+    labels belong to (see :func:`catalogue_label`). ``doc`` is ``None`` for a document that
+    failed to read: its gold sections are scored as untagged misses."""
     predicted = {str(tag.id): tag.label for tag in tags}
     records: list[dict[str, Any]] = []
     for row in gold_rows:
         section_id = row["section_id"]
-        section = doc.sections.get(section_id)
-        if section is None:
+        section = doc.sections.get(section_id) if doc is not None else None
+        if doc is None:  # the document failed to read: every gold section is a miss
+            status = "ok"
+        elif section is None:
             status = "absent"
         elif section_sample.title_sha1(section.title) != row["title_sha1"]:
             status = "title_mismatch"
@@ -511,10 +515,11 @@ def _document_record(
     classify: Classify,
     section_gold: Mapping[str, Sequence[Mapping[str, Any]]] | None,
 ) -> dict[str, Any]:
-    doc = item.load()
     started = time.perf_counter()
     error = None
+    doc = None
     try:
+        doc = item.load()  # a document that fails to read is one error, not the whole grid
         result = classify(
             doc,
             flow=config.flow,
@@ -690,9 +695,12 @@ def run_configuration(
     return result
 
 
-def result_name(label: str, docs: str, config: Config) -> str:
+def result_name(label: str, docs: str, config: Config, limit: int | None = None) -> str:
+    """The results file of a configuration; a ``--limit`` smoke run gets its own name, so it
+    never replaces a full run."""
     c = config
-    return f"{label}__{docs}__{c.calls}__{c.flow}__{c.section_level}__{c.doc_level}.json"
+    smoke = f"__limit{limit}" if limit else ""
+    return f"{label}__{docs}__{c.calls}__{c.flow}__{c.section_level}__{c.doc_level}{smoke}.json"
 
 
 def _existing_hash(path: Path) -> str | None:
@@ -722,7 +730,7 @@ def run_grid(
     path."""
     paths = []
     for config in configs:
-        path = out / result_name(label, docs, config)
+        path = out / result_name(label, docs, config, settings.get("limit"))
         paths.append(path)
         wanted = settings_hash(config_settings(settings, config, spec=spec, label=label, docs=docs))
         if path.is_file() and _existing_hash(path) == wanted:
@@ -927,7 +935,7 @@ def _llm_disclosure(results: Sequence[Mapping[str, Any]]) -> list[str]:
     for label, backend in sorted(seen.items()):
         host = backend.get("endpoint_host")
         where = (
-            "a local stand-in served by `mlx_lm.server`, not a hosted model"
+            "a local stand-in on a local server, not a hosted model"
             if host is None or host in _LOCAL_HOSTS
             else f"the hosted endpoint `{host}`"
         )
@@ -936,6 +944,43 @@ def _llm_disclosure(results: Sequence[Mapping[str, Any]]) -> list[str]:
             f"OpenAI-compatible backend, on {where} (the same code path as a hosted model)."
         )
     return lines
+
+
+def _heldout_types(results: Sequence[Mapping[str, Any]]) -> str:
+    """How many doc types the held-out rows cover, when there are any."""
+    heldout = [r for r in results if r.get("docs") == "heldout"]
+    if not heldout:
+        return ""
+    counts = collections.Counter(d["gold"] for d in heldout[0].get("documents", []))
+    if not counts:
+        return ""
+    return (
+        f" The held-out corpus covers {len(counts)} types, {min(counts.values())} to "
+        f"{max(counts.values())} documents each."
+    )
+
+
+def _code_versions(results: Sequence[Mapping[str, Any]]) -> list[str]:
+    """A warning when the rows were run at more than one code version, or on a dirty checkout
+    (empty when they all share one clean version)."""
+    versions = {
+        (
+            (r.get("settings") or {}).get("code_fingerprint"),
+            (r.get("code") or {}).get("git_sha"),
+            bool((r.get("code") or {}).get("dirty")),
+        )
+        for r in results
+    }
+    dirty = any(v[2] for v in versions)
+    if len(versions) <= 1 and not dirty:
+        return []
+    shas = sorted({(v[1] or "unknown")[:12] for v in versions})
+    return [
+        f"**Code versions.** These rows were run at {len(versions)} code versions "
+        f"(git {', '.join(shas)}){'; some on a dirty checkout' if dirty else ''}: compare rows "
+        f"from different versions with care.",
+        "",
+    ]
 
 
 def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
@@ -960,13 +1005,20 @@ def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
         f"{len(gold_data['documents'])} documents, labelled blind against the section catalogue; "
         f"{agreement['double_annotated']} were double-annotated: Cohen's κ "
         f"{agreement['leaf']['kappa']:.3f} at leaf and {agreement['group']['kappa']:.3f} at group, "
-        f"{agreement['adjudicated']} disagreements adjudicated.",
+        f"{agreement['adjudicated']} disagreements adjudicated. The annotators were all Claude "
+        f"(the same underlying model), so κ measures consistency, not correctness.",
+        "- **Doc-type rules were revised once after a reviewer checked them against the section "
+        "gold. Gold-split doc-type numbers are therefore development numbers; the held-out run "
+        "is the clean measure.** The revision was made from the doc-type definitions (an "
+        "ordinary contract clause no longer makes a terms policy, and a contract no longer needs "
+        "a titled parties or signatures section), not tuned to the gold labels.",
         f"- **Doc-type gold comes from the source**: the manifest's source-assigned type "
         f"(`benchmarks/classification/doc_type_gold.json`), with "
         f"{len(gold_data['corrections'])} correction(s).",
         f"- **Only {len(types)} of the {len(all_types)} doc types are in the corpus** "
         f"({', '.join(f'`{t}`' for t in types)}); the rules and the classifier are not validated "
-        f"on the other {len(all_types) - len(types)}. Macro-F1 is over the gold types.",
+        f"on the other {len(all_types) - len(types)}. Macro-F1 is over the gold types; "
+        f"section macro-F1 is over the gold leaves.{_heldout_types(results)}",
         *_llm_disclosure(results),
         "- **Tokens are exact or estimated, as the Tokens column says.** Exact counts come from "
         "the API's `usage` (LLM backends). Keyword and embedding backends make no LLM call: "
@@ -1194,6 +1246,7 @@ def render_report(results: Sequence[Mapping[str, Any]]) -> str:
     if not complete:
         lines.append("**Results pending.** The grid has not been run yet.")
     else:
+        lines += _code_versions(complete)
         lines += ["## Accuracy against tokens (main grid: section level = document level)", ""]
         lines += _main_table(main, gold) if main else ["No main-grid runs."]
         lines += [

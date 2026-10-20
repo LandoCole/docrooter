@@ -36,3 +36,9 @@ coverage.xml
 
 # Local, third-party PDFs dropped into tests/ by hand (never committed)
 tests/_*.pdf
+
+# Section gold: the sample and annotation batches hold section text of never-redistributed
+# documents (their default home is benchmarks/.cache.nosync/classification/); this guards copies
+# written next to the committed gold files.
+benchmarks/classification/section_sample*.jsonl
+benchmarks/classification/annotation/

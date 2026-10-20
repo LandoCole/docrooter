@@ -32,11 +32,12 @@ ENV_CAPS: dict[str, str] = {
 MPS_CAP_VARS = (runtime.MPS_HIGH_WATERMARK_ENV, runtime.MPS_LOW_WATERMARK_ENV)
 # Processes that load models: the model benchmarks (``python -m benchmarks.<name>`` or
 # ``benchmarks/<name>.py``), the playground server, teacher labelling (``teach label``), the
-# corpus build, the element-tagger training chain, selector fitting, the selection benchmarks and
-# the extraction demo.
+# corpus build, the element-tagger training chain, selector fitting, the selection benchmarks, the
+# extraction demo, the classification benchmark and a local LLM server (``mlx_lm.server``).
 _MODEL_PROCESS = re.compile(
     r"benchmarks[./](run|pdf_bench|normalize_bench|memory_check|profile_pipeline|elements_bench|ocr_bench"
-    r"|element_tags_bench|selection_bench|evidence_qa|extraction[./]run)\b"
+    r"|element_tags_bench|selection_bench|evidence_qa|extraction[./]run|classification_bench)\b"
+    r"|\bmlx_lm[. ]server\b"
     r"|\bdocrooter serve\b"
     r"|\bteach label\b"
     r"|\bcorpus build\b"
@@ -46,6 +47,9 @@ _MODEL_PROCESS = re.compile(
 # Only an interpreter (or the docrooter script) running one counts; a shell or ``uv run``
 # wrapping it, a waiting ``pgrep`` loop or a ``grep`` that merely names it does not.
 _INTERPRETER = re.compile(r"^(python[\d.]*|docrooter)$", re.IGNORECASE)
+# A local OpenAI-compatible LLM server. It is a model process, but a run that sends its requests to
+# it ignores it (see ``single_model_process(ignore=...)``).
+LLM_SERVER = re.compile(r"\bmlx_lm[. ]server\b")
 
 
 def apply_env_caps() -> dict[str, str]:
@@ -138,16 +142,23 @@ def other_model_processes(
     ]
 
 
-def single_model_process(name: str, *, allow_concurrent: bool = False) -> None:
+def single_model_process(
+    name: str, *, allow_concurrent: bool = False, ignore: re.Pattern[str] | None = None
+) -> None:
     """Set the env caps, then exit with status 2 if another model process is running.
 
     ``name`` is this benchmark's name, used in the message. With ``allow_concurrent`` the check
-    is skipped (the caps still apply).
+    is skipped (the caps still apply). Processes whose command matches ``ignore`` do not count:
+    a benchmark that sends its requests to a local LLM server passes :data:`LLM_SERVER`.
     """
     apply_env_caps()
     if allow_concurrent:
         return
-    others = other_model_processes()
+    others = [
+        (p, command)
+        for p, command in other_model_processes()
+        if ignore is None or not ignore.search(command)
+    ]
     if others:
         listing = "\n".join(f"  {p}: {command[:160]}" for p, command in others)
         print(

@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import functools
 import json
+import random
 import sys
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -48,7 +49,7 @@ from benchmarks.classification.section_sample import (
     SUMMARY_PATH,
     require_untracked,
 )
-from benchmarks.training_corpus.gold import AnnotationError, cohen_kappa, read_jsonl
+from benchmarks.training_corpus.gold import AnnotationError, _pair_stats, read_jsonl
 from benchmarks.training_corpus.gold_sample import jsonl, write_atomic
 from docrooter.taxonomies import builtin_taxonomy
 
@@ -238,12 +239,6 @@ def disagreements(
 # --- agreement -------------------------------------------------------------------------------
 
 
-def _pair_stats(a: Sequence[Any], b: Sequence[Any]) -> dict[str, Any]:
-    n = len(a)
-    observed = sum(x == y for x, y in zip(a, b, strict=True)) / n if n else None
-    return {"n": n, "kappa": cohen_kappa(a, b), "observed_agreement": observed}
-
-
 def agreement(
     sample: Sequence[dict[str, Any]], first: dict[str, Label], second: dict[str, Label]
 ) -> dict[str, Any]:
@@ -370,10 +365,13 @@ def _adjudication_rows(
     """The disputed items as the adjudicator sees them: the annotator view plus the two
     labels, without the annotators' names."""
     by_item = {row["item"]: row for row in sample}
-    return [
-        {**annotator_view(by_item[item]), "labels": [first[item].label, second[item].label]}
-        for item in disagreements(sample, first, second)
-    ]
+    rows = []
+    for item in disagreements(sample, first, second):
+        labels = [first[item].label, second[item].label]
+        if random.Random(f"adjudication:{item}").random() < 0.5:  # not first-then-second always
+            labels.reverse()
+        rows.append({**annotator_view(by_item[item]), "labels": labels})
+    return rows
 
 
 def _names(labels: dict[str, Label]) -> list[str]:
@@ -432,6 +430,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             report = agreement(sample, first, second)
             disputed = set(disagreements(sample, first, second))
             sample_summary = json.loads(args.sample_summary.read_text(encoding="utf-8"))
+            if not isinstance(sample_summary, dict) or "reading" not in sample_summary:
+                raise AnnotationError(
+                    [f"{args.sample_summary} has no 'reading' (not a sample summary)"]
+                )
             summary = {
                 "disclosure": DISCLOSURE,
                 "reading": sample_summary["reading"],
@@ -451,7 +453,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             kappa = report["leaf"]["kappa"]
             shown = "undefined" if kappa is None else f"{kappa:.3f}"
             print(f"{len(rows)} gold rows; leaf kappa {shown} on {report['double_annotated']}")
-    except (OSError, KeyError, ValueError) as exc:  # AnnotationError is a ValueError
+    except (OSError, ValueError) as exc:  # AnnotationError is a ValueError
         print(f"error: {exc}", file=sys.stderr)
         return 1
     return 0

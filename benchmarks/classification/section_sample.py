@@ -4,10 +4,11 @@
 
 Every document whose manifest split is ``gold`` is read with the reading the benchmark uses:
 profile ``fast`` (no elements, no OCR, no layout model; headings and sections only). From each,
-:func:`sample_sections` takes up to ``max_per_doc`` level-1 and level-2 sections, spread evenly
-through the document in reading order. The choice is a function of the document alone (no
-randomness), so the same reading gives the same sample; the gold names a section by document,
-section id and the SHA-1 of its title, so a reading that drifts is caught when the gold is used.
+:func:`sample_sections` takes up to ``max_per_doc`` level-1 and level-2 sections, spread
+through the document in reading order, with half the cap reserved for level 1. The choice is
+a function of the document alone, so the same reading gives the same sample; the gold names a
+section by document, section id and the SHA-1 of its title, so a reading that drifts is caught
+when the gold is used. Items are numbered after a seeded shuffle across documents.
 
 The sample (``benchmarks/.cache.nosync/classification/section_sample.jsonl`` by default) holds
 section text from documents that are never redistributed: it stays in the git-ignored cache and
@@ -75,18 +76,42 @@ def reading_metadata() -> dict[str, Any]:
     }
 
 
+def _spread(items: Sequence[Section], k: int, rng: random.Random) -> list[Section]:
+    """``k`` of ``items``, one from each of ``k`` equal runs (a seeded position within the run,
+    so a structure that repeats with the run's period is not hit at the same place every time);
+    all of them if there are no more than ``k``."""
+    n = len(items)
+    if k >= n:
+        return list(items)
+    return [items[rng.randrange(i * n // k, (i + 1) * n // k)] for i in range(k)]
+
+
 def sample_sections(doc: Document, *, max_per_doc: int = MAX_PER_DOC) -> list[Section]:
-    """Up to ``max_per_doc`` level-1 and level-2 sections of ``doc`` with a title, in reading
-    order, spread evenly through the document: all of them if there are no more than the cap,
-    else the one at the middle of each of ``max_per_doc`` equal runs of the candidates.
-    Deterministic: the same document gives the same sections."""
+    """Up to ``max_per_doc`` level-1 and level-2 sections of ``doc``, in reading order.
+
+    Sections without a title are skipped, and so are repeats of a title already seen in the
+    document (a running page header read as a heading). Up to half the cap (at least one slot)
+    is reserved for level 1, whose sections (Item 1A, Abstract, Article 4, ...) are the ones
+    the doc-type rules decide on; the rest goes to level 2. A level with fewer sections than its
+    share leaves the slots to the other. Within a level the picks are spread through the
+    document, one from each of equal runs. Deterministic: a function of the document alone."""
     if max_per_doc < 1:
         raise ValueError(f"max_per_doc must be positive, got {max_per_doc}")
-    candidates = [s for s in doc.walk() if s.level in LEVELS and s.title.strip()]
-    n = len(candidates)
-    if n <= max_per_doc:
-        return candidates
-    return [candidates[(2 * k + 1) * n // (2 * max_per_doc)] for k in range(max_per_doc)]
+    seen: set[str] = set()
+    levels: dict[int, list[Section]] = {level: [] for level in LEVELS}
+    for s in doc.walk():
+        if s.level in LEVELS and s.title.strip() and title_sha1(s.title) not in seen:
+            seen.add(title_sha1(s.title))
+            levels[s.level].append(s)
+    first, second = levels[LEVELS[0]], levels[LEVELS[1]]
+    take_first = min(len(first), max(1, max_per_doc // 2))
+    take_second = min(len(second), max_per_doc - take_first)
+    take_first = min(len(first), max_per_doc - take_second)
+    key = "\n".join(f"{s.id}\t{s.title}" for s in (*first, *second))
+    rng = random.Random(hashlib.sha1(key.encode("utf-8")).hexdigest())
+    picked = _spread(first, take_first, rng) + _spread(second, take_second, rng)
+    order = {s.id: k for k, s in enumerate(doc.walk())}
+    return sorted(picked, key=lambda s: order[s.id])
 
 
 def heading_path(doc: Document, section: Section) -> list[str]:
@@ -126,14 +151,23 @@ def assign_items(
     seed: int = SEED,
     double_fraction: float = DOUBLE_FRACTION,
 ) -> list[dict[str, Any]]:
-    """Number ``rows`` (``s0000``, ``s0001``, ... in the order given) and mark
+    """Shuffle ``rows`` by ``seed``, number them (``s0000``, ``s0001``, ...) and mark
     ``round(double_fraction * len(rows))`` of them, chosen by ``seed``, as ``double``."""
     if not 0 <= double_fraction <= 1:
         raise ValueError(f"double_fraction must be in [0, 1], got {double_fraction}")
-    items = [f"s{k:04d}" for k in range(len(rows))]
-    rng = random.Random(f"section_gold:{seed}")
-    double = set(rng.sample(items, round(double_fraction * len(items))))
-    return [{"item": i, **row, "double": i in double} for i, row in zip(items, rows, strict=True)]
+    # Shuffled before numbering, so the order of the items (and of the batches) does not show
+    # which sections come from one document, or in what order.
+    shuffled = list(rows)
+    random.Random(f"section_gold:{seed}:order").shuffle(shuffled)
+    items = [f"s{k:04d}" for k in range(len(shuffled))]
+    double = set(
+        random.Random(f"section_gold:{seed}:double").sample(
+            items, round(double_fraction * len(items))
+        )
+    )
+    return [
+        {"item": i, **row, "double": i in double} for i, row in zip(items, shuffled, strict=True)
+    ]
 
 
 def gold_documents(manifest: Path = MANIFEST_PATH) -> list[str]:

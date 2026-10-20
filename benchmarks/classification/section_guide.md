@@ -4,7 +4,7 @@ You are building the evaluation-only gold set for section tags: for each sampled
 public document, one label from the section catalogue. The benchmark scores a classifier's
 section tags against your labels, so a label is a judgement about what the section *is*, made
 the same way every time. Read this guide first, then the catalogue (`catalogue.json`, next to
-your batch files: 12 groups, 112 leaves, each with a description and examples).
+your batch files: every group and leaf with its description and examples).
 
 ## What you get, and what you hand back
 
@@ -120,6 +120,12 @@ Apply the first rule that fits.
   (extra tables, proofs, glossaries, revision history) is `general.appendix`; lookup material
   that is the *point* of the document (API, command, register descriptions) is
   `technical.reference`.
+- `technical.overview` versus `general.summary` and `general.introduction`: an overview of a
+  product or system (what it is, its features, intended users) is `technical.overview`; a
+  summary of the document's own points is `general.summary`; the opening that states the
+  document's purpose and scope is `general.introduction`.
+- `general.acknowledgements` is thanks, funding statements and author contributions; ethics and
+  data-availability statements are `research.other`; author biographies are `general.other`.
 - `general.front_matter`: table of contents, title page, preface, lists of figures and
   copyright notices. A fund document's or filing's cover page also goes here.
 

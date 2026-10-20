@@ -130,11 +130,11 @@ def test_log_scrubs_the_backends_own_key(tmp_path, monkeypatch):
 
     for name in ("DOCROOTER_LLM_API_KEY", "OPENAI_API_KEY"):
         monkeypatch.delenv(name, raising=False)
-    b = OpenAIBackend("m", base_url="http://llm.test/v1", api_key="short1")  # no key shape
-    assert secrets_of(b) == ("short1",) and secrets_of(object()) == ()
+    b = OpenAIBackend("m", base_url="http://llm.test/v1", api_key="plainkey9")  # no key shape
+    assert secrets_of(b) == ("plainkey9",) and secrets_of(object()) == ()
     path = tmp_path / "r.jsonl"
-    ResultsLog(path, secrets=secrets_of(b)).write(decision(note="rejected short1 here"))
-    assert "short1" not in path.read_text(encoding="utf-8")
+    ResultsLog(path, secrets=secrets_of(b)).write(decision(note="rejected plainkey9 here"))
+    assert "plainkey9" not in path.read_text(encoding="utf-8")
 
 
 def test_log_trainable_must_be_bool_and_nan_is_null(tmp_path):
@@ -176,3 +176,41 @@ def test_log_keeps_label_keys_that_look_like_secret_names(tmp_path):
     ResultsLog(path).write(decision(probs=probs, options=list(probs)))
     row = rows(path)[0]
     assert row["probs"] == probs and row["options"] == list(probs)
+
+
+def test_log_redacts_secret_named_fields_inside_label_fields(tmp_path):
+    """Label fields keep their own keys (labels), but a mapping nested inside them is data with
+    field names, and a secret named there is hidden."""
+    path = tmp_path / "r.jsonl"
+    ResultsLog(path).write(
+        decision(
+            options=[{"id": "a", "api_key": "nested-plain-1"}],
+            label={"s1": {"auth_token": "nested-plain-2"}},
+            probs={"legal.authorization": 0.5, "x": 0.5},
+        )
+    )
+    text = path.read_text(encoding="utf-8")
+    assert "nested-plain-1" not in text and "nested-plain-2" not in text
+    row = rows(path)[0]
+    assert row["options"][0]["id"] == "a" and row["probs"]["legal.authorization"] == 0.5
+
+
+def test_log_redacts_key_value_secrets_in_free_text(tmp_path):
+    path = tmp_path / "r.jsonl"
+    note = 'retry with api_key=plainvalue1 and "token": "plainvalue2"; password: hunter22'
+    ResultsLog(path).write(decision(note=note, other="prompt_tokens=12 kept"))
+    text = path.read_text(encoding="utf-8")
+    for leaked in ("plainvalue1", "plainvalue2", "hunter22"):
+        assert leaked not in text, leaked
+    row = rows(path)[0]
+    assert "api_key=***" in row["note"] and row["other"] == "prompt_tokens=12 kept"
+
+
+def test_log_ignores_literal_keys_too_short_to_scrub(tmp_path, monkeypatch):
+    """Scrubbing a one-letter key would replace that letter everywhere: below 8 characters a
+    literal key is not scrubbed (key-shaped values still are)."""
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    path = tmp_path / "r.jsonl"
+    ResultsLog(path, secrets=["e", "abc"]).write(decision(note="keep the keyword text"))
+    row = rows(path)[0]
+    assert row["note"] == "keep the keyword text" and row["model"] == "qwen3-4b"

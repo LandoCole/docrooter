@@ -11,9 +11,15 @@ The log never holds API keys. Before a row is written:
   query and fragment;
 - fields named like URLs, endpoints or hosts are cut to the host even without a scheme;
 - fields named like secrets (``*key*``, ``*token*``, ``*secret*``, ``*password*``, ``*auth*``,
-  ``*credential*``) are replaced with ``***``, except the numeric token counts;
-- the keys in the environment, the ``secrets`` given (pass :func:`secrets_of` of the backend)
-  and any string shaped like a key are replaced with ``***``.
+  ``*credential*``) are replaced with ``***``, at any depth, except the numeric token counts.
+  The label fields (``options``, ``label``, ``probs``) keep their own keys, which are labels,
+  but a mapping nested inside them is named data again;
+- in free text, the value after a secret-named key (``api_key=...``, ``"token": "..."``,
+  ``password: ...``) is replaced with ``***`` (a number, such as a token count, is kept);
+- the keys in the environment and the ``secrets`` given (pass :func:`secrets_of` of the
+  backend), when at least :data:`MIN_SECRET_LENGTH` characters long, and any string shaped like
+  a key are replaced with ``***``. A shorter literal is not scrubbed: replacing it everywhere
+  would corrupt the log and hide nothing a key of that length could protect.
 """
 
 from __future__ import annotations
@@ -49,6 +55,9 @@ ROW_FIELDS: tuple[str, ...] = (
     "timestamp",
 )
 
+MIN_SECRET_LENGTH = 8
+"""The shortest literal secret the log scrubs wherever it appears."""
+
 # Environment variables whose values (API keys) must never reach the log.
 KEY_ENV_VARS: tuple[str, ...] = (
     "DOCROOTER_LLM_API_KEY",
@@ -76,6 +85,12 @@ _KEY_SHAPED = re.compile(r"\b[sprt]k[-_][A-Za-z0-9_\-]{12,}|\bBearer\s+\S+", re.
 # Long runs that mix lower case, upper case and digits look like random keys; hex hashes
 # (lower case only) do not.
 _LONG_RUN = re.compile(r"[A-Za-z0-9_\-]{32,}")
+# "name=value" or "name: value" in free text, the name secret-like ("author" is not "auth").
+_KEY_VALUE = re.compile(
+    r"""(?P<name>[\w.\-]*(?:key|token|secret|passw|auth(?!or)|credential|cookie|signature)"""
+    r"""[\w.\-]*["']?\s*[:=]\s*["']?)(?P<value>[^\s"'&,;}\]]+)""",
+    re.IGNORECASE,
+)
 
 
 def text_hash(text: str) -> str:
@@ -121,7 +136,7 @@ class ResultsLog:
 
     def __init__(self, path: str | Path, *, secrets: Iterable[str] = ()) -> None:
         self.path = Path(path)
-        self._secrets = [s for s in secrets if s and s.strip()]
+        self._secrets = [s for s in secrets if _scrubbable(s)]
 
     def write(self, record: Mapping[str, Any]) -> None:
         """Append ``record`` as one row: redacted, with every field of :data:`ROW_FIELDS`.
@@ -137,7 +152,8 @@ class ResultsLog:
         row["trainable"] = trainable is not False and not _names_jev(row)
         if row.get("timestamp") is None:
             row["timestamp"] = datetime.now(timezone.utc).isoformat()
-        secrets = self._secrets + [v for n in KEY_ENV_VARS if (v := os.environ.get(n, "").strip())]
+        env = [v for n in KEY_ENV_VARS if _scrubbable(v := os.environ.get(n, "").strip())]
+        secrets = self._secrets + env
         data = json.dumps(_clean(row, secrets), ensure_ascii=False, allow_nan=False) + "\n"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with _lock_for(self.path):
@@ -146,6 +162,10 @@ class ResultsLog:
                 os.write(fd, data.encode("utf-8"))
             finally:
                 os.close(fd)
+
+
+def _scrubbable(secret: object) -> bool:
+    return isinstance(secret, str) and len(secret.strip()) >= MIN_SECRET_LENGTH
 
 
 def _names_jev(row: Mapping[str, Any]) -> bool:
@@ -169,6 +189,9 @@ def _redact_text(text: str, secrets: list[str]) -> str:
         text = redact(text, secret)
     text = _URL.sub(lambda m: _host(m.group()), text)
     text = _KEY_SHAPED.sub(REDACTED, text)
+    text = _KEY_VALUE.sub(
+        lambda m: m.group() if m["value"].isdigit() else m["name"] + REDACTED, text
+    )
     return _LONG_RUN.sub(lambda m: REDACTED if _looks_random(m.group()) else m.group(), text)
 
 
@@ -176,7 +199,8 @@ def _clean(value: Any, secrets: list[str], *, by_name: bool = True) -> Any:
     """``value`` as plain JSON data, with every string redacted.
 
     With ``by_name``, mapping keys are field names and :func:`_field` applies its name rules.
-    Without it (label-keyed data such as ``probs``), keys are only redacted as text.
+    Without it (the top level of a label field such as ``probs``), keys are only redacted as
+    text, and anything nested below them is cleaned by name again.
     """
     if isinstance(value, str):
         return _redact_text(value, secrets)
@@ -195,12 +219,12 @@ def _clean(value: Any, secrets: list[str], *, by_name: bool = True) -> Any:
     if isinstance(value, Mapping):
         return {
             _redact_text(str(k), secrets): (
-                _field(str(k), v, secrets) if by_name else _clean(v, secrets, by_name=False)
+                _field(str(k), v, secrets) if by_name else _clean(v, secrets)
             )
             for k, v in value.items()
         }
     if isinstance(value, (list, tuple, set, frozenset)):
-        return [_clean(v, secrets, by_name=by_name) for v in value]
+        return [_clean(v, secrets) for v in value]
     raise TypeError(f"cannot write a {type(value).__name__} to the results log")
 
 

@@ -64,6 +64,22 @@ def test_cli_classify_json(report, tmp_path):
     assert parsed.levels == {"section": "headings", "document": "lead"}
 
 
+def test_cli_classify_calls_option(report):
+    for calls, used in (("per_item", "per_item"), ("batched_flat", "per_item")):
+        args = ["classify", str(report), "-b", "keyword", "--json", "--calls", calls]
+        result = runner.invoke(app, args)
+        assert result.exit_code == 0, result.output
+        parsed = Classification.model_validate_json(result.stdout)
+        assert parsed.calls == used  # keyword scores per item; the pattern sets the estimate
+    flat = Classification.model_validate_json(
+        runner.invoke(app, [*args[:-1], "batched_flat"]).stdout
+    )
+    per_item = Classification.model_validate_json(
+        runner.invoke(app, [*args[:-1], "per_item"]).stdout
+    )
+    assert flat.tokens.calls < per_item.tokens.calls
+
+
 def test_cli_classify_human_output(report):
     result = runner.invoke(app, ["classify", str(report), "-b", "keyword"], env=WIDE)
     assert result.exit_code == 0, result.output
@@ -81,6 +97,7 @@ def test_cli_classify_human_output(report):
         (["--level", "auto"], "--level"),
         (["--doc-level", "all"], "--doc-level"),
         (["--strategy", "greedy"], "--strategy"),
+        (["--calls", "sometimes"], "--calls"),
         (["-t", "TAX", "--level", "terms"], "--level"),
     ],
 )

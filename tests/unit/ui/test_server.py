@@ -304,6 +304,19 @@ def test_playground_flow_level_payload(client):
     assert "type.candidates.flatMap(" in script and "type.candidates.map(" not in script
 
 
+def test_playground_passes_the_calls_choice(client):
+    run_id, _ = run(
+        client, "report.md", FLOW_MARKDOWN, flow="sections_first", calls="per_item",
+        profile="fast",
+    )  # fmt: skip
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert detail["options"]["calls"] == "per_item"
+    assert detail["doc_type"]["calls"] == "per_item"
+    page = client.get("/").text
+    assert 'id="calls"' in page
+    assert client.get("/api/backends").json()["calls"] == ["batched", "batched_flat", "per_item"]
+
+
 def test_classic_runs_keep_their_options_without_a_flow(client):
     run_id, _ = run(client, "report.md", FLOW_MARKDOWN, profile="fast")
     detail = client.get(f"/api/runs/{run_id}").json()
@@ -363,6 +376,7 @@ def test_other_rejected_uploads(client, name, data, status):
         {"mode": "vibes"},
         {"flow": "vibes"},
         {"flow": "doc_first", "level": "everything"},
+        {"flow": "doc_first", "calls": "sometimes"},
     ],
 )
 def test_invalid_options_are_400(client, options):

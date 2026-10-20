@@ -44,7 +44,8 @@ class RuleMatch(BaseModel):
     When every candidate hit an exclude, the candidates are kept rather than emptied: they are
     in ``waived`` and ``excludes_waived`` is true. The rules' own evidence argued against them,
     so a waived candidate is never ``decided``, and the caller should offer the waived
-    candidates and the near misses together to the model.
+    candidates to the model; :func:`docrooter.classify` adds the near misses only when a single
+    waived candidate is left, as for any lone undecided candidate.
     """
 
     candidates: list[str] = Field(default_factory=list)

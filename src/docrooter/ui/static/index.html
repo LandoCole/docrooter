@@ -64,6 +64,15 @@
               </select>
             </div>
           </div>
+          <div class="field">
+            <label for="calls">LLM calls</label>
+            <select id="calls" name="calls" aria-describedby="flow-note">
+              <option value="">Default</option>
+              <option value="batched">Batched, two steps</option>
+              <option value="batched_flat">Batched, every option at once</option>
+              <option value="per_item">One item at a time</option>
+            </select>
+          </div>
           <p id="flow-note" class="note"></p>
           <label class="check">
             <input type="checkbox" id="normalize" name="normalize" checked>

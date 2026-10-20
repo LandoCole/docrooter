@@ -1,7 +1,11 @@
-"""Batched LLM prompts: one chat call per document stage, with the options listed once.
+"""Batched LLM prompts: few chat calls per document stage, each option listed once.
 
 Per-item calls repeat the whole option list for every section, so the options, not the
-document, dominate the prompt. A batched call sends:
+document, dominate the prompt. The sections stage is batched in two steps by default: one call
+sorts every section into a group of the taxonomy (:func:`group_prompt`, the groups listed once
+with a one-line gloss), then one call per group that received sections chooses among that
+group's leaves only (:func:`section_prompt` with ``leaf_ids``). The flat variant lists every
+leaf in one call. A batched call sends:
 
 - **a system turn** with the instruction and the options once, each as ``id: label: definition``,
   every group followed by its leaves (indented);
@@ -34,6 +38,14 @@ SECTION_INSTRUCTION = (
     'Reply with a JSON object mapping each section number to one option id, such as {"1": '
     '"<id>", "2": "<id>"}. Use only the ids listed.'
 )
+GROUP_INSTRUCTION = (
+    "You sort the sections of one document into groups. For each numbered section, choose the "
+    "single best group id from the list below.\n"
+    'Reply with a JSON object mapping each section number to one group id, such as {"1": '
+    '"<id>", "2": "<id>"}. Use only the ids listed.'
+)
+GLOSS_WORDS = 16
+"""The most words of a group's description its gloss keeps."""
 DOCUMENT_INSTRUCTION = (
     "You classify one whole document. Choose the single best document type id from the list "
     "below.\n"
@@ -95,10 +107,50 @@ def options_listing(taxonomy: Taxonomy, leaf_ids: Collection[str] | None = None)
     return "\n".join(lines)
 
 
-def section_prompt(views: Mapping[str, str], taxonomy: Taxonomy) -> BatchPrompt:
-    """The batched sections call: ``views`` maps each section's number to its view."""
+def groups_listing(taxonomy: Taxonomy) -> str:
+    """``Options:`` then every top-level node as ``id: label: gloss``, the gloss being the first
+    sentence of its description, at most :data:`GLOSS_WORDS` words."""
+    lines = ["Options:"]
+    for node in taxonomy.children():
+        text = f"{node.id}: {node.label}"
+        if gloss := _gloss(node.description or ""):
+            text += f": {gloss}"
+        lines.append(text)
+    return "\n".join(lines)
+
+
+def _gloss(description: str) -> str:
+    first = description.strip().split(". ")[0].rstrip(".")
+    words = first.split()
+    return " ".join(words[:GLOSS_WORDS]) + ("…" if len(words) > GLOSS_WORDS else "")
+
+
+def section_prompt(
+    views: Mapping[str, str], taxonomy: Taxonomy, leaf_ids: Collection[str] | None = None
+) -> BatchPrompt:
+    """The batched sections call: ``views`` maps each section's number to its view. The options
+    are every leaf, or only ``leaf_ids`` (one group's leaves, in the two-step stage)."""
     items = tuple(f"[{n}] {view}" for n, view in views.items())
-    return BatchPrompt(SECTION_INSTRUCTION, options_listing(taxonomy), items)
+    return BatchPrompt(SECTION_INSTRUCTION, options_listing(taxonomy, leaf_ids), items)
+
+
+def group_prompt(views: Mapping[str, str], taxonomy: Taxonomy) -> BatchPrompt:
+    """The first call of the two-step sections stage: each section's group."""
+    items = tuple(f"[{n}] {view}" for n, view in views.items())
+    return BatchPrompt(GROUP_INSTRUCTION, groups_listing(taxonomy), items)
+
+
+def group_leaves(taxonomy: Taxonomy, group_id: str) -> list[str]:
+    """The leaves under ``group_id`` (itself, for a leaf), in taxonomy order."""
+    out: list[str] = []
+    stack = [taxonomy.node(group_id)]
+    while stack:
+        node = stack.pop()
+        children = taxonomy.children(node.id)
+        if not children:
+            out.append(node.id)
+        stack.extend(reversed(children))
+    return out
 
 
 def document_prompt(
@@ -134,11 +186,15 @@ def section_reply_max_tokens(n: int) -> int:
 __all__ = [
     "DOCUMENT_INSTRUCTION",
     "DOC_TYPE_KEY",
+    "GROUP_INSTRUCTION",
     "MAX_BATCH",
     "SECTION_INSTRUCTION",
     "BatchPrompt",
     "chunks",
     "document_prompt",
+    "group_leaves",
+    "group_prompt",
+    "groups_listing",
     "options_listing",
     "reply_tokens",
     "section_prompt",

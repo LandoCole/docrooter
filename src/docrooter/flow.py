@@ -34,15 +34,25 @@ backend (keyword, embedding, NLI) is charged what the same view and options woul
 ``Classification.tokens`` is exact only when every call was.
 
 **Calls.** ``calls="batched"`` (the default for a backend that can, the OpenAI-compatible one)
-makes one chat call per document stage: the sections in batches of up to 40 with the options
-listed once, then the document among the offered types (:mod:`docrooter.batch`). A batched
-answer has confidence 1.0 (``confidence_source="batched"``); an id that is not an option is
-asked again once, in one call for the failures only, then tagged ``general.other`` with
-confidence 0 and flagged ``unparsed``. ``calls="per_item"`` asks one item at a time, with
-probabilities; ``cascade`` needs it. A backend that cannot batch always asks per item, but its
-token estimate follows the ``calls`` pattern: batched unless ``calls="per_item"``, since that is
-what an LLM would be sent. ``Classification.tokens_split`` estimates how much of the prompt was
-options, content and instructions.
+asks a few chat calls per stage, each option listed once (:mod:`docrooter.batch`), in batches of
+up to 40 sections. The sections stage takes two steps: one call sorts every section into a
+catalogue group (the groups listed with a one-line gloss), then one call per group that received
+sections chooses among that group's leaves only. ``calls="batched_flat"`` lists every leaf in
+one call instead (kept for the benchmark comparison). The document stage is one call among the
+offered types. A batched answer has confidence 1.0 (``confidence_source="batched"``); an id that
+is not an option is asked again once, in one call for the failures only, then tagged
+``general.other`` (or the group's ``other`` leaf) with confidence 0 and flagged ``unparsed``.
+``calls="per_item"`` asks one item at a time, with probabilities; ``cascade`` needs it. A
+backend that cannot batch always asks per item, but its token estimate follows the ``calls``
+pattern (two-step batched unless told otherwise), since that is what an LLM would be sent.
+``Classification.tokens_split`` estimates how much of the prompt was options, content and
+instructions.
+
+**The rule gate with batched calls.** Batched tags all carry confidence 1.0, so the
+``decide_conf`` gate cannot tell strong evidence from weak. With batched calls a lone candidate
+is decided by rules only when at least two tagged sections, in total, support its required
+groups. With fewer it takes the ``low_support`` path: the candidate and its doc-type siblings
+are offered to the model.
 
 **Results log.** ``log=path`` appends one :class:`~docrooter.results_log.ResultsLog` row per
 backend decision (each section step and each document call), with the level, the view hash, the
@@ -51,6 +61,7 @@ options, the probabilities, the tokens and, from the call record, the prompt has
 
 from __future__ import annotations
 
+import functools
 import os
 import string
 from collections.abc import Callable, Mapping, Sequence
@@ -76,6 +87,8 @@ from docrooter.batch import (
     BatchPrompt,
     chunks,
     document_prompt,
+    group_leaves,
+    group_prompt,
     reply_tokens,
     section_prompt,
     section_reply_max_tokens,
@@ -102,7 +115,13 @@ from docrooter.ladder import (
     section_view,
 )
 from docrooter.results_log import ResultsLog, secrets_of, text_hash
-from docrooter.rules import DocTypeRules, doc_type_rules, match_rules, unknown_section_ids
+from docrooter.rules import (
+    DocTypeRules,
+    covers,
+    doc_type_rules,
+    match_rules,
+    unknown_section_ids,
+)
 from docrooter.taxonomies import builtin_taxonomy
 from docrooter.taxonomy import Taxonomy
 from docrooter.views import SectionView, estimate_tokens
@@ -119,9 +138,12 @@ Flag = Literal[
     "truncated",
     "unparsed",
 ]
-Step = Literal["group", "leaf", "batch", "document"]
-Calls = Literal["batched", "per_item"]
-CALLS: tuple[str, ...] = ("batched", "per_item")
+Step = Literal["group", "leaf", "batch", "batch_group", "batch_leaf", "document"]
+Calls = Literal["batched", "batched_flat", "per_item"]
+CALLS: tuple[str, ...] = ("batched", "batched_flat", "per_item")
+BATCHED_SUPPORT = 2
+"""Tagged sections a lone candidate's required groups need, with batched calls, for the rules
+to decide it alone."""
 UNPARSED_LABEL = "general.other"
 """The tag of a section whose batched answer named no option twice."""
 CATALOGUE = "section_catalogue"
@@ -248,8 +270,8 @@ def classify(
     are tagged: level 1 first, then level 2, each in reading order. ``rule_min_conf`` is the
     least confidence a tag needs to count for a rule, ``decide_conf`` the least every supporting
     tag needs for the rules to decide alone. ``cascade`` and ``threshold`` control escalation
-    (per-item calls only). ``calls`` is ``"batched"`` or ``"per_item"``; ``None`` batches when
-    the backend can (see the module docs).
+    (per-item calls only). ``calls`` is ``"batched"`` (two-step sections), ``"batched_flat"``
+    or ``"per_item"``; ``None`` batches when the backend can (see the module docs).
 
     ``doc_types`` and ``catalogue`` replace the built-in doc-type taxonomy (with its ``sections``
     rules) and section catalogue; a rule naming an id the catalogue lacks raises ``ValueError``.
@@ -264,7 +286,7 @@ def classify(
     if max_sections < 0:
         raise ValueError(f"max_sections must be at least 0, got {max_sections}")
     if calls is not None and calls not in CALLS:
-        raise ValueError(f"unknown calls {calls!r}; use 'batched' or 'per_item'")
+        raise ValueError(f"unknown calls {calls!r}; use {', '.join(map(repr, CALLS))}")
     doc_type_taxonomy = doc_types if doc_types is not None else builtin_taxonomy(DOC_TYPES)
     catalogue_taxonomy = catalogue if catalogue is not None else builtin_taxonomy(CATALOGUE)
     rules = doc_type_rules(doc_type_taxonomy)
@@ -277,7 +299,7 @@ def classify(
     inner = _resolved(backend)
     try:
         can_batch = callable(getattr(inner, "chat_json", None))
-        if cascade and (calls == "batched" or (calls is None and can_batch)):
+        if cascade and (calls in ("batched", "batched_flat") or (calls is None and can_batch)):
             raise ValueError(
                 "cascade re-asks single items, so it needs calls='per_item'; batched calls "
                 "answer a whole stage at once"
@@ -291,6 +313,7 @@ def classify(
             cascade=cascade,
             threshold=threshold,
             batched=can_batch and calls != "per_item",
+            flat=calls == "batched_flat",
             batch_estimate=estimating and calls != "per_item",
         )
         if flow == "doc_first":
@@ -547,7 +570,8 @@ class _Run:
     doc_types: Taxonomy
     cascade: bool
     threshold: float
-    batched: bool = False  # one chat call per stage
+    batched: bool = False  # few chat calls per stage
+    flat: bool = False  # the batched sections stage lists every leaf in one call
     batch_estimate: bool = False  # per-item calls, estimated as the batched calls they stand for
     truncated: bool = False
     unparsed: bool = False
@@ -593,7 +617,12 @@ class _Run:
                 evidence[tag.label] = max(evidence.get(tag.label, 0.0), tag.confidence)
         match = match_rules(rules, evidence, min_conf=rule_min_conf, decide_conf=decide_conf)
         flags: list[Flag] = ["excludes_waived"] if match.excludes_waived else []
-        if match.decided is not None:
+        weak = (
+            self.batched
+            and match.decided is not None
+            and _support_count(rules[match.decided], tags, rule_min_conf) < BATCHED_SUPPORT
+        )
+        if match.decided is not None and not weak:
             confidence = min(match.support[match.decided].values())
             return self.result(
                 None,
@@ -606,10 +635,13 @@ class _Run:
                 doc_type=(match.decided, confidence),
             )
         offered = list(match.candidates)
-        if len(offered) <= 1 and match.near_misses:
+        if weak:  # batched tags: one section is too little to decide on
+            flags.append("low_support")
+            offered += _siblings(self.doc_types, offered[0])
+        elif len(offered) <= 1 and match.near_misses:
             offered += [t for t in match.near_misses if t not in offered]
             flags.append("near_miss")
-        if len(offered) == 1:
+        if len(offered) == 1 and not weak:
             # a lone undecided candidate or near miss: offer it with its doc-type siblings
             flags.append("low_support")
             offered += _siblings(self.doc_types, offered[0])
@@ -706,7 +738,7 @@ class _Run:
             tag.confidence = float(best.score) if assigned and best is not None else 0.0
             tag.level = level
         if self.batch_estimate:
-            labels = [tags[s.id].label or "" for s in sections]
+            labels = [tags[s.id].label for s in sections]
             spent = self._batch_estimate(texts, labels, classifier.taxonomy)
         for index, usage in spent.items():
             tag = tags[sections[index].id]
@@ -732,66 +764,133 @@ class _Run:
         for part, tokens in prompt.parts().items():
             self.split[part] += tokens
 
+    def _two_step(self, taxonomy: Taxonomy) -> bool:
+        """Whether the batched sections stage takes two steps: not flat, and the taxonomy has
+        groups."""
+        return not self.flat and any(taxonomy.children(n.id) for n in taxonomy.children())
+
     def _batch_estimate(
-        self, texts: list[str], labels: list[str], taxonomy: Taxonomy
+        self, texts: list[str], labels: list[str | None], taxonomy: Taxonomy
     ) -> dict[int, TokenUsage]:
         """Each section's share of the batched calls an LLM would have been sent for
-        ``texts``: its own view, plus an even share of the options and instructions."""
-        spent: dict[int, TokenUsage] = {}
-        for chunk in chunks(list(range(len(texts)))):
-            views = {str(k + 1): texts[i] for k, i in enumerate(chunk)}
-            prompt = section_prompt(views, taxonomy)
-            self._add_parts(prompt)
-            parts = prompt.parts()
-            overhead = parts["instructions"] + parts["options"]
-            completion = reply_tokens({n: labels[i] for n, i in zip(views, chunk, strict=True)})
-            shares = _split(TokenUsage(overhead, completion, 1, False), len(chunk))
-            for item, i, share in zip(prompt.items, chunk, shares, strict=True):
-                # each section is one estimated part of the call (see TokenUsage)
-                prompt_tokens = share.prompt + estimate_tokens(item)
-                spent[i] = TokenUsage(prompt_tokens, share.completion, share.calls, False)
+        ``texts`` (with the answers ``labels``): its own view, plus an even share of each call's
+        options and instructions."""
+        spent: dict[int, TokenUsage] = {i: TokenUsage() for i in range(len(texts))}
+        everyone = list(range(len(texts)))
+        asks: list[tuple[list[int], str | None, list[str | None]]]
+        if not self._two_step(taxonomy):
+            asks = [(everyone, None, labels)]
+        else:
+            groups = [_group_of(taxonomy, label) for label in labels]
+            asks = [(everyone, "groups", groups)]
+            for group in dict.fromkeys(g for g in groups if g):
+                members = [i for i in everyone if groups[i] == group]
+                asks.append((members, group, labels))
+        for members, step, answers in asks:
+            for chunk in chunks(members):
+                views = {str(i + 1): texts[i] for i in chunk}
+                if step == "groups":
+                    prompt = group_prompt(views, taxonomy)
+                elif step is None:
+                    prompt = section_prompt(views, taxonomy)
+                else:
+                    prompt = section_prompt(views, taxonomy, group_leaves(taxonomy, step))
+                self._add_parts(prompt)
+                parts = prompt.parts()
+                overhead = parts["instructions"] + parts["options"]
+                completion = reply_tokens({str(i + 1): answers[i] or "" for i in chunk})
+                shares = _split(TokenUsage(overhead, completion, 1, False), len(chunk))
+                for item, i, share in zip(prompt.items, chunk, shares, strict=True):
+                    # each section is one estimated part of the call (see TokenUsage)
+                    prompt_tokens = share.prompt + estimate_tokens(item)
+                    usage = TokenUsage(prompt_tokens, share.completion, share.calls, False)
+                    spent[i] = spent[i] + usage
         return spent
 
     def _tag_batched(
         self, sections: list[Section], level: Level, taxonomy: Taxonomy, tags: dict[str, _Tag]
     ) -> None:
-        """Tag ``sections`` with one chat call per batch of 40, the options listed once; ids
-        that are not options are asked again once, together."""
+        """Tag ``sections`` with batched calls: the groups first, then each group's leaves
+        (or every leaf at once, when flat)."""
         count = self.metered.tokenizer() or estimate_tokens
         texts = self._render(sections, section_view(level), count)
-        leaf_ids = [leaf.id for leaf in taxonomy.leaves()]
-        valid = {leaf_id.lower(): leaf_id for leaf_id in leaf_ids}
+        views = {str(i + 1): text for i, text in enumerate(texts)}
+        ids = {str(i + 1): s.id for i, s in enumerate(sections)}
+        spent = {n: TokenUsage() for n in views}
         fallback = UNPARSED_LABEL if UNPARSED_LABEL in taxonomy else None
-        for chunk in chunks(list(range(len(sections)))):
-            views = {str(k + 1): texts[i] for k, i in enumerate(chunk)}
-            index_of = dict(zip(views, chunk, strict=True))
-            spent = {n: TokenUsage() for n in views}
-            labels: dict[str, str | None] = dict.fromkeys(views)
-            pending = list(views)
+        labels: dict[str, str | None]
+        fallbacks: dict[str, str | None]
+        if not self._two_step(taxonomy):
+            leaf_ids = [leaf.id for leaf in taxonomy.leaves()]
+            labels = self._ask(
+                views, ids, spent, level, "batch", leaf_ids,
+                lambda v: section_prompt(v, taxonomy),
+            )  # fmt: skip
+            fallbacks = dict.fromkeys(views, fallback)
+        else:  # the groups first, then each group's leaves
+            group_ids = [node.id for node in taxonomy.children()]
+            groups = self._ask(
+                views, ids, spent, level, "batch_group", group_ids,
+                lambda v: group_prompt(v, taxonomy),
+            )  # fmt: skip
+            labels = dict.fromkeys(views)
+            fallbacks = dict.fromkeys(views, fallback)
+            for group in dict.fromkeys(g for g in groups.values() if g is not None):
+                members = {n: views[n] for n, g in groups.items() if g == group}
+                leaf_ids = group_leaves(taxonomy, group)
+                if leaf_ids == [group]:  # a top-level leaf: the group is the answer
+                    labels.update({n: group for n in members})
+                    continue
+                other = f"{group}.other"
+                for n in members:
+                    fallbacks[n] = other if other in taxonomy else fallback
+                labels.update(
+                    self._ask(
+                        members, ids, spent, level, "batch_leaf", leaf_ids,
+                        functools.partial(section_prompt, taxonomy=taxonomy, leaf_ids=leaf_ids),
+                    )
+                )  # fmt: skip
+        for n, section in zip(views, sections, strict=True):
+            tag = tags[section.id]
+            found = labels[n]
+            tag.label = found if found is not None else fallbacks[n]
+            tag.confidence = 1.0 if found is not None else 0.0
+            tag.source = "batched"
+            tag.level = level
+            tag.tokens = tag.tokens + spent[n]
+            self.unparsed = self.unparsed or found is None
+
+    def _ask(
+        self,
+        views: Mapping[str, str],
+        ids: Mapping[str, str],
+        spent: dict[str, TokenUsage],
+        level: Level,
+        step: Step,
+        options: list[str],
+        prompt_for: Callable[[dict[str, str]], BatchPrompt],
+    ) -> dict[str, str | None]:
+        """One batched step over ``views`` (by section number), in calls of at most 40: each
+        section's answer among ``options``, ``None`` when it named none twice. Each call's
+        tokens are shared among its sections in ``spent``."""
+        valid = {option.lower(): option for option in options}
+        answers: dict[str, str | None] = dict.fromkeys(views)
+        for chunk in chunks(list(views)):
+            pending = list(chunk)
             for _ in range(2):  # the first ask, then once more for the failures
                 if not pending:
                     break
-                prompt = section_prompt({n: views[n] for n in pending}, taxonomy)
-                reply, usage, record = self._chat(prompt, leaf_ids, len(pending))
+                prompt = prompt_for({n: views[n] for n in pending})
+                reply, usage, record = self._chat(prompt, options, len(pending))
                 for n in pending:
-                    labels[n] = valid_id((reply or {}).get(n), valid)
+                    answers[n] = valid_id((reply or {}).get(n), valid)
                 for n, share in zip(pending, _split(usage, len(pending)), strict=True):
                     spent[n] = spent[n] + share
-                answers = {sections[index_of[n]].id: labels[n] for n in pending}
-                call = _Call(prompt.messages[1]["content"], tuple(leaf_ids), (), usage, record)
-                self.decisions.append(
-                    _Decision(SECTION_STAGE, "batch", None, level, call, label=answers)
-                )
-                pending = [n for n in pending if labels[n] is None]
-            for n, i in index_of.items():
-                tag = tags[sections[i].id]
-                found = labels[n]
-                tag.label = found if found is not None else fallback
-                tag.confidence = 1.0 if found is not None else 0.0
-                tag.source = "batched"
-                tag.level = level
-                tag.tokens = tag.tokens + spent[n]
-            self.unparsed = self.unparsed or bool(pending)
+                call = _Call(prompt.messages[1]["content"], tuple(options), (), usage, record)
+                label = {ids[n]: answers[n] for n in pending}
+                self.decisions.append(_Decision(SECTION_STAGE, step, None, level, call, label))
+                pending = [n for n in pending if answers[n] is None]
+        return answers
 
     def _chat(
         self, prompt: BatchPrompt, options: Sequence[str], n_answers: int
@@ -963,7 +1062,7 @@ class _Run:
                 "document": decision.level if decision is not None else None,
             },
             backend=self.metered.name,
-            calls="batched" if self.batched else "per_item",
+            calls=("batched_flat" if self.flat else "batched") if self.batched else "per_item",
             tokens_split=dict(self.split),
         )
 
@@ -1017,6 +1116,25 @@ def _owners(texts: list[str], calls: list[_Call]) -> list[tuple[_Call, int | Non
         seen[call.text] = n + 1
         out.append((call, indices[n % len(indices)]))
     return out
+
+
+def _support_count(rule: DocTypeRules, tags: Sequence[_Tag], min_conf: float) -> int:
+    """How many tagged sections support any of ``rule``'s required groups."""
+    ids = [rule_id for group in rule.requires for rule_id in group]
+    return sum(
+        1
+        for tag in tags
+        if tag.label is not None
+        and tag.confidence >= min_conf
+        and any(covers(rule_id, tag.label) for rule_id in ids)
+    )
+
+
+def _group_of(taxonomy: Taxonomy, label: str | None) -> str | None:
+    """The top-level node above ``label`` (``None`` for no label or an unknown one)."""
+    if label is None or label not in taxonomy:
+        return None
+    return taxonomy.path(label)[0].id
 
 
 def _siblings(taxonomy: Taxonomy, leaf_id: str) -> list[str]:

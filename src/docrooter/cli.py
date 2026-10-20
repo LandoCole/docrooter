@@ -10,7 +10,7 @@ from collections.abc import Callable, Generator, Iterator
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import pydantic
 import typer
@@ -139,7 +139,7 @@ def _parse_strategy(value: str) -> Greedy | Beam | Flat:
 
 
 _LEGACY_ONLY = ("--strategy", "--instruction", "--threshold", "--out")
-_FLOW_ONLY = ("--flow", "--level", "--section-level", "--doc-level", "--log", "--json")
+_FLOW_ONLY = ("--flow", "--level", "--section-level", "--doc-level", "--log", "--json", "--calls")
 
 
 @app.command()
@@ -171,6 +171,13 @@ def classify(
     as_json: Annotated[
         bool, typer.Option("--json", help="Print the classification as JSON instead of tables.")
     ] = False,
+    calls: Annotated[
+        str | None,
+        typer.Option(
+            help="How an LLM is asked: batched (two-step), batched_flat or per_item "
+            "(default: batched when the backend can)."
+        ),
+    ] = None,
     taxonomy: Annotated[
         Path | None,
         typer.Option(
@@ -205,7 +212,7 @@ def classify(
     them (--flow sections_first); --flow doc_first classifies the type first. With -t the
     sections are classified against that taxonomy instead (JSON to stdout unless --out).
     """
-    flow_options = (flow, level, section_level, doc_level, log, as_json or None)
+    flow_options = (flow, level, section_level, doc_level, log, as_json or None, calls)
     legacy_options = (strategy, instruction, threshold, out)
     if taxonomy is None:
         if any(v is not None for v in legacy_options):
@@ -213,7 +220,7 @@ def classify(
             raise typer.BadParameter(
                 f"{', '.join(given)} only apply with --taxonomy/-t", param_hint=given[0]
             )
-        _classify_flow(file, backend, flow, level, section_level, doc_level, log, as_json)
+        _classify_flow(file, backend, flow, level, section_level, doc_level, log, as_json, calls)
         return
     if any(v is not None for v in flow_options):
         given = [n for n, v in zip(_FLOW_ONLY, flow_options, strict=True) if v is not None]
@@ -250,10 +257,16 @@ def _classify_flow(
     doc_level: str | None,
     log: Path | None,
     as_json: bool,
+    calls: str | None = None,
 ) -> None:
     """``docrooter classify FILE``: :func:`docrooter.classify` and its result."""
     from docrooter.document.load import load
-    from docrooter.flow import FLOWS, Flow, classify
+    from docrooter.flow import CALLS, FLOWS, Calls, Flow, classify
+
+    if calls is not None and calls not in CALLS:
+        raise typer.BadParameter(
+            f"unknown calls {calls!r}; use {', '.join(CALLS)}", param_hint="--calls"
+        )
 
     if flow is not None and flow not in FLOWS:
         raise typer.BadParameter(
@@ -267,7 +280,8 @@ def _classify_flow(
     with _errors_exit_1():
         doc = load(file)
         chosen: Flow = "doc_first" if flow == "doc_first" else "sections_first"
-        result = classify(doc, flow=chosen, backend=backend, log=log, **levels)
+        how = cast("Calls | None", calls)  # checked against CALLS above
+        result = classify(doc, flow=chosen, backend=backend, log=log, calls=how, **levels)
     if as_json:
         typer.echo(result.model_dump_json(indent=2))
         return

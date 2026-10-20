@@ -9,7 +9,8 @@ worker; its sink hands every event to the event loop with ``loop.call_soon_threa
 run state is changed on the loop thread only, so the HTTP handlers need no locks.
 
 Endpoints: ``POST /api/runs`` (multipart ``file`` plus ``backend``, ``engine``, ``mode``,
-``normalize`` and ``profile``, and optionally ``flow`` and ``level``), ``GET /api/runs``,
+``normalize`` and ``profile``, and optionally ``flow``, ``level`` and ``calls``),
+``GET /api/runs``,
 ``GET /api/runs/{id}``, ``GET /api/runs/{id}/events`` (SSE, ending with a
 ``{"stage": "job", "status": "end"}`` event the server always sends), ``GET /api/backends``,
 and the page itself at ``/``.
@@ -87,7 +88,7 @@ from docrooter.classify.results import DocTypeResult, PathResult  # noqa: E402
 from docrooter.document import Document  # noqa: E402
 from docrooter.document.load import load  # noqa: E402
 from docrooter.errors import DocrooterError  # noqa: E402
-from docrooter.flow import FLOWS, Classification, classify  # noqa: E402
+from docrooter.flow import CALLS, FLOWS, Classification, classify  # noqa: E402
 from docrooter.ladder import LEVELS  # noqa: E402
 from docrooter.layout import registry as layout_registry  # noqa: E402
 from docrooter.ocr import registry as ocr_registry  # noqa: E402
@@ -614,6 +615,8 @@ def _flow_out(result: Classification, label: Callable[[str], str]) -> dict[str, 
     """How a flow run decided its type, and what it spent."""
     return {
         "flow": result.flow,
+        "calls": result.calls,
+        "tokens_split": dict(result.tokens_split),
         "decided_by": result.decided_by,
         "candidates": [{"id": c, "label": label(c)} for c in result.candidates],
         "flags": list(result.flags),
@@ -1102,7 +1105,11 @@ class Playground:
                 flow_norm: NormalizationResult | None = None
                 if options.get("flow"):
                     classification = classify(
-                        doc, flow=options["flow"], level=options["level"], backend=backend
+                        doc,
+                        flow=options["flow"],
+                        level=options["level"],
+                        calls=options["calls"],
+                        backend=backend,
                     )
                     doc_type, flow_norm = classification_parts(classification, self.doc_types)
                 else:
@@ -1338,11 +1345,14 @@ def _options(form: Any, allowed: list[str], default_backend: str, kind: str) -> 
     flow = str(form.get("flow") or "")
     if flow:  # a v1 flow; without one, the classic type and section labels
         level = str(form.get("level") or "terms")
+        calls = str(form.get("calls") or "") or None
         if flow not in FLOWS:
             raise HTTPException(400, f"Unknown flow {flow!r}; use one of {', '.join(FLOWS)}.")
         if level not in LEVELS:
             raise HTTPException(400, f"Unknown level {level!r}; use one of {', '.join(LEVELS)}.")
-        options.update(flow=flow, level=level)
+        if calls is not None and calls not in CALLS:
+            raise HTTPException(400, f"Unknown calls {calls!r}; use one of {', '.join(CALLS)}.")
+        options.update(flow=flow, level=level, calls=calls)
     return options
 
 
@@ -1490,6 +1500,7 @@ def create_app(
             "modes": list(MODES),
             "flows": list(FLOWS),
             "levels": list(LEVELS),
+            "calls": list(CALLS),
             "default_profile": DEFAULT_PROFILE,
             "profiles": [info.entry() for info in PROFILE_INFO],
             "max_upload_bytes": MAX_UPLOAD_BYTES,

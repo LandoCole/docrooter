@@ -138,6 +138,7 @@ function savePrefs() {
         normalize: $("normalize").checked,
         flow: $("flow").value,
         level: $("level").value,
+        calls: $("calls").value,
       }),
     );
   } catch {
@@ -174,6 +175,7 @@ async function loadOptions() {
   if (typeof prefs.normalize === "boolean") $("normalize").checked = prefs.normalize;
   if (prefs.flow === "" || info.flows?.includes(prefs.flow)) $("flow").value = prefs.flow;
   if (info.levels?.includes(prefs.level)) $("level").value = prefs.level;
+  if (prefs.calls === "" || info.calls?.includes(prefs.calls)) $("calls").value = prefs.calls;
   describeBackend();
   describeProfile();
   describeFlow();
@@ -184,6 +186,7 @@ async function loadOptions() {
 function describeFlow() {
   const flow = $("flow").value;
   $("level").disabled = !flow;
+  $("calls").disabled = !flow;
   $("mode").disabled = Boolean(flow);
   $("normalize").disabled = Boolean(flow);
   const notes = {
@@ -248,6 +251,7 @@ async function submit(file) {
   if ($("flow").value) {
     form.append("flow", $("flow").value);
     form.append("level", $("level").value);
+    if ($("calls").value) form.append("calls", $("calls").value);
   }
   resetRun(file.name);
   setBusy(true);
@@ -300,7 +304,7 @@ function setupDrop() {
   window.addEventListener("dragover", (event) => event.preventDefault());
   window.addEventListener("drop", (event) => event.preventDefault());
   $("rerun").addEventListener("click", () => state.lastFile && submit(state.lastFile));
-  for (const id of ["profile", "backend", "engine", "mode", "normalize", "flow", "level"]) $(id).addEventListener("change", savePrefs);
+  for (const id of ["profile", "backend", "engine", "mode", "normalize", "flow", "level", "calls"]) $(id).addEventListener("change", savePrefs);
   $("flow").addEventListener("change", describeFlow);
   $("profile").addEventListener("change", describeProfile);
   $("backend").addEventListener("change", describeBackend);
@@ -603,6 +607,7 @@ function renderFacts(run) {
     ["Engine", meta.engine ?? (run.kind === "pdf" ? null : "Markdown")],
     ["Model", run.options?.backend],
     ["Flow", run.options?.flow ? `${run.options.flow.replace(/_/g, " ")}, ${run.options.level}` : null],
+    ["Calls", run.doc_type?.calls ? run.doc_type.calls.replace(/_/g, " ") : null],
     ["Tokens", run.doc_type?.tokens ? tokenText(run.doc_type.tokens) : null],
     ["Wall time", secs(run.seconds)],
   ];

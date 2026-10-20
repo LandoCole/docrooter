@@ -54,7 +54,7 @@ def test_openai_logprob_parsing():
     request, body = seen[0]
     assert str(request.url) == "http://llm.test/v1/chat/completions"
     assert request.headers["authorization"] == "Bearer k"
-    assert body["logprobs"] is True and body["top_logprobs"] == 20
+    assert body["logprobs"] is True and body["top_logprobs"] == 10
     assert body["max_tokens"] == 3 and body["temperature"] == 0
     assert body["messages"][0] == {
         "role": "system",

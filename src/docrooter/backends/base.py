@@ -68,23 +68,54 @@ class Backend(Protocol):
 class TokenUsage:
     """Tokens spent on LLM calls: prompt and completion tokens over ``calls`` requests.
 
-    ``exact`` is true only when every count came from the API's ``usage``; any estimated part
-    makes the whole estimated. Usages add with ``+``.
+    ``exact`` is true only when every count came from the API's ``usage``.
+    ``estimated_calls`` counts the parts that were estimated. An estimate made without any
+    LLM call (``calls=0``) counts as one part. ``exact`` is always ``estimated_calls == 0``:
+    pass ``exact=False`` and the count defaults to ``max(calls, 1)``.
+
+    Usages add with ``+``. ``later - earlier`` gives the usage of everything spent between
+    two snapshots of one cumulative counter. It is exact when none of those calls were
+    estimated, even if earlier ones were.
     """
 
     prompt: int = 0
     completion: int = 0
     calls: int = 0
     exact: bool = True
+    estimated_calls: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.exact and self.estimated_calls == 0:
+            object.__setattr__(self, "estimated_calls", max(self.calls, 1))
+        if self.exact and self.estimated_calls:
+            raise ValueError("an exact TokenUsage cannot have estimated calls")
+        counts = (self.prompt, self.completion, self.calls, self.estimated_calls)
+        if min(counts) < 0:
+            raise ValueError(f"token counts cannot be negative: {self}")
 
     def __add__(self, other: TokenUsage) -> TokenUsage:
         if not isinstance(other, TokenUsage):
             return NotImplemented
+        estimated = self.estimated_calls + other.estimated_calls
         return TokenUsage(
             self.prompt + other.prompt,
             self.completion + other.completion,
             self.calls + other.calls,
-            self.exact and other.exact,
+            estimated == 0,
+            estimated,
+        )
+
+    def __sub__(self, other: TokenUsage) -> TokenUsage:
+        """The usage between snapshot ``other`` and this later snapshot of the same counter."""
+        if not isinstance(other, TokenUsage):
+            return NotImplemented
+        estimated = self.estimated_calls - other.estimated_calls
+        return TokenUsage(
+            self.prompt - other.prompt,
+            self.completion - other.completion,
+            self.calls - other.calls,
+            estimated == 0,
+            estimated,
         )
 
 

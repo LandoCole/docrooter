@@ -8,6 +8,7 @@ The traversal is iterative: no recursion over the tree.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Iterable, Sequence
 
 import numpy as np
@@ -19,6 +20,8 @@ from docrooter.classify.results import PathResult, Step
 from docrooter.classify.strategies import Beam, Flat, Greedy
 from docrooter.errors import BackendError
 from docrooter.taxonomy import Taxonomy, TaxonomyNode
+
+logger = logging.getLogger(__name__)
 
 Router = Callable[[str], Iterable[Backend]]
 """Candidate backends for a decision at a node id, in priority order.
@@ -187,7 +190,8 @@ def decide(
     if backend is None:
         raise BackendError(
             f"no backend can decide at node {node_id!r} ({len(children)} children): none of "
-            "the routed backends supports it with that many candidates"
+            "the routed backends supports it with that many candidates. Use a hierarchical "
+            "strategy over a taxonomy with smaller nodes, or a fallback backend without a limit"
         )
     return child_ids, _score(backend, list(texts), node, children, settings), backend.name
 
@@ -280,12 +284,27 @@ def _expand(
 
 
 def pick_backend(router: Router, node_id: str, n_candidates: int) -> Backend | None:
-    """The first routed backend that supports the node and accepts ``n_candidates``."""
+    """The first routed backend that supports the node and accepts ``n_candidates``.
+
+    A backend that supports the node but takes fewer candidates is skipped with a warning
+    naming the fix, so a decision never moves to a later backend silently.
+    """
     for backend in router(node_id):
-        if backend.supports(node_id) and (
-            backend.max_candidates is None or n_candidates <= backend.max_candidates
-        ):
+        if not backend.supports(node_id):
+            continue
+        if backend.max_candidates is None or n_candidates <= backend.max_candidates:
             return backend
+        logger.warning(
+            "%s takes at most %d options per call but node %r has %d; trying the next routed "
+            "backend. Use a hierarchical strategy (Greedy or Beam over a taxonomy whose nodes "
+            "have at most %d children) to keep the decision on %s",
+            backend.name,
+            backend.max_candidates,
+            node_id,
+            n_candidates,
+            backend.max_candidates,
+            backend.name,
+        )
     return None
 
 

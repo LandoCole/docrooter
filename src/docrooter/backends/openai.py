@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import os
 import re
 import threading
 from collections.abc import Callable, Sequence
 from typing import Any
+from urllib.parse import urlsplit
 
 import numpy as np
 
@@ -25,9 +28,27 @@ logger = logging.getLogger(__name__)
 SYSTEM_PROMPT = "Answer with the option letter only."
 DEFAULT_INSTRUCTION = "Which option best describes this document section?"
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
-_TOP_LOGPROBS = 20
-# A capital letter standing alone: "B", " B.", "(B)", but not the "O" of "Option".
-_LETTER = re.compile(r"(?<![A-Za-z])[A-Z](?![A-Za-z])")
+# How many alternatives to ask for at the first token. mlx_lm.server rejects more than 11 and
+# OpenAI more than 20; options outside the top ones get no probability anyway.
+_TOP_LOGPROBS = 10
+# A reply that is an answer: a bare letter ("B", " (C) "), or one followed by "." or ")"
+# ("B. Litigation", "(C) Leases"). Prose such as "I cannot", "I'm" or "A contract" is not.
+_ANSWER = re.compile(r"\(?([A-Z])(?:[.)]|\s*$)")
+# Word-start markers of byte-level BPE ("Ġ") and SentencePiece ("▁") vocabularies.
+_SPACE_MARKERS = str.maketrans({"\u0120": " ", "\u2581": " "})
+
+CallRecord = dict[str, Any]
+
+
+def prompt_hash(messages: list[dict[str, str]]) -> str:
+    """SHA-256 hex digest of the exact chat messages sent (canonical JSON, UTF-8)."""
+    canonical = json.dumps(messages, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _letter_of(token: object) -> str:
+    """A logprob token as a bare letter candidate: space markers, spaces and "(", ".", ")" off."""
+    return str(token).translate(_SPACE_MARKERS).strip().strip("(.)")
 
 
 def _first_env(*names: str) -> str | None:
@@ -37,15 +58,16 @@ def _first_env(*names: str) -> str | None:
 def _logprob_distribution(top_logprobs: Sequence[Any], n: int) -> np.ndarray | None:
     """Softmax over the option letters among a first token's ``top_logprobs``.
 
-    Options the model did not list get ``-inf``. Tokens that differ only in whitespace (``"B"``
-    and ``" B"``) pool their probability. Returns ``None`` when no option letter is listed.
+    Options the model did not list get ``-inf``. Tokens that differ only in whitespace or a
+    tokenizer's space marker (``"B"``, ``" B"``, ``"ĠB"``, ``"▁B"``) pool their probability.
+    Returns ``None`` when no option letter is listed.
     """
     index_of = {letter: i for i, letter in enumerate(LETTERS[:n])}
     logits = np.full(n, -np.inf)
     for entry in top_logprobs:
         if not isinstance(entry, dict):
             continue
-        index = index_of.get(str(entry.get("token", "")).strip())
+        index = index_of.get(_letter_of(entry.get("token", "")))
         logprob = entry.get("logprob")
         if index is not None and logprob is not None:
             logits[index] = np.logaddexp(logits[index], float(logprob))
@@ -69,7 +91,7 @@ def _parse_answer(data: dict[str, Any], n: int) -> np.ndarray | None:
     """Probabilities over ``n`` options from one chat-completion response, or ``None``.
 
     Logprobs over the option letters when the server returns them in the OpenAI format;
-    otherwise the first standalone capital letter of the reply, if it names an option.
+    otherwise the reply's letter, when the reply is an answer (see ``_ANSWER``) naming an option.
     """
     choice, message = _reply(data)
     logprobs = choice.get("logprobs")
@@ -78,8 +100,8 @@ def _parse_answer(data: dict[str, Any], n: int) -> np.ndarray | None:
         probs = _logprob_distribution(content[0].get("top_logprobs") or [], n)
         if probs is not None:
             return probs
-    match = _LETTER.search(message)
-    index = LETTERS.index(match.group()) if match else n
+    match = _ANSWER.match(message.strip())
+    index = LETTERS.index(match.group(1)) if match else n
     if index < n:
         probs = np.zeros(n)
         probs[index] = 1.0
@@ -116,16 +138,31 @@ class OpenAIBackend:
     """Zero-shot classification through any OpenAI-compatible chat-completions endpoint.
 
     Each text becomes a multiple-choice prompt with options lettered A-Z, answered with one
-    letter. When the server returns logprobs the scores are a softmax over the first token's
-    option letters; otherwise the first standalone capital letter in the reply gets probability
-    1. Replies that name no option score a uniform distribution, with one warning per ``score``
-    call. At most 26 options fit one call; more raise ``BackendError`` (a hierarchical strategy
+    letter.
+    - **With logprobs,** the scores are a softmax over the option letters among the first
+      token's top 10 alternatives.
+    - **Without them,** a reply that is a bare letter (``"B"``, ``"B."``, ``"(C)"``) gets
+      probability 1.
+    - **A reply that names no option** scores a uniform distribution, with one warning per
+      ``score`` call.
+
+    At most 26 options fit one call; more raise ``BackendError`` (a hierarchical strategy
     keeps each call small). The model cannot judge options independently, so ``multi_label`` is
     ignored and the result is a ``softmax``.
 
-    :meth:`usage` counts the tokens of every call, from the response's ``usage``. A response
-    without one (some local servers) is estimated, and the running total is then marked
-    ``exact=False``.
+    **Token accounting.**
+    - :meth:`usage` is cumulative over the backend's life. Each call's counts come from the
+      response's ``usage``. A response without one is estimated and counted in
+      ``estimated_calls``, so ``after - before`` gives a stage's exact or estimated usage.
+    - ``on_call``, when set, is called once per request, after the reply arrives. It may run on a
+      worker thread, one call at a time within a ``score`` call. Its record dict holds:
+      - ``index``: the text's position in that ``score`` call;
+      - ``prompt_hash``: :func:`prompt_hash` of the exact messages sent;
+      - ``prompt_tokens``, ``completion_tokens`` and ``exact``;
+      - ``options``, ``model`` and ``endpoint_host``.
+      A caller that needs tokens per section (the v1 ``classify`` flow) or one log row per
+      decision sets ``on_call`` around a ``score`` call and joins the records to its texts by
+      ``index``. That attributes tokens without deltas, even when one backend is shared.
 
     ``base_url`` and ``api_key`` default to ``DOCROOTER_LLM_BASE_URL`` / ``DOCROOTER_LLM_API_KEY``,
     then ``OPENAI_BASE_URL`` / ``OPENAI_API_KEY``. Without a ``base_url`` the OpenAI API is used
@@ -164,25 +201,38 @@ class OpenAIBackend:
         self._transport: Any = None  # an httpx transport; tests replace it with a MockTransport
         self._usage = TokenUsage()
         self._usage_lock = threading.Lock()  # score may run on worker threads (see run_sync)
+        self.on_call: Callable[[CallRecord], None] | None = None
+        self.endpoint_host = urlsplit(self.base_url).hostname or ""
 
     def usage(self) -> TokenUsage:
         """Tokens spent by every call so far (cumulative); see :class:`TokenUsage`."""
         return self._usage
 
-    def _request(self, text: str, options: list[str], instruction: str) -> dict[str, Any]:
+    def secret_values(self) -> tuple[str, ...]:
+        """Values a log must scrub: this backend's API key, if it has one."""
+        return (self._api_key,) if self._api_key else ()
+
+    def request_messages(
+        self, text: str, options: list[str], instruction: str | None = None
+    ) -> list[dict[str, str]]:
+        """The chat messages one ``score`` request sends for ``text`` (hash them with
+        :func:`prompt_hash`)."""
         prompt = build_choice_prompt(
             text,
             options,
-            instruction=instruction,
+            instruction=instruction or DEFAULT_INSTRUCTION,
             answer="",
             markers=LETTERS,
         )
+        return [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ]
+
+    def _request(self, text: str, options: list[str], instruction: str) -> dict[str, Any]:
         return {
             "model": self.model_id,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
+            "messages": self.request_messages(text, options, instruction),
             "logprobs": True,
             "top_logprobs": _TOP_LOGPROBS,
             "max_tokens": 3,
@@ -209,7 +259,29 @@ class OpenAIBackend:
             raise BackendError(f"{self.name}: response was not a JSON object")
         return data
 
-    async def _score_all(self, bodies: list[dict[str, Any]], n: int) -> np.ndarray:
+    def _record_call(
+        self, index: int, body: dict[str, Any], data: dict[str, Any], options: list[str]
+    ) -> None:
+        """Add one reply's tokens to :meth:`usage` and hand its record to ``on_call``."""
+        call = _call_usage(body, data)
+        with self._usage_lock:
+            self._usage = self._usage + call
+        if self.on_call is not None:
+            self.on_call(
+                {
+                    "index": index,
+                    "prompt_hash": prompt_hash(body["messages"]),
+                    "prompt_tokens": call.prompt,
+                    "completion_tokens": call.completion,
+                    "exact": call.exact,
+                    "options": list(options),
+                    "model": self.model_id,
+                    "endpoint_host": self.endpoint_host,
+                }
+            )
+
+    async def _score_all(self, bodies: list[dict[str, Any]], options: list[str]) -> np.ndarray:
+        n = len(options)
         httpx = require("httpx", "llm")
         headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
         semaphore = asyncio.Semaphore(self.concurrency)
@@ -221,15 +293,14 @@ class OpenAIBackend:
             transport=self._transport,
         ) as client:
 
-            async def one(body: dict[str, Any]) -> np.ndarray | None:
+            async def one(index: int, body: dict[str, Any]) -> np.ndarray | None:
                 async with semaphore:
                     data = await self._complete(client, body)
                 # Counted per reply, so calls that succeed before another fails still count.
-                with self._usage_lock:
-                    self._usage = self._usage + _call_usage(body, data)
+                self._record_call(index, body, data, options)
                 return _parse_answer(data, n)
 
-            answers = await asyncio.gather(*(one(b) for b in bodies))
+            answers = await asyncio.gather(*(one(i, b) for i, b in enumerate(bodies)))
 
         unparsed = sum(a is None for a in answers)
         if unparsed:
@@ -262,7 +333,7 @@ class OpenAIBackend:
         require("httpx", "llm")
         options = [c.text for c in candidates]
         bodies = [self._request(t, options, instruction or DEFAULT_INSTRUCTION) for t in texts]
-        return Scores(run_sync(self._score_all(bodies, n)), "softmax")
+        return Scores(run_sync(self._score_all(bodies, options)), "softmax")
 
     def close(self) -> None:
         """Nothing to release: each ``score`` call opens and closes its own client."""

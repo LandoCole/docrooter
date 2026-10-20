@@ -3,6 +3,7 @@
 import json
 
 import numpy as np
+import pytest
 
 from docrooter.backends.base import TokenUsage
 from docrooter.results_log import ROW_FIELDS, ResultsLog, text_hash
@@ -61,7 +62,13 @@ def test_log_marks_jev_untrainable_and_redacts(tmp_path, monkeypatch):
     assert first["endpoint_host"] == "127.0.0.1"
     assert got[2]["endpoint_host"] == "api.typesafe.ai"
     assert first["probs"] == [0.25, 0.75]
-    assert first["tokens"] == {"prompt": 120, "completion": 1, "calls": 1, "exact": True}
+    assert first["tokens"] == {
+        "prompt": 120,
+        "completion": 1,
+        "calls": 1,
+        "exact": True,
+        "estimated_calls": 0,
+    }
     assert first["view_hash"] == text_hash("the view") and len(first["view_hash"]) == 64
     assert first["timestamp"].endswith("+00:00")
 
@@ -69,3 +76,103 @@ def test_log_marks_jev_untrainable_and_redacts(tmp_path, monkeypatch):
     ResultsLog(path).write({"label": "x"})
     last = rows(path)[-1]
     assert set(ROW_FIELDS) <= set(last) and last["model"] is None and last["trainable"] is True
+
+
+# --- fix round 1: every leak path from the review ---------------------------------------------
+
+
+def test_log_strips_urls_to_hosts(tmp_path):
+    path = tmp_path / "r.jsonl"
+    log = ResultsLog(path)
+    log.write(decision(endpoint_host="api.example.com/v1?api_key=abc123"))
+    log.write(decision(endpoint="https://u:pw@x.test/v1?key=short1#frag"))
+    log.write(
+        decision(base_url="http://proxy.test:8080/v1?sig=zz9", note="see https://u:p@h.test/a?k=q1")
+    )
+    text = path.read_text(encoding="utf-8")
+    for leaked in ("abc123", "short1", "pw@", "u:p", "zz9", "q1", "frag", "/v1", "https"):
+        assert leaked not in text, leaked
+    got = rows(path)
+    assert got[0]["endpoint_host"] == "api.example.com"
+    assert got[1]["endpoint"] == "x.test"
+    assert got[2]["base_url"] == "proxy.test" and got[2]["note"] == "see h.test"
+
+
+def test_log_redacts_secret_named_fields_but_keeps_token_counts(tmp_path):
+    path = tmp_path / "r.jsonl"
+    ResultsLog(path).write(
+        decision(
+            access_token="tok123",
+            x_api_key="k1",
+            client_secret="s1",
+            db_password="p1",
+            Authorization="a1",
+            extra={"refresh_token": "r1", "keys": ["kk1"]},
+            prompt_tokens=12,
+            completion_tokens=1,
+            total_tokens=13,
+        )
+    )
+    text = path.read_text(encoding="utf-8")
+    for leaked in ("tok123", "k1", "s1", "p1", "a1", "r1", "kk1"):
+        assert f'"{leaked}"' not in text, leaked
+    row = rows(path)[0]
+    assert (
+        row["prompt_tokens"] == 12 and row["completion_tokens"] == 1 and row["total_tokens"] == 13
+    )
+    assert row["tokens"]["prompt"] == 120  # the TokenUsage field is a count, not a secret
+    assert row["access_token"] == "***"
+
+
+def test_log_scrubs_the_backends_own_key(tmp_path, monkeypatch):
+    from docrooter.backends.openai import OpenAIBackend
+    from docrooter.results_log import secrets_of
+
+    for name in ("DOCROOTER_LLM_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    b = OpenAIBackend("m", base_url="http://llm.test/v1", api_key="short1")  # no key shape
+    assert secrets_of(b) == ("short1",) and secrets_of(object()) == ()
+    path = tmp_path / "r.jsonl"
+    ResultsLog(path, secrets=secrets_of(b)).write(decision(note="rejected short1 here"))
+    assert "short1" not in path.read_text(encoding="utf-8")
+
+
+def test_log_trainable_must_be_bool_and_nan_is_null(tmp_path):
+    path = tmp_path / "r.jsonl"
+    log = ResultsLog(path)
+    for bad in ("false", 0, "no"):
+        with pytest.raises(TypeError, match="trainable"):
+            log.write(decision(trainable=bad))
+    log.write(decision(probs=np.array([np.nan, np.inf, 0.5])))
+    line = path.read_text(encoding="utf-8").strip()
+    assert "NaN" not in line and "Infinity" not in line
+    assert json.loads(line)["probs"] == [None, None, 0.5]
+
+
+def test_log_appends_whole_lines_from_many_writers(tmp_path):
+    import threading
+
+    path = tmp_path / "r.jsonl"
+    big = ["option " + "x" * 50] * 400  # a row larger than an 8 KB write buffer
+    logs = [ResultsLog(path), ResultsLog(path)]
+
+    def work(log):
+        for _ in range(10):
+            log.write(decision(options=big))
+
+    threads = [threading.Thread(target=work, args=(log,)) for log in logs * 2]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    got = rows(path)  # every line parses
+    assert len(got) == 40 and all(len(r["options"]) == 400 for r in got)
+
+
+def test_log_keeps_label_keys_that_look_like_secret_names(tmp_path):
+    """Labels in probs are data: "legal.authorization" is not an Authorization header."""
+    path = tmp_path / "r.jsonl"
+    probs = {"legal.authorization": 0.6, "financial.key_figures": 0.3, "x.tokens": 0.1}
+    ResultsLog(path).write(decision(probs=probs, options=list(probs)))
+    row = rows(path)[0]
+    assert row["probs"] == probs and row["options"] == list(probs)

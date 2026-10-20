@@ -93,18 +93,28 @@ The model name is required (`openai:gpt-4o-mini`). For a local server, set
 without one. Requests run concurrently (8 at a time). The script is
 [`examples/openai_backend.py`](../../../examples/openai_backend.py).
 
-The options are lettered A-Z and the model answers with one letter. When the server returns
-logprobs, the probabilities are the first token's logprobs over the option letters; otherwise
-the letter in the reply gets probability 1, so the "probabilities" are coarse. Prefer `Greedy`
-(or `Beam`) with it, and evaluate it on your data before trusting a threshold. One call offers
-at most 26 options; a decision with more raises an error rather than dropping options, and a
-hierarchical strategy keeps every call below that.
+The options are lettered A-Z and the model answers with one letter.
+
+- **With logprobs,** the probabilities come from the first token's top 10 alternatives,
+  restricted to the option letters.
+- **Without logprobs,** a reply that is a bare letter (`B`, `B.`, `(C)`) gets probability 1, so
+  the "probabilities" are coarse. Any other reply ("I cannot tell") scores every option equally,
+  with a warning.
+
+Prefer `Greedy` (or `Beam`) with it, and evaluate it on your data before trusting a threshold.
+
+One call offers at most 26 options, and options are never dropped. A `score` call with more
+raises an error. Inside a `Classifier`, a node with more than 26 children goes to the next
+routed backend (the `fallback`) with a warning, or fails when there is none. A hierarchical
+strategy over a taxonomy whose nodes have at most 26 children keeps every decision on the LLM.
 
 ### Token usage
 
 The backend counts the tokens of every call, from the `usage` the server returns, so the counts
 are exact. A server that returns no `usage` gets an estimate instead (about 1.3 tokens per word
-of the prompt), and the counts are then marked as estimated, never as exact.
+of the prompt), and the counts are then marked as estimated, never as exact. Each call can also
+be reported as it happens, with its token counts and a hash of the exact prompt sent; the
+`classify` flow uses this to attribute tokens to each section and document.
 
 ### A free local stand-in
 
@@ -124,15 +134,19 @@ export DOCROOTER_LLM_BASE_URL=http://127.0.0.1:8080/v1
 uv run python examples/openai_backend.py mlx-community/Qwen3-4B-Instruct-2507-4bit
 ```
 
-`mlx_lm.server` may return no `usage` and no logprobs in the OpenAI format. docrooter then
-reads the letter from the reply and marks the token counts as estimated. The 4-bit model needs
-about 3 GB of memory; run one model process at a time on a small machine.
+Current `mlx_lm.server` releases return `usage` and OpenAI-style logprobs, so the counts are
+exact. Their logprob tokens are raw vocabulary entries such as `ĠB`, which docrooter reads as
+`B`. docrooter asks for 10 alternatives, within the server's limit of 11. An older or different
+server that returns neither still works: docrooter reads the letter from the reply and marks
+the token counts as estimated. The 4-bit model needs about 3 GB of memory; run one model
+process at a time on a small machine.
 
 ### The results log
 
 Each LLM decision can be logged as one JSON line: the input level and view hash, the options,
 the chosen label and probabilities, the model, endpoint host and prompt hash, the tokens and a
-`trainable` flag. API keys never reach the log. Whether a row may train another model is for
+`trainable` flag. API keys never reach the log: URLs are cut to their host, fields named like
+secrets are masked, and the backend's own key is scrubbed wherever it appears. Whether a row may train another model is for
 the provider's terms to decide: rows from Jev are always written with `trainable: false`
 (TypeSafe's terms forbid training models on its outputs), and you should check your provider's
 terms before training on any other rows.

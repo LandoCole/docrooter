@@ -195,6 +195,18 @@ element tags and a tagger you train yourself, and (v0.6) selection and the compl
 
 ### Changed
 
+- **The `openai` backend letters its options A-Z (it numbered them), and takes at most 26
+  options per call (it took 50).**
+  - The system prompt asks for the option letter.
+  - Logprobs are read from the top 10 alternatives (was 20). `mlx_lm.server` allows at most 11.
+    Tokenizer space markers (`ĠB`, `▁B`) count as the letter.
+  - Without logprobs, only a bare letter reply counts as an answer.
+  - What happens to a node with 27-50 children:
+    - in a `Classifier`, it now goes to the next routed backend with a warning, or fails when
+      there is none;
+    - a direct `score` call raises `BackendError`.
+  - Use a hierarchical strategy to keep such decisions on the LLM. The backend also reports
+    its token usage (`usage()`, `on_call`).
 - **Prospectuses use the fund-document sections.** `financial.prospectus` maps to
   `section_types/fund_document` (it was `generic`), as `financial.fact_sheet` does, so
   `normalize_sections` on a prospectus labels its headings with fees, risks and performance

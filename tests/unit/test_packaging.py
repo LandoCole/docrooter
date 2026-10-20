@@ -58,3 +58,32 @@ def test_publish_refuses_a_tag_that_is_not_the_package_version(tag, ok):
     assert (result.returncode == 0) is ok, result.stdout + result.stderr
     if not ok:
         assert f"v{docrooter.__version__}" in result.stdout + result.stderr
+
+
+def _publish_workflow() -> dict:
+    yaml = pytest.importorskip("yaml")
+    return yaml.safe_load((ROOT / ".github/workflows/publish.yml").read_text())
+
+
+def test_pypi_upload_is_manual_and_uses_trusted_publishing():
+    workflow = _publish_workflow()
+    pypi = workflow["jobs"]["pypi"]
+    assert pypi["if"] == "github.event_name == 'workflow_dispatch'"  # never on a tag push
+    assert pypi["permissions"] == {"id-token": "write"}  # OIDC: no stored token
+    text = (ROOT / ".github/workflows/publish.yml").read_text()
+    assert "PYPI_API_TOKEN" not in text and "password:" not in text
+    security = " ".join((ROOT / "SECURITY.md").read_text().split())
+    assert "trusted publishing" in security and "manual" in security.lower()
+
+
+def test_release_tests_run_the_same_checks_as_ci():
+    runs = [step.get("run", "") for step in _publish_workflow()["jobs"]["test"]["steps"]]
+    for check in ("ruff check .", "ruff format --check .", "mypy", "pytest"):
+        assert any(check in run for run in runs), check
+
+
+def test_security_policy_names_the_ocr_engines():
+    security = " ".join((ROOT / "SECURITY.md").read_text().split())
+    assert "does not run OCR" not in security
+    for engine in ("tesseract", "rapidocr", "ocrmac"):
+        assert engine in security.lower(), engine

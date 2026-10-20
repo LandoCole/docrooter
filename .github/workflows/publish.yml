@@ -5,7 +5,9 @@ name: Release
 # release is made with the workflow's own GITHUB_TOKEN.
 #
 # Uploading to PyPI is manual: run this workflow by hand ("Run workflow", choosing the tag as
-# the ref) with the repository secret PYPI_API_TOKEN set. See CONTRIBUTING.md, "Releasing".
+# the ref). It uses PyPI trusted publishing (OpenID Connect), so no PyPI token is stored: the
+# project's PyPI settings must trust this repository, this workflow file and the `pypi`
+# environment. See CONTRIBUTING.md, "Releasing".
 on:
   push:
     tags: ["v*"]
@@ -30,6 +32,8 @@ jobs:
         run: uv python install "$UV_PYTHON"
       - run: uv sync --locked --extra pdf --extra pdf-mit --extra ui --extra llm
       - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+      - run: uv run --no-sync mypy
       - run: uv run --no-sync pytest
 
   build:
@@ -86,12 +90,13 @@ jobs:
     needs: [test, build]
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # The environment is where a required reviewer can gate the upload (Settings > Environments).
     environment: pypi
+    permissions:
+      id-token: write # trusted publishing: a short-lived OIDC token, no stored secret
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}

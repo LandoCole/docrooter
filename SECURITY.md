@@ -92,18 +92,24 @@ authentication.
 PDF parsers read complicated, attacker-controlled files, and PyMuPDF and pdfplumber are
 third-party code that can have vulnerabilities of their own.
 
-- docrooter reads PDFs natively and does not run OCR. It extracts text, fonts, positions and the
-  outline, and nothing in a document is executed by docrooter itself.
+- docrooter reads PDFs natively by default: it extracts text, fonts, positions and the outline,
+  and nothing in a document is executed by docrooter itself.
+- Element mode can run OCR on demand, on page images rendered from the PDF: the system
+  `tesseract` binary (a subprocess) when it is on `PATH`, RapidOCR (the `ocr` extra, on
+  onnxruntime) or Apple Vision through ocrmac (the `ocr-mac` extra, macOS). `ocr="auto"` takes
+  the first installed, tesseract first. These engines, and the heron layout model (the `layout`
+  extra), parse attacker-controlled images, so they belong in the advice below too.
 - Bound the work a hostile or huge file can cause: `load_pdf(path, max_pages=N)` and
   `docrooter doctype --max-pages N` read at most `N` pages, and `--chunk-size` keeps the memory of a
   large corpus bounded. The playground applies a page cap of its own.
-- For documents from untrusted sources, keep the PDF libraries up to date, and run docrooter in a
-  sandbox (a container or an unprivileged user without network access) if the risk matters to you.
+- For documents from untrusted sources, keep the PDF libraries and any OCR engine (tesseract,
+  rapidocr, onnxruntime, ocrmac) up to date, and run docrooter in a sandbox (a container or an unprivileged user without network access) if the risk matters to you.
   `docrooter doctype --workers N` parses PDFs in separate processes, which also contains a crash.
 
 ### Supply chain
 
 The core install is small (`pydantic`, `numpy`, `typer`, `rich`); everything else is an optional
-extra. Releases are published to PyPI from GitHub Actions with trusted publishing, so no API token is
-stored in the repository. PyMuPDF (the `pdf` extra) is AGPL-3.0, which is a licensing matter rather
+extra. A `v*` tag attaches the sdist and wheel to the GitHub release using only the workflow's own
+`GITHUB_TOKEN`. Uploading to PyPI is a separate, manual run of the same workflow, with trusted
+publishing (OpenID Connect), so no PyPI token is stored in the repository or its secrets. PyMuPDF (the `pdf` extra) is AGPL-3.0, which is a licensing matter rather
 than a security one; see the README.

@@ -165,13 +165,16 @@ Maintainers only. The version is set in one place, `src/docrooter/__init__.py`.
    `pip install "git+https://github.com/LandoCole/docrooter@v1.0.0"`, or the wheel attached to
    the release.
 
-**PyPI is manual.** The workflow uploads to PyPI only when it is run by hand, on the tag:
+**PyPI is manual.** The workflow uploads to PyPI only when it is run by hand, on the tag, with
+trusted publishing, so no PyPI token is stored anywhere:
 
-1. Create an API token on PyPI (scoped to the `docrooter` project once it exists) and save it as
-   the repository secret `PYPI_API_TOKEN` (Settings > Secrets and variables > Actions).
+1. Once: on PyPI, add a trusted publisher for the `docrooter` project (a pending publisher
+   before the first upload): owner `LandoCole`, repository `docrooter`, workflow `publish.yml`,
+   environment `pypi`. In GitHub, create the `pypi` environment (Settings > Environments); add
+   yourself as a required reviewer there to approve every upload.
 2. Open Actions > Release > Run workflow, choose the tag (not a branch) as the ref, and run it.
-   It tests and builds the tag again, then uploads with the token.
+   It tests and builds the tag again, then uploads with a short-lived OIDC token.
 
-To upload from your own machine instead, build with `uv build` and run
-`uv publish --token "$PYPI_TOKEN"` (or `twine upload dist/*`), with the token in your
-environment, never in a file in the repository.
+To upload from your own machine instead, build with `uv build` and run `uv publish` (or
+`twine upload dist/*`) with a PyPI token in your environment, never in a file in the
+repository.

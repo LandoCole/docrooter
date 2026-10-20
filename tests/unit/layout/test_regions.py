@@ -308,7 +308,7 @@ def test_lines_outside_regions_use_heuristics(tmp_path):
 
 def test_missing_onnxruntime_raises_layout_extra_message(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "onnxruntime", None)  # import fails as if not installed
-    with pytest.raises(MissingExtraError, match=r"pip install 'docrooter\[layout\]'"):
+    with pytest.raises(MissingExtraError, match=r'pip install "docrooter\[layout\] @ git\+'):
         get_layout_engine("heron")
 
     def no_page_work(*args, **kwargs):

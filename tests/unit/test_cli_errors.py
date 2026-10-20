@@ -64,3 +64,22 @@ def test_eval_flat_with_a_trained_spec_is_a_value_error(tmp_path):
         app, ["eval", "-t", TAX, "-d", str(data), "-b", "trained:x", "--strategy", "flat"]
     )
     _assert_error(result, "Flat strategy needs a zero-shot backend")
+
+
+def test_help_gives_the_v1_pitch_and_marks_experimental_commands():
+    from typer.testing import CliRunner
+
+    from docrooter.cli import app
+
+    result = CliRunner().invoke(app, ["--help"], env={"COLUMNS": "200", "TERM": "dumb"})
+    assert result.exit_code == 0
+    out = " ".join(result.stdout.split())
+    assert "TOC extraction" not in out
+    assert "The minimum context a hosted LLM needs to classify a document" in out
+    lines = {line.split()[1]: line for line in result.stdout.splitlines() if line.count("│") >= 2
+             and len(line.split()) > 1}  # fmt: skip
+    for command in ("tag", "tag-corpus", "train-elements", "select", "fit-selector", "corpus",
+                    "teach"):  # fmt: skip
+        assert "(experimental)" in lines[command], command
+    for command in ("classify", "toc", "doctype"):
+        assert "(experimental)" not in lines.get(command, ""), command

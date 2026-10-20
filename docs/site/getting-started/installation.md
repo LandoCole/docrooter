@@ -41,7 +41,8 @@ their own licences, listed on their Hugging Face pages. Check both before you di
 anything.
 
 If you call something that needs an extra you have not installed, the error names the command to
-run, for example `pip install 'docrooter[models]'`.
+run, in the GitHub form, for example
+`pip install "docrooter[models] @ git+https://github.com/LandoCole/docrooter"`.
 
 ## Choosing a PDF engine
 

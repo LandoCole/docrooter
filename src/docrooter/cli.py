@@ -28,16 +28,24 @@ if TYPE_CHECKING:
     from docrooter.classify.classifier import Classifier
     from docrooter.classify.results import DocTypeResult
 
-app = typer.Typer(no_args_is_help=True, help="Document TOC extraction and section classification.")
+PITCH = (
+    "The minimum context a hosted LLM needs to classify a document: sections first, on a "
+    "context ladder, with exact token accounting."
+)
+app = typer.Typer(no_args_is_help=True, help=PITCH)
 taxonomy_app = typer.Typer(no_args_is_help=True, help="Work with taxonomy files.")
 app.add_typer(taxonomy_app, name="taxonomy")
 models_app = typer.Typer(no_args_is_help=True, help="Download and inspect model weights.")
 app.add_typer(models_app, name="models")
 config_app = typer.Typer(no_args_is_help=True, help="Inspect the rooter configuration.")
 app.add_typer(config_app, name="config")
-corpus_app = typer.Typer(no_args_is_help=True, help="Build and inspect corpus stores.")
+corpus_app = typer.Typer(
+    no_args_is_help=True, help="(experimental) Build and inspect corpus stores."
+)
 app.add_typer(corpus_app, name="corpus")
-teach_app = typer.Typer(no_args_is_help=True, help="Label corpus elements with a teacher LLM.")
+teach_app = typer.Typer(
+    no_args_is_help=True, help="(experimental) Label corpus elements with a teacher LLM."
+)
 app.add_typer(teach_app, name="teach")
 
 
@@ -53,7 +61,7 @@ def _errors_exit_1() -> Iterator[None]:
         yield
     except _EXPECTED_ERRORS as exc:
         # Text, not markup: messages quote user text that may contain "[...]". soft_wrap keeps
-        # a copy-pasteable "pip install 'docrooter[...]'" on one line.
+        # a copy-pasteable install hint (see docrooter._extras.install_hint) on one line.
         Console(stderr=True, highlight=False).print(
             Text(f"error: {exc}", style="red"), soft_wrap=True
         )
@@ -80,7 +88,8 @@ def main(
         ),
     ] = False,
 ) -> None:
-    """Document TOC extraction and section classification."""
+    """The minimum context a hosted LLM needs to classify a document: sections first, on a
+    context ladder, with exact token accounting."""
 
 
 @app.command()
@@ -1484,8 +1493,8 @@ def tag(
         bool, typer.Option("--json", help="Print the tagged elements as JSON.")
     ] = False,
 ) -> None:
-    """Tag a document's paragraphs, list items, tables, captions, footnotes and formulas by
-    topic and function.
+    """(experimental) Tag a document's paragraphs, list items, tables, captions, footnotes and
+    formulas by topic and function.
 
     The document type (from the profile's doc_type backend) picks the topic family; the
     tagger is loaded once and closed at the end. Sections, summaries and escalation are off.
@@ -1565,8 +1574,8 @@ def tag_corpus(
         ),
     ] = "tagger",
 ) -> None:
-    """Tag a corpus store's content elements and write labels/<labeler>.jsonl: a topic and a
-    function row per element, in the family of the document's manifest hints.
+    """(experimental) Tag a corpus store's content elements and write labels/<labeler>.jsonl:
+    a topic and a function row per element, in the family of the document's manifest hints.
 
     Every split is tagged by default, gold included: pass --split (repeatable) to restrict
     it, e.g. --split train --split calib. Resumable: one write per document, and elements
@@ -1629,8 +1638,8 @@ def train_elements(
         str | None, typer.Option(help="Training device (default: MPS or CUDA if available).")
     ] = None,
 ) -> None:
-    """Train an element tagger on a corpus store: label with the teacher, build the
-    confident training set, train stage A or B and calibrate on the calib split.
+    """(experimental) Train an element tagger on a corpus store: label with the teacher, build
+    the confident training set, train stage A or B and calibrate on the calib split.
 
     Each stage is resumable: its output goes to DIRECTORY/train-elements/ and a finished
     stage is skipped on the next run (the dataset is rebuilt when the labels change). Run
@@ -1757,7 +1766,8 @@ def select_(
     ] = None,
     as_json: Annotated[bool, typer.Option("--json", help="Print the selection as JSON.")] = False,
 ) -> None:
-    """Choose the elements a downstream LLM should read for a need, at a completeness.
+    """(experimental) Choose the elements a downstream LLM should read for a need, at a
+    completeness.
 
     The document is read and classified as the profile says (summaries, embeddings and
     escalation off). Prints a readout line, then the selected elements (id, page, text). The
@@ -1826,8 +1836,8 @@ def fit_selector_(
         str, typer.Option(help="Embedding backend spec for sim, recorded in the selector.")
     ] = DEFAULT_BACKEND,
 ) -> None:
-    """Fit the selector: the relevance combiners on calib-fit, the completeness dials on
-    calib-crc, relevance from the teacher-full labels.
+    """(experimental) Fit the selector: the relevance combiners on calib-fit, the completeness
+    dials on calib-crc, relevance from the teacher-full labels.
 
     Each calib document's PDF is read again as the corpus build read it (same profile, page cap
     and pages) and scored as `docrooter select` scores it. Progress goes to stderr, a summary

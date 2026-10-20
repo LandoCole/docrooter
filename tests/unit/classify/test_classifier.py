@@ -577,7 +577,7 @@ def test_to_dataframe_columns_and_rows():
 
 def test_to_dataframe_names_the_extra(monkeypatch):
     monkeypatch.setitem(sys.modules, "pandas", None)  # makes `import pandas` fail
-    with pytest.raises(ImportError, match=r"pip install 'docrooter\[bench\]'"):
+    with pytest.raises(ImportError, match=r'pip install "docrooter\[bench\] @ git\+https'):
         DocumentResult(source="d", sections={}).to_dataframe()
 
 

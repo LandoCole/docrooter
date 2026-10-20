@@ -158,7 +158,8 @@ with the same extras until docrooter is on PyPI.
 | `all` | `models` + `pdf` + `pdf-mit` + `llm` + `jev` + `ui` + `ocr` + `ocr-mac` + `layout` | Everything above except `bench` |
 
 Python 3.10 or newer. Asking for something an extra provides without installing it fails with
-the exact command to run, e.g. `pip install 'docrooter[models]'`.
+the exact command to run, in the GitHub form, e.g.
+`pip install "docrooter[models] @ git+https://github.com/LandoCole/docrooter"`.
 
 **PDF engines and the AGPL.** The default PDF engine is PyMuPDF, which is licensed under the
 AGPL-3.0, unlike docrooter itself (Apache-2.0). It comes with the `[pdf]` extra (and so with

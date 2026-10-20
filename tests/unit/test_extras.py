@@ -8,8 +8,19 @@ def test_require_returns_module():
 
 
 def test_require_missing_names_extra():
-    with pytest.raises(MissingExtraError, match=r"pip install 'docrooter\[models\]'"):
+    with pytest.raises(MissingExtraError) as exc:
         require("definitely_not_a_module_xyz", "models")
+    # docrooter installs from GitHub: the hint is the GitHub form of the extra
+    expected = 'pip install "docrooter[models] @ git+https://github.com/LandoCole/docrooter"'
+    assert expected in str(exc.value)
+
+
+def test_install_hint_names_the_github_source():
+    from docrooter._extras import install_hint
+
+    assert install_hint("ocr") == (
+        'pip install "docrooter[ocr] @ git+https://github.com/LandoCole/docrooter"'
+    )
 
 
 def test_version():

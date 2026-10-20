@@ -14,6 +14,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from docrooter._extras import install_hint
 from docrooter.errors import DocrooterError, MissingExtraError
 
 __all__ = ["Line", "extract_lines"]
@@ -68,7 +69,7 @@ def _import_pymupdf() -> Any:
         return importlib.import_module("fitz")
     except ImportError as exc:
         raise MissingExtraError(
-            "pymupdf is required for this feature: pip install 'docrooter[pdf]'"
+            f"pymupdf is required for this feature: {install_hint('pdf')}"
         ) from exc
 
 
@@ -77,7 +78,7 @@ def _import_pdfplumber() -> Any:
         return importlib.import_module("pdfplumber")
     except ImportError as exc:
         raise MissingExtraError(
-            "pdfplumber is required for this feature: pip install 'docrooter[pdf-mit]'"
+            f"pdfplumber is required for this feature: {install_hint('pdf-mit')}"
         ) from exc
 
 

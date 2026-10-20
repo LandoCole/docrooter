@@ -98,7 +98,7 @@ class DocumentResult(BaseModel):
 
     def to_dataframe(self) -> Any:
         """One row per section: section_id, title, path (labels joined by ``" > "``), score and
-        stopped_reason of the best path. Needs pandas (``pip install 'docrooter[bench]'``)."""
+        stopped_reason of the best path. Needs pandas (the ``bench`` extra)."""
         pd = require("pandas", "bench")
         rows = [
             {

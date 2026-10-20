@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from docrooter import events
+from docrooter._extras import install_hint
 from docrooter.document.build import build_document
 from docrooter.document.headings import repair_levels
 from docrooter.document.models import Document, RawHeading
@@ -252,7 +253,7 @@ def _auto_engine() -> str:
         return "pdfplumber"
     except MissingExtraError as exc:
         raise MissingExtraError(
-            "a PDF engine is required: pip install 'docrooter[pdf]' (or 'docrooter[pdf-mit]')"
+            f"a PDF engine is required: {install_hint('pdf')} (or the pdf-mit extra)"
         ) from exc
 
 

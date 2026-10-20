@@ -1,4 +1,4 @@
-"""RapidOCR (PaddleOCR models on onnxruntime), ``pip install 'docrooter[ocr]'``."""
+"""RapidOCR (PaddleOCR models on onnxruntime), the ``ocr`` extra."""
 
 from __future__ import annotations
 

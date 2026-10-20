@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from docrooter import events
+from docrooter._extras import install_hint
 from docrooter.backends import registry as backend_registry
 from docrooter.backends.base import Backend, close_backend
 from docrooter.classify.classifier import Classifier, _is_trained
@@ -356,9 +357,9 @@ class _Engines:
                 return None, _decision(
                     "ocr",
                     "none",
-                    "warning: ocr=auto and no OCR engine is installed (pip install "
-                    "'docrooter[ocr]', 'docrooter[ocr-mac]' on macOS, or the tesseract "
-                    "binary); pages that need OCR keep their text layer",
+                    f"warning: ocr=auto and no OCR engine is installed ({install_hint('ocr')}, "
+                    "the ocr-mac extra on macOS, or the tesseract binary); pages that need OCR "
+                    "keep their text layer",
                 )
             name = resolved
             reason = "ocr=auto: the first installed engine (tesseract, ocrmac on macOS, rapidocr)"

@@ -7,6 +7,7 @@ import shutil
 import sys
 from collections.abc import Callable
 
+from docrooter._extras import install_hint
 from docrooter.errors import DocrooterError
 from docrooter.ocr.base import OcrEngine
 
@@ -64,8 +65,8 @@ def get_ocr_engine(name: str, *, lang: str = "en") -> OcrEngine:
         resolved = resolve_auto_ocr()
         if resolved is None:
             raise DocrooterError(
-                "no OCR engine is available: pip install 'docrooter[ocr]' "
-                "('docrooter[ocr-mac]' on macOS) or install the tesseract binary"
+                f"no OCR engine is available: {install_hint('ocr')} (the ocr-mac extra on "
+                "macOS) or install the tesseract binary"
             )
         name = resolved
     try:

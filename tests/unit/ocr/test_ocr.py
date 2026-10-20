@@ -135,7 +135,9 @@ def test_missing_extra_message(monkeypatch):
     monkeypatch.setitem(sys.modules, "rapidocr", None)  # makes the import fail
     with pytest.raises(MissingExtraError) as exc:
         get_ocr_engine("rapidocr")
-    assert "pip install 'docrooter[ocr]'" in str(exc.value)
+    assert 'pip install "docrooter[ocr] @ git+https://github.com/LandoCole/docrooter"' in str(
+        exc.value
+    )
     monkeypatch.setitem(sys.modules, "ocrmac", None)
     with pytest.raises(MissingExtraError, match=r"docrooter\[ocr-mac\]"):
         get_ocr_engine("ocrmac")

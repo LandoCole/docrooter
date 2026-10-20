@@ -43,7 +43,9 @@ def test_models_pull_missing_extra(monkeypatch):
     monkeypatch.setitem(sys.modules, "huggingface_hub", None)
     result = runner.invoke(app, ["models", "pull", ULTRA])
     assert result.exit_code == 1
-    assert "pip install 'docrooter[models]'" in result.output
+    assert 'pip install "docrooter[models] @ git+https://github.com/LandoCole/docrooter"' in (
+        result.output
+    )
 
 
 def test_models_list(monkeypatch):

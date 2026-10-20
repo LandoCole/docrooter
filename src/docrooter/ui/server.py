@@ -62,7 +62,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
-from docrooter._extras import require
+from docrooter._extras import install_hint, require
 
 require("fastapi", "ui")
 require("python_multipart", "ui")
@@ -204,6 +204,7 @@ class BackendInfo:
             "label": self.label,
             "description": self.description,
             "installed": installed,
+            "install": install_hint("jev" if self.spec.startswith("jev:") else "models"),
         }
 
 
@@ -296,6 +297,7 @@ class ProfileInfo:
             "description": self.description,
             "installed": installed,
             "extra": self.extra,
+            "install": install_hint(self.extra) if self.extra else None,
         }
 
 
@@ -1316,7 +1318,7 @@ def _check_profile(profile: str, engine: str, kind: str) -> None:
         raise HTTPException(
             400,
             f"The {profile} profile needs the {info.extra} extra: "
-            f"pip install 'docrooter[{info.extra}]'.",
+            f"{install_hint(info.extra or profile)}.",
         )
     if profile != "fast" and kind == "pdf" and engine in _FAST_ONLY_ENGINES:
         raise HTTPException(

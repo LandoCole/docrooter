@@ -1,4 +1,4 @@
-"""Apple Vision OCR through ``ocrmac`` (macOS only, ``pip install 'docrooter[ocr-mac]'``)."""
+"""Apple Vision OCR through ``ocrmac`` (macOS only, the ``ocr-mac`` extra)."""
 
 from __future__ import annotations
 

@@ -203,7 +203,7 @@ function describeProfile() {
   note.replaceChildren();
   if (!chosen) return;
   note.append(chosen.description);
-  if (!chosen.installed) note.append(" ", h("strong", {}, `Needs pip install 'docrooter[${chosen.extra}]'.`));
+  if (!chosen.installed) note.append(" ", h("strong", {}, `Needs ${chosen.install}.`));
 }
 
 function describeBackend() {
@@ -212,10 +212,7 @@ function describeBackend() {
   note.replaceChildren();
   if (!chosen) return;
   note.append(chosen.description);
-  if (!chosen.installed) {
-    const extra = chosen.spec.startsWith("jev:") ? "jev" : "models";
-    note.append(" ", h("strong", {}, `Needs pip install 'docrooter[${extra}]'.`));
-  }
+  if (!chosen.installed) note.append(" ", h("strong", {}, `Needs ${chosen.install}.`));
   if (state.backends.loaded === chosen.spec) note.append(" Already loaded.");
 }
 

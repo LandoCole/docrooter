@@ -53,7 +53,7 @@ per section (needs `pandas`, extra `bench`).
 | `best` | The chosen path, e.g. `node_ids == ["financial", "financial.annual_report"]`. Empty with `stopped_reason="empty_text"` for a document with no text, or `"low_confidence"` below the threshold |
 | `confidence` | The chosen type's probability: the number to gate a pipeline on |
 | `leaf_probs` | The ten most probable types, most probable first |
-| `view_text` | The rendered `DocumentView` the backend saw |
+| `view_text` | The rendered `DocumentView` the backend saw (empty in `mode="sections"`, which classifies section views instead) |
 | `timings` | `{"classify": seconds}`, amortised over a batch |
 | `mode` | `"view"`, `"sections"` or `"hybrid"` |
 

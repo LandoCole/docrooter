@@ -1050,12 +1050,17 @@ function flowBlock(type) {
     "div",
     { class: "flow-facts" },
     h("p", {}, h("strong", {}, `decided_by: ${type.decided_by}`), ` · ${how[type.decided_by] ?? ""}`),
+    type.flags.includes("low_support")
+      ? h("p", { class: "note" }, type.decided_by === "fallback"
+        ? "The rules left one weakly supported type with no siblings, so every type was offered."
+        : "The rules left one weakly supported type, so it was offered with its sibling types.")
+      : null,
     h(
       "p",
       {},
       "Candidates: ",
       type.candidates.length
-        ? type.candidates.map((c, i) => [i ? ", " : "", h("span", { title: c.id }, c.label)])
+        ? type.candidates.flatMap((c, i) => [i ? ", " : "", h("span", { title: c.id }, c.label)])
         : "none (every type was offered)",
     ),
     type.flags.length ? h("p", {}, `Flags: ${type.flags.join(", ").replace(/_/g, " ")}`) : null,

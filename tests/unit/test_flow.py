@@ -179,6 +179,97 @@ def test_single_undecided_candidate_is_offered_with_its_near_misses():
     assert doc_call[1] == result.candidates  # offered in the candidates' order
 
 
+def test_lone_undecided_candidate_is_offered_with_its_siblings():
+    doc = Document.from_sections(
+        [{"title": "Opinion", "level": 1, "text": "The court holds that the appeal fails."}]
+    )
+    backend = Scripted(by_title({"Opinion": ("law.opinion", 0.75)}))  # 0.5625: undecided
+    result = classify(doc, backend=backend)
+    assert result.decided_by == "model"
+    assert "low_support" in result.flags and "near_miss" not in result.flags
+    siblings = [n.id for n in builtin_taxonomy("doc_types").children("legal")]
+    assert result.candidates[0] == "legal.court_opinion"
+    assert set(result.candidates) == set(siblings)
+    (doc_call,) = backend.of("document")
+    assert doc_call[1] == result.candidates
+
+
+def test_lone_near_miss_is_offered_with_its_siblings():
+    doc = Document.from_sections(
+        [{"title": "Abstract", "level": 1, "text": "We study retrieval for long documents."}]
+    )
+    backend = Scripted(by_title({"Abstract": ("research.abstract", 0.95)}))
+    result = classify(doc, backend=backend)
+    assert {"near_miss", "low_support"} <= set(result.flags)
+    assert result.decided_by == "model"
+    siblings = [n.id for n in builtin_taxonomy("doc_types").children("research")]
+    assert result.candidates[0] == "research.research_paper"
+    assert set(result.candidates) == set(siblings)
+
+
+def test_lone_candidate_without_siblings_falls_back_to_all_types():
+    doc_types = Taxonomy(
+        [
+            TaxonomyNode(id="a", label="A"),
+            TaxonomyNode(
+                id="a.memo",
+                label="Memo",
+                parent_id="a",
+                sections={"requires": [["general.summary"]]},
+            ),
+            TaxonomyNode(id="b", label="B"),
+            TaxonomyNode(
+                id="b.letter",
+                label="Letter",
+                parent_id="b",
+                sections={"requires": [["general.acknowledgements"]]},
+            ),
+        ]
+    )
+    doc = Document.from_sections([{"title": "Summary", "level": 1, "text": "In short."}])
+    backend = Scripted(by_title({"Summary": ("general.summary", 0.75)}))
+    result = classify(doc, backend=backend, doc_types=doc_types)
+    assert result.decided_by == "fallback" and "low_support" in result.flags
+    assert "rules_unmet" not in result.flags
+    assert result.candidates == ["a.memo"]
+    (doc_call,) = backend.of("document")
+    assert set(doc_call[1]) == {"a.memo", "b.letter"}
+
+
+def test_document_calls_record_every_attempt():
+    def document(text):
+        return ("financial.quarterly_report", 0.9) if "Key phrases:" in text else None
+
+    backend = Scripted(document=document, metered=True)
+    result = classify(financial_doc(), backend=backend, level="headings", cascade=True,
+                      threshold=0.6)  # fmt: skip
+    first, second = result.document_calls
+    assert (first.level, second.level) == ("headings", "terms")
+    assert all(c.exact and c.options_count == 2 and not c.truncated for c in (first, second))
+    texts = [text for text, _ in backend.of("document")]
+    assert [c.prompt_tokens for c in result.document_calls] == [100 + len(t.split()) for t in texts]
+    assert sum(c.prompt_tokens for c in result.document_calls) == (
+        result.stage_tokens["document"].prompt
+    )
+    assert result.doc_truncated is False
+
+    rules = classify(financial_doc(EXEC_COMP), backend=Scripted())
+    assert rules.document_calls == [] and rules.doc_truncated is False
+
+
+def test_doc_truncated_is_the_document_view_only():
+    long_text = " ".join(["revenue grew strongly this year"] * 4000)
+    doc = Document.from_sections(
+        [{"title": "Management discussion", "level": 1, "text": long_text}]
+    )
+    backend = Scripted(document=lambda text: ("financial.annual_report", 0.9))
+    sections_cut = classify(doc, backend=backend, section_level="full", doc_level="headings")
+    assert "truncated" in sections_cut.flags and not sections_cut.doc_truncated
+    doc_cut = classify(doc, backend=backend, level="headings", doc_level="full")
+    full_cap = doc_cut.document_calls[-1]
+    assert doc_cut.doc_truncated and full_cap.truncated and "truncated" in doc_cut.flags
+
+
 def test_rules_unmet_falls_back_to_all_types():
     doc = Document.from_sections(
         [{"title": "Acknowledgements", "level": 1, "text": "We thank our reviewers."}]
@@ -383,6 +474,8 @@ def test_log_writes_one_row_per_decision(tmp_path):
     assert doc_row["label"] == "financial.annual_report"
     assert set(doc_row["options"]) == set(doc_row["probs"])
     assert doc_row["tokens"]["exact"] is True and doc_row["trainable"] is True
+    assert doc_row["step"] == "document"
+    assert [r["step"] for r in section_rows] == ["group", "group", "leaf", "leaf"]
 
 
 def test_custom_rules_with_unknown_section_ids_raise():
@@ -407,6 +500,28 @@ def test_custom_rules_with_unknown_section_ids_raise():
 def test_bad_arguments_raise(kwargs):
     with pytest.raises(ValueError):
         classify(financial_doc(), backend=KeywordBackend(), **kwargs)
+
+
+def test_unowned_section_calls_still_count(monkeypatch):
+    from docrooter.classify.classifier import Classifier
+
+    real = Classifier.classify_texts
+
+    def cut(self, texts):  # the backend sees other text than the rendered views
+        return real(self, [t + " (cut)" for t in texts])
+
+    monkeypatch.setattr(Classifier, "classify_texts", cut)
+    result = classify(financial_doc(EXEC_COMP), backend=Scripted(metered=True))
+    assert result.stage_tokens["sections"].calls == 6
+    assert result.tokens.calls == 6
+
+
+def test_cumulative_inexact_usage_split_keeps_estimated_calls():
+    from docrooter.flow import _split
+
+    parts = _split(TokenUsage(30, 3, 1, False), 3)
+    total = sum(parts, TokenUsage())
+    assert total == TokenUsage(30, 3, 1, False) and total.estimated_calls == 1
 
 
 def test_classification_round_trips_as_json():

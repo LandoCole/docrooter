@@ -82,7 +82,10 @@ from docrooter.views import SectionView, estimate_tokens
 Flow = Literal["sections_first", "doc_first"]
 FLOWS: tuple[str, ...] = ("sections_first", "doc_first")
 DecidedBy = Literal["rules", "model", "fallback"]
-Flag = Literal["no_sections", "rules_unmet", "near_miss", "excludes_waived", "truncated"]
+Flag = Literal[
+    "no_sections", "rules_unmet", "near_miss", "low_support", "excludes_waived", "truncated"
+]
+Step = Literal["group", "leaf", "document"]
 CATALOGUE = "section_catalogue"
 """The built-in section catalogue that ``sections_first`` tags against."""
 SECTION_LEVELS = (1, 2)
@@ -109,6 +112,21 @@ class SectionTag(BaseModel):
     tokens: TokenUsage = Field(default_factory=TokenUsage)
 
 
+class CallRecord(BaseModel):
+    """One document-stage attempt: the ``level`` of its view, the ``prompt_tokens`` and
+    ``completion_tokens`` it spent (``exact`` when from the API's usage), whether its view was
+    ``truncated``, and how many doc types it offered (``options_count``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    level: Level
+    prompt_tokens: int
+    completion_tokens: int
+    exact: bool
+    truncated: bool
+    options_count: int
+
+
 class Classification(BaseModel):
     """What :func:`classify` decided, how, and at what token cost.
 
@@ -118,12 +136,17 @@ class Classification(BaseModel):
       confidence among its supporting section tags.
     - ``decided_by``: ``"rules"`` (no document-level call), ``"model"`` (the model chose among
       the narrowed ``candidates``, or among every type in ``doc_first``) or ``"fallback"`` (the
-      model chose among every type because the rules left fewer than two, or there were no
-      sections).
-    - ``candidates``: the doc types the rules left, in the order offered (most ``typical``
-      matches first), near misses included when they were offered; empty in ``doc_first``.
-    - ``flags``: ``no_sections``, ``rules_unmet``, ``near_miss``, ``excludes_waived`` and
-      ``truncated`` (a view was cut to its budget).
+      model chose among every type: nothing was left to offer, a lone type had no siblings, or
+      there were no sections).
+    - ``candidates``: the doc types offered, in order (most ``typical`` matches first): the
+      rules' candidates, near misses when they were offered, and a lone type's siblings
+      (``low_support``); empty in ``doc_first``.
+    - ``flags``: ``no_sections``, ``rules_unmet``, ``near_miss``, ``low_support`` (a lone
+      undecided candidate or near miss, offered with its doc-type siblings), ``excludes_waived``
+      and ``truncated`` (a section or document view was cut to its budget).
+    - ``document_calls``: one :class:`CallRecord` per document-stage attempt (cascade attempts
+      included), in order; the last made the decision. ``doc_truncated``: whether the deciding
+      document view was cut.
     - ``sections``: the tags, in the order tagged (level 1 first, then level 2, each in reading
       order), against ``section_taxonomy`` (``"section_catalogue"`` in ``sections_first``).
     - ``tokens``: everything spent, ``stage_tokens["sections"] + stage_tokens["document"]``.
@@ -142,6 +165,8 @@ class Classification(BaseModel):
     decided_by: DecidedBy
     candidates: list[str] = Field(default_factory=list)
     flags: list[Flag] = Field(default_factory=list)
+    document_calls: list[CallRecord] = Field(default_factory=list)
+    doc_truncated: bool = False
     section_taxonomy: str | None = None
     sections: list[SectionTag] = Field(default_factory=list)
     tokens: TokenUsage = Field(default_factory=TokenUsage)
@@ -364,12 +389,19 @@ def _split(total: TokenUsage, n: int) -> list[TokenUsage]:
     def share(value: int, i: int) -> int:
         return value // n + (1 if i < value % n else 0)
 
-    return [
-        TokenUsage(
-            share(total.prompt, i), share(total.completion, i), share(total.calls, i), total.exact
+    out = []
+    for i in range(n):
+        estimated = share(total.estimated_calls, i)
+        out.append(
+            TokenUsage(
+                share(total.prompt, i),
+                share(total.completion, i),
+                share(total.calls, i),
+                estimated == 0,
+                estimated,
+            )
         )
-        for i in range(n)
-    ]
+    return out
 
 
 def _sum(usages: Sequence[TokenUsage]) -> TokenUsage:
@@ -393,6 +425,7 @@ class _Decision:
     """A backend call as a log row's context: the stage, the section and the level."""
 
     stage: str
+    step: Step
     section_id: str | None
     level: Level
     call: _Call
@@ -403,6 +436,7 @@ class _DocDecision:
     result: DocTypeResult
     level: Level
     tokens: TokenUsage
+    calls: list[CallRecord]
 
 
 @dataclass
@@ -415,6 +449,7 @@ class _Run:
     threshold: float
     truncated: bool = False
     decisions: list[_Decision] = field(default_factory=list)
+    unowned: TokenUsage = field(default_factory=TokenUsage)  # section calls no text claimed
 
     # --- flows
 
@@ -468,6 +503,10 @@ class _Run:
         if len(offered) <= 1 and match.near_misses:
             offered += [t for t in match.near_misses if t not in offered]
             flags.append("near_miss")
+        if len(offered) == 1:
+            # a lone undecided candidate or near miss: offer it with its doc-type siblings
+            flags.append("low_support")
+            offered += _siblings(self.doc_types, offered[0])
         if len(offered) >= 2:
             decision = self.decide_document(_restricted(self.doc_types, offered), doc_level)
             decided_by: DecidedBy = "model"
@@ -544,12 +583,16 @@ class _Run:
         mark = len(self.metered.calls)
         results = classifier.classify_texts(texts)
         owners = _owners(texts, self.metered.calls[mark:])
+        leaves = {n.id for n in classifier.taxonomy.leaves()}
         for call, index in owners:
             sid = sections[index].id if index is not None else None
-            self.decisions.append(_Decision(SECTION_STAGE, sid, level, call))
+            step: Step = "leaf" if set(call.options) <= leaves else "group"
+            self.decisions.append(_Decision(SECTION_STAGE, step, sid, level, call))
             if index is not None:
                 tag = tags[sections[index].id]
                 tag.tokens = tag.tokens + call.usage
+            else:  # still spent: counted in the stage, if not in any one section
+                self.unowned = self.unowned + call.usage
         for section, result in zip(sections, results, strict=True):
             tag = tags[section.id]
             best = result.best
@@ -565,15 +608,29 @@ class _Run:
         tokens = TokenUsage()
         result: DocTypeResult | None = None
         used = level
+        records: list[CallRecord] = []
         while current is not None:
             mark = len(self.metered.calls)
             result = classify_document(
                 self.doc, taxonomy, backend=self.metered, level=current, strategy=Flat()
             )
             used = current
+            attempt = TokenUsage()
             for call in self.metered.calls[mark:]:
-                self.decisions.append(_Decision(DOCUMENT_STAGE, None, current, call))
-                tokens = tokens + call.usage
+                self.decisions.append(_Decision(DOCUMENT_STAGE, "document", None, current, call))
+                attempt = attempt + call.usage
+            tokens = tokens + attempt
+            if attempt.calls:  # an empty document is never sent
+                records.append(
+                    CallRecord(
+                        level=current,
+                        prompt_tokens=attempt.prompt,
+                        completion_tokens=attempt.completion,
+                        exact=attempt.exact,
+                        truncated=result.truncated,
+                        options_count=len(taxonomy.leaves()),
+                    )
+                )
             self.truncated = self.truncated or result.truncated
             if (
                 not self.cascade
@@ -583,7 +640,7 @@ class _Run:
                 break
             current = next_level(current)
         assert result is not None
-        return _DocDecision(result, used, tokens)
+        return _DocDecision(result, used, tokens, records)
 
     # --- output
 
@@ -604,7 +661,7 @@ class _Run:
             best = decision.result.best
             doc_type = (best.node_ids[-1], decision.result.confidence) if best.node_ids else None
             probs = dict(decision.result.leaf_probs)
-        section_tokens = _sum([t.tokens for t in tags])
+        section_tokens = _sum([t.tokens for t in tags]) + self.unowned
         document_tokens = decision.tokens if decision is not None else TokenUsage()
         if self.truncated:
             flags = [*flags, "truncated"]
@@ -617,6 +674,8 @@ class _Run:
             decided_by=decided_by,
             candidates=candidates,
             flags=flags,
+            document_calls=decision.calls if decision is not None else [],
+            doc_truncated=decision.result.truncated if decision is not None else False,
             section_taxonomy=section_taxonomy,
             sections=[
                 SectionTag(
@@ -651,6 +710,7 @@ class _Run:
                     "source": source,
                     "flow": self.flow,
                     "stage": decision.stage,
+                    "step": decision.step,
                     "section_id": decision.section_id,
                     "level": decision.level,
                     "view_hash": text_hash(call.text),
@@ -689,6 +749,15 @@ def _owners(texts: list[str], calls: list[_Call]) -> list[tuple[_Call, int | Non
     return out
 
 
+def _siblings(taxonomy: Taxonomy, leaf_id: str) -> list[str]:
+    """The other leaves under ``leaf_id``'s parent group, in taxonomy order; none for a
+    top-level leaf."""
+    parent = taxonomy.node(leaf_id).parent_id
+    if parent is None:
+        return []
+    return [n.id for n in taxonomy.children(parent) if n.id != leaf_id and not n.children]
+
+
 def _restricted(taxonomy: Taxonomy, leaf_ids: Sequence[str]) -> Taxonomy:
     """``taxonomy`` cut down to ``leaf_ids`` and their ancestors; its leaves keep the order of
     ``leaf_ids``, the order the options are offered in."""
@@ -717,6 +786,7 @@ def _resolved(backend: str | Backend) -> Backend:
 __all__ = [
     "CATALOGUE",
     "FLOWS",
+    "CallRecord",
     "LEVELS",
     "Classification",
     "SectionTag",

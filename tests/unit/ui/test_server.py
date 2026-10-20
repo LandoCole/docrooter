@@ -300,6 +300,8 @@ def test_playground_flow_level_payload(client):
     script = client.get("/static/app.js").text
     for name in ("decided_by", "candidates", "tokens", "level_used", '"flow"', '"level"'):
         assert name in script, name
+    # h() flattens one level: a candidate's [separator, span] pairs must be flattened first
+    assert "type.candidates.flatMap(" in script and "type.candidates.map(" not in script
 
 
 def test_classic_runs_keep_their_options_without_a_flow(client):

@@ -6,7 +6,13 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from docrooter.rules import DocTypeRules, RuleMatch, doc_type_rules, match_rules
+from docrooter.rules import (
+    DocTypeRules,
+    RuleMatch,
+    doc_type_rules,
+    match_rules,
+    unknown_section_ids,
+)
 from docrooter.taxonomies import builtin_taxonomy
 from docrooter.taxonomy import Taxonomy
 
@@ -29,10 +35,10 @@ def test_every_doc_type_leaf_has_rules_with_known_ids():
         assert rule.requires, doc_type
         ids = [i for group in rule.requires for i in group] + rule.typical + rule.excludes
         for section_id in ids:
-            assert section_id in catalogue, (doc_type, section_id)
             assert not section_id.endswith(".other"), (doc_type, section_id)
         required = {i for group in rule.requires for i in group}
         assert not required & set(rule.excludes), doc_type
+    assert unknown_section_ids(rules, catalogue) == {}
     for group in doc_types.children():
         assert group.sections is None, group.id
 
@@ -94,11 +100,15 @@ def test_candidates_near_misses_and_excludes():
     # min_conf moves the line
     assert "near" in match_rules(rules, tags, min_conf=0.3).candidates
 
-    # an excludes hit is ignored when removing it would leave no candidate
+    # an excludes hit is waived when removing it would leave no candidate, and a waived
+    # candidate is never decided: the evidence argued against it
     alone = match_rules(rules, {"x.a": 0.9, "x.d": 0.9})
     assert alone.candidates == ["barred"]
     assert alone.excluded == []
-    assert alone.decided == "barred"
+    assert alone.waived == ["barred"]
+    assert alone.excludes_waived is True
+    assert alone.decided is None
+    assert result.excludes_waived is False and result.waived == []
 
     # every candidate excluded: all are kept, never an empty result
     clash = _rules(
@@ -108,10 +118,62 @@ def test_candidates_near_misses_and_excludes():
     result = match_rules(clash, {"x.a": 0.9, "x.b": 0.9})
     assert result.candidates == ["one", "two"]
     assert result.excluded == []
+    assert result.waived == ["one", "two"]
+    assert result.excludes_waived is True
 
     # no tags at all: nothing, and no error
     empty = match_rules(rules, {})
     assert (empty.candidates, empty.near_misses, empty.decided) == ([], [], None)
+
+
+def test_waived_sole_candidate_is_not_decided():
+    """A candidate kept only by the waiver is not decided, even with strong support."""
+    rules = _rules(
+        sole={"requires": [["x.a"]], "excludes": ["x.n"]},
+        other={"requires": [["y.a"], ["y.b"]]},
+    )
+    result = match_rules(rules, {"x.a": 0.95, "x.n": 0.95})
+    assert result.candidates == ["sole"]
+    assert result.decided is None
+    assert result.excludes_waived is True
+    assert result.waived == ["sole"]
+    # without the exclude hit the same support decides
+    assert match_rules(rules, {"x.a": 0.95}).decided == "sole"
+
+
+def test_waived_candidates_keep_near_misses():
+    """Waived candidates do not crowd out near misses: both come back for the model."""
+    rules = _rules(
+        report={"requires": [["x.intro"]], "excludes": ["x.abstract"]},
+        white={"requires": [["x.intro"]], "excludes": ["x.abstract"]},
+        paper={"requires": [["x.abstract"], ["x.method"]]},
+    )
+    result = match_rules(rules, {"x.intro": 0.9, "x.abstract": 0.9})
+    assert result.candidates == ["report", "white"]
+    assert result.excludes_waived is True
+    assert result.near_misses == ["paper"]
+    assert result.support["paper"] == {"x.abstract": 0.9}
+    assert result.decided is None
+
+
+def test_excluded_near_miss_is_dropped_not_waived():
+    rules = _rules(
+        near={"requires": [["x.a"], ["x.b"]], "excludes": ["x.c"]},
+        other={"requires": [["y.a"]]},
+    )
+    result = match_rules(rules, {"x.a": 0.9, "x.c": 0.9})
+    assert result.near_misses == []
+    assert result.excluded == ["near"]
+    assert (result.waived, result.excludes_waived) == ([], False)
+
+
+def test_unknown_section_ids_flags_typos():
+    catalogue = builtin_taxonomy("section_catalogue")
+    rules = _rules(
+        good={"requires": [["financial", "financial.balance_sheet"]]},
+        typo={"requires": [["financial.balance_shet"]], "typical": ["narative"]},
+    )
+    assert unknown_section_ids(rules, catalogue) == {"typo": ["financial.balance_shet", "narative"]}
 
 
 def test_single_candidate_decided_needs_conf_0_7():
@@ -154,3 +216,61 @@ def test_quarterly_report_example():
     assert result.candidates == ["financial.shareholder_letter"]
     statements_only = {"financial.income_statement": 0.9}
     assert "financial.quarterly_report" not in match_rules(rules, statements_only).candidates
+
+
+# Realistic tag sets (hand-written from the filing forms, not from the corpus).
+TEN_Q = {
+    "general.front_matter": 0.9,
+    "financial.financial_statements": 0.9,
+    "financial.balance_sheet": 0.9,
+    "financial.income_statement": 0.9,
+    "financial.cash_flow_statement": 0.9,
+    "financial.notes_to_financial_statements": 0.9,
+    "narrative.management_discussion": 0.9,
+    "disclosure.controls_and_procedures": 0.9,
+    "disclosure.legal_proceedings": 0.85,
+    "disclosure.risk_factors": 0.85,
+    "disclosure.exhibits": 0.85,
+}
+
+
+def test_ten_q_with_use_of_proceeds_stays_quarterly_candidate():
+    """Part II Item 2 of a 10-Q ("Unregistered Sales of Equity Securities and Use of
+    Proceeds") must not turn the filing into a prospectus decided by rules."""
+    rules = doc_type_rules(builtin_taxonomy("doc_types"))
+    result = match_rules(rules, {**TEN_Q, "offering.use_of_proceeds": 0.9})
+    assert "financial.quarterly_report" in result.candidates
+    assert result.candidates[0] == "financial.quarterly_report"  # typical leaves rank it first
+    assert result.decided != "financial.prospectus"
+    assert "financial.prospectus" not in result.candidates
+
+
+def test_fund_annual_report_is_not_decided_as_earnings_release():
+    """A fund shareholder report with no letter: its management discussion of fund
+    performance is tagged fund.performance."""
+    rules = doc_type_rules(builtin_taxonomy("doc_types"))
+    tags = {
+        "fund.performance": 0.9,
+        "financial.balance_sheet": 0.9,
+        "financial.income_statement": 0.9,
+        "financial.changes_in_equity": 0.9,
+        "financial.schedule_of_investments": 0.9,
+        "financial.notes_to_financial_statements": 0.9,
+        "financial.auditors_report": 0.9,
+    }
+    result = match_rules(rules, tags)
+    assert "financial.annual_report" in result.candidates
+    assert result.decided != "financial.earnings_release"
+
+
+def test_court_opinion_without_syllabus_is_candidate():
+    rules = doc_type_rules(builtin_taxonomy("doc_types"))
+    tags = {"law.caption": 0.9, "general.background": 0.8, "general.conclusion": 0.8}
+    result = match_rules(rules, tags)
+    assert "legal.court_opinion" in result.candidates
+
+
+def test_scope_alone_is_not_a_technical_standard():
+    rules = doc_type_rules(builtin_taxonomy("doc_types"))
+    tags = {"standard.scope": 0.9, "general.findings": 0.9, "general.recommendations": 0.9}
+    assert "research.technical_standard" not in match_rules(rules, tags).candidates

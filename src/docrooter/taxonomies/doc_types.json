@@ -24,27 +24,20 @@
               [
                 "narrative.business_overview",
                 "narrative.management_discussion",
-                "narrative.shareholder_letter"
+                "narrative.shareholder_letter",
+                "fund.performance"
               ]
             ],
             "typical": [
               "financial.auditors_report",
-              "financial.notes_to_financial_statements",
-              "financial.financial_highlights",
-              "disclosure.risk_factors",
-              "disclosure.corporate_governance",
               "disclosure.executive_compensation",
-              "disclosure.controls_and_procedures",
-              "disclosure.legal_proceedings",
+              "disclosure.corporate_governance",
               "disclosure.properties",
               "disclosure.market_for_equity",
-              "disclosure.exhibits",
+              "financial.financial_highlights",
               "esg"
             ],
-            "excludes": [
-              "offering.use_of_proceeds",
-              "offering.underwriting"
-            ]
+            "excludes": []
           },
           "children": []
         },
@@ -65,7 +58,8 @@
               ],
               [
                 "narrative.shareholder_letter",
-                "narrative.management_discussion"
+                "narrative.management_discussion",
+                "fund.performance"
               ]
             ],
             "typical": [
@@ -74,14 +68,10 @@
               "disclosure.legal_proceedings",
               "disclosure.risk_factors",
               "disclosure.exhibits",
-              "disclosure.forward_looking_statements",
-              "financial.financial_highlights"
+              "disclosure.forward_looking_statements"
             ],
             "excludes": [
-              "disclosure.executive_compensation",
-              "disclosure.properties",
-              "offering.use_of_proceeds",
-              "offering.underwriting"
+              "disclosure.executive_compensation"
             ]
           },
           "children": []
@@ -135,10 +125,9 @@
               "disclosure.forward_looking_statements"
             ],
             "excludes": [
-              "financial.notes_to_financial_statements",
-              "financial.auditors_report",
               "disclosure.controls_and_procedures",
-              "disclosure.risk_factors"
+              "disclosure.executive_compensation",
+              "financial.schedule_of_investments"
             ]
           },
           "children": []
@@ -153,7 +142,6 @@
                 "fund.investment_objective",
                 "fund.principal_investment_strategies",
                 "offering.offering_terms",
-                "offering.use_of_proceeds",
                 "offering.underwriting"
               ],
               [
@@ -167,8 +155,8 @@
               "fund.management",
               "fund.purchase_and_sale",
               "fund.tax_information",
-              "offering.capitalization",
-              "narrative.business_overview"
+              "offering.use_of_proceeds",
+              "offering.capitalization"
             ],
             "excludes": []
           },
@@ -219,8 +207,6 @@
               "fund.management"
             ],
             "excludes": [
-              "fund.purchase_and_sale",
-              "fund.tax_information",
               "financial.schedule_of_investments",
               "financial.notes_to_financial_statements",
               "financial.auditors_report",
@@ -264,9 +250,7 @@
               "contract.general_provisions",
               "contract.signatures_exhibits"
             ],
-            "excludes": [
-              "contract.acceptable_use"
-            ]
+            "excludes": []
           },
           "children": []
         },
@@ -293,8 +277,7 @@
               "contract.general_provisions"
             ],
             "excludes": [
-              "contract.parties_recitals",
-              "contract.signatures_exhibits"
+              "contract.parties_recitals"
             ]
           },
           "children": []
@@ -306,6 +289,7 @@
           "sections": {
             "requires": [
               [
+                "law.caption",
                 "law.opinion",
                 "law.separate_opinion",
                 "law.syllabus"
@@ -313,13 +297,11 @@
             ],
             "typical": [
               "law.caption",
+              "law.opinion",
               "law.syllabus",
               "law.separate_opinion"
             ],
-            "excludes": [
-              "law.preamble",
-              "law.amendments"
-            ]
+            "excludes": []
           },
           "children": []
         },
@@ -341,6 +323,7 @@
               "contract.definitions"
             ],
             "excludes": [
+              "law.caption",
               "law.opinion",
               "law.separate_opinion",
               "law.syllabus"
@@ -381,7 +364,7 @@
             ],
             "excludes": [
               "standard.normative_references",
-              "standard.conformance"
+              "standard.iana_considerations"
             ]
           },
           "children": []
@@ -393,21 +376,22 @@
           "sections": {
             "requires": [
               [
-                "standard"
+                "standard.terminology",
+                "standard.specification",
+                "standard.conformance",
+                "standard.iana_considerations",
+                "standard.normative_references"
               ]
             ],
             "typical": [
               "standard.scope",
               "standard.terminology",
-              "standard.specification",
               "standard.conformance",
               "standard.security_considerations",
               "standard.iana_considerations",
               "standard.normative_references"
             ],
-            "excludes": [
-              "research.experiments"
-            ]
+            "excludes": []
           },
           "children": []
         },
@@ -419,12 +403,9 @@
             "requires": [
               [
                 "general.summary",
-                "general.introduction",
-                "general.background",
                 "general.body",
                 "general.findings",
-                "general.recommendations",
-                "general.conclusion"
+                "general.recommendations"
               ]
             ],
             "typical": [
@@ -434,28 +415,17 @@
               "general.references"
             ],
             "excludes": [
-              "research.abstract",
-              "research.related_work",
               "standard.normative_references",
-              "standard.conformance",
               "standard.iana_considerations",
               "law.syllabus",
-              "law.opinion",
-              "law.separate_opinion",
               "contract.parties_recitals",
-              "contract.signatures_exhibits",
-              "offering",
-              "fund.fees_and_expenses",
-              "fund.purchase_and_sale",
-              "technical.installation_getting_started",
-              "technical.troubleshooting",
-              "disclosure.shareholder_meeting",
               "financial.financial_statements",
               "financial.balance_sheet",
               "financial.income_statement",
               "financial.cash_flow_statement",
               "financial.changes_in_equity",
-              "financial.notes_to_financial_statements"
+              "financial.notes_to_financial_statements",
+              "financial.auditors_report"
             ]
           },
           "children": []
@@ -484,12 +454,10 @@
               "technical.overview",
               "technical.safety",
               "technical.troubleshooting",
-              "technical.reference",
-              "technical.specifications"
+              "technical.installation_getting_started",
+              "technical.configuration"
             ],
-            "excludes": [
-              "technical.package_mechanical"
-            ]
+            "excludes": []
           },
           "children": []
         },
@@ -514,9 +482,7 @@
               "technical.package_mechanical",
               "technical.ordering_information"
             ],
-            "excludes": [
-              "technical.troubleshooting"
-            ]
+            "excludes": []
           },
           "children": []
         }
@@ -535,12 +501,9 @@
             "requires": [
               [
                 "general.summary",
-                "general.introduction",
-                "general.background",
                 "general.body",
                 "general.findings",
-                "general.recommendations",
-                "general.conclusion"
+                "general.recommendations"
               ]
             ],
             "typical": [
@@ -551,22 +514,10 @@
               "research.method"
             ],
             "excludes": [
-              "research.abstract",
-              "research.related_work",
               "standard.normative_references",
-              "standard.conformance",
               "standard.iana_considerations",
               "law.syllabus",
-              "law.opinion",
-              "law.separate_opinion",
-              "contract.parties_recitals",
-              "contract.signatures_exhibits",
-              "offering",
-              "fund.fees_and_expenses",
-              "fund.purchase_and_sale",
-              "technical.installation_getting_started",
-              "technical.troubleshooting",
-              "disclosure.shareholder_meeting"
+              "contract.parties_recitals"
             ]
           },
           "children": []
@@ -628,10 +579,7 @@
             ],
             "excludes": [
               "financial.notes_to_financial_statements",
-              "financial.auditors_report",
-              "disclosure.controls_and_procedures",
-              "disclosure.legal_proceedings",
-              "disclosure.exhibits"
+              "financial.auditors_report"
             ]
           },
           "children": []

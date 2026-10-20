@@ -15,12 +15,49 @@ from pydantic import (
     Field,
     SerializerFunctionWrapHandler,
     ValidationError,
+    field_validator,
     model_serializer,
 )
 
 from docrooter.errors import TaxonomyError
-from docrooter.rules import DocTypeRules
 from docrooter.taxonomy.validate import ROOT_ID, TaxonomyIssue, validate_nodes
+
+
+class DocTypeRules(BaseModel):
+    """The sections that define a doc type: a doc-type node's ``sections`` block.
+
+    ``requires`` is a list of groups of section-catalogue ids: a document must have a section
+    tagged with at least one id from each group. ``typical`` ids raise a type's rank without
+    being needed. An ``excludes`` id names a section a genuine document of the type cannot
+    contain. An id is a catalogue leaf, or a group that matches any of its leaves. Matching
+    lives in :mod:`docrooter.rules`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    requires: list[list[str]] = Field(min_length=1)
+    typical: list[str] = Field(default_factory=list)
+    excludes: list[str] = Field(default_factory=list)
+
+    @field_validator("requires")
+    @classmethod
+    def _groups_not_empty(cls, groups: list[list[str]]) -> list[list[str]]:
+        for i, group in enumerate(groups):
+            if not group:
+                raise ValueError(f"requires group {i} is empty, so it could never be met")
+        return groups
+
+    @field_validator("requires", "typical", "excludes")
+    @classmethod
+    def _ids_not_blank(cls, value: list) -> list:
+        flat = [i for item in value for i in (item if isinstance(item, list) else [item])]
+        if any(not i.strip() for i in flat):
+            raise ValueError("section ids must be non-empty")
+        return value
+
+    def ids(self) -> list[str]:
+        """Every id the block names, in order: requires, then typical, then excludes."""
+        return [i for group in self.requires for i in group] + self.typical + self.excludes
 
 
 class TaxonomyNode(BaseModel):

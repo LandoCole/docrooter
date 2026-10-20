@@ -9,7 +9,9 @@ any of its leaves.
 
 - **candidates** meet every ``requires`` group;
 - **near misses** meet all but one of their groups, and at least one;
-- an ``excludes`` hit removes a type, unless that would leave none in its list;
+- an ``excludes`` hit removes a candidate, unless that would leave no candidate; then the
+  hit is waived and flagged, and a waived candidate is never decided. An excludes hit always
+  removes a near miss;
 - candidates and near misses are ordered by how many ``typical`` ids they match, most first,
   then by rule order. ``typical`` orders and never gates;
 - a single candidate is **decided** when every tag supporting it has confidence at least
@@ -24,41 +26,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field
+
+from docrooter.taxonomy.models import DocTypeRules
 
 if TYPE_CHECKING:
     from docrooter.taxonomy import Taxonomy
-
-
-class DocTypeRules(BaseModel):
-    """The sections that define a doc type.
-
-    ``requires`` is a list of groups of catalogue ids: a document must have a section tagged
-    with at least one id from each group. ``typical`` ids raise a type's rank without being
-    needed, and an ``excludes`` hit argues against the type.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    requires: list[list[str]] = Field(min_length=1)
-    typical: list[str] = Field(default_factory=list)
-    excludes: list[str] = Field(default_factory=list)
-
-    @field_validator("requires")
-    @classmethod
-    def _groups_not_empty(cls, groups: list[list[str]]) -> list[list[str]]:
-        for i, group in enumerate(groups):
-            if not group:
-                raise ValueError(f"requires group {i} is empty, so it could never be met")
-        return groups
-
-    @field_validator("requires", "typical", "excludes")
-    @classmethod
-    def _ids_not_blank(cls, value: list) -> list:
-        flat = [i for item in value for i in (item if isinstance(item, list) else [item])]
-        if any(not i.strip() for i in flat):
-            raise ValueError("section ids must be non-empty")
-        return value
 
 
 class RuleMatch(BaseModel):
@@ -67,6 +40,11 @@ class RuleMatch(BaseModel):
     ``support`` maps each candidate and near miss to the section ids that met its required
     groups, one per group (the group's strongest tag), with their confidences. ``excluded``
     lists the types an ``excludes`` hit removed.
+
+    When every candidate hit an exclude, the candidates are kept rather than emptied: they are
+    in ``waived`` and ``excludes_waived`` is true. The rules' own evidence argued against them,
+    so a waived candidate is never ``decided``, and the caller should offer the waived
+    candidates and the near misses together to the model.
     """
 
     candidates: list[str] = Field(default_factory=list)
@@ -74,6 +52,8 @@ class RuleMatch(BaseModel):
     decided: str | None = None
     support: dict[str, dict[str, float]] = Field(default_factory=dict)
     excluded: list[str] = Field(default_factory=list)
+    waived: list[str] = Field(default_factory=list)
+    excludes_waived: bool = False
 
 
 def covers(rule_id: str, section_id: str) -> bool:
@@ -133,20 +113,25 @@ def match_rules(
         elif missing == 1:
             near_misses.append(doc_type)
 
-    excluded: list[str] = []
+    def ranked(ids: list[str]) -> list[str]:
+        return sorted(ids, key=lambda i: -typical_hits[i])  # stable: ties keep rule order
 
-    def keep(ids: list[str]) -> list[str]:
-        kept = [i for i in ids if i not in barred]
-        if kept:
-            excluded.extend(i for i in ids if i in barred)
-        else:
-            kept = ids
-        return sorted(kept, key=lambda i: -typical_hits[i])  # stable: ties keep rule order
-
-    candidates = keep(candidates)
-    near_misses = keep(near_misses)
+    excluded = [i for i in candidates + near_misses if i in barred]
+    waived: list[str] = []
+    if candidates and all(i in barred for i in candidates):
+        # every candidate hit an exclude: keep them, never an empty list, but flag it
+        waived = list(candidates)
+        excluded = [i for i in excluded if i not in waived]
+    else:
+        candidates = [i for i in candidates if i not in barred]
+    candidates = ranked(candidates)
+    near_misses = ranked([i for i in near_misses if i not in barred])
     decided = None
-    if len(candidates) == 1 and all(c >= decide_conf for c in support[candidates[0]].values()):
+    if (
+        len(candidates) == 1
+        and candidates[0] not in waived
+        and all(c >= decide_conf for c in support[candidates[0]].values())
+    ):
         decided = candidates[0]
     return RuleMatch(
         candidates=candidates,
@@ -154,7 +139,29 @@ def match_rules(
         decided=decided,
         support={k: v for k, v in support.items() if k in candidates or k in near_misses},
         excluded=excluded,
+        waived=waived,
+        excludes_waived=bool(waived),
     )
 
 
-__all__ = ["DocTypeRules", "RuleMatch", "covers", "doc_type_rules", "match_rules"]
+def unknown_section_ids(
+    rules: Mapping[str, DocTypeRules], catalogue: Taxonomy
+) -> dict[str, list[str]]:
+    """The ids each rule block names that are not in ``catalogue``, such as typos in a custom
+    doc-type taxonomy. A rule id that matches nothing never fires, so check it at load time.
+    Doc types with no unknown ids are left out."""
+    unknown = {
+        doc_type: [i for i in dict.fromkeys(rule.ids()) if i not in catalogue]
+        for doc_type, rule in rules.items()
+    }
+    return {doc_type: ids for doc_type, ids in unknown.items() if ids}
+
+
+__all__ = [
+    "DocTypeRules",
+    "RuleMatch",
+    "covers",
+    "doc_type_rules",
+    "match_rules",
+    "unknown_section_ids",
+]

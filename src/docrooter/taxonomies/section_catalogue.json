@@ -68,7 +68,7 @@
         {
           "id": "general.background",
           "label": "Background",
-          "description": "Context the reader needs before the main content, such as history, prior events, the problem setting, definitions, notation, or technical preliminaries, distinct from a review of competing work (research.related_work).",
+          "description": "Context the reader needs before the main content, such as history, prior events, the problem setting, definitions, notation, or technical preliminaries, distinct from a review of competing work (research.related_work); the background of a court's opinion belongs to law.opinion.",
           "examples": [
             "Background",
             "Preliminaries",
@@ -90,9 +90,9 @@
           "description": "The substantive main content of the document that is neither introductory, concluding, nor back matter, when no more specific leaf in any group fits it.",
           "examples": [
             "Main Body",
+            "Main Text",
             "Chapter 1",
-            "Part I",
-            "Requirements"
+            "Part I"
           ],
           "metadata": {
             "from": [
@@ -175,7 +175,6 @@
             "Works Cited",
             "Literature Cited",
             "Sources",
-            "Notes",
             "Endnotes"
           ],
           "metadata": {
@@ -321,7 +320,7 @@
         {
           "id": "research.discussion",
           "label": "Discussion",
-          "description": "The interpretation of the results: their implications, possible explanations, and comparisons with prior work or expectations, rather than the reported numbers themselves (which belong to results).",
+          "description": "The interpretation of the results: their implications, possible explanations, and comparisons with prior work or expectations, rather than the reported numbers themselves (research.results); a court's discussion of the issues belongs to law.opinion.",
           "examples": [
             "Discussion",
             "Analysis",
@@ -1032,9 +1031,8 @@
         {
           "id": "fund.management",
           "label": "Management",
-          "description": "Who runs the fund: the investment adviser and any sub-advisers, the portfolio managers with their tenure and experience, and the management company; the fees paid to them belong to fund.fees_and_expenses.",
+          "description": "Who runs the fund: the investment adviser and any sub-advisers, the portfolio managers with their tenure and experience, and the management company; the fees paid to them belong to fund.fees_and_expenses, and an operating company's directors and officers to disclosure.corporate_governance.",
           "examples": [
-            "Management",
             "Management of the Fund",
             "Fund Management",
             "Investment Adviser",
@@ -1313,8 +1311,7 @@
           "examples": [
             "Warranties",
             "Representations and Warranties",
-            "Disclaimer of Warranties",
-            "Covenants"
+            "Disclaimer of Warranties"
           ],
           "metadata": {
             "from": [
@@ -1468,6 +1465,7 @@
           "examples": [
             "Non-Competition",
             "Non-Solicitation",
+            "Covenants",
             "Insurance",
             "Audit Rights",
             "Benefits"
@@ -1510,7 +1508,7 @@
         {
           "id": "law.opinion",
           "label": "Opinion of the court",
-          "description": "The court's own opinion: the facts and procedural history as the court recites them, its legal analysis, holding, and disposition, whether for a majority, per curiam, or by a single judge; a separate concurrence or dissent belongs to law.separate_opinion.",
+          "description": "The court's own opinion: the facts and procedural history as the court recites them, its legal analysis, holding, and disposition, whether for a majority, per curiam, or by a single judge, including the background, discussion, and conclusion sections it is divided into; a separate concurrence or dissent belongs to law.separate_opinion.",
           "examples": [
             "Opinion of the Court",
             "Per Curiam",

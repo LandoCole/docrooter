@@ -89,3 +89,23 @@ def test_family_section_taxonomies_are_unchanged():
         taxonomy = builtin_taxonomy(f"section_types/{family}")
         assert taxonomy.depth() == 1
         assert all(node.sections is None for node in taxonomy.nodes.values())
+
+
+def test_confusable_examples_and_boundaries():
+    """Review round 1: heading strings that belong elsewhere, and opinion boundaries."""
+    catalogue = builtin_taxonomy("section_catalogue")
+
+    def examples(leaf_id: str) -> set[str]:
+        return set(catalogue.node(leaf_id).examples)
+
+    assert "Requirements" not in examples("general.body")  # a standard's normative clause
+    assert "Notes" not in examples("general.references")  # also a financial-note heading
+    assert "Management" not in examples("fund.management")  # also an IPO's officers section
+    assert "Covenants" not in examples("contract.warranties")  # covenants are not warranties
+    assert "Covenants" in examples("contract.other")
+    management = catalogue.node("fund.management").description or ""
+    assert "disclosure.corporate_governance" in management
+    opinion = catalogue.node("law.opinion").description or ""
+    assert "background" in opinion and "discussion" in opinion
+    for leaf_id in ("research.discussion", "general.background"):
+        assert "law.opinion" in (catalogue.node(leaf_id).description or ""), leaf_id

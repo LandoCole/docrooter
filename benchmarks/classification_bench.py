@@ -946,6 +946,26 @@ def _llm_disclosure(results: Sequence[Mapping[str, Any]]) -> list[str]:
     return lines
 
 
+def _highlights_conflict(doc_gold: Mapping[str, str]) -> str:
+    """The gold sections of non-financial reports labelled ``financial.financial_highlights``
+    under the catalogue's earlier wording, which the sharpened definition now sends to
+    ``general.summary`` (ids only)."""
+    refs = [
+        f"`{doc_id}#{row['section_id']}`"
+        for doc_id, rows in load_section_gold().items()
+        if doc_gold.get(doc_id) == "government.government_report"
+        for row in rows
+        if row["label"] == "financial.financial_highlights"
+    ]
+    if not refs:
+        return ""
+    return (
+        f" {len(refs)} government-report gold sections ({', '.join(refs)}) were labelled "
+        "`financial.financial_highlights` under the earlier wording and now disagree with the "
+        "definition; a model that follows it is scored wrong on them."
+    )
+
+
 def _heldout_types(results: Sequence[Mapping[str, Any]]) -> str:
     """How many doc types the held-out rows cover, when there are any."""
     heldout = [r for r in results if r.get("docs") == "heldout"]
@@ -1014,7 +1034,8 @@ def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
         "a titled parties or signatures section), not tuned to the gold labels; two catalogue "
         "definitions were sharpened with it (`contract.acceptable_use` now covers the user "
         "terms of published terms, and `financial.financial_highlights` sends a non-financial "
-        "report's highlights to `general.summary`), after the section gold was labelled.",
+        "report's highlights to `general.summary`), after the section gold was labelled."
+        f"{_highlights_conflict(doc_gold)}",
         f"- **Doc-type gold comes from the source**: the manifest's source-assigned type "
         f"(`benchmarks/classification/doc_type_gold.json`), with "
         f"{len(gold_data['corrections'])} correction(s).",

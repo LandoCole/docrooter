@@ -106,13 +106,17 @@ document view, then label the sections with that type's own section taxonomy (as
   leaves. Each call carries at most 40 sections and, with its instructions and options, at most
   `max_call_tokens` (16,000 by default; calls are packed to an estimated 85% of it, the rest
   covering the estimate's error). A section view too large for any call is cut head-first,
-  sent alone and flagged `truncated`; per-item calls are cut the same way. The document step is one call among the offered types. A
+  sent alone and flagged `truncated`; per-item calls are cut the same way. The document step is
+  one call among the offered types, its view cut to fit beside those options
+  (`doc_truncated`). A
   reply naming an id that is not an option is asked again once, in one call for the failures
   only, and then tagged with confidence 0 and flagged `unparsed`.
 - **`"batched_flat"`** lists every catalogue leaf in one call (kept for the benchmark's
   comparison).
 - **`"per_item"`** asks one item at a time and returns probabilities. `cascade=True` (ask the
-  low-confidence items again one rung up) needs it.
+  low-confidence items again one rung up) needs it. A backend that letters its options takes at
+  most 26 per call, so a doc-type taxonomy with more types raises `ValueError` up front with
+  per-item calls (the fallback offers every type); use batched calls or fewer types.
 
 A backend that cannot batch (keyword, embedding, NLI) always asks per item, but its token
 estimate follows the `calls` pattern, since that is what an LLM would be sent.

@@ -61,10 +61,11 @@ could ever hold are gathered, so a long document is never counted whole. The 16,
 a target, not a guarantee: the benchmark measures the share of calls that still exceed it.
 
 **Every call has the same cap.** In `docrooter.classify`, `max_call_tokens` (16,000 by default,
-the same cap) bounds every call's prompt, not only the document's: batched section calls are
-packed to an estimated 85% of it (at most 40 sections each), a section view too large for any
-call is cut head-first and sent alone (flag `truncated`), and the document `full` view is
-budgeted from it as from `full_cap`.
+the same cap) budgets every call's prompt, not only the document's, on estimated tokens:
+batched section calls are packed to 85% of it (at most 40 sections each), a section view too
+large for any call is cut head-first and sent alone (flag `truncated`), and the document view of
+every rung is cut to fit beside the document call's own instructions and options (flag
+`doc_truncated`). A cap the options alone fill raises `ValueError`.
 
 ## Seeing the rungs
 

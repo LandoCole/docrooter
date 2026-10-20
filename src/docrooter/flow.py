@@ -39,24 +39,25 @@ text and options per item; :mod:`docrooter.batch` prompts when batched), each es
 :func:`~docrooter.views.estimate_tokens`, as the backend estimates a call without ``usage``.
 ``Classification.tokens`` is exact only when every call was.
 
-**Calls.** ``calls="batched"`` (the default for a backend that can, the OpenAI-compatible one)
-asks a few chat calls per stage, each option listed once (:mod:`docrooter.batch`). Sections are
-packed into calls bounded by size as well as count: at most 40 views, and a prompt (the
-instructions, the options and the views) of at most ``max_call_tokens`` (16,000 by default,
-packed to an estimated 85% of it); a view too large for any call is cut head-first, flagged
-``truncated`` and sent alone. Per-item calls are bounded the same way. The sections stage takes
-two steps: one call sorts every section into a
-catalogue group (the groups listed with a one-line gloss), then one call per group that received
-sections chooses among that group's leaves only. ``calls="batched_flat"`` lists every leaf in
-one call instead (kept for the benchmark comparison). The document stage is one call among the
-offered types. A batched answer has confidence 1.0 (``confidence_source="batched"``); an id that
-is not an option is asked again once, in one call for the failures only, then tagged
-``general.other`` (or the group's ``other`` leaf) with confidence 0 and flagged ``unparsed``.
-``calls="per_item"`` asks one item at a time, with probabilities; ``cascade`` needs it. A
-backend that cannot batch always asks per item, but its token estimate follows the ``calls``
-pattern (two-step batched unless told otherwise), since that is what an LLM would be sent.
-``Classification.tokens_split`` estimates how much of the prompt was options, content and
-instructions.
+**Calls.** ``calls="batched"`` (the default for a backend that can, the OpenAI-compatible one) asks
+a few chat calls per stage, each option listed once (:mod:`docrooter.batch`). Sections are packed
+into calls bounded by size as well as count: at most 40 views, and a prompt (the instructions, the
+options and the views) of at most ``max_call_tokens`` (16,000 by default, packed to an estimated
+85% of it); a view too large for any call is cut head-first, flagged ``truncated`` and sent alone.
+Per-item calls are bounded the same way, and the document view is budgeted to fit beside the
+document call's own instructions and options (flag ``truncated``, ``doc_truncated``). These bounds
+are on estimated tokens: the measured prompt is expected, not guaranteed, to stay within the cap.
+The sections stage takes two steps: one call sorts every section into a catalogue group (the groups
+listed with a one-line gloss), then one call per group that received sections chooses among that
+group's leaves only. ``calls="batched_flat"`` lists every leaf in one call instead (kept for the
+benchmark comparison). The document stage is one call among the offered types. A batched answer has
+confidence 1.0 (``confidence_source="batched"``); an id that is not an option is asked again once,
+in one call for the failures only, then tagged ``general.other`` (or the group's ``other`` leaf)
+with confidence 0 and flagged ``unparsed``. ``calls="per_item"`` asks one item at a time, with
+probabilities; ``cascade`` needs it. A backend that cannot batch always asks per item, but its
+token estimate follows the ``calls`` pattern (two-step batched unless told otherwise), since that
+is what an LLM would be sent. ``Classification.tokens_split`` estimates how much of the prompt was
+options, content and instructions.
 
 **The rule gate without probabilities.** Batched tags all carry confidence 1.0, so the
 ``decide_conf`` gate cannot tell strong evidence from weak. Neither can per-item answers from an
@@ -123,6 +124,7 @@ from docrooter.batch import (
     valid_id,
 )
 from docrooter.classify.classifier import DEFAULT_BACKEND, Classifier
+from docrooter.classify.documents import DEFAULT_INSTRUCTION as DOC_INSTRUCTION
 from docrooter.classify.documents import _has_content, classify_document
 from docrooter.classify.engine import backend_temperature, score_batch
 from docrooter.classify.normalize import (
@@ -133,6 +135,7 @@ from docrooter.classify.normalize import (
 )
 from docrooter.classify.results import DocTypeResult, PathResult
 from docrooter.classify.strategies import Flat, Greedy
+from docrooter.doc_view import DocumentView
 from docrooter.document import Document, Section
 from docrooter.ladder import (
     LEVELS,
@@ -319,11 +322,15 @@ def classify(
     tag needs for the rules to decide alone. ``cascade`` and ``threshold`` control escalation
     (per-item calls only). ``calls`` is ``"batched"`` (two-step sections), ``"batched_flat"``
     or ``"per_item"``; ``None`` batches when the backend can (see the module docs).
-    ``max_call_tokens`` bounds every call's prompt: batched sections are packed into calls of
-    at most 40 views and an estimated :func:`~docrooter.batch.call_budget` of it (85%, the rest
-    covering the estimate's error), a view too large for any call is cut (flagged
-    ``truncated``) and sent alone, per-item views are cut to fit too, and the document
-    ``full`` view is budgeted from it as from ``full_cap``.
+    ``max_call_tokens`` budgets every call's prompt, on estimated tokens: batched sections are
+    packed into calls of at most 40 views and :func:`~docrooter.batch.call_budget` of it (85%,
+    the rest covering the estimate's error), a view too large for any call is cut (flagged
+    ``truncated``) and sent alone, per-item views are cut to fit too, and the document view of
+    every level is cut to fit beside the document call's instructions and options as sent
+    (batched JSON or per-item letters; flag ``truncated`` and ``doc_truncated``). It raises
+    ``ValueError`` when the options leave no room for a view. With per-item calls, more doc
+    types than the backend's options per call (26 for the OpenAI-compatible backend) raise
+    ``ValueError`` up front.
 
     ``doc_types`` and ``catalogue`` replace the built-in doc-type taxonomy (with its ``sections``
     rules) and section catalogue; a rule naming an id the catalogue lacks raises ``ValueError``.
@@ -1095,7 +1102,7 @@ class _Run:
                 self.doc,
                 taxonomy,
                 backend=self.metered,
-                view=document_view(current, full_cap=self.max_call_tokens),
+                view=self._document_view(current, taxonomy),
                 strategy=Flat(),
             )
             used = current
@@ -1148,6 +1155,33 @@ class _Run:
         self.unparsed = self.unparsed or unparsed  # the deciding attempt's reply
         return _DocDecision(result, used, tokens, records, text=text and not unparsed)
 
+    def _document_view(self, level: Level, taxonomy: Taxonomy) -> DocumentView:
+        """The document view preset of ``level``, its budget cut so that the document call,
+        with its instructions and options as they are sent (the batched JSON prompt, re-ask
+        included, or the per-item lettered one), stays within :attr:`budget`. ``ValueError``
+        when not even an empty view fits."""
+        if self.batched or self.batch_estimate:
+            overhead = document_prompt("", taxonomy).retry().estimate()
+        else:
+            from docrooter.backends.openai import choice_messages
+
+            options = [
+                candidate_text(n, taxonomy=taxonomy, full_path=True) for n in taxonomy.leaves()
+            ]
+            overhead = messages_tokens(choice_messages("", options, DOC_INSTRUCTION))
+        room = self.budget - overhead
+        if room < 1:
+            raise ValueError(
+                f"max_call_tokens {self.max_call_tokens} leaves no room for the document view "
+                f"after the {overhead}-token instructions and {len(taxonomy.leaves())} doc-type "
+                "options of the document call; raise max_call_tokens"
+            )
+        try:
+            preset = document_view(level, full_cap=self.max_call_tokens)
+        except ValueError:  # a cap below the full view's fixed reserve: the room decides
+            preset = document_view(level)
+        return preset.model_copy(update={"max_tokens": min(preset.max_tokens, room)})
+
     def _decide_batched(self, taxonomy: Taxonomy, level: Level) -> _DocDecision:
         """The document's type among ``taxonomy``'s leaves in one chat call (asked once more
         when the reply names no option)."""
@@ -1157,7 +1191,7 @@ class _Run:
                 DocTypeResult(source=self.doc.source, best=empty), level, TokenUsage(), []
             )
         count = self.metered.tokenizer() or estimate_tokens
-        view = document_view(level, full_cap=self.max_call_tokens).render(self.doc, count)
+        view = self._document_view(level, taxonomy).render(self.doc, count)
         self.truncated = self.truncated or view.truncated
         leaf_ids = [leaf.id for leaf in taxonomy.leaves()]
         valid = {leaf_id.lower(): leaf_id for leaf_id in leaf_ids}

@@ -91,14 +91,22 @@ tags, selection); it is listed below the v1 entries.
     definitions were sharpened with it, after the section gold was labelled:
     `contract.acceptable_use` ("Acceptable use and user terms") covers acceptance of the terms,
     accounts and changes to the terms, and `financial.financial_highlights` sends a
-    non-financial report's highlights to `general.summary`.
+    non-financial report's highlights to `general.summary`. Three government-report gold
+    sections (`gao-gao-05-251#s2`, `gao-gao-06-681t#s2`, `gao-gao-05-572t#s1`) were labelled
+    `financial.financial_highlights` under the earlier wording and now disagree with it.
 - **Batched LLM calls** (`docrooter.batch`). With the OpenAI-compatible backend, `classify`
   lists the options once per call instead of once per section: `calls="batched"` (the default
   for a backend that can batch) sorts the sections into catalogue groups in one call, then asks
   one call per group among that group's leaves. Calls are bounded by size as well as count: at
   most 40 sections and `max_call_tokens` (16,000 by default, packed to an estimated 85% of it)
   per call, a section view too large for any call being cut, sent alone and flagged
-  `truncated`; per-item calls are bounded the same way;
+  `truncated`; per-item calls are bounded the same way, and the document view of every level is
+  cut to fit beside the document call's own instructions and options (`doc_truncated`), with a
+  `ValueError` when the options leave no room. The bounds are on estimated tokens; the
+  benchmark measures how often a measured prompt still exceeds 16,000. With per-item calls, a
+  doc-type taxonomy with more types than the backend takes options per call (26 for the
+  OpenAI-compatible backend) raises `ValueError` up front, where it used to fall back
+  silently;
   `calls="batched_flat"` lists every leaf in one call; `calls="per_item"` asks one item at a time,
   with probabilities. A reply naming an id that is not an option is asked again once, then
   tagged with confidence 0 and flagged `unparsed`.

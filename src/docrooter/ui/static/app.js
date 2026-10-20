@@ -80,6 +80,9 @@ function h(tag, attrs = {}, ...children) {
 }
 
 const num = (n) => Number(n).toLocaleString();
+const TEXT_ANSWER = "no probability (text answer)";
+// A confidence, or "–" with a tooltip when the answer was a bare letter (no logprobs).
+const confidence = (p) => (p === null || p === undefined ? h("span", { title: TEXT_ANSWER }, "–") : pct(p));
 const pct = (p) => `${(p * 100).toFixed(p >= 0.995 || p < 0.1 ? 1 : 0)}%`;
 
 function secs(s) {
@@ -1019,7 +1022,7 @@ function renderType(run) {
     type.path.length
       ? h("ol", { class: "crumbs", "aria-label": "Type" }, type.path.map((p) => h("li", {}, p)))
       : h("p", { class: "crumbs" }, `No type chosen (${(type.stopped_reason || "nothing to classify").replace(/_/g, " ")})`),
-    h("p", { class: "confidence" }, "Confidence ", h("strong", {}, pct(type.confidence))),
+    h("p", { class: "confidence" }, "Confidence ", h("strong", {}, confidence(type.confidence))),
   );
   const bars = h(
     "ol",
@@ -1087,7 +1090,9 @@ function renderSections(run) {
       e.canonical
         ? h("td", {}, e.label, h("span", { class: "canon" }, e.canonical))
         : h("td", { class: "none" }, e.level > 2 ? "below the labelled levels" : "no label"),
-      h("td", { class: "num" }, e.score === null ? "" : e.score.toFixed(2)),
+      h("td", { class: "num" }, e.confidence_source === "text" && e.score === null
+        ? h("span", { title: TEXT_ANSWER }, "–")
+        : e.score === null ? "" : e.score.toFixed(2)),
       hasLevels ? h("td", {}, e.level_used ?? "") : null,
     ),
   );

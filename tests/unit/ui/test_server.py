@@ -2114,3 +2114,42 @@ def test_classification_parts_take_text_answers():
     doc_type, norm = classification_parts(result, builtin_taxonomy("doc_types"))
     assert doc_type.best.node_ids[-1] == "legal.court_opinion"
     assert norm.sections["s1"].canonical == "law.opinion"
+
+
+def test_text_answers_show_no_confidence_in_the_page(tmp_path):
+    from docrooter.document import Document
+    from docrooter.flow import Classification, SectionTag
+    from docrooter.taxonomies import builtin_taxonomy
+    from docrooter.ui import server
+
+    doc = Document.from_sections([{"title": "Opinion", "level": 1, "text": "The court holds."}])
+    sid = next(iter(doc.walk())).id
+    tag = SectionTag(
+        id=sid,
+        title="Opinion",
+        level=1,
+        label="law.opinion",
+        confidence=None,
+        level_used="terms",
+        confidence_source="text",
+    )
+    result = Classification(
+        source="c.md",
+        flow="sections_first",
+        doc_type="legal.court_opinion",
+        doc_type_confidence=None,
+        decided_by="rules",
+        sections=[tag],
+        section_taxonomy="section_catalogue",
+        backend="openai:test",
+    )
+    doc_types = builtin_taxonomy("doc_types")
+    doc_type, norm = server.classification_parts(result, doc_types)
+    out = server.build_result(doc, "c.md", doc_type, norm, doc_types, classification=result)
+    assert out["doc_type"]["confidence"] is None
+    (entry,) = [e for e in out["sections"]["entries"] if e["id"] == sid]
+    assert entry["score"] is None and entry["confidence_source"] == "text"
+    from pathlib import Path
+
+    app = (Path(server.__file__).parent / "static" / "app.js").read_text()
+    assert "no probability (text answer)" in app

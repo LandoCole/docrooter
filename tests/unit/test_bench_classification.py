@@ -650,3 +650,10 @@ def test_report_warns_when_rows_ran_at_different_code_versions():
     assert same == []
     mixed = " ".join(bench._code_versions([row("f1", "a" * 40), row("f2", "b" * 40, True)]))
     assert "2 code versions" in mixed and "dirty" in mixed
+
+
+def test_disclosure_names_the_gold_sections_the_highlights_change_affects():
+    text = " ".join(bench.render_report([]).split())
+    assert "3 government-report gold sections" in text
+    for ref in ("`gao-gao-05-251#s2`", "`gao-gao-06-681t#s2`", "`gao-gao-05-572t#s1`"):
+        assert ref in text, ref

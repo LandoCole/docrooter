@@ -22,6 +22,7 @@ from docrooter.batch import (
 from docrooter.document import Document
 from docrooter.ladder import FULL_CAP
 from docrooter.taxonomies import builtin_taxonomy
+from docrooter.taxonomy import Taxonomy
 from docrooter.views import estimate_tokens
 
 CATALOGUE = builtin_taxonomy("section_catalogue")
@@ -124,3 +125,51 @@ def test_max_call_tokens_is_checked():
         classify(long_doc(1), backend=KeywordBackend(), max_call_tokens=0)
     with pytest.raises(ValueError, match="max_call_tokens"):
         classify(long_doc(1), backend=KeywordBackend(), max_call_tokens=100)
+
+
+# --- the document call: its view is budgeted from the real prompt overhead ----------------
+
+
+def big_doc_types():
+    """The built-in doc types with descriptions four times as long (an options listing of
+    about 4,000 tokens)."""
+    base = builtin_taxonomy("doc_types")
+    return Taxonomy(
+        [
+            n.model_copy(
+                update={"description": " ".join([n.description or ""] * 4), "children": []}
+            )
+            for n in base.nodes.values()
+        ]
+    )
+
+
+@pytest.mark.parametrize("calls", ["batched", "per_item"])
+@pytest.mark.parametrize("flow", ["doc_first", "sections_first"])
+def test_the_document_call_fits_a_small_cap(calls, flow):
+    result = classify(
+        long_doc(6, 800), backend=KeywordBackend(), flow=flow, level="lead", calls=calls,
+        max_call_tokens=1500,
+    )  # fmt: skip
+    assert result.document_calls
+    assert all(c.prompt_tokens <= call_budget(1500) for c in result.document_calls)
+    assert result.doc_truncated == result.document_calls[-1].truncated
+    if calls == "batched":  # its option listing leaves the view about 130 tokens: cut
+        assert result.doc_truncated
+
+
+@pytest.mark.parametrize("calls", ["batched", "per_item"])
+def test_the_document_call_fits_the_cap_with_a_large_doc_type_taxonomy(calls):
+    result = classify(
+        long_doc(40, 1400), backend=KeywordBackend(), flow="doc_first", level="full",
+        calls=calls, doc_types=big_doc_types(),
+    )  # fmt: skip
+    (call,) = result.document_calls
+    assert call.prompt_tokens <= call_budget() and call.truncated and result.doc_truncated
+
+
+def test_a_cap_the_document_options_fill_raises():
+    for calls in ("batched", "per_item"):
+        with pytest.raises(ValueError, match="document"):
+            classify(long_doc(2, 50), backend=KeywordBackend(), flow="doc_first",
+                     calls=calls, max_call_tokens=1200)  # fmt: skip

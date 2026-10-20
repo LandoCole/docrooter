@@ -742,3 +742,25 @@ def test_batched_low_support_keeps_the_near_misses():
     assert "financial.annual_report" in result.candidates  # a near miss (section 6.3)
     assert "corporate.investor_presentation" in result.candidates
     assert result.doc_type == "financial.annual_report"
+
+
+def test_real_document_calls_fit_a_small_cap():
+    from docrooter.batch import call_budget
+
+    long = " ".join(["figure"] * 800)
+    doc = Document.from_sections(
+        [
+            {"title": t, "level": 1, "text": long}
+            for t in ("Balance sheet", "Outlook", "Risk factors")
+        ]
+    )
+    fake = FakeLLM(doc_type="financial.annual_report")
+    result = classify(doc, backend=llm(fake), flow="doc_first", level="lead", max_call_tokens=1500)
+    (body,) = fake.of("document")
+    assert sent_tokens([body]) <= call_budget(1500) and result.doc_truncated
+
+    per_item = letter_llm(lambda text, options: 0)
+    classify(doc, backend=per_item, flow="doc_first", level="lead", calls="per_item",
+             max_call_tokens=1500)  # fmt: skip
+    documents = [b for b in per_item.bodies if "Stats:" in b["messages"][1]["content"]]
+    assert documents and all(sent_tokens([b]) <= call_budget(1500) for b in documents)

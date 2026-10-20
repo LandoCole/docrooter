@@ -633,8 +633,8 @@ def classification_parts(
 ) -> tuple[DocTypeResult, NormalizationResult]:
     """A flow's result in the classic shapes the page and the dial read: the type as a
     :class:`DocTypeResult` and the tags as a :class:`NormalizationResult`. A confidence that is
-    no probability (``None``, a letter answer) shows as 0 there; the flow payload's flags and
-    ``confidence_source`` say why."""
+    no probability (``None``, a letter answer) is 0 in these shapes; :func:`build_result` puts
+    the ``None`` back, so the page shows "–" for it."""
     doc_confidence = result.doc_type_confidence or 0.0
     if result.doc_type is not None and result.doc_type in doc_types:
         nodes = doc_types.path(result.doc_type)
@@ -728,6 +728,8 @@ def build_result(
     }
     if classification is not None:
         type_out.update(_flow_out(classification, label))
+        if classification.doc_type_confidence is None:  # a letter answer: no probability
+            type_out["confidence"] = None
     tags = {t.id: t for t in classification.sections} if classification is not None else {}
     sections = None
     if norm is not None:
@@ -748,6 +750,9 @@ def build_result(
             if classification is not None:
                 tag = tags.get(item["id"])
                 entries[-1]["level_used"] = tag.level_used if tag else None
+                entries[-1]["confidence_source"] = tag.confidence_source if tag else None
+                if tag is not None and tag.confidence is None:
+                    entries[-1]["score"] = None  # a letter answer: no probability
         sections = {"taxonomy": norm.taxonomy, "doc_type": norm.doc_type, "entries": entries}
     routes = _routes_out(doc)
     # JSON-safe whatever a loader put in; the per-page route log is summarised under "routes"

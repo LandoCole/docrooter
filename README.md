@@ -76,9 +76,10 @@ two steps apart). Each rung shows everything below it and adds one field:
 in one call and labels them within each group in one more call per group, listing each option
 once; `calls="batched_flat"` lists every leaf in one call; `calls="per_item"` asks one item at a
 time, with probabilities (and allows `cascade=True`, which asks low-confidence items again one
-rung up). Every call's prompt is bounded by `max_call_tokens` (16,000 by default): batched
-sections are packed by size as well as count (at most 40 per call), and a view too large for
-any call is cut and flagged `truncated`.
+rung up). Every call's prompt is budgeted to `max_call_tokens` (16,000 by default, on
+estimated tokens, packed to 85% of it for the estimate's error): batched sections are packed by
+size as well as count (at most 40 per call), a view too large for any call is cut and flagged
+`truncated`, and the document view is cut to fit beside its call's options.
 
 **Tokens.** `result.tokens` has the `prompt`, `completion` and `calls` spent, with `exact` true
 only when every call reported `usage`; `result.stage_tokens` splits it into sections and

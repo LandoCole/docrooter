@@ -11,7 +11,7 @@ from pydantic import BaseModel, field_validator
 from docrooter.document import Document, Section
 from docrooter.keyphrases import document_frequencies, drop_contained, scored_keyphrases
 from docrooter.pdf.signals import normalize_title
-from docrooter.views import _WORDS_PER_TOKEN, RenderedView, estimate_tokens, render_budgeted
+from docrooter.views import WORDS_PER_TOKEN, RenderedView, estimate_tokens, render_budgeted
 
 _FIELD_NAMES = ("title", "stats", "toc", "lead", "keyphrases", "text")
 
@@ -48,11 +48,11 @@ class DocumentView(BaseModel):
     section counts), ``toc`` (numbered headings down to ``toc_depth``, at most
     ``toc_entries``), ``lead`` (the first ``lead_words`` words of body text, skipping cover,
     notice, contents and similar boilerplate sections), ``keyphrases`` (section keyphrases
-    pooled by summed score) and ``text`` (the whole body text in reading order, boilerplate
-    included; not a default field). Budgeting works as in ``SectionView``: the first field that
-    does not fit is cut to the longest word prefix that does, and the view is never empty. The
-    body text is gathered only up to the words the budget could ever hold, so a long document is
-    never counted whole.
+    pooled by summed score) and ``text`` (the whole body text, each word once: the ``lead``
+    first, then the rest in reading order, boilerplate included; not a default field).
+    Budgeting works as in ``SectionView``: the first field that does not fit is cut to the
+    longest word prefix that does, and the view is never empty. The body text is gathered only
+    up to the words the budget could ever hold, so a long document is never counted whole.
     """
 
     fields: tuple[str, ...] = ("title", "stats", "toc", "lead", "keyphrases")
@@ -92,7 +92,7 @@ class DocumentView(BaseModel):
             return ("Lead:", lead) if lead else None
         if name == "text":
             # One word past the cap, so render_budgeted sees (and flags) a cut.
-            text = _body_text(doc, _WORDS_PER_TOKEN * self.max_tokens + 1)
+            text = _full_text(doc, self.lead_words, WORDS_PER_TOKEN * self.max_tokens + 1)
             return ("Text:", text) if text else None
         phrases = _pooled_keyphrases(doc, self.keyphrases)
         return ("Key phrases:", ", ".join(phrases)) if phrases else None
@@ -141,23 +141,34 @@ def _is_boilerplate(section: Section) -> bool:
     return title in _SKIPPED_TITLES or bool(_FORWARD_LOOKING.search(title))
 
 
-def _lead(doc: Document, n_words: int) -> str:
+def _lead_words(doc: Document, n_words: int) -> tuple[list[str], dict[str, int]]:
+    """The first ``n_words`` words of non-boilerplate body text, and how many words each
+    section gave."""
     words: list[str] = []
+    used: dict[str, int] = {}
     for section in doc.walk():
         if len(words) >= n_words:
             break
         if section.text.strip() and not _is_boilerplate(section):
-            words.extend(section.text.split()[: n_words - len(words)])
-    return " ".join(words)
+            taken = section.text.split()[: n_words - len(words)]
+            words.extend(taken)
+            used[section.id] = len(taken)
+    return words, used
 
 
-def _body_text(doc: Document, max_words: int) -> str:
-    """The first ``max_words`` words of all body text, in reading order."""
-    words: list[str] = []
+def _lead(doc: Document, n_words: int) -> str:
+    return " ".join(_lead_words(doc, n_words)[0])
+
+
+def _full_text(doc: Document, lead_words: int, max_words: int) -> str:
+    """The first ``max_words`` words of the body text: the lead (``lead_words`` words), then the
+    remaining words of every section in reading order, so each word appears once."""
+    words, used = _lead_words(doc, min(lead_words, max_words))
     for section in doc.walk():
         if len(words) >= max_words:
             break
-        words.extend(section.text.split()[: max_words - len(words)])
+        skip = used.get(section.id, 0)
+        words.extend(section.text.split()[skip : skip + max_words - len(words)])
     return " ".join(words)
 
 

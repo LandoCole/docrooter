@@ -115,7 +115,8 @@ def test_classify_document_picks_right_leaf(mode, make_doc, expected):
     assert res.mode == mode and res.source == doc.source
     check_leaf_probs(res)
     assert res.timings["classify"] >= 0
-    assert res.view_text == DocumentView().render(doc).text
+    # the sections mode does not classify (or render) the document view
+    assert res.view_text == ("" if mode == "sections" else DocumentView().render(doc).text)
 
 
 @pytest.mark.parametrize("mode", ["sections", "hybrid"])

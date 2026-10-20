@@ -17,7 +17,7 @@ _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 # Before a line is counted its content is cut to this many words per budget token, so a
 # whole section never reaches the (possibly slow, length-limited) tokenizer. No real
 # tokenizer fits four words in one token, so the cut never changes which prefix fits.
-_WORDS_PER_TOKEN = 4
+WORDS_PER_TOKEN = 4
 
 
 def tokens_for_words(n_words: int) -> int:
@@ -109,7 +109,7 @@ def render_budgeted(
     Content longer than ``4 * max_tokens`` words is cut to that many words before ``count``
     sees it; should the cut line still fit, it is kept, marked truncated, and rendering stops.
     """
-    word_cap = max(1, _WORDS_PER_TOKEN * max_tokens)
+    word_cap = max(1, WORDS_PER_TOKEN * max_tokens)
     lines: list[str] = []
     truncated = False
     for entry in entries:

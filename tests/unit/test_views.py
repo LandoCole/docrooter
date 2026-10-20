@@ -217,7 +217,7 @@ def test_precut_matches_uncut_rendering_on_random_inputs(monkeypatch, count):
         ]
         cases.append((entries, random_text(40), rng.randint(1, 12)))
     capped = [render_budgeted(e, t, m, count) for e, t, m in cases]
-    monkeypatch.setattr(views, "_WORDS_PER_TOKEN", 10**9)
+    monkeypatch.setattr(views, "WORDS_PER_TOKEN", 10**9)
     uncapped = [render_budgeted(e, t, m, count) for e, t, m in cases]
     assert capped == uncapped
     over_cap = sum(

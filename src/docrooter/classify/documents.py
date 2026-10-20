@@ -134,12 +134,12 @@ def classify_documents(
     for i, doc in enumerate(docs):
         if not has_content[i]:
             continue
-        shown = view.render(doc, count)
-        rendered[i] = shown.text
-        truncated[i] = shown.truncated
-        tokens += shown.n_tokens
-        if mode != "sections":
-            view_texts[f"v{i}"] = rendered[i]
+        truncated[i] = False  # whether a view that is classified was cut
+        if mode != "sections":  # the sections mode never classifies the document view
+            shown = view.render(doc, count)
+            rendered[i] = view_texts[f"v{i}"] = shown.text
+            truncated[i] = shown.truncated
+            tokens += shown.n_tokens
         if mode != "view":
             leaves = [
                 s for s in doc.leaves() if s.text.strip() or (s.level > 0 and s.title.strip())
@@ -149,6 +149,7 @@ def classify_documents(
                 key = f"s{i}:{section.id}"
                 section_texts[key] = section_views[section.id].text
                 tokens += section_views[section.id].n_tokens
+                truncated[i] = truncated[i] or section_views[section.id].truncated
                 weights.setdefault(i, {})[key] = max(1, estimate_tokens(section.text))
 
     stage.end(tokens=tokens)
@@ -160,14 +161,14 @@ def classify_documents(
     elapsed = time.perf_counter() - start
     classifier._warn_no_backend(results.values())
 
-    n_classified = sum(1 for i in rendered if mode != "sections" or i in weights)
+    n_classified = sum(1 for i in truncated if mode != "sections" or i in weights)
     per_doc = elapsed / n_classified if n_classified else 0.0
     root_threshold = classifier.taxonomy.node(Taxonomy.ROOT_ID).threshold
     threshold = root_threshold if root_threshold is not None else settings.threshold
     out: list[DocTypeResult] = []
     for i, doc in enumerate(docs):
-        if i not in rendered or (mode == "sections" and i not in weights):
-            out.append(_empty(doc, mode, rendered.get(i, ""), truncated.get(i, False)))
+        if i not in truncated or (mode == "sections" and i not in weights):
+            out.append(_empty(doc, mode, rendered.get(i, "")))
             continue
         view_result = results.get(f"v{i}")
         section_results = [(results[k], w) for k, w in weights.get(i, {}).items()]
@@ -202,7 +203,7 @@ def classify_documents(
                 best=best,
                 confidence=confidence,
                 leaf_probs=_top(dist, LEAF_PROBS_TOP),
-                view_text=rendered[i],
+                view_text=rendered.get(i, ""),
                 truncated=truncated[i],
                 timings={"classify": per_doc},
                 mode=mode,  # type: ignore[arg-type]
@@ -311,12 +312,11 @@ def _root_probs(
     }
 
 
-def _empty(doc: Document, mode: str, view_text: str, truncated: bool) -> DocTypeResult:
+def _empty(doc: Document, mode: str, view_text: str) -> DocTypeResult:
     return DocTypeResult(
         source=doc.source,
         best=PathResult(node_ids=[], stopped_reason="empty_text"),
         view_text=view_text,
-        truncated=truncated,
         timings={"classify": 0.0},
         mode=mode,  # type: ignore[arg-type]
     )

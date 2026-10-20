@@ -122,9 +122,10 @@ class DocTypeResult(BaseModel):
     with nothing to classify; ``"low_confidence"`` and no nodes when ``confidence`` is below the
     threshold). ``confidence`` is the winning node's probability (0 when nothing was scored), so
     pipelines can gate on it. ``leaf_probs`` holds the (at most) ten most probable nodes, most
-    probable first, summing to at most 1. ``view_text`` is the rendered ``DocumentView``,
-    ``truncated`` whether it was cut to its token budget, and ``timings["classify"]`` the
-    classification time in seconds (amortised over a batch).
+    probable first, summing to at most 1. ``view_text`` is the rendered ``DocumentView`` (empty in
+    the sections mode, which does not classify it), ``truncated`` whether any view that was
+    classified (the document view, or a section view) was cut to its token budget, and
+    ``timings["classify"]`` the classification time in seconds (amortised over a batch).
     """
 
     model_config = ConfigDict(extra="forbid")

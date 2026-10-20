@@ -1011,7 +1011,10 @@ def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
         "gold. Gold-split doc-type numbers are therefore development numbers; the held-out run "
         "is the clean measure.** The revision was made from the doc-type definitions (an "
         "ordinary contract clause no longer makes a terms policy, and a contract no longer needs "
-        "a titled parties or signatures section), not tuned to the gold labels.",
+        "a titled parties or signatures section), not tuned to the gold labels; two catalogue "
+        "definitions were sharpened with it (`contract.acceptable_use` now covers the user "
+        "terms of published terms, and `financial.financial_highlights` sends a non-financial "
+        "report's highlights to `general.summary`), after the section gold was labelled.",
         f"- **Doc-type gold comes from the source**: the manifest's source-assigned type "
         f"(`benchmarks/classification/doc_type_gold.json`), with "
         f"{len(gold_data['corrections'])} correction(s).",

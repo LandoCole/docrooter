@@ -87,7 +87,11 @@ tags, selection); it is listed below the v1 entries.
     titled parties or signatures section; an earnings release needs headline figures as well as
     statements or an outlook; `general.body` no longer meets a government report or white paper
     alone; and filing items, MD&A, notes and an auditor's report bar types that never carry
-    them (investor presentation, sustainability report, earnings release).
+    them (investor presentation, sustainability report, earnings release). Two catalogue
+    definitions were sharpened with it, after the section gold was labelled:
+    `contract.acceptable_use` ("Acceptable use and user terms") covers acceptance of the terms,
+    accounts and changes to the terms, and `financial.financial_highlights` sends a
+    non-financial report's highlights to `general.summary`.
 - **Batched LLM calls** (`docrooter.batch`). With the OpenAI-compatible backend, `classify`
   lists the options once per call instead of once per section: `calls="batched"` (the default
   for a backend that can batch) sorts the sections into catalogue groups in one call, then asks

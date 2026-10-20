@@ -6,8 +6,9 @@ Two backends call a language model over HTTP instead of running one locally:
   a probability for each option, which is what the classifier's thresholds and beams need. It
   was the most accurate backend in every docrooter benchmark it ran in.
 - **`openai:<model>`**: any server that speaks the OpenAI chat API (OpenAI itself, or a local
-  server such as Ollama, vLLM, llama.cpp or `mlx_lm.server`). The model answers with an option
-  letter.
+  server such as Ollama, vLLM, llama.cpp or `mlx_lm.server`). Per item, the model answers
+  with an option letter; `docrooter.classify` asks it in batched calls by default, where it
+  answers option ids in JSON (see [Sections first](sections-first.md#how-the-llm-is-asked)).
 
 Both send the rendered [views](../concepts/views.md) (not whole documents) to the server, so
 check that this is acceptable for your data before you use them.
@@ -93,13 +94,18 @@ The model name is required (`openai:gpt-4o-mini`). For a local server, set
 without one. Requests run concurrently (8 at a time). The script is
 [`examples/openai_backend.py`](../../../examples/openai_backend.py).
 
-The options are lettered A-Z and the model answers with one letter.
+In a per-item call (a `score` call, or `classify(..., calls="per_item")`) the options are
+lettered A-Z and the model answers with one letter. `classify`'s default batched calls list the
+options once per call by id and read a JSON reply instead.
 
 - **With logprobs,** the probabilities come from the first token's top 10 alternatives,
   restricted to the option letters.
 - **Without logprobs,** a reply that is a bare letter (`B`, `B.`, `(C)`) gets probability 1, so
   the "probabilities" are coarse. Any other reply ("I cannot tell") scores every option equally,
-  with a warning.
+  with a warning. Each call's record says which it was (`answer`: `logprobs`, `letter` or
+  `none`), and `docrooter.classify` uses it: a letter answer has confidence `None`
+  (`confidence_source="text"`) and is gated like a batched answer, and a reply naming no
+  option is flagged `unparsed`, never read as the first option.
 
 Prefer `Greedy` (or `Beam`) with it, and evaluate it on your data before trusting a threshold.
 

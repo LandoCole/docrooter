@@ -13,10 +13,12 @@ each extra rung buys.
 | `full` | its whole text, budgeted | the whole body text, budgeted to the prompt cap |
 
 Each rung shows everything the rung below shows and adds one field, with a budget at least as
-large, so a higher rung never loses anything a lower one showed. `terms` is the default
-everywhere `level=` is accepted, until the classification benchmark measures the cheapest rung
-within 2 points of `full` for each backend (results pending; see
-[the benchmark](../benchmarks/classification.md)).
+large, so a higher rung never loses anything a lower one showed. `terms` is the default of
+`docrooter.classify` and `docrooter classify`, until the classification benchmark measures the
+cheapest rung within 2 points of `full` for each backend (results pending; see
+[the benchmark](../benchmarks/classification.md)). The older entry points
+(`classify_document`, `Classifier.classify_documents`, `normalize_sections`) default to
+`level=None`, their views from before 1.0 (see below).
 
 ## The presets
 
@@ -32,7 +34,9 @@ estimated tokens (1.3 per word) unless the backend supplies a tokenizer.
 | `lead` | path, title, keyphrases, lead | 192 | 8 key phrases, 3 lead sentences |
 | `full` | path, title, keyphrases, text | 2,048 | 8 key phrases |
 
-The section `text` starts with the section's lead, so `full` contains `lead`.
+The section `text` starts with the section's lead, so `full` contains `lead`. A section with no
+title shows its lead at every rung, also at `headings` and `terms` (within the rung's budget),
+so it is never sent as a bare heading path.
 
 **Documents** (`docrooter.ladder.document_view(level)`, a `DocumentView`). Every rung shows the
 contents to depth 2, at most 40 entries:
@@ -53,7 +57,14 @@ It is cut head-first, and the result records the cut (`doc_truncated`, flag `tru
 `full_cap` (16,000 by default) is the target size of the whole prompt, checked against the
 API's `prompt_tokens`. The view gets `full_cap` less a reserve for the instruction, the options
 and the error of the estimate: 16,000 - 1,024 - 15% of 16,000 = 12,576. Only the words a budget
-could ever hold are gathered, so a long document is never counted whole.
+could ever hold are gathered, so a long document is never counted whole. The 16,000 tokens are
+a target, not a guarantee: the benchmark measures the share of calls that still exceed it.
+
+**Every call has the same cap.** In `docrooter.classify`, `max_call_tokens` (16,000 by default,
+the same cap) bounds every call's prompt, not only the document's: batched section calls are
+packed to an estimated 85% of it (at most 40 sections each), a section view too large for any
+call is cut head-first and sent alone (flag `truncated`), and the document `full` view is
+budgeted from it as from `full_cap`.
 
 ## Seeing the rungs
 

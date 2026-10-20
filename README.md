@@ -52,9 +52,12 @@ classifies sections against any taxonomy you supply, as it did before 1.0.
    block, written from its definition: `requires` (groups of section ids, each to be met),
    `typical` (an ordering) and `excludes`.
 3. **Decide.** One candidate whose supporting tags are confident is decided by the rules alone,
-   with no document-level call (`decided_by="rules"`). Several candidates go to the model,
-   which chooses among those only (`"model"`). With none, near misses are offered, and with
-   nothing to offer the model chooses among every type (`"fallback"`, flag `rules_unmet`).
+   with no document-level call (`decided_by="rules"`); with batched calls, or letter answers
+   without logprobs, it needs two supporting sections. Several candidates go to the model,
+   which chooses among those only (`"model"`). A lone undecided candidate is offered with its
+   near misses (and, when still alone, its doc-type siblings); with no candidate, near misses
+   are offered, and with nothing to offer the model chooses among every type (`"fallback"`,
+   flag `rules_unmet`).
 
 `flow="doc_first"` is the other order: the type first, from the document view, then the
 sections with that type's own section taxonomy.
@@ -67,17 +70,20 @@ two steps apart). Each rung shows everything below it and adds one field:
 | `headings` | heading path and title (32 tokens) | title, counts and contents (320) |
 | `terms` | + key phrases (64) | + pooled key phrases (448) |
 | `lead` | + first sentences (192) | + opening text (640) |
-| `full` | the whole section text (2,048) | the whole body text, cut to a 16,000-token prompt |
+| `full` | the whole section text (2,048) | the whole body text, budgeted to a 16,000-token target prompt |
 
 **Calls.** With an LLM backend, `calls="batched"` (the default) sorts the sections into groups
 in one call and labels them within each group in one more call per group, listing each option
 once; `calls="batched_flat"` lists every leaf in one call; `calls="per_item"` asks one item at a
 time, with probabilities (and allows `cascade=True`, which asks low-confidence items again one
-rung up).
+rung up). Every call's prompt is bounded by `max_call_tokens` (16,000 by default): batched
+sections are packed by size as well as count (at most 40 per call), and a view too large for
+any call is cut and flagged `truncated`.
 
 **Tokens.** `result.tokens` has the `prompt`, `completion` and `calls` spent, with `exact` true
 only when every call reported `usage`; `result.stage_tokens` splits it into sections and
-document, and every section tag carries its own. `log=path` appends one JSON line per decision
+document, `result.section_calls` and `result.document_calls` record each call, and every
+section tag carries its share (an estimate when a call carried several sections). `log=path` appends one JSON line per decision
 (level, view hash, options, probabilities, model, endpoint host, prompt hash, tokens, and a
 `trainable` flag that is always false for Jev); API keys never reach it.
 
@@ -90,7 +96,11 @@ See [Sections first](docs/site/guides/sections-first.md) and
 ladder buys, and at what token cost, against sending the whole document: doc-type accuracy and
 macro-F1, section macro- and micro-F1, the share decided by rules alone and prompt tokens per
 document, for both flows, every level, and the keyword, UltraBERT and local-LLM backends, on the
-113 public documents of the gold split (951 Claude-annotated sections, evaluation only). It will
+113 public documents of the gold split (951 Claude-annotated sections, evaluation only; the
+annotators were all Claude, the same underlying model, so κ measures consistency, not
+correctness). The doc-type rules were revised once after a reviewer checked them against the
+section gold, so the gold split's doc-type numbers will be development numbers; the held-out run
+is the clean measure. It will
 also set the measured default level per backend; until then the default is `terms`. The report
 is [docs/benchmarks-classification.md](docs/benchmarks-classification.md), generated from the
 results files; its numbers will be quoted from there, never written by hand.

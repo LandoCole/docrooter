@@ -36,23 +36,33 @@ tags, selection); it is listed below the v1 entries.
     catalogue, group first, then leaf. It matches the doc types' section rules against the tags.
     One candidate whose supporting tags are confident enough is decided by the rules with no
     document-level call (`decided_by="rules"`); several go to the model among those candidates
-    only (`"model"`); with none, the model chooses among every type (`"fallback"`, flagged
-    `rules_unmet`). Near misses, lone candidates with weak support (`low_support`, offered with
-    their doc-type siblings) and waived excludes are flagged.
+    only (`"model"`). A lone undecided candidate is offered with its near misses (types missing
+    one required group, flag `near_miss`) and, when it is still alone, with its doc-type
+    siblings that no `excludes` hit argues against (`low_support`). With no candidate the near
+    misses are offered, and with nothing to offer the model chooses among every type
+    (`"fallback"`, flagged `rules_unmet`). Waived excludes are flagged `excludes_waived`.
+  - **Answers without probabilities are gated like batched ones.** Batched answers, and
+    per-item answers read from a bare letter because the endpoint returned no logprobs
+    (confidence `None`, `confidence_source="text"`), cannot pass the confidence gate: a lone
+    candidate then needs two supporting sections. A reply that names no option is never read as
+    the first option: the item gets no type (or the `other` section leaf at confidence 0) and the
+    result is flagged `unparsed`.
   - **`doc_first`** classifies the type among every doc type from the document view, then labels
     the sections with that type's section taxonomy (the 0.2 behaviour, through the new API).
   - `Classification` carries the `doc_type` with its confidence and probabilities, `decided_by`,
     the `candidates` offered, the `flags`, the section tags (`SectionTag`: label, confidence,
-    level used, tokens), one `CallRecord` per document call, the `levels` used, `tokens` (in
-    total and per stage), `tokens_split` (the estimated share of options, content and
-    instructions) and how the backend was asked (`calls`).
+    level used, tokens), one `CallRecord` per document call (`document_calls`) and per
+    sections-stage call (`section_calls`), the `levels` used, `tokens` (in total and per stage),
+    `tokens_split` (the estimated share of options, content and instructions) and how the
+    backend was asked (`calls`).
   - `section_level` and `doc_level` set the two steps apart; `cascade=True` asks the
     low-confidence items again one rung up (per-item calls only); `doc_types=` and `catalogue=`
     replace the built-in taxonomies.
 - **The context ladder** (`docrooter.ladder`, `LEVELS`): four named levels, `headings`, `terms`,
   `lead` and `full`, each an exact, documented `SectionView` and `DocumentView` preset; each rung
   shows everything the one below shows and more. `full` sends the whole document text, cut
-  head-first to a 16,000-token prompt (`full_cap`). `DocumentView` gains a `text` field. See
+  head-first to a view budgeted for a 16,000-token target prompt (`full_cap`); the benchmark
+  measures how often a measured prompt still exceeds it. `DocumentView` gains a `text` field. See
   [The context ladder](docs/site/concepts/context-ladder.md).
 - **`level=`** on `classify_document`, `Classifier.classify_documents` and `normalize_sections`
   (with `doc_level=`) picks a ladder rung instead of a view. `level=None`, the default, keeps the old
@@ -67,23 +77,40 @@ tags, selection); it is listed below the v1 entries.
   - **Doc-type section rules**: every leaf of `doc_types` has a `sections` block (`requires`, a
     list of groups of catalogue ids of which each must be met; `typical`, an ordering only; and
     `excludes`), written from the definitions, never from the corpus (`docrooter.rules`). Rules
-    are left out of `Taxonomy.content_hash`, so trained bundles stay valid.
+    are left out of `Taxonomy.content_hash`, so trained bundles stay valid. **Doc-type rules
+    were revised once after a reviewer checked them against the section gold. Gold-split
+    doc-type numbers are therefore development numbers; the held-out run is the clean
+    measure.** The revision was made from the definitions: `legal.terms_policy` now needs a
+    section only published terms carry (privacy and data use, or acceptable use and user
+    terms), so ordinary contract clauses no longer make a terms policy; `legal.contract` needs a
+    core clause (obligations, term or termination, payment, or the operative provisions), not a
+    titled parties or signatures section; an earnings release needs headline figures as well as
+    statements or an outlook; `general.body` no longer meets a government report or white paper
+    alone; and filing items, MD&A, notes and an auditor's report bar types that never carry
+    them (investor presentation, sustainability report, earnings release).
 - **Batched LLM calls** (`docrooter.batch`). With the OpenAI-compatible backend, `classify`
   lists the options once per call instead of once per section: `calls="batched"` (the default
   for a backend that can batch) sorts the sections into catalogue groups in one call, then asks
-  one call per group among that group's leaves, in batches of up to 40 sections;
+  one call per group among that group's leaves. Calls are bounded by size as well as count: at
+  most 40 sections and `max_call_tokens` (16,000 by default, packed to an estimated 85% of it)
+  per call, a section view too large for any call being cut, sent alone and flagged
+  `truncated`; per-item calls are bounded the same way;
   `calls="batched_flat"` lists every leaf in one call; `calls="per_item"` asks one item at a time,
   with probabilities. A reply naming an id that is not an option is asked again once, then
   tagged with confidence 0 and flagged `unparsed`.
 - **Exact token accounting.** Every LLM call records `prompt_tokens` and `completion_tokens` from
   the API's `usage`, and results carry `tokens.prompt`, `tokens.completion` and `tokens.calls`
-  per document, per stage and per section. A total is `exact` only when every call was; backends
+  per document, per stage and per section. A total is `exact` only when every call was, and a
+  section's share of a call that carried several sections is always an estimate; backends
   that make no LLM call (keyword, embedding, NLI) report what the same views and options would
   cost an LLM, marked estimated.
 - **The results log.** `classify(..., log=path)` and `--log` append one JSON line per decision:
   the level and view hash, the options, the label and probabilities, the model, endpoint host and
   prompt hash, the tokens and a `trainable` flag (always false for Jev; otherwise the provider's
-  terms decide). API keys never reach it.
+  terms decide). API keys never reach it: secret-named fields are hidden at any depth (also
+  inside a mapping nested in the options, label or probs), `name=value` secrets in free text are
+  redacted, and the backend's key and the key environment variables are scrubbed wherever they
+  appear (from 8 characters; a shorter literal would corrupt the log).
 - **`docrooter classify FILE`** runs the v1 flow: `--flow`, `--level`, `--section-level`,
   `--doc-level`, `--calls`, `--backend`, `--log` and `--json`. With `-t TAXONOMY` it classifies
   the sections against that taxonomy, as before. The playground can run either flow at a level.
@@ -92,11 +119,13 @@ tags, selection); it is listed below the v1 entries.
   the recipe is in [the LLM guide](docs/site/guides/llm-backends.md#a-free-local-stand-in).
 - **The classification benchmark** (`benchmarks/classification_bench.py`): accuracy against
   tokens for every flow, level and backend on the 113 documents of the gold split, against a
-  Claude-annotated, evaluation-only section gold (951 sections, κ 0.923 at leaf). Results are
-  pending: [docs/benchmarks-classification.md](docs/benchmarks-classification.md).
+  Claude-annotated, evaluation-only section gold (951 sections, κ 0.923 at leaf). The annotators
+  were all Claude (the same underlying model), so κ measures consistency, not correctness.
+  Every call of both stages counts toward the over-cap measure. Results are pending:
+  [docs/benchmarks-classification.md](docs/benchmarks-classification.md).
 - **Release packaging.** The `publish` workflow builds the sdist and wheel on a `v*` tag and
-  attaches them to the GitHub release; uploading to PyPI is a manual workflow run (see
-  [CONTRIBUTING.md](CONTRIBUTING.md#releasing)). `examples/classify_sections_first.py` runs the
+  attaches them to the GitHub release; uploading to PyPI is a manual workflow run with trusted
+  publishing, so no PyPI token is stored (see [CONTRIBUTING.md](CONTRIBUTING.md#releasing)). `examples/classify_sections_first.py` runs the
   v1 flow with no model, and the docs gain [The context ladder](docs/site/concepts/context-ladder.md)
   and [Sections first](docs/site/guides/sections-first.md).
 
@@ -293,7 +322,20 @@ pending:
   <https://github.com/LandoCole/docrooter>. The package description, README and docs are
   rewritten around the minimum-context pitch.
 - **`docrooter classify FILE` without `-t`** runs `docrooter.classify` (sections first, level
-  `terms`) instead of failing for want of a taxonomy.
+  `terms`) instead of failing for want of a taxonomy. `docrooter --help` gives the v1 pitch, and
+  the experimental commands say "(experimental)" in their help.
+- **`docrooter.classify` is now the function, and it shadows the `docrooter.classify`
+  subpackage as an attribute** (as `select`, `summarize` and `embed` already did).
+  `from docrooter.classify import Classifier` and `from docrooter.classify.engine import ...`
+  still work; `import docrooter.classify as m` now gives the function,
+  `import docrooter.classify.engine as e` raises `ImportError`, and
+  `docrooter.classify.Classifier` raises `AttributeError`. Import from the subpackage with
+  `from docrooter.classify import ...`.
+- **`DocTypeResult` gains `truncated`** (whether the document view was cut to its budget). In
+  `mode="sections"` the document view is no longer rendered: `view_text` is `""`, and the
+  stage's token count no longer includes the view's tokens.
+- **Missing-extra messages give the GitHub install form**, `pip install "docrooter[x] @
+  git+https://github.com/LandoCole/docrooter"`, since docrooter is not on PyPI.
 
 - **The `openai` backend letters its options A-Z (it numbered them), and takes at most 26
   options per call (it took 50).** Hierarchical strategies and the catalogue's groups keep
@@ -307,7 +349,8 @@ pending:
       there is none;
     - a direct `score` call raises `BackendError`.
   - Use a hierarchical strategy to keep such decisions on the LLM. The backend also reports
-    its token usage (`usage()`, `on_call`).
+    its token usage (`usage()`, `on_call`), and each per-item call's record says how the reply
+    was read (`answer`: `logprobs`, `letter` or `none`).
 - **Prospectuses use the fund-document sections.** `financial.prospectus` maps to
   `section_types/fund_document` (it was `generic`), as `financial.fact_sheet` does, so
   `normalize_sections` on a prospectus labels its headings with fees, risks and performance

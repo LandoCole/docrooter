@@ -25,7 +25,10 @@ Two flows (spec G3):
 **Levels.** ``level`` (a rung of :mod:`docrooter.ladder`) sets both the section and the document
 view; ``section_level`` and ``doc_level`` override one each. With ``cascade=True``, every section
 tag or document decision whose confidence is below ``threshold`` is asked again one rung up,
-until ``full``; only those items are asked again, and every attempt's tokens count.
+until ``full``; only those items are asked again, every attempt's tokens count, and the last
+attempt's answer stands, even when an earlier rung's was more confident. A section with no
+title shows its lead even at ``headings`` and ``terms`` (within the rung's budget), so it is
+never sent as an empty path.
 
 **Tokens.** Every backend call is metered. A backend with a per-call record sink (``on_call``,
 the OpenAI-compatible backend) gives each call's exact tokens from the API's ``usage``. One that
@@ -231,7 +234,7 @@ class Classification(BaseModel):
     - ``decided_by``: ``"rules"`` (no document-level call), ``"model"`` (the model chose among
       the narrowed ``candidates``, or among every type in ``doc_first``) or ``"fallback"`` (the
       model chose among every type: nothing was left to offer, a lone type had no siblings, or
-      there were no sections).
+      there were no sections; or, for a document with no content, nothing could be sent).
     - ``candidates``: the doc types offered, in order (most ``typical`` matches first): the
       rules' candidates, near misses when they were offered, and a lone type's siblings
       (``low_support``); empty in ``doc_first``.
@@ -353,6 +356,15 @@ def classify(
             raise ValueError(
                 "cascade re-asks single items, so it needs calls='per_item'; batched calls "
                 "answer a whole stage at once"
+            )
+        per_item = not can_batch or calls == "per_item"
+        limit = inner.max_candidates
+        n_types = len(doc_type_taxonomy.leaves())
+        if per_item and limit is not None and n_types > limit:
+            raise ValueError(
+                f"{inner.name} takes at most {limit} options per call, but the document call "
+                f"can offer all {n_types} doc types; use calls='batched' or a doc-type "
+                f"taxonomy of at most {limit} types"
             )
         estimating = usage_of(inner) is None and not hasattr(inner, "on_call")
         run = _Run(
@@ -512,7 +524,7 @@ class _Metered:
         elif before is not None and after is not None:
             usage = after - before
         else:
-            usage = TokenUsage(prompt.estimate(), 0, 1, False)
+            usage = TokenUsage(prompt.estimate(), reply_tokens(reply) if reply else 1, 1, False)
         self.spent = self.spent + usage
         return reply, usage, records[-1] if records else None
 
@@ -546,8 +558,8 @@ def _record_usage(record: Mapping[str, Any]) -> TokenUsage:
 
 
 def _estimate(parts: Mapping[str, int]) -> TokenUsage:
-    """One per-item LLM call, estimated from its prompt parts."""
-    return TokenUsage(sum(parts.values()), 0, 1, False)
+    """One per-item LLM call, estimated from its prompt parts; the reply is one letter."""
+    return TokenUsage(sum(parts.values()), 1, 1, False)
 
 
 def _choice_parts(
@@ -754,7 +766,8 @@ class _Run:
 
         selected = select_sections(self.doc, max_sections)
         tags = self.tag(selected, section_level, tagger, section_taxonomy, name)
-        return self.result(decision, "model", [], [], name, tags, section_level)
+        decided_by: DecidedBy = "model" if decision.calls else "fallback"  # nothing was sent
+        return self.result(decision, decided_by, [], [], name, tags, section_level)
 
     # --- stages
 
@@ -1245,7 +1258,7 @@ class _Run:
             stage_tokens={SECTION_STAGE: section_tokens, DOCUMENT_STAGE: document_tokens},
             levels={
                 "section": section_level,
-                "document": decision.level if decision is not None else None,
+                "document": decision.level if decision is not None and decision.calls else None,
             },
             backend=self.metered.name,
             calls=("batched_flat" if self.flat else "batched") if self.batched else "per_item",

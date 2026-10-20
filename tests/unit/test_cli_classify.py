@@ -143,3 +143,21 @@ def test_cli_prints_text_answers_without_a_confidence(capsys):
     out = capsys.readouterr().out
     assert "Court opinion" in out and "no probability" in out
     assert "law.opinion" in out and "letter" in out
+
+
+@pytest.mark.parametrize(
+    ("args", "phrase"),
+    [
+        (["--strategy", "greedy"], "--strategy only applies with"),
+        (["--strategy", "greedy", "--threshold", "0.4"], "only apply with"),
+        (["-t", "TAX", "--level", "terms"], "--level does not apply with"),
+        (["-t", "TAX", "--level", "terms", "--json"], "do not apply with"),
+    ],
+)
+def test_cli_usage_errors_agree_in_number(report, tmp_path, args, phrase):
+    taxonomy = tmp_path / "tax.json"
+    taxonomy.write_text(json.dumps({"nodes": [{"id": "a", "label": "A"}]}), encoding="utf-8")
+    args = [str(taxonomy) if a == "TAX" else a for a in args]
+    result = runner.invoke(app, ["classify", str(report), "-b", "keyword", *args], env=WIDE)
+    assert result.exit_code == 2
+    assert phrase in " ".join(result.output.split())

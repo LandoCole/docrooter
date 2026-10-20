@@ -217,15 +217,17 @@ def classify(
     if taxonomy is None:
         if any(v is not None for v in legacy_options):
             given = [n for n, v in zip(_LEGACY_ONLY, legacy_options, strict=True) if v is not None]
+            verb = "only applies" if len(given) == 1 else "only apply"
             raise typer.BadParameter(
-                f"{', '.join(given)} only apply with --taxonomy/-t", param_hint=given[0]
+                f"{', '.join(given)} {verb} with --taxonomy/-t", param_hint=given[0]
             )
         _classify_flow(file, backend, flow, level, section_level, doc_level, log, as_json, calls)
         return
     if any(v is not None for v in flow_options):
         given = [n for n, v in zip(_FLOW_ONLY, flow_options, strict=True) if v is not None]
+        verb = "does not apply" if len(given) == 1 else "do not apply"
         raise typer.BadParameter(
-            f"{', '.join(given)} do not apply with --taxonomy/-t", param_hint=given[0]
+            f"{', '.join(given)} {verb} with --taxonomy/-t", param_hint=given[0]
         )
     _classify_sections(
         file,

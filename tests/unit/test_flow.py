@@ -555,3 +555,33 @@ def test_classification_round_trips_as_json():
     again = Classification.model_validate_json(result.model_dump_json())
     assert again == result
     assert isinstance(again.tokens, TokenUsage)
+
+
+# --- minors: no call, no level; estimates; option limits ---------------------------------
+
+
+@pytest.mark.parametrize("flow", ["sections_first", "doc_first"])
+def test_an_empty_document_reports_no_document_call(flow):
+    backend = Scripted()
+    result = classify(Document.from_sections([]), backend=backend, flow=flow)
+    assert backend.calls == [] and result.document_calls == []
+    assert result.levels["document"] is None  # no document call, so no level
+    assert result.doc_type is None and result.decided_by == "fallback"
+
+
+def test_a_per_item_estimate_counts_the_answer_letter():
+    result = classify(financial_doc(), backend=KeywordBackend(), calls="per_item")
+    assert result.tokens.completion == result.tokens.calls  # one letter per call
+
+
+def test_too_many_doc_types_for_per_item_calls_raise_up_front():
+    many = Taxonomy(
+        [TaxonomyNode(id="t", label="T")]
+        + [TaxonomyNode(id=f"t.k{i}", label=f"Kind {i}", parent_id="t") for i in range(30)]
+    )
+
+    class Lettered(Scripted):
+        max_candidates = 26
+
+    with pytest.raises(ValueError, match="26"):
+        classify(financial_doc(), backend=Lettered(), doc_types=many, calls="per_item")

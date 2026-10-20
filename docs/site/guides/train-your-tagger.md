@@ -1,5 +1,9 @@
 # Train your own element tagger
 
+!!! warning "Experimental"
+    This page describes the learned element tagger and its corpus tooling, which ship in 1.0 as **experimental**: outside the
+    stability promise, with results pending. The v1 path is [sections first](sections-first.md).
+
 [Element tags](../concepts/element-tags.md) come from a small student model, a BERT-class
 encoder, that you train on your own documents. A local LLM, the **teacher**, labels a sample of
 your elements; the corpus enriches the taxonomy and filters out the labels the teacher is least

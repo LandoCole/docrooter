@@ -3,13 +3,19 @@
 docrooter needs Python 3.10 or newer. The core install is small (`pydantic`, `numpy`, `typer`,
 `rich`); models, PDF parsing, LLM backends and the playground are optional extras.
 
+docrooter 1.0 is installed from GitHub; it is not on PyPI yet.
+
 ```bash
-pip install docrooter                      # core: Markdown, taxonomies, keyword backend, CLI
-pip install 'docrooter[pdf,models]'        # + PDFs (PyMuPDF) and the local models
-pip install 'docrooter[all]'               # everything except the benchmark tools
+pip install "git+https://github.com/LandoCole/docrooter@v1.0.0"                       # core
+pip install "docrooter[llm,pdf] @ git+https://github.com/LandoCole/docrooter@v1.0.0"  # + LLMs, PDFs
+pip install "docrooter[all] @ git+https://github.com/LandoCole/docrooter@v1.0.0"      # everything
 ```
 
-With [uv](https://docs.astral.sh/uv/): `uv add 'docrooter[pdf,models]'`.
+The core is enough for Markdown, the taxonomies, the `keyword` backend and the CLI; `llm` adds
+the OpenAI-compatible backend that `docrooter.classify` is meant to deploy with. Elsewhere these
+docs write `pip install 'docrooter[pdf]'`: until docrooter is on PyPI, use the form above with
+the same extras. With [uv](https://docs.astral.sh/uv/):
+`uv add "docrooter[pdf,models] @ git+https://github.com/LandoCole/docrooter@v1.0.0"`.
 
 ## Extras
 
@@ -19,13 +25,13 @@ With [uv](https://docs.astral.sh/uv/): `uv add 'docrooter[pdf,models]'`.
 | `pdf` | `pymupdf4llm`, which installs PyMuPDF | **AGPL-3.0** (or a commercial licence from Artifex) | Loading PDFs with PyMuPDF, the default and fastest engine |
 | `pdf-mit` | `pdfplumber` | MIT (its dependencies pdfminer.six and pypdfium2: MIT, Apache-2.0 / BSD-3) | Loading PDFs with a permissively licensed engine |
 | `models` | `torch`, `transformers>=5`, `sentence-transformers>=6`, `scikit-learn`, `joblib`, `datasets` | BSD / Apache-2.0 (torch: a mix of permissive licences) | The `embedding`, `nli`, `mlm-choice` and `trained` backends, `docrooter train`, `docrooter models` |
-| `llm` | `httpx` | BSD | The `openai` backend (any OpenAI-compatible server) |
+| `llm` | `httpx` | BSD | The `openai` backend (any OpenAI-compatible server, hosted or a local stand-in), the deployment path of `docrooter.classify` |
 | `jev` | `typesafe-sdk` | MIT client; the Jev API is a hosted service with its own terms | The `jev` backend (TypeSafe Jev, a hosted API) |
 | `ui` | `fastapi`, `uvicorn`, `python-multipart` | MIT / BSD / Apache-2.0 | `docrooter serve`, the local [playground](../guides/playground.md) |
 | `ocr` | `rapidocr`, `onnxruntime`, `pypdfium2` | Apache-2.0 / MIT / BSD-3 and Apache-2.0; rapidocr also pulls in `opencv-python-headless` (Apache-2.0, bundles **FFmpeg, LGPL-2.1**) and `shapely` (BSD-3, bundles **GEOS, LGPL-2.1**) | The `rapidocr` engine in element mode, and page rendering without PyMuPDF |
 | `ocr-mac` | `ocrmac` (macOS only) | MIT | The `ocrmac` engine (Apple Vision) |
 | `layout` | `onnxruntime`, `pypdfium2`, `huggingface_hub` | MIT / BSD-3 and Apache-2.0 / Apache-2.0 | The `heron` layout model of the `accurate` profile (no torch) |
-| `teach-mlx` | `mlx-lm` (Apple silicon, Python 3.11+ only) | MIT | The default teacher for [training your own element tagger](../guides/train-your-tagger.md): Qwen3-4B-Instruct-2507 (Apache-2.0), 4-bit, on MLX. Not part of `all`, because it installs on one platform only |
+| `teach-mlx` | `mlx-lm` (Apple silicon, Python 3.11+ only) | MIT | The default teacher for [training your own element tagger](../guides/train-your-tagger.md) (experimental): Qwen3-4B-Instruct-2507 (Apache-2.0), 4-bit, on MLX. Not part of `all`, because it installs on one platform only |
 | `bench` | `datasets`, `pandas` | Apache-2.0 / BSD | The benchmark scripts, `DocumentResult.to_dataframe()` |
 | `all` | `models`, `pdf`, `pdf-mit`, `llm`, `jev`, `ui`, `ocr`, `ocr-mac`, `layout` | as above | Everything except `bench` |
 
@@ -77,10 +83,16 @@ docrooter --version
 docrooter --help
 ```
 
+## From a release wheel
+
+Each [GitHub release](https://github.com/LandoCole/docrooter/releases) carries the wheel and
+the sdist. Download `docrooter-1.0.0-py3-none-any.whl` and install the file, with extras if you
+need them: `pip install "./docrooter-1.0.0-py3-none-any.whl[llm]"`.
+
 ## From source
 
 ```bash
-git clone https://github.com/docrooter/docrooter && cd docrooter   # placeholder URL
+git clone https://github.com/LandoCole/docrooter && cd docrooter
 uv sync --extra pdf --extra models
 PYTHONPATH=src uv run docrooter --help
 ```

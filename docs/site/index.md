@@ -4,48 +4,75 @@
 ![docrooter logo: a document page whose ruled lines branch into roots](../assets/logo.svg#only-light)
 ![docrooter logo: a document page whose ruled lines branch into roots](../assets/logo-dark.svg#only-dark)
 
-**Find the structure of a document, then say what each part is.** Table-of-contents extraction,
-document-type classification and section normalisation for PDF and Markdown, against a
-taxonomy you supply.
+**The minimum context a hosted LLM needs to classify a document.** docrooter tags a document's
+sections first, lets their tags decide the document type or narrow the types a model is
+offered, sends only the context level you choose, and counts every token.
 </div>
 
 ## What it does
 
-docrooter takes a PDF or Markdown file and gives you three things:
+- **Sections first.** The level-1 and level-2 sections are tagged against one shared
+  [section catalogue](concepts/taxonomies.md) (112 section types in 12 groups). Each of the 19
+  document types is defined by the sections it needs, so the tags decide the type with no
+  document-level call, or narrow the choice to a few types: a document with a balance sheet and
+  a shareholder letter is offered the financial types that need them, not all 19. See
+  [Sections first](guides/sections-first.md).
+- **A context ladder.** Four named levels, `headings`, `terms`, `lead` and `full`, set how much
+  of each section and of the document the model sees; each rung adds one field and its tokens.
+  See [The context ladder](concepts/context-ladder.md).
+- **Batched calls.** With an LLM, the options are listed once per call, not once per section:
+  the sections are sorted into groups in one call, then labelled within their group.
+- **Exact token accounting.** Every call's prompt and completion tokens come from the API's
+  `usage`, per document, per stage and per section. Backends that make no LLM call report what
+  the same prompts would cost, marked estimated.
 
-1. **A table of contents.** It reads PDFs natively (OCR is optional, in element mode) and finds the headings from
-   typography, numbering, the printed contents page and the PDF's bookmarks, then builds a
-   section tree with levels and page numbers.
-2. **The document's type.** A built-in taxonomy of 19 types in 6 groups (annual report,
-   contract, research paper, datasheet, ...) or your own. You get the type, a confidence you can
-   gate a pipeline on, and the probabilities of the runners-up.
-3. **What each section is.** Each heading is mapped to a canonical section of its document type
-   ("Item 1A. Risk Factors" becomes `risk_factors`), or classified against any taxonomy you
-   write in JSON or CSV, with the full path through the tree and the decision at every step.
+Hosted LLMs (any OpenAI-compatible API) are the deployment target. Local models are a free
+stand-in for testing: the same code path runs against a small model served on your machine
+([A free local stand-in](guides/llm-backends.md#a-free-local-stand-in)). The benchmark corpus
+is for validation, not training; its accuracy-against-tokens results are pending
+([Classification benchmark](benchmarks/classification.md)).
 
-Optionally, each paragraph, list item and table can be tagged with what it is about and what
-it does ([element tags](concepts/element-tags.md)), by a small model you
-[train on your own documents](guides/train-your-tagger.md).
+Underneath, docrooter still does what it did before 1.0: it reads PDFs natively and finds their
+[table of contents](concepts/toc-engine.md), classifies sections against
+[any taxonomy you write](guides/custom-taxonomies.md), and runs zero-shot with small local
+embedding models or [trains per-node classifiers](guides/training-evaluation.md) from a few
+labelled examples.
 
-It can then choose which elements to send to your own LLM for a field or a question, at a
-completeness you set ([the completeness dial](concepts/completeness-dial.md)).
+**Experimental in 1.0:** [element tags](concepts/element-tags.md) from a tagger you
+[train on your own documents](guides/train-your-tagger.md), and
+[selection](guides/select-for-extraction.md) with [the completeness dial](concepts/completeness-dial.md)
+and `fit-selector`. They work, but sit outside the stability promise and their results are
+pending.
 
-It runs zero-shot out of the box: small embedding models run on a laptop, and LLM backends
-(TypeSafe Jev or any OpenAI-compatible server) are optional. When zero-shot is not enough it
-trains per-node classifiers from a few labelled examples, and it measures itself with built-in
-evaluation reports.
+## Classify a document
+
+No models and no API key: the `keyword` backend runs right after installing. It is
+[`examples/classify_sections_first.py`](../../examples/classify_sections_first.py):
+
+```python
+from docrooter import LEVELS, classify, load
+
+doc = load(MARKDOWN)
+result = classify(doc, level="terms", backend="keyword")
+flags = ", ".join(result.flags) or "none"
+print(f"doc type: {result.doc_type} (decided by {result.decided_by}; flags: {flags})")
+```
+
+Swap `backend="keyword"` for `"openai:<model>"` to ask a hosted or local LLM; the tokens are
+then exact.
 
 ## Why it exists
 
-Document pipelines usually need structure before they need answers: *which* filings are annual
-reports, *where* the risk factors start, *which* clauses are termination clauses. Generic text
-extractors flatten that structure, and sending whole documents to a large model is slow and
-expensive. docrooter recovers the structure cheaply and locally, labels it against categories
-you control, and tells you how sure it is, so the expensive steps only see what they need.
+Document pipelines need to know what a document is, and what its parts are, before they can
+do anything else with it. Sending the whole document to a large model answers that, but most
+of the tokens are wasted: the headings, a few key terms or the first sentences usually say
+enough. docrooter sends the least that still decides, lets the section structure do the work
+where it can, and tells you exactly what it spent.
 
-## Results at a glance
+## Earlier results at a glance
 
-Measured on a 51-PDF development corpus and then once, frozen, on a separate 40-PDF held-out
+These come from the document-type and TOC benchmarks of the development versions, before the
+v1 flow existed. Measured on a 51-PDF development corpus and then once, frozen, on a separate 40-PDF held-out
 corpus that no tuning step ever saw. The held-out column is the honest estimate; see the
 [benchmarks](benchmarks/index.md) for the method, intervals and per-document tables.
 
@@ -63,10 +90,10 @@ corpus that no tuning step ever saw. The held-out column is the honest estimate;
   bilingual statutes, slide decks). Document typing generalised.
 - Loading a PDF with the default engine takes about 1 s per 100 pages on an Apple M1.
 
-## 30-second example
+## Your own taxonomy in 30 seconds
 
 No models, no API key: this uses the dependency-free `keyword` backend, so it runs right after
-`pip install docrooter`. It is [`examples/quickstart.py`](../../examples/quickstart.py).
+the core install. It is [`examples/quickstart.py`](../../examples/quickstart.py).
 
 ```python
 from docrooter import Classifier, Taxonomy, load
@@ -116,6 +143,7 @@ most accurate backend.
 ## Where next
 
 - [Installation](getting-started/installation.md): the extras and their licences.
+- [Sections first](guides/sections-first.md): `docrooter.classify`, step by step.
 - [Quickstart](getting-started/quickstart.md): a PDF from table of contents to section labels
   in five minutes.
 - [Concepts](concepts/index.md): how the pieces fit together.

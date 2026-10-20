@@ -1,5 +1,9 @@
 # The completeness dial
 
+!!! warning "Experimental"
+    This page describes selection and the completeness dial, which ship in 1.0 as **experimental**: outside the
+    stability promise, with results pending. The v1 path is [sections first](../guides/sections-first.md).
+
 A long document costs tokens, and most of it is not what your LLM was asked about. Version 0.6
 adds **selection**: for a **need** (the risk factors of an annual report, a fund's fees, or a
 question in your own words), docrooter says which elements to read, and a **completeness** `c`

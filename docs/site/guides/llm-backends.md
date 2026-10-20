@@ -118,21 +118,31 @@ be reported as it happens, with its token counts and a hash of the exact prompt 
 
 ### A free local stand-in
 
-To develop against the same code path as a hosted model without paying for one, serve a small
-instruct model locally with [`mlx_lm.server`](https://github.com/ml-explore/mlx-lm) (Apple
-silicon):
+Hosted LLMs are what `docrooter.classify` is built for; a local model is a free stand-in for
+testing. To develop against the same code path as a hosted model without paying for one, serve
+the pinned Qwen3-4B-Instruct-2507 (4-bit, Apache-2.0) locally with
+[`mlx_lm.server`](https://github.com/ml-explore/mlx-lm) (Apple silicon). Download it once, at the
+pinned revision, and serve the snapshot directory from the Hugging Face cache, so the server
+never fetches anything and the model name docrooter sends is the model that is loaded:
 
 ```bash
 pip install mlx-lm
-mlx_lm.server --model mlx-community/Qwen3-4B-Instruct-2507-4bit --port 8080
+hf download mlx-community/Qwen3-4B-Instruct-2507-4bit --revision 50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b
+MODEL=~/.cache/huggingface/hub/models--mlx-community--Qwen3-4B-Instruct-2507-4bit/snapshots/50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b
+mlx_lm.server --model "$MODEL" --port 18080
 ```
 
-Then, in another shell, point docrooter at it (it needs no key):
+(`hf download` prints the snapshot path; it differs when `HF_HOME` is set.) Then, in another
+shell with the same `MODEL`, point docrooter at it (it needs no key):
 
 ```bash
-export DOCROOTER_LLM_BASE_URL=http://127.0.0.1:8080/v1
-uv run python examples/openai_backend.py mlx-community/Qwen3-4B-Instruct-2507-4bit
+export DOCROOTER_LLM_BASE_URL=http://127.0.0.1:18080/v1
+docrooter classify report.pdf -b "openai:$MODEL" --log decisions.jsonl
+uv run python examples/openai_backend.py "$MODEL"
 ```
+
+The classification benchmark runs its LLM rows this way and labels them as a local stand-in,
+not a hosted model.
 
 Current `mlx_lm.server` releases return `usage` and OpenAI-style logprobs, so the counts are
 exact. Their logprob tokens are raw vocabulary entries such as `ĠB`, which docrooter reads as

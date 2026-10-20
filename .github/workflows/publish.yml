@@ -1,15 +1,22 @@
-name: Publish to PyPI
+name: Release
 
+# Pushing a `v*` tag tests the tagged commit, builds the sdist and wheel, and attaches them to
+# the GitHub release of that tag (created if it does not exist). It needs no secrets: the
+# release is made with the workflow's own GITHUB_TOKEN.
+#
+# Uploading to PyPI is manual: run this workflow by hand ("Run workflow", choosing the tag as
+# the ref) with the repository secret PYPI_API_TOKEN set. See CONTRIBUTING.md, "Releasing".
 on:
-  release:
-    types: [published]
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   test:
-    name: Test before publishing
+    name: Test before releasing
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: "3.12"
@@ -31,7 +38,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check the release tag matches the package version
-        # A v0.3.0 release must not upload code labelled 0.2.0 (or the reverse).
+        # A v1.1.0 tag must not release code labelled 1.0.0 (or the reverse). A manual run must
+        # be started on the tag, so GITHUB_REF_NAME is the tag there too.
         run: |
           version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/docrooter/__init__.py)
           if [ -z "$version" ] || [ "v$version" != "$GITHUB_REF_NAME" ]; then
@@ -48,16 +56,42 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-  publish:
-    name: Upload to PyPI
+  github-release:
+    name: Attach to the GitHub release
     needs: [test, build]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and upload its assets
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Create the release, or add the files to an existing one
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "docrooter ${TAG#v}" \
+              --notes "See CHANGELOG.md for what changed. Install with: pip install https://github.com/$GH_REPO/releases/download/$TAG/docrooter-${TAG#v}-py3-none-any.whl"
+          fi
+
+  pypi:
+    name: Upload to PyPI (manual)
+    needs: [test, build]
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: pypi
-    permissions:
-      id-token: write # trusted publishing: no API token is stored in the repository
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}

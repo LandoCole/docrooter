@@ -15,7 +15,7 @@ def test_require_missing_names_extra():
 def test_version():
     import docrooter
 
-    assert docrooter.__version__ == "0.2.0"
+    assert docrooter.__version__ == "1.0.0"
 
 
 def test_missing_extra_error_is_both_a_docrooter_and_an_import_error():

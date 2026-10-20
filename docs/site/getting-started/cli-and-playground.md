@@ -9,6 +9,19 @@ in detail. The [CLI reference](../reference/cli.md) lists every option.
 `-b/--backend` picks the backend on every command that classifies. The examples use `keyword`
 so that they run without models; leave it out to use the default local model, or pass `jev`.
 
+**Document type and section tags, sections first** (the v1 flow; see
+[Sections first](../guides/sections-first.md)):
+
+```bash
+docrooter classify report.md -b keyword                  # type, how it was decided, tags, tokens
+docrooter classify report.pdf --level headings --json    # the cheapest rung, as JSON
+docrooter classify report.pdf -b openai:gpt-4o-mini --log decisions.jsonl
+```
+
+`--level` takes `headings`, `terms` (the default), `lead` or `full`; `--flow doc_first`
+classifies the type first; `--calls` says how an LLM is asked (`batched`, `batched_flat` or
+`per_item`).
+
 **Table of contents.**
 
 ```bash
@@ -65,7 +78,7 @@ docrooter train -t taxonomy.json -d labelled.jsonl -o bundle/
 docrooter eval -t taxonomy.json -d labelled.jsonl -b trained:bundle/
 ```
 
-**Element tags and your own tagger** (see [Train your own element tagger](../guides/train-your-tagger.md)):
+**Element tags and your own tagger** (experimental; see [Train your own element tagger](../guides/train-your-tagger.md)):
 
 ```bash
 docrooter corpus build corpus/ --from-manifest manifest.jsonl --pdf-dir pdfs/

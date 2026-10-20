@@ -348,3 +348,32 @@ def test_selection_docs_state_what_the_guarantee_is_and_is_not():
     counts = {f: len(builtin_fields(f)) for f in ("annual_report", "fund_document", "contract")}
     assert counts == {"annual_report": 15, "fund_document": 12, "contract": 15}
     assert "(15 fields), `fund_document` (12) and `contract` (15)" in concept
+
+
+def test_classify_sections_first_example_runs_without_a_model(capsys):
+    """The v1 example: the ladder's view tokens rise rung by rung, and ``classify`` with the
+    keyword backend tags every section and reports estimated tokens; the pages show its output."""
+    from docrooter import LEVELS
+
+    runpy.run_path(str(EXAMPLES / "classify_sections_first.py"), run_name="__main__")
+    lines = capsys.readouterr().out.splitlines()
+    ladder = [
+        re.fullmatch(r"(\w+) +sections +(\d+) tokens, document +(\d+) tokens", line)
+        for line in lines[:4]
+    ]
+    assert all(ladder), lines[:4]
+    assert [m[1] for m in ladder] == list(LEVELS)
+    for low, high in zip(ladder, ladder[1:], strict=False):
+        assert int(low[2]) <= int(high[2]) and int(low[3]) <= int(high[3])
+    assert lines[4] == "doc type: research.research_paper (decided by fallback; flags: rules_unmet)"
+    tags = lines[5:-1]
+    titles = ["Sparse retrieval for long documents", "Abstract", "Related work", "Method"]
+    assert [tag.split(":")[0].strip() for tag in tags] == [*titles, "Results", "References"]
+    assert re.fullmatch(r"tokens \(estimated\): [\d,]+ prompt over \d+ calls", lines[-1])
+    ladder_page = (DOCS / "site" / "concepts" / "context-ladder.md").read_text(encoding="utf-8")
+    guide = (DOCS / "site" / "guides" / "sections-first.md").read_text(encoding="utf-8")
+    assert "\n".join(lines[:4]) in ladder_page
+    assert "\n".join(lines[4:-1]) in guide  # the token line follows the batching estimate
+    readme = README.read_text(encoding="utf-8")
+    assert "examples/classify_sections_first.py" in readme
+    assert "docs/benchmarks-classification.md" in readme

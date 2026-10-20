@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/docrooter/docrooter/security/advisories/new
+    url: https://github.com/LandoCole/docrooter/security/advisories/new
     about: Please report security problems privately here, not in a public issue. See SECURITY.md.
   - name: Ask a question
-    url: https://github.com/docrooter/docrooter/discussions
-    about: Questions and ideas that are not bugs or concrete feature requests.
+    url: https://github.com/LandoCole/docrooter/issues
+    about: Search the existing issues first; questions and ideas that are not bugs or concrete feature requests are welcome there too.

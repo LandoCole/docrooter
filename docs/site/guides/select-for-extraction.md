@@ -1,5 +1,9 @@
 # Select what to send to an LLM
 
+!!! warning "Experimental"
+    This page describes selection, the completeness dial and `fit-selector`, which ship in 1.0 as **experimental**: outside the
+    stability promise, with results pending. The v1 path is [sections first](sections-first.md).
+
 Reading a whole 80-page filing to answer one question about its risk factors costs tokens and
 dilutes the answer. `select()` returns only the parts of a document that matter for a **need**,
 at a **completeness** you choose, and tells you how many tokens that is.

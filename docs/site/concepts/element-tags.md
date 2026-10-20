@@ -1,5 +1,9 @@
 # Element tags
 
+!!! warning "Experimental"
+    This page describes the learned element tagger, which ship in 1.0 as **experimental**: outside the
+    stability promise, with results pending. The v1 path is [sections first](../guides/sections-first.md).
+
 [Elements](elements.md) say what a block **is**: a paragraph, a table, a footnote. Version 0.5
 adds two facets that say what it is **about** and what it **does**. Both are optional: nothing
 is tagged unless you set the rooter's `element_tags` task, and an `Element` without tags

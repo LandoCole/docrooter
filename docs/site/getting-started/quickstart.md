@@ -112,6 +112,8 @@ machine (CUDA, Apple MPS or CPU). For the highest accuracy, use `backend="jev"` 
 
 ## Next
 
+- [Sections first](../guides/sections-first.md): `docrooter.classify`, the v1 flow that tags
+  the sections first and spends the fewest tokens.
 - [Command line and playground](cli-and-playground.md): the same steps without writing code.
 - [Document-type gating](../guides/doctype-gating.md): sort a folder of PDFs by type.
 - [Custom taxonomies](../guides/custom-taxonomies.md): classify sections against your own

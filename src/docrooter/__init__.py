@@ -1,4 +1,4 @@
-"""docrooter: document TOC extraction and taxonomy-based section classification."""
+"""docrooter: the minimum context a hosted LLM needs to classify a document and its sections."""
 
 from docrooter.chunking import Chunk, chunk
 from docrooter.classify import (
@@ -42,7 +42,7 @@ from docrooter.train.calibrate import calibrate
 from docrooter.train.trainer import train
 from docrooter.views import SectionView
 
-__version__ = "0.2.0"
+__version__ = "1.0.0"
 
 __all__ = [
     "Analysis",

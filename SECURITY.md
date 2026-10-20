@@ -6,8 +6,8 @@ Security fixes go into the latest release. Older releases are not patched; upgra
 
 | Version | Supported |
 | --- | --- |
-| 0.2.x (latest) | yes |
-| 0.1.x | no |
+| 1.0.x (latest) | yes |
+| 0.x | no |
 | `main` (unreleased) | fixes land here first |
 
 ## Reporting a vulnerability
@@ -15,8 +15,7 @@ Security fixes go into the latest release. Older releases are not patched; upgra
 **Please do not open a public issue for a security problem.** Use GitHub's private vulnerability
 reporting instead: open the repository's **Security** tab, choose **Report a vulnerability**, and
 describe the problem (or go straight to
-<https://github.com/docrooter/docrooter/security/advisories/new>; the repository URL is a
-placeholder until the first release).
+<https://github.com/LandoCole/docrooter/security/advisories/new>).
 
 Please include:
 

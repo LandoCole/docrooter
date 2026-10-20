@@ -31,6 +31,7 @@ INCLUDES: dict[str, str] = {
     "reference/taxonomy-formats.md": "docs/taxonomy-formats.md",
     "benchmarks/pdf.md": "docs/benchmarks-pdf.md",
     "benchmarks/heldout.md": "docs/benchmarks-heldout.md",
+    "benchmarks/classification.md": "docs/benchmarks-classification.md",
     "benchmarks/elements.md": "docs/benchmarks-elements.md",
     "benchmarks/element-tags.md": "docs/benchmarks-element-tags.md",
     "benchmarks/selection.md": "docs/benchmarks-selection.md",

@@ -41,9 +41,11 @@ jobs:
           path: site/
           retention-days: 7
 
-  # Deploying to GitHub Pages is switched off until the repository and site URLs in mkdocs.yml
-  # are real. To enable it: set Settings > Pages > Source to "GitHub Actions", replace the
-  # upload-artifact step above with actions/upload-pages-artifact, and uncomment this job.
+  # Deploying to GitHub Pages is switched off: it needs no secrets, but it fails on every push
+  # until Pages is enabled for the repository. To enable it: set Settings > Pages > Source to
+  # "GitHub Actions", replace the upload-artifact step above with
+  # actions/upload-pages-artifact, and uncomment this job. The site then lives at the site_url
+  # in mkdocs.yml (https://landocole.github.io/docrooter/).
   #
   # deploy:
   #   name: Deploy to GitHub Pages

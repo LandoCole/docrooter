@@ -5,12 +5,15 @@ build-backend = "hatchling.build"
 [project]
 name = "docrooter"
 dynamic = ["version"]
-description = "Document TOC extraction and taxonomy-based section classification."
+description = "The minimum context a hosted LLM needs to classify a document: sections first, on a context ladder, with exact token accounting."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
 keywords = [
+    "document classification",
+    "llm",
+    "token efficiency",
     "table of contents",
     "document structure",
     "taxonomy",
@@ -21,7 +24,7 @@ keywords = [
     "nlp",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
@@ -72,11 +75,11 @@ teach-mlx = ["mlx-lm>=0.32; sys_platform=='darwin' and platform_machine=='arm64'
 all = ["docrooter[models,pdf,pdf-mit,llm,jev,ui,ocr,ocr-mac,layout]"]
 
 [project.urls]
-# Placeholder: replace with the real repository before the first release.
-Homepage = "https://github.com/docrooter/docrooter"
-Documentation = "https://github.com/docrooter/docrooter#readme"
-Repository = "https://github.com/docrooter/docrooter"
-Issues = "https://github.com/docrooter/docrooter/issues"
+Homepage = "https://github.com/LandoCole/docrooter"
+Documentation = "https://github.com/LandoCole/docrooter/tree/main/docs/site"
+Repository = "https://github.com/LandoCole/docrooter"
+Issues = "https://github.com/LandoCole/docrooter/issues"
+Changelog = "https://github.com/LandoCole/docrooter/blob/main/CHANGELOG.md"
 
 [project.scripts]
 docrooter = "docrooter.cli:app"
@@ -107,6 +110,7 @@ include = [
     "/examples",
     "/docs/taxonomy-formats.md",
     "/README.md",
+    "/CHANGELOG.md",
     "/LICENSE",
     "/pyproject.toml",
 ]

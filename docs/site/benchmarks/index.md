@@ -7,10 +7,11 @@ the performance page) are not in a results file; the pages say so where they app
 
 | Page | Data | What it measures |
 | --- | --- | --- |
+| [Classification (context ladder)](classification.md) | the 113 documents of the training corpus's gold split; 951 Claude-annotated sections | Doc-type and section accuracy against tokens, per flow, level and backend (results pending) |
 | [PDF benchmarks (dev corpus)](pdf.md) | 51 real PDFs, labelled with the 18 types that existed before `financial.fact_sheet` | TOC extraction, document type, section normalisation |
 | [Held-out evaluation](heldout.md) | 40 different PDFs, frozen before any run | The same three tasks, once, with no tuning |
 | [Element kinds (DocLayNet)](elements.md) | 400 DocLayNet test pages, six categories | Element kinds against human layout labels |
-| [Element tags (gold set)](element-tags.md) | 900 Claude-annotated elements of the training corpus's gold split | Topic and function tags against annotated labels (results pending) |
+| [Element tags (gold set, experimental)](element-tags.md) | 900 Claude-annotated elements of the training corpus's gold split | Topic and function tags against annotated labels (results pending) |
 | [Public datasets](public-datasets.md) | EDGAR-CORPUS 10-K items, DBpedia classes, LEDGAR clauses | Zero-shot section classification by backend |
 | [Performance and memory](performance.md) | ten PDFs, 1-642 pages; a training run | Peak memory, where the time goes, load speed |
 

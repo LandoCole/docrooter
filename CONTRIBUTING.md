@@ -9,7 +9,7 @@ agree to the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security problem
 docrooter uses [uv](https://docs.astral.sh/uv/). Python 3.10 to 3.13 are supported.
 
 ```bash
-git clone https://github.com/docrooter/docrooter && cd docrooter   # placeholder URL
+git clone https://github.com/LandoCole/docrooter && cd docrooter
 uv sync --extra models --extra pdf --extra ui --extra llm
 ```
 
@@ -150,3 +150,28 @@ it. The checklist is also in the [pull request template](.github/pull_request_te
 - [ ] No secrets, personal data or large files are added.
 
 Maintainers may ask for changes; please be patient and kind with each other.
+
+## Releasing
+
+Maintainers only. The version is set in one place, `src/docrooter/__init__.py`.
+
+1. Move the *Unreleased* entries of `CHANGELOG.md` under the new version, set `__version__`, and
+   merge to `main`.
+2. Tag the merge commit and push the tag, for example `git tag v1.0.0 && git push origin v1.0.0`.
+   The [Release workflow](.github/workflows/publish.yml) tests the tag, refuses a tag that is
+   not `v<__version__>`, builds the sdist and wheel, and attaches them to the GitHub release of
+   the tag. It needs no secrets.
+3. Check the release from a fresh virtual environment:
+   `pip install "git+https://github.com/LandoCole/docrooter@v1.0.0"`, or the wheel attached to
+   the release.
+
+**PyPI is manual.** The workflow uploads to PyPI only when it is run by hand, on the tag:
+
+1. Create an API token on PyPI (scoped to the `docrooter` project once it exists) and save it as
+   the repository secret `PYPI_API_TOKEN` (Settings > Secrets and variables > Actions).
+2. Open Actions > Release > Run workflow, choose the tag (not a branch) as the ref, and run it.
+   It tests and builds the tag again, then uploads with the token.
+
+To upload from your own machine instead, build with `uv build` and run
+`uv publish --token "$PYPI_TOKEN"` (or `twine upload dist/*`), with the token in your
+environment, never in a file in the repository.

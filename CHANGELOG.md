@@ -1,25 +1,119 @@
 # Changelog
 
 All notable changes to docrooter are recorded here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to follow
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). While the version is below 1.0, a minor
-release may still change the API; the changes are listed under *Changed*.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0 on. Areas marked
+*experimental* may still change in a minor release; everything else changes only in a major one.
 
-The repository URL in the comparison links at the bottom is a placeholder
-(`docrooter/docrooter`). No git tags exist yet: `v0.1.0` and `v0.2.0` will be created at release
-time, and until then the comparison links do not resolve. The package version is `0.2.0`, read
-from `docrooter.__version__` (the one place it is set), and the `[Unreleased]` work below ships
-in the release after it.
+1.0.0 is the first tagged release. 0.1.0 and 0.2.0 were development versions: they were never
+tagged or published, and their entries are kept as history. The package version is read from
+`docrooter.__version__`, the one place it is set.
 
 ## [Unreleased]
 
-Work towards the next release: memory containment, pipeline events, a local playground, a
-held-out evaluation, the repository essentials, (v0.4) elements, OCR and the rooter, (v0.5)
-element tags and a tagger you train yourself, and (v0.6) selection and the completeness dial.
+Nothing yet.
+
+## [1.0.0] - 2026-10-20
+
+docrooter 1.0 gives a hosted LLM the minimum context it needs to classify a document. It tags
+the sections first, against one shared section catalogue, and lets their tags decide the
+document type or narrow the types the model is offered. What it sends is set by a context
+ladder (`headings`, `terms`, `lead`, `full`), it asks the LLM in batched calls that list the
+options once, and it reports the tokens it spent, exactly when the API returns `usage`. Local
+models are a free stand-in for testing, and the corpus is for validation, not training.
+
+This release also ships the work done after 0.2.0 that was never released on its own (memory
+containment, events, the playground, the held-out evaluation, elements and the rooter, element
+tags, selection); it is listed below the v1 entries.
 
 ### Added
 
-- **Element tags (v0.5).** Each paragraph, list item, table, caption, footnote and formula can
+- **`docrooter.classify(source_or_doc, *, flow="sections_first", level="terms", calls=None,
+  backend=..., log=None)`**, the v1 headline API, returning a `Classification`. See
+  [Sections first](docs/site/guides/sections-first.md).
+  - **`sections_first`** (the default) tags the level-1 and level-2 sections (at most 40,
+    `max_sections`: level 1 first, then level 2, in reading order) against the section
+    catalogue, group first, then leaf. It matches the doc types' section rules against the tags.
+    One candidate whose supporting tags are confident enough is decided by the rules with no
+    document-level call (`decided_by="rules"`); several go to the model among those candidates
+    only (`"model"`); with none, the model chooses among every type (`"fallback"`, flagged
+    `rules_unmet`). Near misses, lone candidates with weak support (`low_support`, offered with
+    their doc-type siblings) and waived excludes are flagged.
+  - **`doc_first`** classifies the type among every doc type from the document view, then labels
+    the sections with that type's section taxonomy (the 0.2 behaviour, through the new API).
+  - `Classification` carries the `doc_type` with its confidence and probabilities, `decided_by`,
+    the `candidates` offered, the `flags`, the section tags (`SectionTag`: label, confidence,
+    level used, tokens), one `CallRecord` per document call, the `levels` used, `tokens` (in
+    total and per stage), `tokens_split` (the estimated share of options, content and
+    instructions) and how the backend was asked (`calls`).
+  - `section_level` and `doc_level` set the two steps apart; `cascade=True` asks the
+    low-confidence items again one rung up (per-item calls only); `doc_types=` and `catalogue=`
+    replace the built-in taxonomies.
+- **The context ladder** (`docrooter.ladder`, `LEVELS`): four named levels, `headings`, `terms`,
+  `lead` and `full`, each an exact, documented `SectionView` and `DocumentView` preset; each rung
+  shows everything the one below shows and more. `full` sends the whole document text, cut
+  head-first to a 16,000-token prompt (`full_cap`). `DocumentView` gains a `text` field. See
+  [The context ladder](docs/site/concepts/context-ladder.md).
+- **`level=`** on `classify_document`, `Classifier.classify_documents` and `normalize_sections`
+  (with `doc_level=`) picks a ladder rung instead of a view. `level=None`, the default, keeps the old
+  views, and passing both `level=` and `view=` raises `ValueError`.
+- **New taxonomies.**
+  - **`section_catalogue`**: one shared section taxonomy of 112 leaves in 12 domain groups
+    (financial, narrative, disclosure, fund, offering, contract, law, research, standard, technical, ESG,
+    general), built from the per-type section taxonomies plus finer financial statements
+    (balance sheet, income statement, cash-flow statement, changes in equity, schedule of
+    investments, auditor's report, notes, account statement) and the shareholder letter. Every
+    group has an `other` leaf, and every leaf a definition and examples.
+  - **Doc-type section rules**: every leaf of `doc_types` has a `sections` block (`requires`, a
+    list of groups of catalogue ids of which each must be met; `typical`, an ordering only; and
+    `excludes`), written from the definitions, never from the corpus (`docrooter.rules`). Rules
+    are left out of `Taxonomy.content_hash`, so trained bundles stay valid.
+- **Batched LLM calls** (`docrooter.batch`). With the OpenAI-compatible backend, `classify`
+  lists the options once per call instead of once per section: `calls="batched"` (the default
+  for a backend that can batch) sorts the sections into catalogue groups in one call, then asks
+  one call per group among that group's leaves, in batches of up to 40 sections;
+  `calls="batched_flat"` lists every leaf in one call; `calls="per_item"` asks one item at a time,
+  with probabilities. A reply naming an id that is not an option is asked again once, then
+  tagged with confidence 0 and flagged `unparsed`.
+- **Exact token accounting.** Every LLM call records `prompt_tokens` and `completion_tokens` from
+  the API's `usage`, and results carry `tokens.prompt`, `tokens.completion` and `tokens.calls`
+  per document, per stage and per section. A total is `exact` only when every call was; backends
+  that make no LLM call (keyword, embedding, NLI) report what the same views and options would
+  cost an LLM, marked estimated.
+- **The results log.** `classify(..., log=path)` and `--log` append one JSON line per decision:
+  the level and view hash, the options, the label and probabilities, the model, endpoint host and
+  prompt hash, the tokens and a `trainable` flag (always false for Jev; otherwise the provider's
+  terms decide). API keys never reach it.
+- **`docrooter classify FILE`** runs the v1 flow: `--flow`, `--level`, `--section-level`,
+  `--doc-level`, `--calls`, `--backend`, `--log` and `--json`. With `-t TAXONOMY` it classifies
+  the sections against that taxonomy, as before. The playground can run either flow at a level.
+- **A free local stand-in for a hosted LLM**: Qwen3-4B-Instruct-2507 (4-bit) served by
+  `mlx_lm.server` through the OpenAI-compatible backend, the same code path as a hosted model;
+  the recipe is in [the LLM guide](docs/site/guides/llm-backends.md#a-free-local-stand-in).
+- **The classification benchmark** (`benchmarks/classification_bench.py`): accuracy against
+  tokens for every flow, level and backend on the 113 documents of the gold split, against a
+  Claude-annotated, evaluation-only section gold (951 sections, κ 0.923 at leaf). Results are
+  pending: [docs/benchmarks-classification.md](docs/benchmarks-classification.md).
+- **Release packaging.** The `publish` workflow builds the sdist and wheel on a `v*` tag and
+  attaches them to the GitHub release; uploading to PyPI is a manual workflow run (see
+  [CONTRIBUTING.md](CONTRIBUTING.md#releasing)). `examples/classify_sections_first.py` runs the
+  v1 flow with no model, and the docs gain [The context ladder](docs/site/concepts/context-ladder.md)
+  and [Sections first](docs/site/guides/sections-first.md).
+
+### Experimental
+
+These areas ship in 1.0 but are not covered by its stability promise, and their numbers are
+pending:
+
+- **Selection and the completeness dial**: `select()`, `Selection`, `Selector`, `Field` and the
+  field sets, `docrooter select` and `docrooter fit-selector`.
+- **The learned element tagger**: element tags, `docrooter.teach`, `docrooter.tagger`,
+  `docrooter.corpus`, `docrooter corpus`, `teach`, `train-elements`, `tag` and `tag-corpus`,
+  and the training-corpus tooling under `benchmarks/training_corpus/`.
+
+### Added (since 0.2.0)
+
+- **Element tags (v0.5, experimental).** Each paragraph, list item, table, caption, footnote and formula can
   carry a **topic** (one leaf of `element_topics`: a tree of document family, then section) and
   **functions** (any of the twelve tags of `element_functions`) in `Element.tags`, a dictionary of
   `TagResult` (`labels`, `probs`, `confidence`, `source`, and for topics `family_probs`). Set the
@@ -29,7 +123,7 @@ element tags and a tagger you train yourself, and (v0.6) selection and the compl
   `docrooter tag-corpus DIR --bundle PATH` and `docrooter serve --element-tags BUNDLE` (tag chips
   in the playground's Elements tab) use it. See
   [docs/site/concepts/element-tags.md](docs/site/concepts/element-tags.md).
-- **Train your own tagger.** `docrooter corpus build DIR` reads PDFs into a resumable corpus store
+- **Train your own tagger (experimental).** `docrooter corpus build DIR` reads PDFs into a resumable corpus store
   (the elements of the first and some sampled pages); `docrooter teach label DIR` has a local
   teacher LLM label topics (by multiple-choice log-probability, among an embedding shortlist) and
   functions (yes or no); `docrooter train-elements DIR --teacher SPEC --out BUNDLE` runs the
@@ -53,7 +147,7 @@ element tags and a tagger you train yourself, and (v0.6) selection and the compl
 - **Element-tag benchmarks.** The harness and its method are in
   [docs/benchmarks-element-tags.md](docs/benchmarks-element-tags.md); the results are pending.
 
-- **Selection and the completeness dial (v0.6).** `select(analysis, need, completeness=0.9)`
+- **Selection and the completeness dial (v0.6, experimental).** `select(analysis, need, completeness=0.9)`
   says which elements a downstream LLM should read for a need, and your application does the
   extraction. See [The completeness dial](docs/site/concepts/completeness-dial.md) and
   [Select what to send to an LLM](docs/site/guides/select-for-extraction.md).
@@ -195,8 +289,15 @@ element tags and a tagger you train yourself, and (v0.6) selection and the compl
 
 ### Changed
 
+- **Version 1.0.0**, the first tagged release, with the project URLs of
+  <https://github.com/LandoCole/docrooter>. The package description, README and docs are
+  rewritten around the minimum-context pitch.
+- **`docrooter classify FILE` without `-t`** runs `docrooter.classify` (sections first, level
+  `terms`) instead of failing for want of a taxonomy.
+
 - **The `openai` backend letters its options A-Z (it numbered them), and takes at most 26
-  options per call (it took 50).**
+  options per call (it took 50).** Hierarchical strategies and the catalogue's groups keep
+  calls under the limit.
   - The system prompt asks for the option letter.
   - Logprobs are read from the top 10 alternatives (was 20). `mlx_lm.server` allows at most 11.
     Tokenizer space markers (`ĠB`, `▁B`) count as the letter.
@@ -275,7 +376,7 @@ element tags and a tagger you train yourself, and (v0.6) selection and the compl
   instead of causing a 500.
 - The playground page stops waiting when a run is gone after a server restart.
 
-## [0.2.0] - 2026-10-16
+## 0.2.0 - 2026-10-16 (never tagged)
 
 The PDF release: a native table-of-contents engine, document-type classification and section
 normalisation, measured on real PDFs.
@@ -322,7 +423,7 @@ normalisation, measured on real PDFs.
 - Built-in taxonomies are cached (`builtin_taxonomy(name)` still returns a fresh copy), and an
   unknown name raises `UnknownTaxonomyError`.
 
-## [0.1.0] - 2026-10-15
+## 0.1.0 - 2026-10-15 (never tagged)
 
 First release: classify the sections of a document against a taxonomy you supply.
 
@@ -351,6 +452,5 @@ First release: classify the sections of a document against a taxonomy you supply
   (n=1000) the UltraBERT embedding backend scores 0.752 hierarchical F1.
 - Apache-2.0 licence and a trusted-publishing workflow for PyPI.
 
-[Unreleased]: https://github.com/docrooter/docrooter/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/docrooter/docrooter/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/docrooter/docrooter/releases/tag/v0.1.0
+[Unreleased]: https://github.com/LandoCole/docrooter/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/LandoCole/docrooter/releases/tag/v1.0.0

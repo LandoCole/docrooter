@@ -7,28 +7,95 @@
 
 <h1 align="center">docrooter</h1>
 
-<p align="center"><strong>Find the structure of a document, then say what each part is.</strong><br>
-Table-of-contents extraction, document-type classification and section normalisation for PDF and Markdown,
-against a taxonomy you supply.</p>
+<p align="center"><strong>The minimum context a hosted LLM needs to classify a document.</strong><br>
+Sections first, on a context ladder, in batched calls, with exact token accounting.</p>
 
 <p align="center">
-  <a href="https://github.com/docrooter/docrooter/actions/workflows/ci.yml"><img src="https://github.com/docrooter/docrooter/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/LandoCole/docrooter/actions/workflows/ci.yml"><img src="https://github.com/LandoCole/docrooter/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-3776AB?logo=python&amp;logoColor=white" alt="Python 3.10, 3.11, 3.12 and 3.13">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
 </p>
 
-<!-- The repository URL in the badges and the links below is a placeholder (docrooter/docrooter);
-     replace it with the real one before the first release. -->
+Sending a whole document to an LLM to ask what it is wastes most of the tokens: the headings, a
+few key terms or the first sentences usually say enough. docrooter gives a hosted LLM the
+minimum context it needs to classify a document and its sections:
 
-docrooter extracts a table of contents from Markdown and PDF documents and classifies every
-section against a taxonomy you supply: a tree of categories described in JSON or CSV. It runs
-zero-shot out of the box (small embedding models run on a laptop; LLM backends are optional),
-returns probabilities and the full path through the tree for each section, and can
-train per-node classifiers from a few labelled examples when zero-shot is not enough. The core
-install is small (`pydantic`, `numpy`, `typer`, `rich`); models, PDF parsing and LLM backends
-are extras.
+- **A context ladder.** Four named levels, `headings`, `terms`, `lead` and `full`, set exactly
+  how much of each section and of the document the model sees.
+- **Sections first.** The sections are tagged against one shared section catalogue, and the
+  document types are defined by the sections they need, so the tags decide the type with no
+  document-level call, or narrow the types the model is offered.
+- **Batched calls** list the options once per call, not once per section.
+- **Exact token accounting.** Every call's tokens come from the API's `usage`; anything else is
+  labelled an estimate.
 
-## Results
+Hosted LLMs, through any OpenAI-compatible API, are the deployment target. Local models are a
+free stand-in for testing, on the same code path. The benchmark corpus is for validation, not
+training. The core install is small (`pydantic`, `numpy`, `typer`, `rich`); LLM backends, local
+models and PDF parsing are extras. docrooter still extracts tables of contents from PDFs and
+classifies sections against any taxonomy you supply, as it did before 1.0.
+
+**Experimental in 1.0:** [element tags and the learned tagger](#element-tags-v05-experimental)
+(`teach`, `tagger`, `train-elements`, the corpus tooling) and
+[selection](#select-what-to-read-v06-experimental) (`select`, the completeness dial,
+`fit-selector`). They ship, but outside the stability promise, and their results are pending.
+
+## How it works
+
+`docrooter.classify(doc)` runs the **sections-first** flow:
+
+1. **Tag the sections.** The level-1 and level-2 sections (at most 40) are tagged against
+   `builtin_taxonomy("section_catalogue")`: 112 section types in 12 groups (financial
+   statements, narrative, disclosures, fund, offering, contract, law, research, standards,
+   technical, ESG and general), group first, then leaf.
+2. **Match the rules.** Each of the 19 document types in `doc_types` has a `sections` rule
+   block, written from its definition: `requires` (groups of section ids, each to be met),
+   `typical` (an ordering) and `excludes`.
+3. **Decide.** One candidate whose supporting tags are confident is decided by the rules alone,
+   with no document-level call (`decided_by="rules"`). Several candidates go to the model,
+   which chooses among those only (`"model"`). With none, near misses are offered, and with
+   nothing to offer the model chooses among every type (`"fallback"`, flag `rules_unmet`).
+
+`flow="doc_first"` is the other order: the type first, from the document view, then the
+sections with that type's own section taxonomy.
+
+**The context ladder** (`level=`, `terms` by default; `section_level=` and `doc_level=` set the
+two steps apart). Each rung shows everything below it and adds one field:
+
+| Level | A section shows | The document shows |
+| --- | --- | --- |
+| `headings` | heading path and title (32 tokens) | title, counts and contents (320) |
+| `terms` | + key phrases (64) | + pooled key phrases (448) |
+| `lead` | + first sentences (192) | + opening text (640) |
+| `full` | the whole section text (2,048) | the whole body text, cut to a 16,000-token prompt |
+
+**Calls.** With an LLM backend, `calls="batched"` (the default) sorts the sections into groups
+in one call and labels them within each group in one more call per group, listing each option
+once; `calls="batched_flat"` lists every leaf in one call; `calls="per_item"` asks one item at a
+time, with probabilities (and allows `cascade=True`, which asks low-confidence items again one
+rung up).
+
+**Tokens.** `result.tokens` has the `prompt`, `completion` and `calls` spent, with `exact` true
+only when every call reported `usage`; `result.stage_tokens` splits it into sections and
+document, and every section tag carries its own. `log=path` appends one JSON line per decision
+(level, view hash, options, probabilities, model, endpoint host, prompt hash, tokens, and a
+`trainable` flag that is always false for Jev); API keys never reach it.
+
+See [Sections first](docs/site/guides/sections-first.md) and
+[The context ladder](docs/site/concepts/context-ladder.md).
+
+## Benchmark: accuracy against tokens
+
+**Results pending.** The classification benchmark measures how much accuracy each rung of the
+ladder buys, and at what token cost, against sending the whole document: doc-type accuracy and
+macro-F1, section macro- and micro-F1, the share decided by rules alone and prompt tokens per
+document, for both flows, every level, and the keyword, UltraBERT and local-LLM backends, on the
+113 public documents of the gold split (951 Claude-annotated sections, evaluation only). It will
+also set the measured default level per backend; until then the default is `terms`. The report
+is [docs/benchmarks-classification.md](docs/benchmarks-classification.md), generated from the
+results files; its numbers will be quoted from there, never written by hand.
+
+### Earlier results (TOC and document type, before v1)
 
 Measured on a 51-PDF development corpus, which the defaults were chosen on, and then once, at a
 frozen commit, on a separate 40-PDF held-out corpus that no tuning step saw (no document or
@@ -62,10 +129,17 @@ led to) and [performance and memory](docs/performance.md).
 
 ## Install
 
+docrooter 1.0 installs from GitHub (it is not on PyPI yet), or from the wheel attached to the
+[GitHub release](https://github.com/LandoCole/docrooter/releases):
+
 ```bash
-pip install docrooter              # core: Markdown loading, taxonomies, the keyword backend
-pip install 'docrooter[models]'    # + local models (embedding, NLI, MLM) and training
+pip install "git+https://github.com/LandoCole/docrooter@v1.0.0"                        # core
+pip install "docrooter[llm] @ git+https://github.com/LandoCole/docrooter@v1.0.0"       # + LLM backend
+pip install "docrooter[models,pdf] @ git+https://github.com/LandoCole/docrooter@v1.0.0" # + local models, PDFs
 ```
+
+The rest of this README writes extras as `pip install 'docrooter[models]'`; use the form above
+with the same extras until docrooter is on PyPI.
 
 | Extra | Adds | Needed for |
 | --- | --- | --- |
@@ -79,7 +153,7 @@ pip install 'docrooter[models]'    # + local models (embedding, NLI, MLM) and tr
 | `ocr` | `rapidocr`, `onnxruntime`, `pypdfium2` | The `rapidocr` engine for scanned pages (element mode) |
 | `ocr-mac` | `ocrmac` (macOS only) | The `ocrmac` engine (Apple Vision) |
 | `layout` | `onnxruntime`, `pypdfium2`, `huggingface_hub` | The heron layout model of the `accurate` profile (no torch) |
-| `teach-mlx` | `mlx-lm` (Apple silicon, Python 3.11+) | The default teacher (Qwen3-4B-Instruct-2507, Apache-2.0, on MLX) for [training your own element tagger](#element-tags-v05); not in `all` |
+| `teach-mlx` | `mlx-lm` (Apple silicon, Python 3.11+) | The default teacher (Qwen3-4B-Instruct-2507, Apache-2.0, on MLX) for [training your own element tagger](#element-tags-v05-experimental) (experimental); not in `all` |
 | `bench` | `datasets`, `pandas` | The benchmarks, `DocumentResult.to_dataframe()` |
 | `all` | `models` + `pdf` + `pdf-mit` + `llm` + `jev` + `ui` + `ocr` + `ocr-mac` + `layout` | Everything above except `bench` |
 
@@ -106,8 +180,41 @@ for the default model.
 
 ## Quickstart
 
-This example uses the dependency-free `keyword` backend, so it runs straight after
-`pip install docrooter`. It lives in [`examples/quickstart.py`](examples/quickstart.py).
+`docrooter.classify` with the dependency-free `keyword` backend runs straight after the core
+install. The full script is
+[`examples/classify_sections_first.py`](examples/classify_sections_first.py):
+
+```python
+from docrooter import LEVELS, classify, load
+
+doc = load(MARKDOWN)
+result = classify(doc, level="terms", backend="keyword")
+flags = ", ".join(result.flags) or "none"
+print(f"doc type: {result.doc_type} (decided by {result.decided_by}; flags: {flags})")
+for tag in result.sections:
+    print(f"  {tag.title}: {tag.label}")
+kind = "exact" if result.tokens.exact else "estimated"
+print(f"tokens ({kind}): {result.tokens.prompt:,} prompt over {result.tokens.calls} calls")
+```
+
+The keyword backend only counts shared words: it shows the API and the token accounting, not
+the accuracy, and its tokens are estimates of what an LLM would be sent. For a real run, point
+the OpenAI-compatible backend at a hosted model, or at a free local stand-in:
+
+```bash
+docrooter classify report.pdf -b openai:gpt-4o-mini --level terms --log decisions.jsonl
+export DOCROOTER_LLM_BASE_URL=http://127.0.0.1:18080/v1   # mlx_lm.server with Qwen3-4B-Instruct-2507
+docrooter classify report.pdf -b "openai:$MODEL" --json
+```
+
+The stand-in recipe (the pinned Qwen3-4B-Instruct-2507 4-bit snapshot served by `mlx_lm.server`
+on port 18080) is in
+[the LLM guide](docs/site/guides/llm-backends.md#a-free-local-stand-in).
+
+### Your own taxonomy
+
+Sections can also be classified against a taxonomy you write. This example lives in
+[`examples/quickstart.py`](examples/quickstart.py).
 
 ```python
 from docrooter import Classifier, Taxonomy, load
@@ -295,7 +402,11 @@ From the shell: `docrooter elements report.pdf`, `docrooter process report.pdf -
 accurate --chunks --out analysis.json` and `docrooter config show --profile balanced`. See the
 [element benchmarks](docs/benchmarks-elements.md) for the numbers and their commits.
 
-## Element tags (v0.5)
+## Element tags (v0.5, experimental)
+
+> **Experimental.** The learned element tagger (`docrooter.teach`, `docrooter.tagger`,
+> `docrooter.corpus`, `train-elements`) ships in 1.0 outside the stability promise; its results
+> are pending.
 
 [Elements](#elements-and-profiles-v04) say what a block is; **element tags** say what it is
 about (its **topic**, one leaf of a tree per document family, such as
@@ -335,7 +446,10 @@ See [Element tags](docs/site/concepts/element-tags.md) for the taxonomies and
 [`examples/train_element_tagger.py`](examples/train_element_tagger.py) runs the stages on a tiny
 corpus with no model.
 
-## Select what to read (v0.6)
+## Select what to read (v0.6, experimental)
+
+> **Experimental.** Selection (`select`, the completeness dial, `fit-selector`) ships in 1.0
+> outside the stability promise; its results are pending.
 
 A downstream LLM rarely needs the whole document. `select()` returns the elements to read for a
 **field** (the risk factors of an annual report, a fund's fees) or a free-text query, at a
@@ -384,6 +498,10 @@ BUNDLE` does it from the shell, and `docrooter serve --selector` adds the dial t
 ## Command line
 
 ```bash
+docrooter classify report.md -b keyword                  # type and section tags, sections first
+docrooter classify report.pdf --level headings --json    # the cheapest rung, as JSON
+docrooter classify report.pdf --flow doc_first --calls per_item --log decisions.jsonl
+
 docrooter toc report.md                                  # indented table of contents
 docrooter toc report.pdf --json                          # as JSON (needs docrooter[pdf])
 docrooter --version                                      # the installed version
@@ -410,7 +528,7 @@ docrooter corpus build corpus/ --from-manifest manifest.jsonl --pdf-dir pdfs/   
 docrooter train-elements corpus/ --out bundle/ --teacher mlx:<repo>@<rev>       # label, train, calibrate
 docrooter tag report.pdf --bundle bundle/                # topic and function tag per element
 docrooter tag-corpus corpus/ --bundle bundle/ --split train --split calib
-docrooter select report.pdf --need annual_report.risk_factors --tagger bundle/   # what to read, at c = 0.9
+docrooter select report.pdf --need annual_report.risk_factors --tagger bundle/   # experimental: what to read
 docrooter teach label corpus/ --full --splits calib      # the teacher labels every calibration element
 docrooter fit-selector corpus/ --bundle bundle/ --out bundle/selector.json   # fit the dial
 
@@ -723,9 +841,11 @@ large corpora. The [memory guide](docs/site/guides/memory-performance.md) has ev
 
 ## Benchmarks
 
-The benchmark suite (`benchmarks/`) produces every number in [Results](#results), from results
-files committed under `benchmarks/results/`:
+The benchmark suite (`benchmarks/`) produces every number in this README, from results files
+committed under `benchmarks/results/`:
 
+- [docs/benchmarks-classification.md](docs/benchmarks-classification.md): accuracy against
+  tokens for every flow, level and backend of `docrooter.classify` (results pending);
 - [docs/benchmarks-pdf.md](docs/benchmarks-pdf.md): TOC extraction, document type and section
   normalisation on the 51-PDF dev corpus;
 - [docs/benchmarks-heldout.md](docs/benchmarks-heldout.md): the frozen run on the 40-PDF
@@ -743,7 +863,7 @@ See [benchmarks/README.md](benchmarks/README.md) for the setup and how to run th
 ## Development
 
 ```bash
-git clone https://github.com/docrooter/docrooter && cd docrooter
+git clone https://github.com/LandoCole/docrooter && cd docrooter
 uv sync                         # core + dev tools; add --extra models for the model extras
 uv run pytest                   # unit tests: fast, no model downloads, never import torch
 uv run pytest -m models         # model tests: download models and need --extra models

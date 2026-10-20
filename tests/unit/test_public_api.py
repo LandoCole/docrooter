@@ -68,6 +68,11 @@ PUBLIC_NAMES = [
     "select",
     "Selection",
     "Selector",
+    # v1
+    "classify",
+    "Classification",
+    "SectionTag",
+    "LEVELS",
 ]
 
 
@@ -103,6 +108,15 @@ def test_load_pdf_is_exported():
 
     assert docrooter.load_pdf is load_pdf and docrooter.pdf.load_pdf is load_pdf
     assert "load_pdf" in docrooter.pdf.__all__
+
+
+def test_classify_is_the_v1_function_and_the_subpackage_still_imports():
+    from docrooter.classify.classifier import Classifier
+    from docrooter.flow import classify
+    from docrooter.ladder import LEVELS
+
+    assert docrooter.classify is classify and docrooter.LEVELS is LEVELS
+    assert docrooter.Classifier is Classifier
 
 
 def test_errors_are_exported_from_their_module():

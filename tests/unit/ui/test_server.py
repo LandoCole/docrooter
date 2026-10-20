@@ -28,6 +28,7 @@ from docrooter.backends import KeywordBackend, registry  # noqa: E402
 from docrooter.layout import registry as layout_registry  # noqa: E402
 from docrooter.ocr import registry as ocr_registry  # noqa: E402
 from docrooter.rooter import PROFILES, RouterConfig  # noqa: E402
+from docrooter.taxonomies import builtin_taxonomy  # noqa: E402
 from docrooter.ui import server  # noqa: E402
 
 rooter_process = importlib.import_module("docrooter.rooter.process")  # not the function
@@ -251,6 +252,62 @@ def test_result_schema(client):
     assert summary["doc_type"] == doc_type["label"]
 
 
+FLOW_MARKDOWN = (
+    b"# Notes to the financial statements\n\nNote one sets out the accounting policies.\n\n"
+    b"# Management discussion\n\nResults of operations improved.\n\n"
+    b"## Liquidity\n\nCash flows funded capital expenditure.\n"
+)
+
+
+def test_playground_flow_level_payload(client):
+    run_id, events = run(
+        client, "report.md", FLOW_MARKDOWN, flow="sections_first", level="headings", profile="fast"
+    )
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert detail["status"] == "done", detail["error"]
+    assert detail["options"]["flow"] == "sections_first"
+    assert detail["options"]["level"] == "headings"
+    starts = [e["stage"] for e in events if e["status"] == "start"]
+    assert "normalize" in starts  # the section tags show in the timeline
+
+    doc_type = detail["doc_type"]
+    assert doc_type["flow"] == "sections_first"
+    assert doc_type["decided_by"] in ("rules", "model", "fallback")
+    assert all(set(c) == {"id", "label"} for c in doc_type["candidates"])
+    assert doc_type["levels"]["section"] == "headings"
+    tokens = doc_type["tokens"]
+    assert tokens["exact"] is False and tokens["prompt"] > 0  # keyword: estimated
+    assert set(doc_type["stage_tokens"]) == {"sections", "document"}
+
+    sections = detail["sections"]
+    assert sections["taxonomy"] == "section_catalogue"
+    entries = {e["title"]: e for e in sections["entries"]}
+    assert set(entries) == {
+        "Notes to the financial statements",
+        "Management discussion",
+        "Liquidity",
+    }
+    catalogue = builtin_taxonomy("section_catalogue")
+    for entry in entries.values():
+        assert entry["canonical"] in catalogue and entry["level_used"] == "headings"
+        assert entry["label"] == catalogue.node(entry["canonical"]).label
+
+    listing = client.get("/api/backends").json()
+    assert listing["flows"] == ["sections_first", "doc_first"]
+    assert listing["levels"] == ["headings", "terms", "lead", "full"]
+    page = client.get("/").text
+    assert 'id="flow"' in page and 'id="level"' in page
+    script = client.get("/static/app.js").text
+    for name in ("decided_by", "candidates", "tokens", "level_used", '"flow"', '"level"'):
+        assert name in script, name
+
+
+def test_classic_runs_keep_their_options_without_a_flow(client):
+    run_id, _ = run(client, "report.md", FLOW_MARKDOWN, profile="fast")
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert "flow" not in detail["options"] and "decided_by" not in detail["doc_type"]
+
+
 def test_unknown_run_is_404(client):
     assert client.get("/api/runs/nope").status_code == 404
     assert client.get("/api/runs/nope/events").status_code == 404
@@ -297,7 +354,14 @@ def test_other_rejected_uploads(client, name, data, status):
 
 
 @pytest.mark.parametrize(
-    "options", [{"backend": "trained:/tmp/x"}, {"engine": "ocr"}, {"mode": "vibes"}]
+    "options",
+    [
+        {"backend": "trained:/tmp/x"},
+        {"engine": "ocr"},
+        {"mode": "vibes"},
+        {"flow": "vibes"},
+        {"flow": "doc_first", "level": "everything"},
+    ],
 )
 def test_invalid_options_are_400(client, options):
     response = post(client, **options)

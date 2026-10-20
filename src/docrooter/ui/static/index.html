@@ -45,6 +45,26 @@
               </select>
             </div>
           </div>
+          <div class="field-pair">
+            <div class="field">
+              <label for="flow">Flow</label>
+              <select id="flow" name="flow" aria-describedby="flow-note">
+                <option value="">Classic</option>
+                <option value="sections_first">Sections first</option>
+                <option value="doc_first">Type first</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="level">Context</label>
+              <select id="level" name="level" aria-describedby="flow-note">
+                <option value="headings">Headings</option>
+                <option value="terms" selected>+ Key terms</option>
+                <option value="lead">+ Leads</option>
+                <option value="full">Full text</option>
+              </select>
+            </div>
+          </div>
+          <p id="flow-note" class="note"></p>
           <label class="check">
             <input type="checkbox" id="normalize" name="normalize" checked>
             <span>Label sections with canonical names</span>

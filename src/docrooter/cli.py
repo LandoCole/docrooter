@@ -138,36 +138,198 @@ def _parse_strategy(value: str) -> Greedy | Beam | Flat:
     )
 
 
+_LEGACY_ONLY = ("--strategy", "--instruction", "--threshold", "--out")
+_FLOW_ONLY = ("--flow", "--level", "--section-level", "--doc-level", "--log", "--json")
+
+
 @app.command()
 def classify(
     file: Annotated[
         Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Document to read.")
     ],
+    flow: Annotated[
+        str | None,
+        typer.Option(help="sections_first (default) or doc_first."),
+    ] = None,
+    level: Annotated[
+        str | None,
+        typer.Option(help="Context level for both steps: headings, terms (default), lead or full."),
+    ] = None,
+    section_level: Annotated[
+        str | None, typer.Option(help="Context level of the section tags (default: --level).")
+    ] = None,
+    doc_level: Annotated[
+        str | None, typer.Option(help="Context level of the document type (default: --level).")
+    ] = None,
+    backend: Annotated[
+        str, typer.Option("--backend", "-b", help="Backend spec, e.g. keyword or embedding:MODEL.")
+    ] = DEFAULT_BACKEND,
+    log: Annotated[
+        Path | None,
+        typer.Option("--log", dir_okay=False, help="Append one JSON line per model decision here."),
+    ] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Print the classification as JSON instead of tables.")
+    ] = False,
     taxonomy: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--taxonomy",
             "-t",
             exists=True,
             dir_okay=False,
             readable=True,
-            help="Taxonomy file (JSON or CSV).",
+            help="Classify the sections against this taxonomy file (JSON or CSV) instead.",
         ),
-    ],
-    backend: Annotated[
-        str, typer.Option("--backend", "-b", help="Backend spec, e.g. keyword or embedding:MODEL.")
-    ] = DEFAULT_BACKEND,
-    strategy: Annotated[str, typer.Option(help="Traversal: greedy, beam:N or flat.")] = "beam:3",
-    instruction: Annotated[
-        str | None, typer.Option(help="Instruction passed to backends that accept one.")
     ] = None,
-    threshold: Annotated[float, typer.Option(help="Minimum probability to follow a label.")] = 0.35,
+    strategy: Annotated[
+        str | None, typer.Option(help="With -t: traversal greedy, beam:N (default beam:3) or flat.")
+    ] = None,
+    instruction: Annotated[
+        str | None, typer.Option(help="With -t: instruction passed to backends that accept one.")
+    ] = None,
+    threshold: Annotated[
+        float | None,
+        typer.Option(help="With -t: minimum probability to follow a label (default 0.35)."),
+    ] = None,
     out: Annotated[
         Path | None,
-        typer.Option("--out", "-o", dir_okay=False, help="Write JSON here and print a table."),
+        typer.Option(
+            "--out", "-o", dir_okay=False, help="With -t: write JSON here and print a table."
+        ),
     ] = None,
 ) -> None:
-    """Classify a document's sections against a taxonomy; JSON to stdout unless --out is given."""
+    """Classify a document's type and sections with the minimum context.
+
+    By default the sections are tagged against the section catalogue and the type follows from
+    them (--flow sections_first); --flow doc_first classifies the type first. With -t the
+    sections are classified against that taxonomy instead (JSON to stdout unless --out).
+    """
+    flow_options = (flow, level, section_level, doc_level, log, as_json or None)
+    legacy_options = (strategy, instruction, threshold, out)
+    if taxonomy is None:
+        if any(v is not None for v in legacy_options):
+            given = [n for n, v in zip(_LEGACY_ONLY, legacy_options, strict=True) if v is not None]
+            raise typer.BadParameter(
+                f"{', '.join(given)} only apply with --taxonomy/-t", param_hint=given[0]
+            )
+        _classify_flow(file, backend, flow, level, section_level, doc_level, log, as_json)
+        return
+    if any(v is not None for v in flow_options):
+        given = [n for n, v in zip(_FLOW_ONLY, flow_options, strict=True) if v is not None]
+        raise typer.BadParameter(
+            f"{', '.join(given)} do not apply with --taxonomy/-t", param_hint=given[0]
+        )
+    _classify_sections(
+        file,
+        taxonomy,
+        backend,
+        "beam:3" if strategy is None else strategy,
+        instruction,
+        0.35 if threshold is None else threshold,
+        out,
+    )
+
+
+def _check_level(value: str | None, hint: str) -> str | None:
+    from docrooter.ladder import LEVELS
+
+    if value is not None and value not in LEVELS:
+        raise typer.BadParameter(
+            f"unknown level {value!r}; use {', '.join(LEVELS)}", param_hint=hint
+        )
+    return value
+
+
+def _classify_flow(
+    file: Path,
+    backend: str,
+    flow: str | None,
+    level: str | None,
+    section_level: str | None,
+    doc_level: str | None,
+    log: Path | None,
+    as_json: bool,
+) -> None:
+    """``docrooter classify FILE``: :func:`docrooter.classify` and its result."""
+    from docrooter.document.load import load
+    from docrooter.flow import FLOWS, Flow, classify
+
+    if flow is not None and flow not in FLOWS:
+        raise typer.BadParameter(
+            f"unknown flow {flow!r}; use {' or '.join(FLOWS)}", param_hint="--flow"
+        )
+    levels: dict[str, Any] = {
+        "level": _check_level(level, "--level") or "terms",
+        "section_level": _check_level(section_level, "--section-level"),
+        "doc_level": _check_level(doc_level, "--doc-level"),
+    }
+    with _errors_exit_1():
+        doc = load(file)
+        chosen: Flow = "doc_first" if flow == "doc_first" else "sections_first"
+        result = classify(doc, flow=chosen, backend=backend, log=log, **levels)
+    if as_json:
+        typer.echo(result.model_dump_json(indent=2))
+        return
+    _print_classification(result)
+
+
+def _print_classification(result: Any) -> None:
+    from docrooter.taxonomies import builtin_taxonomy, list_builtin_taxonomies
+
+    console = Console(highlight=False)
+    doc_types = builtin_taxonomy("doc_types")
+    names = set(list_builtin_taxonomies())
+    sections = (
+        builtin_taxonomy(result.section_taxonomy) if result.section_taxonomy in names else None
+    )
+
+    def label(taxonomy: Taxonomy | None, node_id: str | None) -> str:
+        if node_id is None:
+            return "-"
+        if taxonomy is not None and node_id in taxonomy:
+            return f"{taxonomy.node(node_id).label} ({node_id})"
+        return node_id
+
+    type_line = f"doc type: {label(doc_types, result.doc_type)}"
+    if result.doc_type is not None:
+        type_line += f", confidence {result.doc_type_confidence:.2f}"
+    console.print(Text(f"{type_line}; decided by {result.decided_by}"))
+    console.print(Text(f"candidates: {', '.join(result.candidates) or '-'}"))
+    if result.flags:
+        console.print(Text(f"flags: {', '.join(result.flags)}"))
+    if result.sections:
+        table = Table("Section", "Label", "Confidence", "Level")
+        for tag in result.sections:
+            table.add_row(
+                Text(tag.title or "(untitled)"),
+                Text(label(sections, tag.label)),
+                f"{tag.confidence:.2f}",
+                tag.level_used,
+            )
+        console.print(table)
+    tokens = result.tokens
+    kind = "exact" if tokens.exact else "estimated"
+    stages = ", ".join(f"{stage} {usage.prompt:,}" for stage, usage in result.stage_tokens.items())
+    levels = ", ".join(f"{k} {v}" for k, v in result.levels.items() if v is not None)
+    console.print(
+        Text(
+            f"tokens ({kind}): {tokens.prompt:,} prompt + {tokens.completion:,} completion "
+            f"over {tokens.calls} calls ({stages}); levels: {levels}"
+        )
+    )
+
+
+def _classify_sections(
+    file: Path,
+    taxonomy: Path,
+    backend: str,
+    strategy: str,
+    instruction: str | None,
+    threshold: float,
+    out: Path | None,
+) -> None:
+    """``docrooter classify FILE -t TAXONOMY``: the sections against a taxonomy."""
     from docrooter.classify.classifier import Classifier
     from docrooter.document.load import load
 

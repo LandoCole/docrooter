@@ -565,6 +565,9 @@ details[open] > summary .toc-twisty { transform: rotate(90deg); }
 .crumbs li + li::before { content: "/"; color: var(--muted); font-weight: 400; margin-right: 0.35rem; }
 .confidence { color: var(--muted); }
 .confidence strong { color: var(--ink); font-size: 1.25rem; }
+.flow-facts { display: flex; flex-direction: column; gap: 0.3rem; max-width: 42rem;
+  margin-bottom: 1.25rem; padding: 0.75rem 1rem; border: 1px solid var(--rule); border-radius: 6px; }
+select:disabled, input:disabled + span { opacity: 0.5; }
 .bars { display: flex; flex-direction: column; gap: 0.6rem; max-width: 42rem; }
 .bar-row { display: grid; grid-template-columns: minmax(8rem, 14rem) minmax(0, 1fr) 3.5rem; gap: 0.75rem; align-items: center; }
 .bar-label { overflow-wrap: anywhere; font-size: 0.875rem; }

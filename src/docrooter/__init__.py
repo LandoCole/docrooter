@@ -25,6 +25,8 @@ from docrooter.errors import (
     UnknownTaxonomyError,
 )
 from docrooter.evaluate import compare, evaluate
+from docrooter.flow import Classification, SectionTag, classify
+from docrooter.ladder import LEVELS
 from docrooter.layout.registry import register_layout_engine
 from docrooter.ocr.registry import register_ocr_engine
 from docrooter.pdf.load import load_pdf
@@ -48,6 +50,7 @@ __all__ = [
     "Beam",
     "Box",
     "Chunk",
+    "Classification",
     "Classifier",
     "Dataset",
     "DatasetError",
@@ -62,10 +65,12 @@ __all__ = [
     "FigureData",
     "Flat",
     "Greedy",
+    "LEVELS",
     "MissingExtraError",
     "NormalizationResult",
     "RouterConfig",
     "Section",
+    "SectionTag",
     "SectionView",
     "Selection",
     "Selector",
@@ -82,6 +87,7 @@ __all__ = [
     "builtin_taxonomy",
     "calibrate",
     "chunk",
+    "classify",
     "classify_document",
     "compare",
     "configure",

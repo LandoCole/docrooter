@@ -1,0 +1,416 @@
+"""classify(): the sections-first and doc-first flows, levels, cascade, tokens and the log.
+
+Model-free: a scripted backend favours one node per text at every step, and, when metered,
+reports per-call usage through ``on_call`` as the OpenAI-compatible backend does.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+
+import numpy as np
+import pytest
+
+from docrooter import Classification, SectionTag, classify
+from docrooter.backends import KeywordBackend, Scores
+from docrooter.backends.base import TokenUsage
+from docrooter.document import Document
+from docrooter.document.load import load
+from docrooter.flow import select_sections
+from docrooter.taxonomies import builtin_taxonomy
+from docrooter.taxonomy import Taxonomy, TaxonomyNode
+
+DOC_TYPE_LEAVES = {n.id for n in builtin_taxonomy("doc_types").leaves()}
+
+SECTIONS = {
+    "Notes to the financial statements": ("financial.notes_to_financial_statements", 0.95),
+    "Management discussion": ("narrative.management_discussion", 0.95),
+    "Executive compensation": ("disclosure.executive_compensation", 0.95),
+    "Acknowledgements": ("general.acknowledgements", 0.95),
+    "Performance": ("fund.performance", 0.95),
+    "Top holdings": ("fund.holdings_and_allocation", 0.95),
+    "Offering terms": ("offering.offering_terms", 0.95),
+}
+
+
+def by_title(table):
+    def answer(text):
+        for title, target in table.items():
+            if re.search(rf"^Title: {re.escape(title)}$", text, re.MULTILINE):
+                return target
+        return None
+
+    return answer
+
+
+class Scripted:
+    """Favours ``sections(text)`` (a ``(node id, p)``) for section texts and ``document(text)``
+    for document views (they carry ``Stats:``) at every step: the node or the group that holds
+    it gets ``p`` and the others share the rest. Every call is kept in ``calls``."""
+
+    max_candidates = None
+    temperature = 1.0
+
+    def __init__(self, sections=None, document=None, *, metered=False, name="scripted"):
+        self.name = name
+        self._sections = sections or by_title(SECTIONS)
+        self._document = document or (lambda text: None)
+        self.metered = metered
+        if metered:
+            self.on_call = None  # set by classify() around each score call
+        self.calls: list[tuple[str, str, list[str]]] = []  # (kind, text, option ids)
+
+    def score(self, texts, candidates, *, instruction=None, multi_label=False):
+        ids = [c.node_id for c in candidates]
+        rows = []
+        for i, text in enumerate(texts):
+            kind = "document" if "Stats:" in text else "section"
+            self.calls.append((kind, text, ids))
+            answer = (self._document if kind == "document" else self._sections)(text)
+            rows.append(_row(ids, answer))
+            if self.metered and self.on_call is not None:
+                self.on_call(
+                    {
+                        "index": i,
+                        "prompt_hash": f"hash-{len(self.calls)}",
+                        "prompt_tokens": 100 + len(text.split()),
+                        "completion_tokens": 1,
+                        "exact": True,
+                        "options": ids,
+                        "model": "scripted-model",
+                        "endpoint_host": "llm.example",
+                    }
+                )
+        return Scores(np.array(rows, dtype=float).reshape(len(texts), len(ids)), "softmax")
+
+    def supports(self, node_id):
+        return True
+
+    def tokenizer(self):
+        return None
+
+    def of(self, kind):
+        return [(text, ids) for k, text, ids in self.calls if k == kind]
+
+
+def _row(ids, answer):
+    n = len(ids)
+    if answer is None or n == 1:
+        return [1.0 / n] * n
+    target, p = answer
+    hit = [i for i, c in enumerate(ids) if target == c or target.startswith(c + ".")]
+    if not hit:
+        return [1.0 / n] * n
+    row = [(1.0 - p) / (n - 1)] * n
+    row[hit[0]] = p
+    return row
+
+
+def financial_doc(*extra):
+    return Document.from_sections(
+        [
+            {
+                "title": "Notes to the financial statements",
+                "level": 1,
+                "text": "Note one sets out the accounting policies and revenue recognition.",
+            },
+            {
+                "title": "Management discussion",
+                "level": 1,
+                "text": "Results of operations improved as revenue grew across segments.",
+            },
+            *extra,
+        ],
+        source="report.md",
+    )
+
+
+EXEC_COMP = {
+    "title": "Executive compensation",
+    "level": 1,
+    "text": "Salaries and bonuses of the named executive officers.",
+}
+
+
+# --- sections_first -----------------------------------------------------------------------
+
+
+def test_sections_first_rules_decide_single_candidate():
+    backend = Scripted()
+    result = classify(financial_doc(EXEC_COMP), backend=backend)
+    assert result.flow == "sections_first"
+    assert result.decided_by == "rules"
+    assert result.doc_type == "financial.annual_report"
+    assert result.candidates == ["financial.annual_report"]  # quarterly is barred by exec comp
+    assert result.doc_type_confidence == pytest.approx(0.95 * 0.95)
+    assert backend.of("document") == []  # no document-level call
+    assert result.stage_tokens["document"] == TokenUsage()
+    assert result.levels == {"section": "terms", "document": None}
+    assert result.section_taxonomy == "section_catalogue"
+    labels = {t.title: t.label for t in result.sections}
+    assert labels["Executive compensation"] == "disclosure.executive_compensation"
+
+
+def test_sections_first_narrows_options_to_candidates():
+    backend = Scripted(document=lambda text: ("financial.quarterly_report", 0.8))
+    result = classify(financial_doc(), backend=backend)
+    (doc_call,) = backend.of("document")
+    _, options = doc_call
+    assert set(options) == {"financial.annual_report", "financial.quarterly_report"}
+    assert set(result.candidates) == set(options)
+    assert result.decided_by == "model"
+    assert result.doc_type == "financial.quarterly_report"
+    assert result.doc_type_confidence == pytest.approx(0.8)
+    assert "near_miss" not in result.flags and "rules_unmet" not in result.flags
+
+
+def test_single_undecided_candidate_is_offered_with_its_near_misses():
+    notes = ("financial.notes_to_financial_statements", 0.75)
+    weak = {**SECTIONS, "Notes to the financial statements": notes}
+    backend = Scripted(by_title(weak))
+    result = classify(financial_doc(EXEC_COMP), backend=backend)  # 0.75**2 < decide_conf 0.7
+    assert result.decided_by == "model"
+    assert "near_miss" in result.flags
+    assert result.candidates[0] == "financial.annual_report"
+    assert "financial.proxy_statement" in result.candidates  # a near miss: no meeting section
+    assert "corporate.investor_presentation" not in result.candidates  # barred by the notes
+    (doc_call,) = backend.of("document")
+    assert doc_call[1] == result.candidates  # offered in the candidates' order
+
+
+def test_rules_unmet_falls_back_to_all_types():
+    doc = Document.from_sections(
+        [{"title": "Acknowledgements", "level": 1, "text": "We thank our reviewers."}]
+    )
+    backend = Scripted(document=lambda text: ("research.white_paper", 0.6))
+    result = classify(doc, backend=backend)
+    assert result.decided_by == "fallback"
+    assert "rules_unmet" in result.flags
+    assert result.candidates == []
+    (doc_call,) = backend.of("document")
+    assert set(doc_call[1]) == DOC_TYPE_LEAVES
+    assert result.doc_type == "research.white_paper"
+
+    # Conflicting excludes: the only candidate (fact sheet) hits an exclude. It is waived, not
+    # dropped, and offered with the near misses; nothing raises.
+    conflicted = Document.from_sections(
+        [
+            {"title": "Performance", "level": 1, "text": "Returns over one year."},
+            {"title": "Top holdings", "level": 1, "text": "The ten largest positions."},
+            {"title": "Offering terms", "level": 1, "text": "Shares offered at par."},
+        ]
+    )
+    backend = Scripted()
+    result = classify(conflicted, backend=backend)
+    assert {"excludes_waived", "near_miss"} <= set(result.flags)
+    assert result.decided_by == "model"
+    (doc_call,) = backend.of("document")
+    assert "financial.fact_sheet" in doc_call[1] and "financial.prospectus" in doc_call[1]
+    assert set(doc_call[1]) == set(result.candidates)
+    assert result.doc_type in result.candidates
+
+
+def test_classify_no_sections_falls_back():
+    doc = load("Just some plain text without any heading.\nAnother line of plain text.\n")
+    backend = Scripted(document=lambda text: ("government.government_report", 0.7))
+    result = classify(doc, backend=backend, level="headings")
+    assert result.flags == ["no_sections"]
+    assert result.decided_by == "fallback"
+    assert result.sections == []
+    assert backend.of("section") == []
+    (doc_call,) = backend.of("document")
+    assert set(doc_call[1]) == DOC_TYPE_LEAVES  # the doc_first document step
+    assert result.doc_type == "government.government_report"
+    assert result.levels == {"section": "headings", "document": "headings"}
+
+
+def test_tokens_sum_sections_and_document():
+    backend = Scripted(document=lambda text: ("financial.annual_report", 0.9), metered=True)
+    result = classify(financial_doc(), backend=backend)
+    sections, document = result.stage_tokens["sections"], result.stage_tokens["document"]
+    assert result.tokens == sections + document
+    assert result.tokens.exact and result.tokens.calls == 5  # 2 sections x (group, leaf) + 1
+    assert sections.calls == 4 and document.calls == 1
+    assert sum((t.tokens for t in result.sections), TokenUsage()) == sections
+    assert all(t.tokens.calls == 2 and t.tokens.exact for t in result.sections)
+    expected = sum(100 + len(text.split()) for _, text, _ in backend.calls)
+    assert result.tokens.prompt == expected and result.tokens.completion == 5
+
+    # No usage at all (a keyword backend): what the views and options would cost an LLM.
+    estimated = classify(financial_doc(), backend=KeywordBackend())
+    assert not estimated.tokens.exact
+    assert estimated.tokens.prompt > 0
+    assert estimated.tokens.estimated_calls == estimated.tokens.calls >= 4
+
+
+def test_cumulative_usage_is_split_over_the_texts_of_a_call():
+    class UsageOnly(Scripted):
+        def __init__(self):
+            super().__init__(document=lambda text: ("financial.annual_report", 0.9))
+            self._usage = TokenUsage()
+
+        def score(self, texts, candidates, *, instruction=None, multi_label=False):
+            self._usage = self._usage + TokenUsage(10 * len(texts), len(texts), len(texts), True)
+            return super().score(texts, candidates, instruction=instruction)
+
+        def usage(self):
+            return self._usage
+
+    result = classify(financial_doc(), backend=UsageOnly())
+    assert result.tokens == TokenUsage(50, 5, 5, True)
+    assert all(t.tokens == TokenUsage(20, 2, 2, True) for t in result.sections)
+
+
+def test_cascade_escalates_only_low_confidence():
+    mystery = {
+        "title": "Mystery",
+        "level": 1,
+        "text": "The board reviewed operating results and liquidity trends in detail.",
+    }
+
+    def sections(text):
+        if "Title: Mystery" in text:
+            p = 0.95 if "Key phrases:" in text else 0.6
+            return ("narrative.management_discussion", p)
+        return by_title(SECTIONS)(text)
+
+    def document(text):
+        return ("financial.quarterly_report", 0.9) if "Key phrases:" in text else None
+
+    backend = Scripted(sections, document, metered=True)
+    doc = Document.from_sections(
+        [
+            {
+                "title": "Notes to the financial statements",
+                "level": 1,
+                "text": "Note one sets out the accounting policies.",
+            },
+            mystery,
+        ]
+    )
+    result = classify(doc, backend=backend, level="headings", cascade=True, threshold=0.6)
+    tags = {t.title: t for t in result.sections}
+    assert tags["Notes to the financial statements"].level_used == "headings"
+    assert tags["Notes to the financial statements"].tokens.calls == 2
+    assert tags["Mystery"].level_used == "terms"
+    assert tags["Mystery"].tokens.calls == 4  # both attempts count
+    assert tags["Mystery"].confidence == pytest.approx(0.95 * 0.95)
+    with_terms = [text for text, _ in backend.of("section") if "Key phrases:" in text]
+    assert with_terms and all("Title: Mystery" in text for text in with_terms)
+
+    # the document call: uniform over two candidates at headings, asked again at terms
+    assert result.decided_by == "model"
+    assert len(backend.of("document")) == 2
+    assert result.levels == {"section": "headings", "document": "terms"}
+    assert result.stage_tokens["document"].calls == 2
+    assert result.doc_type == "financial.quarterly_report"
+
+    # without cascade nothing is asked twice
+    once = Scripted(sections, document)
+    flat = classify(doc, backend=once, level="headings")
+    assert all(t.level_used == "headings" for t in flat.sections)
+    assert len(once.of("document")) == 1
+
+
+def test_max_sections_order():
+    doc = Document.from_sections(
+        [
+            {"title": "Alpha", "level": 1, "text": "a"},
+            {"title": "Alpha one", "level": 2, "text": "a1"},
+            {"title": "Beta", "level": 1, "text": "b"},
+            {"title": "Beta one", "level": 2, "text": "b1"},
+            {"title": "Beta one deep", "level": 3, "text": "b11"},
+            {"title": "Gamma", "level": 1, "text": "c"},
+        ]
+    )
+    assert [s.title for s in select_sections(doc, 40)] == [
+        "Alpha",
+        "Beta",
+        "Gamma",
+        "Alpha one",
+        "Beta one",
+    ]
+    result = classify(doc, backend=KeywordBackend(), max_sections=4)
+    assert [t.title for t in result.sections] == ["Alpha", "Beta", "Gamma", "Alpha one"]
+    assert [t.level for t in result.sections] == [1, 1, 1, 2]
+    assert all(isinstance(t, SectionTag) for t in result.sections)
+
+
+def test_doc_first_level_aware():
+    doc = Document.from_sections(
+        [
+            {"title": "Abstract", "level": 1, "text": "We study retrieval. It works well."},
+            {"title": "Methods", "level": 1, "text": "We ran experiments. They were careful."},
+        ],
+        source="paper.md",
+    )
+    backend = Scripted(lambda text: None, lambda text: ("research.research_paper", 0.9))
+    result = classify(
+        doc, flow="doc_first", backend=backend, doc_level="headings", section_level="lead"
+    )
+    assert result.flow == "doc_first" and result.decided_by == "model"
+    assert result.doc_type == "research.research_paper"
+    assert result.candidates == []
+    assert result.levels == {"section": "lead", "document": "headings"}
+    assert result.section_taxonomy == "section_types/research_paper"
+    (doc_call,) = backend.of("document")
+    assert set(doc_call[1]) == DOC_TYPE_LEAVES
+    assert "Key phrases:" not in doc_call[0] and "Lead:" not in doc_call[0]
+    section_texts = [text for text, _ in backend.of("section")]
+    assert len(section_texts) == 2 and all("Lead:" in text for text in section_texts)
+    research = builtin_taxonomy("section_types/research_paper")
+    assert all(t.label in research and t.level_used == "lead" for t in result.sections)
+    assert result.stage_tokens["document"].calls == 1
+    assert result.stage_tokens["sections"].calls == 2
+    assert not result.tokens.exact  # no usage reported: estimated
+
+
+# --- results log, validation, export ------------------------------------------------------
+
+
+def test_log_writes_one_row_per_decision(tmp_path):
+    backend = Scripted(document=lambda text: ("financial.annual_report", 0.9), metered=True)
+    path = tmp_path / "log.jsonl"
+    classify(financial_doc(), backend=backend, log=path)
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert len(rows) == len(backend.calls) == 5
+    section_rows = [r for r in rows if r["stage"] == "sections"]
+    assert len(section_rows) == 4 and all(r["section_id"] for r in section_rows)
+    (doc_row,) = [r for r in rows if r["stage"] == "document"]
+    assert doc_row["level"] == "terms" and doc_row["prompt_hash"].startswith("hash-")
+    assert doc_row["model"] == "scripted-model" and doc_row["endpoint_host"] == "llm.example"
+    assert doc_row["label"] == "financial.annual_report"
+    assert set(doc_row["options"]) == set(doc_row["probs"])
+    assert doc_row["tokens"]["exact"] is True and doc_row["trainable"] is True
+
+
+def test_custom_rules_with_unknown_section_ids_raise():
+    doc_types = Taxonomy(
+        [
+            TaxonomyNode(
+                id="memo",
+                label="Memo",
+                sections={"requires": [["general.summaryy"]]},
+            ),
+            TaxonomyNode(id="letter", label="Letter"),
+        ]
+    )
+    with pytest.raises(ValueError, match=r"memo: general\.summaryy"):
+        classify(financial_doc(), backend=KeywordBackend(), doc_types=doc_types)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"flow": "vibes"}, {"level": "auto"}, {"doc_level": "everything"}, {"max_sections": -1}],
+)
+def test_bad_arguments_raise(kwargs):
+    with pytest.raises(ValueError):
+        classify(financial_doc(), backend=KeywordBackend(), **kwargs)
+
+
+def test_classification_round_trips_as_json():
+    result = classify(financial_doc(), backend=KeywordBackend(), level="headings")
+    again = Classification.model_validate_json(result.model_dump_json())
+    assert again == result
+    assert isinstance(again.tokens, TokenUsage)

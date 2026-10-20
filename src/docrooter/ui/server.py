@@ -9,9 +9,10 @@ worker; its sink hands every event to the event loop with ``loop.call_soon_threa
 run state is changed on the loop thread only, so the HTTP handlers need no locks.
 
 Endpoints: ``POST /api/runs`` (multipart ``file`` plus ``backend``, ``engine``, ``mode``,
-``normalize`` and ``profile``), ``GET /api/runs``, ``GET /api/runs/{id}``,
-``GET /api/runs/{id}/events`` (SSE, ending with a ``{"stage": "job", "status": "end"}`` event
-the server always sends), ``GET /api/backends``, and the page itself at ``/``.
+``normalize`` and ``profile``, and optionally ``flow`` and ``level``), ``GET /api/runs``,
+``GET /api/runs/{id}``, ``GET /api/runs/{id}/events`` (SSE, ending with a
+``{"stage": "job", "status": "end"}`` event the server always sends), ``GET /api/backends``,
+and the page itself at ``/``.
 
 Started with ``element_tags`` (``docrooter serve --element-tags BUNDLE``), the worker loads
 that tagger once, on the first run in element mode, tags every such run's content elements in
@@ -27,6 +28,12 @@ serve --selector`` (or a ``selector.json`` in the ``--element-tags`` bundle) sup
 fitted selector; without one only the whole document (completeness 1.0) can be selected. A
 selection that needs a model (the selector's embedder, the tagger) runs on the worker thread,
 between runs, so one model is loaded at a time.
+
+A run with a ``flow`` (``sections_first`` or ``doc_first``) and a ``level`` (a rung of
+:mod:`docrooter.ladder`, ``terms`` by default) runs :func:`docrooter.classify` instead of the
+classic document type and section labels. Its document type then also carries ``decided_by``,
+the ``candidates``, the ``flags``, the ``levels`` and the ``tokens`` (with ``exact``), and its
+section labels are the tags, with the level each one used.
 """
 
 from __future__ import annotations
@@ -73,12 +80,15 @@ from docrooter.classify.normalize import (  # noqa: E402
     DOC_TYPES,
     GENERIC_TAXONOMY,
     NormalizationResult,
+    SectionNorm,
     normalize_sections,
 )
-from docrooter.classify.results import DocTypeResult  # noqa: E402
+from docrooter.classify.results import DocTypeResult, PathResult  # noqa: E402
 from docrooter.document import Document  # noqa: E402
 from docrooter.document.load import load  # noqa: E402
 from docrooter.errors import DocrooterError  # noqa: E402
+from docrooter.flow import FLOWS, Classification, classify  # noqa: E402
+from docrooter.ladder import LEVELS  # noqa: E402
 from docrooter.layout import registry as layout_registry  # noqa: E402
 from docrooter.ocr import registry as ocr_registry  # noqa: E402
 from docrooter.pdf.load import ENGINES  # noqa: E402
@@ -87,7 +97,11 @@ from docrooter.rooter.analysis import Analysis  # noqa: E402
 from docrooter.rooter.process import _LazyOcr, _tag_elements  # noqa: E402
 from docrooter.rooter.profiles import jev_key_set  # noqa: E402
 from docrooter.summarize import Summary  # noqa: E402
-from docrooter.taxonomies import builtin_taxonomy, family_for_doc_type  # noqa: E402
+from docrooter.taxonomies import (  # noqa: E402
+    builtin_taxonomy,
+    family_for_doc_type,
+    list_builtin_taxonomies,
+)
 from docrooter.taxonomy import Taxonomy  # noqa: E402
 
 if TYPE_CHECKING:
@@ -587,6 +601,74 @@ def _routes_out(doc: Document) -> dict[str, Any] | None:
     }
 
 
+def _usage_out(usage: Any) -> dict[str, Any]:
+    return {
+        "prompt": usage.prompt,
+        "completion": usage.completion,
+        "calls": usage.calls,
+        "exact": usage.exact,
+    }
+
+
+def _flow_out(result: Classification, label: Callable[[str], str]) -> dict[str, Any]:
+    """How a flow run decided its type, and what it spent."""
+    return {
+        "flow": result.flow,
+        "decided_by": result.decided_by,
+        "candidates": [{"id": c, "label": label(c)} for c in result.candidates],
+        "flags": list(result.flags),
+        "levels": dict(result.levels),
+        "tokens": _usage_out(result.tokens),
+        "stage_tokens": {k: _usage_out(v) for k, v in result.stage_tokens.items()},
+    }
+
+
+def classification_parts(
+    result: Classification, doc_types: Taxonomy
+) -> tuple[DocTypeResult, NormalizationResult]:
+    """A flow's result in the classic shapes the page and the dial read: the type as a
+    :class:`DocTypeResult` and the tags as a :class:`NormalizationResult`."""
+    if result.doc_type is not None and result.doc_type in doc_types:
+        nodes = doc_types.path(result.doc_type)
+        best = PathResult(
+            node_ids=[n.id for n in nodes],
+            labels=[n.label for n in nodes],
+            score=result.doc_type_confidence,
+        )
+    elif result.doc_type is not None:
+        best = PathResult(node_ids=[result.doc_type], labels=[result.doc_type])
+    else:
+        best = PathResult(node_ids=[], stopped_reason="empty_text")
+    doc_type = DocTypeResult(
+        source=result.source,
+        best=best,
+        confidence=result.doc_type_confidence,
+        leaf_probs=dict(result.doc_type_probs),
+    )
+    name = result.section_taxonomy or GENERIC_TAXONOMY
+    taxonomy = builtin_taxonomy(name) if name in list_builtin_taxonomies() else None
+    norms = {
+        t.id: SectionNorm(
+            canonical=t.label,
+            label=(
+                taxonomy.node(t.label).label
+                if taxonomy is not None and t.label is not None and t.label in taxonomy
+                else t.label
+            ),
+            score=t.confidence if t.label is not None else 0.0,
+            title=t.title,
+        )
+        for t in result.sections
+    }
+    norm = NormalizationResult(
+        doc_type=result.doc_type,
+        doc_type_confidence=result.doc_type_confidence,
+        taxonomy=name,
+        sections=norms,
+    )
+    return doc_type, norm
+
+
 def build_result(
     doc: Document,
     filename: str,
@@ -595,10 +677,13 @@ def build_result(
     doc_types: Taxonomy,
     summaries: dict[str, Summary] | None = None,
     element_tags: dict[str, Any] | None = None,
+    classification: Classification | None = None,
 ) -> dict[str, Any]:
     """The JSON the page shows: TOC entries, the document type, the section labels, and, for
     runs in element mode, the elements, the summaries of the listed sections and the routes.
-    ``element_tags`` (``{"source", "family"}``) names the tagger of a tagged run."""
+    ``element_tags`` (``{"source", "family"}``) names the tagger of a tagged run. A run with a
+    flow passes its ``classification``; ``doc_type`` and ``norm`` are then read from it
+    (:func:`classification_parts`), and the type and the labels say how they were decided."""
     summaries = summaries or {}
 
     def label(node_id: str) -> str:
@@ -633,6 +718,9 @@ def build_result(
             for node_id, prob in list(doc_type.leaf_probs.items())[:_TOP_DOC_TYPES]
         ],
     }
+    if classification is not None:
+        type_out.update(_flow_out(classification, label))
+    tags = {t.id: t for t in classification.sections} if classification is not None else {}
     sections = None
     if norm is not None:
         entries = []
@@ -649,6 +737,9 @@ def build_result(
                     "score": round(found.score, 4) if found and found.canonical else None,
                 }
             )
+            if classification is not None:
+                tag = tags.get(item["id"])
+                entries[-1]["level_used"] = tag.level_used if tag else None
         sections = {"taxonomy": norm.taxonomy, "doc_type": norm.doc_type, "entries": entries}
     routes = _routes_out(doc)
     # JSON-safe whatever a loader put in; the per-page route log is summarised under "routes"
@@ -1007,9 +1098,21 @@ class Playground:
                 )
                 doc, summaries = self._load(job, options)
                 backend = self.backends.get(options["backend"])
-                doc_type = classify_document(
-                    doc, self.doc_types, backend=backend, mode=options["mode"], on_event=job.push
-                )
+                classification: Classification | None = None
+                flow_norm: NormalizationResult | None = None
+                if options.get("flow"):
+                    classification = classify(
+                        doc, flow=options["flow"], level=options["level"], backend=backend
+                    )
+                    doc_type, flow_norm = classification_parts(classification, self.doc_types)
+                else:
+                    doc_type = classify_document(
+                        doc,
+                        self.doc_types,
+                        backend=backend,
+                        mode=options["mode"],
+                        on_event=job.push,
+                    )
                 norm = None
                 leaf = doc_type.best.node_ids[-1] if doc_type.best.node_ids else None
                 tagged: dict[str, Any] | None = None
@@ -1018,7 +1121,9 @@ class Playground:
                     _tag_elements(doc, self.tagger(), leaf, self.tagger_name or "")
                     family = family_for_doc_type(leaf or "")
                     tagged = {"source": self.tagger_name, "family": family}
-                if options["normalize"]:
+                if classification is not None:
+                    norm = flow_norm
+                elif options["normalize"]:
                     norm = normalize_sections(
                         doc,
                         doc_type=leaf,
@@ -1028,21 +1133,31 @@ class Playground:
                         on_event=job.push,
                     )
             result = build_result(
-                doc, run.filename, doc_type, norm, self.doc_types, summaries, tagged
+                doc,
+                run.filename,
+                doc_type,
+                norm,
+                self.doc_types,
+                summaries,
+                tagged,
+                classification,
             )
             if doc.elements:  # the fast profile builds none: nothing for the dial to read
                 # the backends that typed it and labelled its sections, which select()
-                # compares with the selector's fit; the playground never escalates
+                # compares with the selector's fit; the playground never escalates. A flow
+                # run's tags come from another taxonomy than the dial was fitted with, so
+                # the dial reads it as unlabelled.
+                labelled = norm if classification is None else None
                 config = RouterConfig.resolve(
                     profile=options["profile"],
                     doc_type=options["backend"],
-                    sections=options["backend"] if norm is not None else "none",
+                    sections=options["backend"] if labelled is not None else "none",
                     escalate="none",
                 )
                 analysis = Analysis(
                     document=doc,
                     doc_type=doc_type,
-                    sections=norm,
+                    sections=labelled,
                     summaries=summaries,
                     config=config,
                 )
@@ -1213,13 +1328,22 @@ def _options(form: Any, allowed: list[str], default_backend: str, kind: str) -> 
     if mode not in MODES:
         raise HTTPException(400, f"Unknown mode {mode!r}; use one of {', '.join(MODES)}.")
     _check_profile(profile, engine, kind)
-    return {
+    options: dict[str, Any] = {
         "backend": backend,
         "engine": engine,
         "mode": mode,
         "normalize": _flag(form.get("normalize", "false")),
         "profile": profile,
     }
+    flow = str(form.get("flow") or "")
+    if flow:  # a v1 flow; without one, the classic type and section labels
+        level = str(form.get("level") or "terms")
+        if flow not in FLOWS:
+            raise HTTPException(400, f"Unknown flow {flow!r}; use one of {', '.join(FLOWS)}.")
+        if level not in LEVELS:
+            raise HTTPException(400, f"Unknown level {level!r}; use one of {', '.join(LEVELS)}.")
+        options.update(flow=flow, level=level)
+    return options
 
 
 def _megabytes(limit: int) -> str:
@@ -1364,6 +1488,8 @@ def create_app(
             "backends": [info.entry() for info in available_backends(backend_spec)],
             "engines": list(ENGINES),
             "modes": list(MODES),
+            "flows": list(FLOWS),
+            "levels": list(LEVELS),
             "default_profile": DEFAULT_PROFILE,
             "profiles": [info.entry() for info in PROFILE_INFO],
             "max_upload_bytes": MAX_UPLOAD_BYTES,

@@ -136,6 +136,8 @@ function savePrefs() {
         engine: $("engine").value,
         mode: $("mode").value,
         normalize: $("normalize").checked,
+        flow: $("flow").value,
+        level: $("level").value,
       }),
     );
   } catch {
@@ -170,8 +172,26 @@ async function loadOptions() {
   engine.value = info.engines.includes(prefs.engine) ? prefs.engine : "auto";
   if (info.modes.includes(prefs.mode)) $("mode").value = prefs.mode;
   if (typeof prefs.normalize === "boolean") $("normalize").checked = prefs.normalize;
+  if (prefs.flow === "" || info.flows?.includes(prefs.flow)) $("flow").value = prefs.flow;
+  if (info.levels?.includes(prefs.level)) $("level").value = prefs.level;
   describeBackend();
   describeProfile();
+  describeFlow();
+}
+
+// The flow decides which other choices apply: the context level only with a flow, the
+// "type from" mode and the section-label switch only without one.
+function describeFlow() {
+  const flow = $("flow").value;
+  $("level").disabled = !flow;
+  $("mode").disabled = Boolean(flow);
+  $("normalize").disabled = Boolean(flow);
+  const notes = {
+    "": "The classic run: the type from the chosen view, then section labels.",
+    sections_first: "Tags the sections first; their tags decide the type or narrow the choices sent to the model.",
+    doc_first: "Classifies the type first, then labels the sections with that type's taxonomy.",
+  };
+  $("flow-note").textContent = notes[flow] ?? "";
 }
 
 function describeProfile() {
@@ -225,6 +245,10 @@ async function submit(file) {
   form.append("engine", $("engine").value);
   form.append("mode", $("mode").value);
   form.append("normalize", $("normalize").checked ? "true" : "false");
+  if ($("flow").value) {
+    form.append("flow", $("flow").value);
+    form.append("level", $("level").value);
+  }
   resetRun(file.name);
   setBusy(true);
   setStatus(`Uploading ${bytes(file.size)}…`);
@@ -276,7 +300,8 @@ function setupDrop() {
   window.addEventListener("dragover", (event) => event.preventDefault());
   window.addEventListener("drop", (event) => event.preventDefault());
   $("rerun").addEventListener("click", () => state.lastFile && submit(state.lastFile));
-  for (const id of ["profile", "backend", "engine", "mode", "normalize"]) $(id).addEventListener("change", savePrefs);
+  for (const id of ["profile", "backend", "engine", "mode", "normalize", "flow", "level"]) $(id).addEventListener("change", savePrefs);
+  $("flow").addEventListener("change", describeFlow);
   $("profile").addEventListener("change", describeProfile);
   $("backend").addEventListener("change", describeBackend);
 }
@@ -577,6 +602,8 @@ function renderFacts(run) {
     ["Profile", run.options?.profile],
     ["Engine", meta.engine ?? (run.kind === "pdf" ? null : "Markdown")],
     ["Model", run.options?.backend],
+    ["Flow", run.options?.flow ? `${run.options.flow.replace(/_/g, " ")}, ${run.options.level}` : null],
+    ["Tokens", run.doc_type?.tokens ? tokenText(run.doc_type.tokens) : null],
     ["Wall time", secs(run.seconds)],
   ];
   const ocrPages = (run.routes?.tasks?.ocr ?? 0) + (run.routes?.tasks?.["text+ocr"] ?? 0);
@@ -585,6 +612,12 @@ function renderFacts(run) {
   $("facts").replaceChildren(
     ...facts.filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => h("div", {}, h("dt", {}, k), h("dd", {}, v))),
   );
+}
+
+// "1,234 prompt tokens over 5 calls (exact)": exact only when every call reported its usage.
+function tokenText(tokens) {
+  const kind = tokens.exact ? "exact" : "estimated";
+  return `${num(tokens.prompt)} prompt tokens over ${num(tokens.calls)} calls (${kind})`;
 }
 
 function scoreChip(score) {
@@ -999,7 +1032,37 @@ function renderType(run) {
       ),
     ),
   );
-  panel.replaceChildren(head, bars);
+  panel.replaceChildren(head, ...flowBlock(type), bars);
+}
+
+// How a flow run decided its type: by rules, by the model among the candidates, or by
+// fallback, with the flags and the tokens each stage spent.
+function flowBlock(type) {
+  if (!type.decided_by) return [];
+  const how = {
+    rules: "Decided by the section rules, with no document-level call.",
+    model: "Chosen by the model among the candidates.",
+    fallback: "Chosen by the model among every type (fallback).",
+  };
+  const stages = Object.entries(type.stage_tokens ?? {}).map(([stage, t]) => `${stage}: ${num(t.prompt)}`);
+  const levels = Object.entries(type.levels ?? {}).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`);
+  const block = h(
+    "div",
+    { class: "flow-facts" },
+    h("p", {}, h("strong", {}, `decided_by: ${type.decided_by}`), ` · ${how[type.decided_by] ?? ""}`),
+    h(
+      "p",
+      {},
+      "Candidates: ",
+      type.candidates.length
+        ? type.candidates.map((c, i) => [i ? ", " : "", h("span", { title: c.id }, c.label)])
+        : "none (every type was offered)",
+    ),
+    type.flags.length ? h("p", {}, `Flags: ${type.flags.join(", ").replace(/_/g, " ")}`) : null,
+    h("p", {}, `Tokens: ${tokenText(type.tokens)}${stages.length ? ` · ${stages.join(", ")}` : ""}`),
+    levels.length ? h("p", { class: "note" }, `Levels: ${levels.join(", ")}`) : null,
+  );
+  return [block];
 }
 
 function renderSections(run) {
@@ -1008,6 +1071,7 @@ function renderSections(run) {
     panel.replaceChildren(h("p", { class: "empty-note" }, "Section labels were off for this run. Tick “Label sections with canonical names” and run the file again."));
     return;
   }
+  const hasLevels = run.sections.entries.some((e) => "level_used" in e);
   const rows = run.sections.entries.map((e) =>
     h(
       "tr",
@@ -1017,6 +1081,7 @@ function renderSections(run) {
         ? h("td", {}, e.label, h("span", { class: "canon" }, e.canonical))
         : h("td", { class: "none" }, e.level > 2 ? "below the labelled levels" : "no label"),
       h("td", { class: "num" }, e.score === null ? "" : e.score.toFixed(2)),
+      hasLevels ? h("td", {}, e.level_used ?? "") : null,
     ),
   );
   panel.replaceChildren(
@@ -1025,7 +1090,7 @@ function renderSections(run) {
     h(
       "div",
       { class: "table-wrap" },
-      h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Section"), h("th", {}, "Canonical label"), h("th", { class: "num" }, "Score"))), h("tbody", {}, rows)),
+      h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Section"), h("th", {}, "Canonical label"), h("th", { class: "num" }, "Score"), hasLevels ? h("th", {}, "Level") : null)), h("tbody", {}, rows)),
     ),
   );
 }

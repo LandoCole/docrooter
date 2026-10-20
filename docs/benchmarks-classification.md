@@ -4,15 +4,16 @@ How much accuracy each rung of the context ladder (`headings`, `terms`, `lead`, 
 
 **Results pending.** The grid has not been run yet.
 
-
 ## Disclosures
 
 - **Section gold is Claude-annotated, for evaluation only.** 951 level-1 and level-2 sections of the 113 documents, labelled blind against the section catalogue; 190 were double-annotated: Cohen's κ 0.923 at leaf and 0.993 at group, 14 disagreements adjudicated.
 - **Doc-type gold comes from the source**: the manifest's source-assigned type (`benchmarks/classification/doc_type_gold.json`), with 0 correction(s).
 - **Only 8 of the 19 doc types are in the corpus** (`financial.annual_report`, `financial.fact_sheet`, `financial.prospectus`, `government.government_report`, `legal.contract`, `legal.court_opinion`, `research.research_paper`, `research.technical_standard`); the rules and the classifier are not validated on the other 11. Macro-F1 is over the gold types.
-- **The LLM rows are a local stand-in, not a hosted model**: Qwen3-4B-Instruct-2507 (4-bit) served by `mlx_lm.server` through the OpenAI-compatible backend, the same code path as a hosted model.
-- **Tokens are exact or estimated, as the Tokens column says.** Exact counts come from the API's `usage` (LLM backends). Keyword and embedding backends make no LLM call: their tokens estimate what the same views and options would cost an LLM. Section tagging tokens count in each document's tokens.
-- **Over the cap.** `full` cuts the document view head-first to fit a 16,000-token prompt; the over-cap table gives the share of `full` document calls whose exact prompt tokens still exceeded 16,000, and the truncated share.
+- **Tokens are exact or estimated, as the Tokens column says.** Exact counts come from the API's `usage` (LLM backends). Keyword and embedding backends make no LLM call: their tokens estimate what the same views and options would cost an LLM. Section tagging tokens count in each document's tokens. The split column (options / content / instructions) is always an estimate, even next to exact totals: it shows how much of the prompt the option lists take.
+- **Calls.** `per_item` asks one item per call; `batched` asks a whole stage per call with each option listed once (two steps: groups, then the leaves of each group); `batched_flat` lists every leaf once. Keyword and embedding backends always classify one item at a time: their `batched` rows differ from `per_item` only in the token estimate (what an LLM would be sent).
+- **Over the cap.** `full` cuts the document view head-first to fit a 16,000-token prompt. The over-cap table gives the share of `full` documents whose largest exact document-call prompt still exceeded 16,000 tokens (estimated runs have none), the share whose deciding document view was cut, and the share with any view (section or document) cut.
+- **At most 40 sections** (level 1 first, then level 2, in reading order) are tagged per document. A gold section past the cap is untagged and counts as a miss: the Sections column gives scored / excluded (reading mismatch) / untagged.
 - **7 documents have no level-1/2 sections** in the reading (profile `fast`), so they hold no section gold; `sections_first` falls back to `doc_first` for them (flag `no_sections`).
-- **doc_first section labels** come from the predicted doc type's own section taxonomy and are scored through the catalogue's `from` mapping; a label with no catalogue leaf counts as a wrong prediction (`unmapped`).
-- **Token share** is a run's prompt tokens over those of the same backend and flow's `full`/`full` run, summed over the same documents.
+- **doc_first section labels** come from the predicted doc type's own section taxonomy and are scored through the catalogue's `from` mapping, which reaches only 61 of the 112 catalogue leaves (from 67 per-type leaves). The 43 gold documents whose type maps to `section_types/generic` (7 leaves) are capped hardest, so doc_first's section F1 is structurally below sections_first's. A label with no catalogue leaf counts as no prediction (it costs recall, not precision).
+- **Token share** is a run's prompt tokens over those of the same backend, calls and flow's `full`/`full` run, summed over the same documents.
+- **Failed documents** (the Errors column) count as wrong in accuracy and carry no tokens, so they are left out of the token means.

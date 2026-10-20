@@ -4,7 +4,7 @@ context ladder buys, and at what token cost, against sending the whole document.
     PYTHONPATH=src python -m benchmarks.classification_bench gold
     PYTHONPATH=src python -m benchmarks.classification_bench run --backend SPEC [--label NAME] \
         --flow F[,F] (--level L[,L] | --section-level L[,L] --doc-level L[,L]) \
-        [--docs gold|heldout] [--out DIR]
+        [--calls C[,C]] [--docs gold|heldout] [--out DIR] [--limit N] [--no-cache]
     PYTHONPATH=src python -m benchmarks.classification_bench report --results DIR [--out PATH]
 
 ``gold`` writes ``classification/doc_type_gold.json`` from the manifest: the source-assigned
@@ -12,26 +12,34 @@ context ladder buys, and at what token cost, against sending the whole document.
 list (kept when the file is rewritten) that :func:`load_doc_type_gold` applies.
 
 ``run`` classifies every document with ``docrooter.classify`` once per configuration (flow x
-section level x doc level). ``--flow`` and the levels take comma lists or ``all``; ``--level``
-pairs the section and document levels (the main grid), ``--section-level`` with ``--doc-level``
-crosses them (the cross-grid). Documents are read once per process with the reading the section
-gold was made with (profile ``fast``; a different reading raises) and the Document is reused
-across configurations. Each configuration writes one JSON file into ``--out`` (default
-``benchmarks/results/<date>/classification/``); a configuration whose file exists with the same
-settings hash is skipped, so a crashed run resumes. ``--docs heldout`` runs the frozen
-held-out corpus and scores the doc type only: the controller runs it once, at the end.
+section level x doc level x calls). ``--flow``, the levels and ``--calls`` take comma lists or
+``all``; ``--level`` pairs the section and document levels (the main grid), ``--section-level``
+with ``--doc-level`` crosses them (the cross-grid). ``--calls`` defaults to all three patterns
+(``per_item``, ``batched``, ``batched_flat``) for an ``openai:`` backend and to ``per_item`` and
+``batched`` for the others, which classify per item either way (their ``batched`` run is the
+token estimate of what an LLM would be sent). Documents are read once per process with the
+reading the section gold was made with (profile ``fast``; a different reading raises) and the
+Document is reused across configurations (``--no-cache`` re-reads it instead). Each
+configuration writes one JSON file into ``--out`` (default
+``benchmarks/results/<date>/classification/``) with the code identity (git sha and a dirty
+flag); a configuration whose file exists with the same settings hash (which includes a
+fingerprint of the package code) is skipped, so a crashed run resumes. ``--docs heldout``
+runs the frozen held-out corpus and scores the doc type only: the controller runs it once, at
+the end.
 
 Per configuration the file records, per document, the gold and predicted doc type, how it was
 decided, its flags, the tokens (total and per stage, exact or estimated), the wall time and,
 on the gold split, the predicted catalogue leaf of each gold section; and the metrics:
 doc-type accuracy and macro-F1, section macro- and micro-F1 at leaf and at group, the share
-decided by rules, prompt tokens per document, the truncated share, the share of ``full``
-document calls over 16,000 exact prompt tokens, and wall time. Results hold ids and numbers
+decided by rules, prompt tokens per document, the estimated split of the prompt into options,
+content and instructions, the truncated shares (any view, and the document view), the share of
+``full`` documents whose largest exact document call exceeded 16,000 prompt tokens, and wall
+time. Results hold ids and numbers
 only, never document text (:func:`check_ids_and_numbers` refuses a file that would).
 
 ``report`` writes ``docs/benchmarks-classification.md``: the accuracy-against-tokens table,
-the token share against the same backend and flow's ``full``/``full`` run, the cheapest level
-within 2 points of ``full`` per backend and flow (document ladder by doc-type accuracy,
+the token share against the same backend, calls and flow's ``full``/``full`` run, the cheapest
+level within 2 points of ``full`` per backend, calls and flow (document ladder by doc-type accuracy,
 section ladder by section leaf macro-F1), the cross-grid, the held-out run and the disclosures.
 
 Backends: ``keyword``; ``embedding:dmis-lab/UltraBERT-Embed-150M``; a local LLM as
@@ -48,6 +56,7 @@ import functools
 import hashlib
 import json
 import re
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -75,6 +84,10 @@ DOCS_PATH = REPO_ROOT / "docs" / "benchmarks-classification.md"
 SCHEMA = 1
 LEVELS: tuple[str, ...] = ("headings", "terms", "lead", "full")
 FLOWS: tuple[str, ...] = ("doc_first", "sections_first")
+CALLS: tuple[str, ...] = ("per_item", "batched", "batched_flat")
+"""How ``classify`` asks the backend (V4b): one item per call, or a stage per call with each
+option listed once (two-step groups then leaves, or flat)."""
+MAX_SECTIONS = 40  # spec §6.2: classify tags at most 40 level-1/2 sections per document
 DOCS_SPLITS: tuple[str, ...] = ("gold", "heldout")
 FULL_CAP = 16000  # spec §6.1: the measured prompt size of a ``full`` document call
 WITHIN_POINTS = 2.0  # spec §6.2: "within 2 points of full"
@@ -333,11 +346,13 @@ def token_share(result: Mapping[str, Any], baseline: Mapping[str, Any] | None) -
     return sum(mine[d] for d in common) / denominator
 
 
-def _key(result: Mapping[str, Any]) -> tuple[str, str, str, str, str]:
+def _key(result: Mapping[str, Any]) -> tuple[str, str, str, str, str, str]:
+    """(backend label, docs, calls, flow, section level, doc level) of a run."""
     config = result["config"]
     return (
         result["backend"]["label"],
         result["docs"],
+        config.get("calls", "per_item"),
         config["flow"],
         config["section_level"],
         config["doc_level"],
@@ -347,9 +362,10 @@ def _key(result: Mapping[str, Any]) -> tuple[str, str, str, str, str]:
 def baseline_for(
     result: Mapping[str, Any], results: Sequence[Mapping[str, Any]]
 ) -> Mapping[str, Any] | None:
-    """The ``full``/``full`` run of the same backend, documents and flow, if there is one."""
-    label, docs, flow, _, _ = _key(result)
-    return next((r for r in results if _key(r) == (label, docs, flow, "full", "full")), None)
+    """The ``full``/``full`` run of the same backend, documents, calls and flow, if any."""
+    label, docs, calls, flow, _, _ = _key(result)
+    wanted = (label, docs, calls, flow, "full", "full")
+    return next((r for r in results if _key(r) == wanted), None)
 
 
 def cheapest_within(
@@ -384,6 +400,7 @@ class Config(NamedTuple):
     flow: str
     section_level: str
     doc_level: str
+    calls: str = "per_item"
 
     def as_dict(self) -> dict[str, str]:
         return self._asdict()
@@ -422,6 +439,18 @@ def _stage_usage(classification: Any, stage: str) -> Any:
     """The tokens of one stage (``sections`` or ``document``) of a Classification."""
     stages = _get(classification, "stage_tokens")
     return _get(stages, stage) if stages is not None else None
+
+
+def _call(record: Any) -> dict[str, Any]:
+    """A document-call record (``CallRecord``) as ids and numbers."""
+    return {
+        "level": _get(record, "level"),
+        "prompt_tokens": int(_get(record, "prompt_tokens") or 0),
+        "completion_tokens": int(_get(record, "completion_tokens") or 0),
+        "exact": bool(_get(record, "exact")),
+        "truncated": bool(_get(record, "truncated")),
+        "options_count": int(_get(record, "options_count") or 0),
+    }
 
 
 def _flags(flags: Any) -> list[str]:
@@ -491,6 +520,7 @@ def _document_record(
             section_level=config.section_level,
             doc_level=config.doc_level,
             backend=backend,
+            calls=config.calls,
         )
     except Exception as exc:  # recorded by class name only: a message may quote the document
         result, error = None, type(exc).__name__
@@ -499,6 +529,8 @@ def _document_record(
     doc_type = _get(result, "doc_type") if result is not None else None
     tags = list(_get(result, "sections") or []) if result is not None else []
     document_usage = _usage(_stage_usage(result, "document")) if result is not None else None
+    document_calls = [_call(c) for c in _get(result, "document_calls") or []] if result else []
+    split = _get(result, "tokens_split") if result is not None else None
     record: dict[str, Any] = {
         "id": item.id,
         "gold": item.gold,
@@ -513,13 +545,18 @@ def _document_record(
             "sections": _usage(_stage_usage(result, "sections")) if result is not None else None,
             "document": document_usage,
         },
+        "document_calls": document_calls,
+        # The largest exact prompt of a document call at ``full``: what the 16,000 cap is about.
+        "doc_call_max_prompt": max(
+            (c["prompt_tokens"] for c in document_calls if c["exact"] and c["level"] == "full"),
+            default=None,
+        ),
+        "doc_truncated": bool(_get(result, "doc_truncated")) if result is not None else False,
+        "tokens_split": {str(k): int(v) for k, v in split.items()} if split else None,
+        "calls_used": _get(result, "calls") if result is not None else None,
         "wall_s": round(wall, 4),
         "error": error,
     }
-    # The mean prompt of the document-level calls: the doc-type call carries the document view.
-    if document_usage and document_usage["calls"]:
-        record["doc_call_prompt"] = document_usage["prompt"] / document_usage["calls"]
-        record["doc_call_exact"] = document_usage["exact"]
     if section_gold is not None:
         record["sections"] = score_sections(
             doc,
@@ -545,11 +582,15 @@ def run_metrics(records: Sequence[Mapping[str, Any]], config: Config) -> dict[st
     counted = [r["tokens"] for r in records if r["tokens"] is not None]
     over_cap: dict[str, Any] = {"over_cap_share": None, "over_cap_n": 0}
     if config.doc_level == "full":
-        calls = [r["doc_call_prompt"] for r in records if r.get("doc_call_exact")]
+        largest = [
+            r["doc_call_max_prompt"] for r in records if r["doc_call_max_prompt"] is not None
+        ]
         over_cap = {
-            "over_cap_share": _share([p > FULL_CAP for p in calls]),
-            "over_cap_n": len(calls),
+            "over_cap_share": _share([p > FULL_CAP for p in largest]),
+            "over_cap_n": len(largest),
         }
+    splits = [r["tokens_split"] for r in records if r["tokens_split"]]
+    split_keys = sorted({k for split in splits for k in split})
     with_sections = all("sections" in r for r in records) and bool(records)
     walls = [r["wall_s"] for r in records]
     return {
@@ -566,6 +607,13 @@ def run_metrics(records: Sequence[Mapping[str, Any]], config: Config) -> dict[st
         "tokens_exact": bool(counted) and all(t["exact"] for t in counted),
         "exact_share": _share([t["exact"] for t in counted]),
         "truncated_share": _share(["truncated" in r["flags"] for r in records]),
+        "doc_truncated_share": _share([r["doc_truncated"] for r in records]),
+        "tokens_split_mean": (
+            {k: _mean([split.get(k, 0) for split in splits]) for k in split_keys}
+            if splits
+            else None
+        ),
+        "calls_used": sorted({str(r["calls_used"]) for r in records if r["calls_used"]}),
         **over_cap,
         "wall_s_total": round(sum(walls), 3),
         "wall_s_mean": _mean(walls),
@@ -588,8 +636,10 @@ def run_configuration(
     classify: Classify,
     settings: Mapping[str, Any],
     max_errors: int = MAX_ERRORS,
+    code: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Classify every document under ``config`` and return the results (ids and numbers).
+    ``code`` (see :func:`code_identity`) is recorded as is, outside the settings hash.
     ``section_gold`` is ``None`` for a doc-type-only run (held-out). More than ``max_errors``
     failed documents, or all of them, raise :class:`RunAborted`."""
     full_settings = config_settings(settings, config, spec=spec, label=label, docs=docs)
@@ -618,9 +668,14 @@ def run_configuration(
         "schema": SCHEMA,
         "settings": full_settings,
         "settings_hash": settings_hash(full_settings),
-        "backend": {"spec": spec, "label": label},
+        "backend": {
+            "spec": spec,
+            "label": label,
+            "endpoint_host": getattr(backend, "endpoint_host", None) or None,
+        },
         "config": config.as_dict(),
         "docs": docs,
+        "code": dict(code) if code is not None else None,
         "started_at": started,
         "finished_at": _now(),
         "wall_s": round(time.perf_counter() - clock, 3),
@@ -635,7 +690,8 @@ def run_configuration(
 
 
 def result_name(label: str, docs: str, config: Config) -> str:
-    return f"{label}__{docs}__{config.flow}__{config.section_level}__{config.doc_level}.json"
+    c = config
+    return f"{label}__{docs}__{c.calls}__{c.flow}__{c.section_level}__{c.doc_level}.json"
 
 
 def _existing_hash(path: Path) -> str | None:
@@ -658,9 +714,11 @@ def run_grid(
     classify: Classify,
     settings: Mapping[str, Any],
     max_errors: int = MAX_ERRORS,
+    code: Mapping[str, Any] | None = None,
 ) -> list[Path]:
-    """Run each configuration into ``out/<label>__<docs>__<flow>__<sl>__<dl>.json``, skipping
-    one whose file exists with the same settings hash. Returns every configuration's path."""
+    """Run each configuration into ``out/<label>__<docs>__<calls>__<flow>__<sl>__<dl>.json``,
+    skipping one whose file exists with the same settings hash. Returns every configuration's
+    path."""
     paths = []
     for config in configs:
         path = out / result_name(label, docs, config)
@@ -681,6 +739,7 @@ def run_grid(
             classify=classify,
             settings=settings,
             max_errors=max_errors,
+            code=code,
         )
         write_atomic(path, json.dumps(result, indent=1) + "\n")
     return paths
@@ -703,38 +762,101 @@ def grid_configs(
     levels: Sequence[str] | None = None,
     section_levels: Sequence[str] | None = None,
     doc_levels: Sequence[str] | None = None,
+    calls: Sequence[str] = ("per_item",),
 ) -> list[Config]:
-    """Paired levels (``levels``: the main grid) or section x doc levels (the cross-grid)."""
+    """Paired levels (``levels``: the main grid) or section x doc levels (the cross-grid), each
+    under every ``calls`` pattern."""
     if levels is not None:
         if section_levels is not None or doc_levels is not None:
             raise ValueError("give --level, or --section-level with --doc-level, not both")
-        return [Config(f, level, level) for f in flows for level in levels]
-    if section_levels is None or doc_levels is None:
+        pairs = [(level, level) for level in levels]
+    elif section_levels is None or doc_levels is None:
         raise ValueError("give --level, or both --section-level and --doc-level")
-    return [Config(f, s, d) for f in flows for s in section_levels for d in doc_levels]
+    else:
+        pairs = [(s, d) for s in section_levels for d in doc_levels]
+    return [Config(f, s, d, c) for f in flows for s, d in pairs for c in calls]
+
+
+def default_calls(kind: str) -> list[str]:
+    """The ``calls`` patterns a backend kind runs by default. An OpenAI-compatible LLM batches
+    for real, so all three. Every other backend classifies one item at a time whatever it is
+    told; ``batched`` changes only its token estimate (what an LLM would be sent), so it runs
+    ``per_item`` and the two-step ``batched`` estimate."""
+    return list(CALLS) if kind == "openai" else ["per_item", "batched"]
+
+
+def code_identity(run: Callable[[list[str]], str] | None = None) -> dict[str, Any]:
+    """The commit the benchmark runs from and whether the code (``src/``, ``benchmarks/``) has
+    uncommitted changes; ``None`` values when git is unavailable."""
+
+    def git(args: list[str]) -> str:
+        return subprocess.run(
+            ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=True, timeout=30
+        ).stdout
+
+    run = run or git
+    try:
+        sha = run(["rev-parse", "HEAD"]).strip()
+        dirty = bool(
+            run(
+                ["status", "--porcelain", "--untracked-files=no", "--", "src", "benchmarks"]
+            ).strip()
+        )
+    except (OSError, subprocess.SubprocessError, KeyError):
+        return {"git_sha": None, "dirty": None}
+    return {"git_sha": sha, "dirty": dirty}
+
+
+def code_paths() -> list[Path]:
+    """The code a configuration's results depend on: the package and this benchmark."""
+    return sorted(
+        [
+            *(REPO_ROOT / "src" / "docrooter").rglob("*.py"),
+            *(REPO_ROOT / "src" / "docrooter" / "taxonomies").rglob("*.json"),
+            Path(__file__).resolve(),
+            *CLASSIFICATION_DIR.glob("*.py"),
+        ]
+    )
+
+
+def code_fingerprint(paths: Iterable[Path]) -> str:
+    """SHA-1 over the paths and contents: part of the settings hash, so a code fix mid-grid
+    re-runs the configurations it could change (a docs-only commit does not)."""
+    digest = hashlib.sha1()
+    for path in paths:
+        digest.update(path.name.encode("utf-8") + b"\0" + path.read_bytes() + b"\0")
+    return digest.hexdigest()
 
 
 # --- documents -------------------------------------------------------------------------------
 
 
-def _loader(path: Path) -> Callable[[], Any]:
-    """Reads the document on first use and keeps it: one reading per process."""
-    return functools.cache(lambda: section_sample.read_document(path))
+def _loader(path: Path, *, cache: bool = True) -> Callable[[], Any]:
+    """Reads the document on first use and keeps it (one reading per process), or, without
+    ``cache``, reads it again on every use (less memory, one reading per configuration)."""
+
+    def read() -> Any:
+        return section_sample.read_document(path)
+
+    return functools.cache(read) if cache else read
 
 
-def gold_inputs(gold: Mapping[str, str], pdf_dir: Path = PDF_DIR) -> list[DocInput]:
+def gold_inputs(
+    gold: Mapping[str, str], pdf_dir: Path = PDF_DIR, *, cache: bool = True
+) -> list[DocInput]:
     missing = [d for d in gold if not (pdf_dir / f"{d}.pdf").is_file()]
     if missing:
         raise FileNotFoundError(f"{len(missing)} gold PDF(s) not in {pdf_dir}: {missing[:5]}")
-    return [DocInput(d, gold[d], _loader(pdf_dir / f"{d}.pdf")) for d in sorted(gold)]
+    return [DocInput(d, gold[d], _loader(pdf_dir / f"{d}.pdf", cache=cache)) for d in sorted(gold)]
 
 
-def heldout_inputs(corpus: Path = HELDOUT_DIR) -> list[DocInput]:
+def heldout_inputs(corpus: Path = HELDOUT_DIR, *, cache: bool = True) -> list[DocInput]:
     """The frozen held-out corpus: gold is each record's ``label``."""
     from benchmarks.corpora import read_manifest
 
     return [
-        DocInput(r["id"], r["label"], _loader(corpus / r["file"])) for r in read_manifest(corpus)
+        DocInput(r["id"], r["label"], _loader(corpus / r["file"], cache=cache))
+        for r in read_manifest(corpus)
     ]
 
 
@@ -753,6 +875,8 @@ def default_label(spec: str) -> str:
 
 
 # --- report ----------------------------------------------------------------------------------
+
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
 def _pct(value: float | None) -> str:
@@ -774,8 +898,9 @@ def _metric(result: Mapping[str, Any], *path: str) -> Any:
 
 def _sorted(results: Iterable[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
     def key(r: Mapping[str, Any]) -> tuple[Any, ...]:
-        label, docs, flow, sl, dl = _key(r)
-        return (label, docs, FLOWS.index(flow), LEVELS.index(sl), LEVELS.index(dl))
+        label, docs, calls, flow, sl, dl = _key(r)
+        order = CALLS.index(calls) if calls in CALLS else len(CALLS)
+        return (label, docs, order, FLOWS.index(flow), LEVELS.index(sl), LEVELS.index(dl))
 
     return sorted(results, key=key)
 
@@ -784,15 +909,50 @@ def _kind(result: Mapping[str, Any]) -> str:
     return "exact" if result["metrics"].get("tokens_exact") else "estimated"
 
 
-def _disclosures() -> list[str]:
-    from docrooter.taxonomies import builtin_taxonomy
+def _model_name(spec: str) -> str:
+    """A readable model name from an ``openai:`` spec (a Hugging Face snapshot path or an id)."""
+    model = spec.partition(":")[2]
+    found = re.search(r"models--([^/]+)", model)
+    return found.group(1).replace("--", "/") if found else model.rstrip("/").rsplit("/", 1)[-1]
+
+
+def _llm_disclosure(results: Sequence[Mapping[str, Any]]) -> list[str]:
+    """One line per LLM backend label in the results: what model, and whether it was local."""
+    seen: dict[str, Mapping[str, Any]] = {}
+    for r in results:
+        if str(r["backend"].get("spec", "")).startswith("openai:"):
+            seen.setdefault(r["backend"]["label"], r["backend"])
+    lines = []
+    for label, backend in sorted(seen.items()):
+        host = backend.get("endpoint_host")
+        where = (
+            "a local stand-in served by `mlx_lm.server`, not a hosted model"
+            if host is None or host in _LOCAL_HOSTS
+            else f"the hosted endpoint `{host}`"
+        )
+        lines.append(
+            f"- **LLM rows `{label}`** are `{_model_name(str(backend['spec']))}` through the "
+            f"OpenAI-compatible backend, on {where} (the same code path as a hosted model)."
+        )
+    return lines
+
+
+def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
+    from docrooter.taxonomies import DOC_TYPE_TO_SECTION_TAXONOMY, builtin_taxonomy
 
     agreement = json.loads(AGREEMENT_PATH.read_text(encoding="utf-8"))
     summary = json.loads(SAMPLE_SUMMARY_PATH.read_text(encoding="utf-8"))
     gold_data = json.loads(DOC_TYPE_GOLD_PATH.read_text(encoding="utf-8"))
-    types = sorted(set(load_doc_type_gold().values()))
+    doc_gold = load_doc_type_gold()
+    types = sorted(set(doc_gold.values()))
     all_types = [n.id for n in builtin_taxonomy("doc_types").leaves()]
     without = summary["documents_without_sections"]
+    reachable = len(set(catalogue_sources().values()))
+    generic = "section_types/generic"
+    generic_docs = sum(
+        1 for t in doc_gold.values() if DOC_TYPE_TO_SECTION_TAXONOMY.get(t, generic) == generic
+    )
+    generic_leaves = len(list(builtin_taxonomy(generic).leaves()))
     return [
         f"- **Section gold is Claude-annotated, for evaluation only.** "
         f"{agreement['sections']} level-1 and level-2 sections of the "
@@ -806,48 +966,82 @@ def _disclosures() -> list[str]:
         f"- **Only {len(types)} of the {len(all_types)} doc types are in the corpus** "
         f"({', '.join(f'`{t}`' for t in types)}); the rules and the classifier are not validated "
         f"on the other {len(all_types) - len(types)}. Macro-F1 is over the gold types.",
-        "- **The LLM rows are a local stand-in, not a hosted model**: Qwen3-4B-Instruct-2507 "
-        "(4-bit) served by `mlx_lm.server` through the OpenAI-compatible backend, the same code "
-        "path as a hosted model.",
+        *_llm_disclosure(results),
         "- **Tokens are exact or estimated, as the Tokens column says.** Exact counts come from "
         "the API's `usage` (LLM backends). Keyword and embedding backends make no LLM call: "
         "their tokens estimate what the same views and options would cost an LLM. Section "
-        "tagging tokens count in each document's tokens.",
+        "tagging tokens count in each document's tokens. The split column (options / content / "
+        "instructions) is always an estimate, even next to exact totals: it shows how much of "
+        "the prompt the option lists take.",
+        "- **Calls.** `per_item` asks one item per call; `batched` asks a whole stage per call "
+        "with each option listed once (two steps: groups, then the leaves of each group); "
+        "`batched_flat` lists every leaf once. Keyword and embedding backends always classify "
+        "one item at a time: their `batched` rows differ from `per_item` only in the token "
+        "estimate (what an LLM would be sent).",
         f"- **Over the cap.** `full` cuts the document view head-first to fit a "
-        f"{FULL_CAP:,}-token prompt; the over-cap table gives the share of `full` document "
-        f"calls whose exact prompt tokens still exceeded {FULL_CAP:,}, and the truncated share.",
+        f"{FULL_CAP:,}-token prompt. The over-cap table gives the share of `full` documents "
+        f"whose largest exact document-call prompt still exceeded {FULL_CAP:,} tokens (estimated "
+        f"runs have none), the share whose deciding document view was cut, and the share with "
+        f"any view (section or document) cut.",
+        f"- **At most {MAX_SECTIONS} sections** (level 1 first, then level 2, in reading order) "
+        f"are tagged per document. A gold section past the cap is untagged and counts as a miss: "
+        f"the Sections column gives scored / excluded (reading mismatch) / untagged.",
         f"- **{len(without)} documents have no level-1/2 sections** in the reading (profile "
         f"`fast`), so they hold no section gold; `sections_first` falls back to `doc_first` "
         f"for them (flag `no_sections`).",
-        "- **doc_first section labels** come from the predicted doc type's own section taxonomy "
-        "and are scored through the catalogue's `from` mapping; a label with no catalogue leaf "
-        "counts as a wrong prediction (`unmapped`).",
-        "- **Token share** is a run's prompt tokens over those of the same backend and flow's "
-        "`full`/`full` run, summed over the same documents.",
+        f"- **doc_first section labels** come from the predicted doc type's own section taxonomy "
+        f"and are scored through the catalogue's `from` mapping, which reaches only "
+        f"{reachable} of the {len(catalogue_leaves())} catalogue leaves (from "
+        f"{len(catalogue_sources())} per-type leaves). The {generic_docs} gold documents whose "
+        f"type maps to `{generic}` ({generic_leaves} leaves) are capped hardest, so doc_first's "
+        f"section F1 is structurally below sections_first's. A label with no catalogue leaf "
+        f"counts as no prediction (it costs recall, not precision).",
+        "- **Token share** is a run's prompt tokens over those of the same backend, calls and "
+        "flow's `full`/`full` run, summed over the same documents.",
+        "- **Failed documents** (the Errors column) count as wrong in accuracy and carry no "
+        "tokens, so they are left out of the token means.",
     ]
+
+
+def _split(result: Mapping[str, Any]) -> str:
+    split = _metric(result, "tokens_split_mean")
+    if not split:
+        return "–"
+    return " / ".join(_tokens(split.get(k)) for k in ("options", "content", "instructions"))
+
+
+def _section_counts(result: Mapping[str, Any]) -> str:
+    sections = _metric(result, "sections")
+    if not sections:
+        return "–"
+    return f"{sections['n']} / {sections['excluded']} / {sections['missing']}"
 
 
 def _main_table(
     runs: Sequence[Mapping[str, Any]], all_runs: Sequence[Mapping[str, Any]]
 ) -> list[str]:
     lines = [
-        "| Backend | Flow | Level | Doc acc | Doc macro-F1 | Sec leaf macro-F1 "
-        "| Sec leaf micro-F1 | Sec group macro-F1 | Sec group micro-F1 | Prompt tokens/doc "
-        "| Token share vs full | Decided by rules | Truncated | Tokens | Wall s/doc | Errors |",
-        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|",
+        "| Backend | Calls | Flow | Level | Doc acc | Doc macro-F1 | Sec leaf macro-F1 "
+        "| Sec leaf micro-F1 | Sec group macro-F1 | Sec group micro-F1 "
+        "| Sections scored / excl. / untagged | Prompt tokens/doc | Token share vs full "
+        "| Est. split options / content / instr. | Decided by rules | Any view truncated "
+        "| Tokens | Wall s/doc | Errors |",
+        "|---|---|---|---|" + "---:|" * 6 + "---|---:|---:|---|---:|---:|---|---:|---:|",
     ]
     for r in runs:
-        label, _, flow, level, _ = _key(r)
+        label, _, calls, flow, level, _ = _key(r)
         share = token_share(r, baseline_for(r, all_runs))
         wall = _metric(r, "wall_s_mean")
         lines.append(
-            f"| {label} | {flow} | {level} | {_pct(_metric(r, 'doc_type', 'accuracy'))} "
+            f"| {label} | {calls} | {flow} | {level} "
+            f"| {_pct(_metric(r, 'doc_type', 'accuracy'))} "
             f"| {_pct(_metric(r, 'doc_type', 'macro_f1'))} "
             f"| {_pct(_metric(r, 'sections', 'leaf', 'macro_f1'))} "
             f"| {_pct(_metric(r, 'sections', 'leaf', 'micro_f1'))} "
             f"| {_pct(_metric(r, 'sections', 'group', 'macro_f1'))} "
             f"| {_pct(_metric(r, 'sections', 'group', 'micro_f1'))} "
-            f"| {_tokens(_metric(r, 'prompt_tokens_mean'))} | {_pct(share)} "
+            f"| {_section_counts(r)} "
+            f"| {_tokens(_metric(r, 'prompt_tokens_mean'))} | {_pct(share)} | {_split(r)} "
             f"| {_pct(_metric(r, 'decided_by_rules'))} | {_pct(_metric(r, 'truncated_share'))} "
             f"| {_kind(r)} | {'–' if wall is None else f'{wall:.2f}'} "
             f"| {_metric(r, 'errors') or 0} |"
@@ -878,36 +1072,41 @@ def _pick_cell(rows: Sequence[Mapping[str, Any]], metric: str) -> str:
     )
 
 
+def _groups(
+    runs: Sequence[Mapping[str, Any]],
+) -> dict[tuple[str, str, str], list[Mapping[str, Any]]]:
+    """Runs by (backend label, calls, flow), in order."""
+    groups: dict[tuple[str, str, str], list[Mapping[str, Any]]] = {}
+    for r in runs:
+        label, _, calls, flow, _, _ = _key(r)
+        groups.setdefault((label, calls, flow), []).append(r)
+    return groups
+
+
 def _picks(runs: Sequence[Mapping[str, Any]]) -> list[str]:
     lines = [
-        "| Backend | Flow | Document ladder (doc-type accuracy) "
+        "| Backend | Calls | Flow | Document ladder (doc-type accuracy) "
         "| Section ladder (section leaf macro-F1) |",
-        "|---|---|---|---|",
+        "|---|---|---|---|---|",
     ]
-    groups: dict[tuple[str, str], list[Mapping[str, Any]]] = {}
-    for r in runs:
-        groups.setdefault((r["backend"]["label"], r["config"]["flow"]), []).append(r)
-    for (label, flow), group in groups.items():
+    for (label, calls, flow), group in _groups(runs).items():
         rows = _ladder_rows(group)
         lines.append(
-            f"| {label} | {flow} | {_pick_cell(rows, 'doc_accuracy')} "
+            f"| {label} | {calls} | {flow} | {_pick_cell(rows, 'doc_accuracy')} "
             f"| {_pick_cell(rows, 'section_macro_f1')} |"
         )
     return lines
 
 
 def _cross_tables(runs: Sequence[Mapping[str, Any]]) -> list[str]:
-    groups: dict[tuple[str, str], list[Mapping[str, Any]]] = {}
-    for r in runs:
-        groups.setdefault((r["backend"]["label"], r["config"]["flow"]), []).append(r)
     lines: list[str] = []
-    for (label, flow), group in groups.items():
+    for (label, calls, flow), group in _groups(runs).items():
         if all(r["config"]["section_level"] == r["config"]["doc_level"] for r in group):
             continue
         cells = {(r["config"]["section_level"], r["config"]["doc_level"]): r for r in group}
         lines += [
-            f"**{label}, {flow}**: doc acc / section leaf macro-F1 / prompt tokens per document; "
-            f"rows are the section level, columns the document level.",
+            f"**{label}, {calls}, {flow}**: doc acc / section leaf macro-F1 / prompt tokens per "
+            f"document; rows are the section level, columns the document level.",
             "",
             "| Section \\ document | " + " | ".join(LEVELS) + " |",
             "|---|" + "---:|" * len(LEVELS),
@@ -933,16 +1132,17 @@ def _over_cap(runs: Sequence[Mapping[str, Any]]) -> list[str]:
     if not full:
         return []
     lines = [
-        "| Backend | Docs | Flow | Section level | Exact document calls "
-        f"| Over {FULL_CAP:,} prompt tokens | Truncated |",
-        "|---|---|---|---|---:|---:|---:|",
+        "| Backend | Calls | Docs | Flow | Section level | Documents with an exact full call "
+        f"| Largest call over {FULL_CAP:,} | Document view truncated | Any view truncated |",
+        "|---|---|---|---|---|---:|---:|---:|---:|",
     ]
     for r in full:
-        label, docs, flow, level, _ = _key(r)
+        label, docs, calls, flow, level, _ = _key(r)
         n = _metric(r, "over_cap_n") or 0
         lines.append(
-            f"| {label} | {docs} | {flow} | {level} | {n} "
+            f"| {label} | {calls} | {docs} | {flow} | {level} | {n} "
             f"| {_pct(_metric(r, 'over_cap_share')) if n else 'n/a (estimated)'} "
+            f"| {_pct(_metric(r, 'doc_truncated_share'))} "
             f"| {_pct(_metric(r, 'truncated_share'))} |"
         )
     return lines
@@ -950,14 +1150,15 @@ def _over_cap(runs: Sequence[Mapping[str, Any]]) -> list[str]:
 
 def _heldout_table(runs: Sequence[Mapping[str, Any]]) -> list[str]:
     lines = [
-        "| Backend | Flow | Section level | Doc level | Doc acc | Doc macro-F1 "
+        "| Backend | Calls | Flow | Section level | Doc level | Doc acc | Doc macro-F1 "
         "| Prompt tokens/doc | Tokens | Documents |",
-        "|---|---|---|---|---:|---:|---:|---|---:|",
+        "|---|---|---|---|---|---:|---:|---:|---|---:|",
     ]
     for r in runs:
-        label, _, flow, sl, dl = _key(r)
+        label, _, calls, flow, sl, dl = _key(r)
         lines.append(
-            f"| {label} | {flow} | {sl} | {dl} | {_pct(_metric(r, 'doc_type', 'accuracy'))} "
+            f"| {label} | {calls} | {flow} | {sl} | {dl} "
+            f"| {_pct(_metric(r, 'doc_type', 'accuracy'))} "
             f"| {_pct(_metric(r, 'doc_type', 'macro_f1'))} "
             f"| {_tokens(_metric(r, 'prompt_tokens_mean'))} | {_kind(r)} "
             f"| {_metric(r, 'documents')} |"
@@ -991,14 +1192,14 @@ def render_report(results: Sequence[Mapping[str, Any]]) -> str:
         lines += [
             "",
             "Doc acc is doc-type accuracy; Sec are the section-tag F1 scores at catalogue leaf "
-            "and group. Percentages, except tokens and seconds.",
+            "and group. Percentages, except counts, tokens and seconds.",
             "",
             "## Cheapest level within 2 points of full",
             "",
             "The rung with the fewest prompt tokens per document whose score is at most 2 points "
-            "below the same backend and flow's `full` run (spec §6.2), chosen independently for "
-            "the document ladder (doc-type accuracy) and the section ladder (section leaf "
-            "macro-F1).",
+            "below the same backend, calls and flow's `full` run (spec §6.2), chosen "
+            "independently for the document ladder (doc-type accuracy) and the section ladder "
+            "(section leaf macro-F1).",
             "",
         ]
         lines += _picks(main) if main else ["No main-grid runs."]
@@ -1017,7 +1218,7 @@ def render_report(results: Sequence[Mapping[str, Any]]) -> str:
             ]
     if partial:
         lines += ["", f"{partial} partial run(s) (`--limit`) are left out."]
-    lines += ["", "## Disclosures", "", *_disclosures(), ""]
+    lines += ["", "## Disclosures", "", *_disclosures(complete), ""]
     return "\n".join(lines)
 
 
@@ -1057,6 +1258,7 @@ def _run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             levels=parse_list(args.level, LEVELS) if args.level else None,
             section_levels=parse_list(args.section_level, LEVELS) if args.section_level else None,
             doc_levels=parse_list(args.doc_level, LEVELS) if args.doc_level else None,
+            calls=parse_list(args.calls, CALLS) if args.calls else default_calls(kind),
         )
     except ValueError as exc:
         parser.error(str(exc))
@@ -1071,14 +1273,14 @@ def _run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     reading = check_reading()
     if args.docs == "gold":
         doc_type_gold = load_doc_type_gold()
-        docs_in = gold_inputs(doc_type_gold)
+        docs_in = gold_inputs(doc_type_gold, cache=not args.no_cache)
         section_gold: dict[str, list[dict[str, Any]]] | None = load_section_gold()
         gold_hashes = {
             "doc_type_gold_sha1": _sha1(DOC_TYPE_GOLD_PATH),
             "section_gold_sha1": _sha1(SECTION_GOLD_PATH),
         }
     else:
-        docs_in = heldout_inputs()
+        docs_in = heldout_inputs(cache=not args.no_cache)
         section_gold = None
         gold_hashes = {"heldout_manifest_sha1": _sha1(HELDOUT_DIR / "manifest.jsonl")}
     if args.limit:
@@ -1088,8 +1290,10 @@ def _run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         "reading": {k: reading[k] for k in READING_KEYS},
         "docrooter_version": __version__,
         "limit": args.limit,
+        "code_fingerprint": code_fingerprint(code_paths()),
         **gold_hashes,
     }
+    code = code_identity()
     from docrooter.backends.base import close_backend
     from docrooter.backends.registry import resolve_backend
 
@@ -1108,6 +1312,7 @@ def _run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             classify=classify,
             settings=settings,
             max_errors=args.max_errors,
+            code=code,
         )
     finally:
         close_backend(backend)
@@ -1134,7 +1339,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         default=RESULTS_ROOT / datetime.date.today().isoformat() / "classification",
     )
+    run.add_argument(
+        "--calls",
+        help="per_item, batched, batched_flat, a list or all (default: all three for openai "
+        "backends; per_item,batched for the others, whose batched run is only a token estimate)",
+    )
     run.add_argument("--limit", type=int, help="only the first N documents (a smoke run)")
+    run.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="read each document again per configuration instead of keeping it in memory",
+    )
     run.add_argument("--max-errors", type=int, default=MAX_ERRORS)
     run.add_argument("--allow-jev", action="store_true", help="allow a jev backend")
     _guard.add_guard_argument(run)
@@ -1152,6 +1367,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "run":
         return _run(args, parser)
+    if not args.results.is_dir():
+        parser.error(f"--results {args.results} is not a directory")
     write_atomic(args.out, render_report(load_results(args.results)))
     print(f"wrote {args.out}")
     return 0

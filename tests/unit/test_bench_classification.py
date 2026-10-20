@@ -41,9 +41,15 @@ def _classification(
     flags: tuple[str, ...] = (),
     sections_usage: TokenUsage | None = None,
     document_usage: TokenUsage | None = None,
+    document_calls: list[tuple[str, int, bool]] | None = None,
+    doc_truncated: bool = False,
+    tokens_split: dict[str, int] | None = None,
+    calls: str = "per_item",
 ) -> SimpleNamespace:
     sections_usage = sections_usage or TokenUsage(100, 4, 2)
     document_usage = document_usage or TokenUsage(400, 2, 1)
+    if document_calls is None:  # one call carrying the whole document stage
+        document_calls = [("terms", document_usage.prompt, document_usage.exact)]
     return SimpleNamespace(
         doc_type=doc_type,
         doc_type_confidence=0.8,
@@ -55,6 +61,20 @@ def _classification(
         stage_tokens={"sections": sections_usage, "document": document_usage},
         levels={"section": "terms", "document": "terms"},
         backend="fake",
+        document_calls=[
+            SimpleNamespace(
+                level=level,
+                prompt_tokens=prompt,
+                completion_tokens=1,
+                exact=exact,
+                truncated=False,
+                options_count=19,
+            )
+            for level, prompt, exact in document_calls
+        ],
+        doc_truncated=doc_truncated,
+        tokens_split=tokens_split or {"options": 30, "content": 60, "instructions": 10},
+        calls=calls,
     )
 
 
@@ -250,19 +270,21 @@ def _run(tmp_path, *, classify=None, docs_split="gold", extra=None):
         ]
     }
 
-    def fake_classify(document, *, flow, section_level, doc_level, backend):
-        assert document is doc and backend == "BACKEND"
+    def fake_classify(document, *, flow, section_level, doc_level, backend, calls):
+        assert document is doc and backend == "BACKEND" and calls == "batched"
         return _classification(
             "financial.annual_report",
             sections=[
                 _tag("s1", "financial.balance_sheet", SECRET_TITLE),
                 _tag("s2", "financial.notes_to_financial_statements", "Notes to the accounts"),
             ],
-            flags=("truncated",) if doc_level == "full" else (),
-            document_usage=TokenUsage(17000 if doc_level == "full" else 400, 2, 1),
+            flags=("truncated",),  # a section view was cut; the document view was not
+            document_usage=TokenUsage(26000, 2, 2),
+            document_calls=[("full", 9000, True), ("full", 17000, True)],
+            calls="batched",
         )
 
-    config = bench.Config("sections_first", "full", "full")
+    config = bench.Config("sections_first", "full", "full", "batched")
     inputs = [bench.DocInput("d1", "financial.annual_report", lambda: doc)]
     return bench.run_configuration(
         inputs + ([extra] if extra else []),
@@ -274,6 +296,7 @@ def _run(tmp_path, *, classify=None, docs_split="gold", extra=None):
         section_gold=gold_rows if docs_split == "gold" else None,
         classify=classify or fake_classify,
         settings={"spec": "keyword"},
+        code={"git_sha": "a" * 40, "dirty": False},
     )
 
 
@@ -282,14 +305,38 @@ def test_run_configuration_metrics(tmp_path):
     m = result["metrics"]
     assert m["doc_type"]["accuracy"] == 1.0
     assert m["sections"]["leaf"]["micro_f1"] == 1.0
-    assert m["prompt_tokens_mean"] == 17100
+    assert m["prompt_tokens_mean"] == 26100
     assert m["tokens_exact"] is True
-    assert m["truncated_share"] == 1.0
-    assert m["over_cap_share"] == 1.0 and m["over_cap_n"] == 1  # 17,000 > 16,000, exact
+    assert m["truncated_share"] == 1.0  # any view
+    assert m["doc_truncated_share"] == 0.0  # the document view alone
+    # The largest exact document call (17,000), not the mean (13,000), is over 16,000.
+    assert m["over_cap_share"] == 1.0 and m["over_cap_n"] == 1
+    assert m["tokens_split_mean"] == {"options": 30, "content": 60, "instructions": 10}
+    assert m["calls_used"] == ["batched"]
     doc = result["documents"][0]
-    assert doc["stage_tokens"]["document"]["prompt"] == 17000
+    assert doc["stage_tokens"]["document"]["prompt"] == 26000
+    assert doc["doc_call_max_prompt"] == 17000
+    assert [c["prompt_tokens"] for c in doc["document_calls"]] == [9000, 17000]
+    assert result["config"]["calls"] == "batched" and result["settings"]["calls"] == "batched"
+    assert result["code"] == {"git_sha": "a" * 40, "dirty": False}
     heldout = _run(tmp_path, docs_split="heldout")
     assert heldout["metrics"]["sections"] is None and "sections" not in heldout["documents"][0]
+
+
+def test_over_cap_counts_only_exact_full_document_calls(tmp_path):
+    def classify(document, **kwargs):
+        return _classification(
+            "legal.contract",
+            document_usage=TokenUsage(20000, 0, 1, exact=False),
+            document_calls=[("full", 20000, False)],
+            doc_truncated=True,
+        )
+
+    result = _run(tmp_path, classify=classify)
+    m = result["metrics"]
+    assert m["over_cap_share"] is None and m["over_cap_n"] == 0  # estimated: not counted
+    assert m["doc_truncated_share"] == 1.0
+    assert result["documents"][0]["doc_call_max_prompt"] is None
 
 
 def test_results_hold_no_text(tmp_path):
@@ -318,16 +365,16 @@ def test_results_hold_no_text(tmp_path):
 
 
 def test_resume_skips_matching_settings(tmp_path, monkeypatch):
-    calls = []
+    made = []
 
-    def fake_classify(document, *, flow, section_level, doc_level, backend):
-        calls.append((flow, section_level, doc_level))
+    def fake_classify(document, *, flow, section_level, doc_level, backend, calls):
+        made.append((flow, section_level, doc_level, calls))
         return _classification("legal.contract")
 
     docs = [bench.DocInput("d1", "legal.contract", lambda: _doc())]
     configs = [
-        bench.Config("doc_first", "terms", "terms"),
-        bench.Config("doc_first", "lead", "lead"),
+        bench.Config("doc_first", "terms", "terms", "per_item"),
+        bench.Config("doc_first", "terms", "terms", "batched"),
     ]
     kwargs = dict(
         backend="B",
@@ -340,14 +387,18 @@ def test_resume_skips_matching_settings(tmp_path, monkeypatch):
         settings={"spec": "keyword"},
     )
     written = bench.run_grid(docs, configs, **kwargs)
-    assert len(calls) == 2 and [p.name for p in written] == [
-        "kw__gold__doc_first__terms__terms.json",
-        "kw__gold__doc_first__lead__lead.json",
+    assert made == [
+        ("doc_first", "terms", "terms", "per_item"),
+        ("doc_first", "terms", "terms", "batched"),
+    ]
+    assert [p.name for p in written] == [
+        "kw__gold__per_item__doc_first__terms__terms.json",
+        "kw__gold__batched__doc_first__terms__terms.json",
     ]
     bench.run_grid(docs, configs, **kwargs)
-    assert len(calls) == 2  # both files exist with the same settings: skipped
+    assert len(made) == 2  # both files exist with the same settings: skipped
     bench.run_grid(docs, configs, **{**kwargs, "settings": {"spec": "keyword", "x": 1}})
-    assert len(calls) == 4  # different settings: re-run
+    assert len(made) == 4  # different settings (e.g. a new code fingerprint): re-run
 
 
 def test_grid_configs():
@@ -357,6 +408,20 @@ def test_grid_configs():
         ["sections_first"], section_levels=list(bench.LEVELS), doc_levels=list(bench.LEVELS)
     )
     assert len(cross) == 16
+    with_calls = bench.grid_configs(
+        ["sections_first"], levels=["terms", "full"], calls=["per_item", "batched"]
+    )
+    assert [(c.doc_level, c.calls) for c in with_calls] == [
+        ("terms", "per_item"),
+        ("terms", "batched"),
+        ("full", "per_item"),
+        ("full", "batched"),
+    ]
+    # LLM backends batch for real: all three patterns. Other backends classify per item; the
+    # batched run differs only in the token estimate.
+    assert bench.default_calls("openai") == ["per_item", "batched", "batched_flat"]
+    assert bench.default_calls("keyword") == ["per_item", "batched"]
+    assert bench.default_calls("embedding") == ["per_item", "batched"]
     assert bench.parse_list("all", bench.LEVELS) == list(bench.LEVELS)
     with pytest.raises(ValueError):
         bench.parse_list("headings,wide", bench.LEVELS)
@@ -400,9 +465,36 @@ def test_llm_run_ignores_the_server_it_uses(monkeypatch, capsys):
         _guard.single_model_process("classification_bench")
 
 
-def test_jev_needs_explicit_flag(tmp_path):
-    with pytest.raises(SystemExit):
+def test_jev_needs_explicit_flag(monkeypatch, capsys):
+    def guard(*args, **kwargs):
+        raise AssertionError("the jev check comes before the model-process guard")
+
+    monkeypatch.setattr(_guard, "single_model_process", guard)
+    with pytest.raises(SystemExit) as exc:
         bench.main(["run", "--backend", "jev", "--flow", "doc_first", "--level", "terms"])
+    assert exc.value.code == 2 and "--allow-jev" in capsys.readouterr().err
+
+
+def test_code_identity_and_fingerprint(tmp_path):
+    outputs = {
+        ("rev-parse", "HEAD"): "f" * 40 + "\n",
+        ("status", "--porcelain"): " M src/docrooter/flow.py\n",
+    }
+
+    def run(args):
+        return outputs[tuple(args[:2])]
+
+    assert bench.code_identity(run=run) == {"git_sha": "f" * 40, "dirty": True}
+
+    def broken(args):
+        raise OSError("no git")
+
+    assert bench.code_identity(run=broken) == {"git_sha": None, "dirty": None}
+    a = tmp_path / "a.py"
+    a.write_text("x = 1\n")
+    before = bench.code_fingerprint([a])
+    a.write_text("x = 2\n")
+    assert bench.code_fingerprint([a]) != before
 
 
 def test_report_pending_and_tables(tmp_path):
@@ -410,10 +502,10 @@ def test_report_pending_and_tables(tmp_path):
     assert "Results pending" in pending
     assert "κ" in pending and "8 of the 19" in pending
 
-    def result(label, flow, level, acc, prompt, exact=True):
+    def result(label, flow, level, acc, prompt, exact=True, calls="per_item", spec="keyword"):
         return {
-            "backend": {"label": label, "spec": "keyword"},
-            "config": {"flow": flow, "section_level": level, "doc_level": level},
+            "backend": {"label": label, "spec": spec},
+            "config": {"flow": flow, "section_level": level, "doc_level": level, "calls": calls},
             "docs": "gold",
             "settings": {"limit": None},
             "documents": [_doc_record("a", prompt, exact=exact)],
@@ -422,9 +514,9 @@ def test_report_pending_and_tables(tmp_path):
                 "errors": 0,
                 "doc_type": {"accuracy": acc, "macro_f1": acc, "n": 1},
                 "sections": {
-                    "n": 1,
-                    "excluded": 0,
-                    "missing": 0,
+                    "n": 7,
+                    "excluded": 2,
+                    "missing": 3,
                     "unmapped": 0,
                     "leaf": {"macro_f1": acc, "micro_f1": acc},
                     "group": {"macro_f1": acc, "micro_f1": acc},
@@ -433,25 +525,35 @@ def test_report_pending_and_tables(tmp_path):
                 "prompt_tokens_mean": prompt,
                 "tokens_exact": exact,
                 "truncated_share": 0.0,
+                "doc_truncated_share": 0.0,
+                "tokens_split_mean": {"options": 40, "content": 50, "instructions": 10},
                 "over_cap_share": None,
                 "over_cap_n": 0,
                 "wall_s_mean": 0.1,
             },
         }
 
-    runs = [
-        result("kw", "sections_first", "headings", 0.5, 100, exact=False),
-        result("kw", "sections_first", "terms", 0.89, 200, exact=False),
-        result("kw", "sections_first", "lead", 0.9, 300, exact=False),
-        result("kw", "sections_first", "full", 0.9, 1000, exact=False),
+    assert "40 sections" in pending and "61 of the 112" in pending
+    assert "mlx_lm.server" not in pending  # no LLM run, no stand-in disclosure
+    levels = [("headings", 0.5, 100), ("terms", 0.89, 200), ("lead", 0.9, 300), ("full", 0.9, 1000)]
+    runs = [result("kw", "sections_first", lv, a, p, exact=False) for lv, a, p in levels]
+    # Batched: cheaper, and headings is within 2 points of its own full.
+    runs += [
+        result("kw", "sections_first", lv, a, p // 2, exact=False, calls="batched")
+        for lv, a, p in [("headings", 0.89, 100), ("full", 0.9, 1000)]
     ]
     text = bench.render_report(runs)
     assert "Results pending" not in text
-    assert "| kw | sections_first | terms |" in text
+    assert "| kw | per_item | sections_first | terms |" in text
+    assert "| kw | batched | sections_first | headings |" in text
     assert "estimated" in text
-    pick_line = next(line for line in text.splitlines() if line.startswith("| kw | sections_first"))
-    assert pick_line  # the main table row
-    assert "terms" in text.split("## Cheapest level within 2 points of full")[1].split("##")[0]
+    assert "| 7 / 2 / 3 |" in text  # sections scored / excluded / untagged
+    assert "| 40 / 50 / 10 |" in text  # estimated split: options / content / instructions
+    picks = text.split("## Cheapest level within 2 points of full")[1].split("\n## ")[0]
+    assert "| kw | per_item | sections_first | `terms`: 89.0 at 200 tokens" in picks
+    assert "| kw | batched | sections_first | `headings`: 89.0 at 50 tokens" in picks
+    llm = bench.render_report([result("q", "doc_first", "full", 0.9, 9, spec="openai:~/m")])
+    assert "mlx_lm.server" in llm and "`q`" in llm
     path = tmp_path / "results"
     path.mkdir()
     for k, r in enumerate(runs):
@@ -459,3 +561,5 @@ def test_report_pending_and_tables(tmp_path):
     out = tmp_path / "report.md"
     assert bench.main(["report", "--results", str(path), "--out", str(out)]) == 0
     assert out.read_text() == text
+    with pytest.raises(SystemExit):  # a mistyped results directory is not "results pending"
+        bench.main(["report", "--results", str(tmp_path / "missing"), "--out", str(out)])

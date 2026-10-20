@@ -52,8 +52,9 @@ def list_builtin_taxonomies() -> list[str]:
 
 
 def builtin_taxonomy(name: str) -> Taxonomy:
-    """Load a built-in taxonomy: ``"doc_types"``, ``"element_topics"``, ``"element_functions"``
-    or ``"section_types/<name>"``.
+    """Load a built-in taxonomy: ``"doc_types"``, ``"section_catalogue"`` (the shared section
+    types, grouped by domain), ``"element_topics"``, ``"element_functions"`` or
+    ``"section_types/<name>"``.
 
     Each name is parsed once per process; every call returns a fresh deep copy, so callers may
     change it freely. Unknown names raise :class:`~docrooter.errors.UnknownTaxonomyError`

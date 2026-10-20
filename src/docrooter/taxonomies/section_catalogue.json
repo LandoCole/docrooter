@@ -1,0 +1,1910 @@
+{
+  "root": {
+    "description": "Section types shared by every kind of document, grouped by domain. A section is tagged group first, then leaf, without knowing the document's type; the doc-type rules then use the tags to decide or narrow the type."
+  },
+  "nodes": [
+    {
+      "id": "general",
+      "label": "General",
+      "description": "Parts that any kind of document can have, such as front matter, summary, introduction, background, main body, findings, recommendations, conclusion, references and appendix, when no domain-specific group fits the section better.",
+      "children": [
+        {
+          "id": "general.front_matter",
+          "label": "Front matter",
+          "description": "Material that precedes the main content, such as title page, table of contents, preface, copyright notices, list of figures, and a presentation's agenda.",
+          "examples": [
+            "Table of Contents",
+            "Contents",
+            "Title Page",
+            "Preface",
+            "Foreword",
+            "List of Figures",
+            "Copyright Notice",
+            "Agenda"
+          ],
+          "metadata": {
+            "from": [
+              "generic.front_matter"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "general.summary",
+          "label": "Summary",
+          "description": "A condensed statement of the key points of the whole document, such as an executive summary or overview; a scholarly paper's abstract belongs to research.abstract.",
+          "examples": [
+            "Executive Summary",
+            "Summary",
+            "Overview",
+            "At a Glance"
+          ],
+          "metadata": {
+            "from": [
+              "generic.summary"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "general.introduction",
+          "label": "Introduction",
+          "description": "The opening section that states the purpose, context, and scope of the document, or motivates a paper's problem and states its research questions or contributions.",
+          "examples": [
+            "Introduction",
+            "1 Introduction",
+            "Purpose",
+            "Purpose and Scope",
+            "Motivation"
+          ],
+          "metadata": {
+            "from": [
+              "generic.introduction",
+              "research_paper.introduction"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "general.background",
+          "label": "Background",
+          "description": "Context the reader needs before the main content, such as history, prior events, the problem setting, definitions, notation, or technical preliminaries, distinct from a review of competing work (research.related_work).",
+          "examples": [
+            "Background",
+            "Preliminaries",
+            "Problem Formulation",
+            "Notation",
+            "Problem Setup",
+            "Context"
+          ],
+          "metadata": {
+            "from": [
+              "research_paper.background"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "general.body",
+          "label": "Body",
+          "description": "The substantive main content of the document that is neither introductory, concluding, nor back matter, when no more specific leaf in any group fits it.",
+          "examples": [
+            "Main Body",
+            "Chapter 1",
+            "Part I",
+            "Requirements"
+          ],
+          "metadata": {
+            "from": [
+              "generic.body"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "general.findings",
+          "label": "Findings",
+          "description": "The key findings drawn from a review, audit, investigation, survey or analysis, stated as the outcome of the work; the measured results of a scholarly paper's experiments belong to research.results and the actions proposed in response to general.recommendations.",
+          "examples": [
+            "Key Findings",
+            "Findings",
+            "Main Findings",
+            "What GAO Found",
+            "Audit Findings",
+            "Summary of Findings"
+          ],
+          "children": []
+        },
+        {
+          "id": "general.recommendations",
+          "label": "Recommendations",
+          "description": "Specific actions the authors recommend to a named audience, such as policy options, recommendations for executive action, or matters for a legislature to consider; a general wrap-up of the document belongs to general.conclusion.",
+          "examples": [
+            "Recommendations",
+            "Recommendations for Executive Action",
+            "Policy Recommendations",
+            "Matters for Congressional Consideration",
+            "Our Recommendations"
+          ],
+          "children": []
+        },
+        {
+          "id": "general.conclusion",
+          "label": "Conclusion",
+          "description": "The closing section that sums up what the document showed or argued, with next steps or future directions; specific recommended actions belong to general.recommendations.",
+          "examples": [
+            "Conclusion",
+            "Conclusions",
+            "Concluding Remarks",
+            "Conclusion and Future Work",
+            "Summary and Outlook",
+            "Next Steps"
+          ],
+          "metadata": {
+            "from": [
+              "generic.conclusion",
+              "research_paper.conclusion"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "general.acknowledgements",
+          "label": "Acknowledgments",
+          "description": "Thanks to funders, colleagues, and reviewers, including funding statements and author contributions.",
+          "examples": [
+            "Acknowledgments",
+            "Acknowledgements",
+            "Funding",
+            "Author Contributions"
+          ],
+          "metadata": {
+            "from": [
+              "research_paper.acknowledgements"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "general.references",
+          "label": "References",
+          "description": "Bibliography, citations, footnotes, and links to sources used by the document; a standard's normative and informative references belong to standard.normative_references.",
+          "examples": [
+            "References",
+            "Bibliography",
+            "Works Cited",
+            "Literature Cited",
+            "Sources",
+            "Notes",
+            "Endnotes"
+          ],
+          "metadata": {
+            "from": [
+              "generic.references",
+              "research_paper.references"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "general.appendix",
+          "label": "Appendix",
+          "description": "Supplementary material placed after the main body, such as extra data, tables, proofs, derivations, additional experiments, forms, glossaries, indexes, and revision history, as opposed to the lookup material in technical.reference.",
+          "examples": [
+            "Appendix",
+            "Appendix A",
+            "Annex",
+            "Glossary",
+            "Supplementary Material",
+            "Index",
+            "Revision History",
+            "Additional Experiments"
+          ],
+          "metadata": {
+            "from": [
+              "generic.appendix",
+              "research_paper.appendix",
+              "technical_document.appendix"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "general.other",
+          "label": "Other",
+          "description": "Brief or administrative content that fits none of the other general parts, such as contact details, author biographies, disclaimers, legal notices, and colophons; substantive main text belongs to general.body.",
+          "examples": [
+            "Contact Us",
+            "About the Authors",
+            "Disclaimer",
+            "Legal Notices",
+            "Imprint"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "research",
+      "label": "Research",
+      "description": "Sections specific to scholarly research papers: the abstract, the review of related work, methods, experiments, results, discussion, and limitations.",
+      "children": [
+        {
+          "id": "research.abstract",
+          "label": "Abstract",
+          "description": "A short self-contained summary of the problem, approach, and main findings placed at the start of the paper.",
+          "examples": [
+            "Abstract",
+            "Extended Abstract",
+            "Synopsis"
+          ],
+          "metadata": {
+            "from": [
+              "research_paper.abstract"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "research.related_work",
+          "label": "Related work",
+          "description": "A survey of prior literature that positions the paper against existing approaches.",
+          "examples": [
+            "Related Work",
+            "Prior Work",
+            "Literature Review",
+            "Previous Work",
+            "Related Literature"
+          ],
+          "metadata": {
+            "from": [
+              "research_paper.related_work"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "research.method",
+          "label": "Method",
+          "description": "The description of the proposed approach, model, algorithm, or study design, including how data were collected or processed.",
+          "examples": [
+            "Method",
+            "Methods",
+            "Methodology",
+            "Approach",
+            "Proposed Method",
+            "Materials and Methods"
+          ],
+          "metadata": {
+            "from": [
+              "research_paper.method"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "research.experiments",
+          "label": "Experiments",
+          "description": "The experimental setup: datasets, baselines, metrics, implementation details, and evaluation protocol, before the numbers are discussed.",
+          "examples": [
+            "Experiments",
+            "Experimental Setup",
+            "Evaluation",
+            "Datasets",
+            "Implementation Details"
+          ],
+          "metadata": {
+            "from": [
+              "research_paper.experiments"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "research.results",
+          "label": "Results",
+          "description": "The reported measurements and findings of the experiments or analyses, presented in tables and figures, without broader interpretation (which belongs to discussion).",
+          "examples": [
+            "Results",
+            "Main Results",
+            "Experimental Results",
+            "Ablation Study",
+            "Empirical Results"
+          ],
+          "metadata": {
+            "from": [
+              "research_paper.results"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "research.discussion",
+          "label": "Discussion",
+          "description": "The interpretation of the results: their implications, possible explanations, and comparisons with prior work or expectations, rather than the reported numbers themselves (which belong to results).",
+          "examples": [
+            "Discussion",
+            "Analysis",
+            "Implications",
+            "General Discussion"
+          ],
+          "metadata": {
+            "from": [
+              "research_paper.discussion"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "research.limitations",
+          "label": "Limitations",
+          "description": "An explicit statement of the weaknesses, assumptions, threats to validity, and scope boundaries of the work.",
+          "examples": [
+            "Limitations",
+            "Threats to Validity",
+            "Limitations and Future Work",
+            "Broader Impact"
+          ],
+          "metadata": {
+            "from": [
+              "research_paper.limitations"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "research.other",
+          "label": "Other",
+          "description": "Research-paper content that fits none of the other research leaves, such as ethics statements, data and code availability, reproducibility checklists, and conflict-of-interest declarations; funding and thanks belong to general.acknowledgements.",
+          "examples": [
+            "Ethics Statement",
+            "Data Availability",
+            "Code Availability",
+            "Reproducibility Statement",
+            "Conflict of Interest"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "narrative",
+      "label": "Management narrative",
+      "description": "Management's own account of a company or fund in prose: letters to shareholders or investors, the business overview, management's discussion and analysis, and the outlook.",
+      "children": [
+        {
+          "id": "narrative.shareholder_letter",
+          "label": "Shareholder or investor letter",
+          "description": "A narrative letter from the chairman, CEO, or fund manager to shareholders or investors that reviews the period and the outlook in the writer's own voice, as opposed to the formal business overview or MD&A sections.",
+          "examples": [
+            "Letter to Shareholders",
+            "Dear Fellow Shareholders",
+            "Chairman's Statement",
+            "Letter from the Chief Executive Officer",
+            "Message from the Chairman",
+            "CEO Review",
+            "Letter to Investors",
+            "Portfolio Manager's Letter"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.shareholder_letter"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "narrative.business_overview",
+          "label": "Business overview",
+          "description": "A description of what the company does, its products, markets, competition, customers, and strategy (Form 10-K Item 1).",
+          "examples": [
+            "Item 1. Business",
+            "Business",
+            "Business Overview",
+            "Our Business",
+            "Company Overview",
+            "Strategic Report",
+            "Products and Services",
+            "Competition"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.business_overview"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "narrative.management_discussion",
+          "label": "Management discussion and analysis",
+          "description": "Management's narrative explanation of results of operations, liquidity, capital resources, and trends, including market-risk disclosures (MD&A, Items 7 and 7A).",
+          "examples": [
+            "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations",
+            "Management's Discussion and Analysis",
+            "MD&A",
+            "Operating and Financial Review",
+            "Results of Operations",
+            "Liquidity and Capital Resources",
+            "Item 7A. Quantitative and Qualitative Disclosures About Market Risk"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.management_discussion"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "narrative.outlook",
+          "label": "Outlook",
+          "description": "Management's forward-looking view of the coming period, such as financial guidance, targets, expected market conditions, and priorities; a review of the period just ended belongs to narrative.management_discussion, and the legal caution about forward-looking statements to disclosure.forward_looking_statements.",
+          "examples": [
+            "Outlook",
+            "Guidance",
+            "Financial Outlook",
+            "Business Outlook",
+            "Looking Ahead",
+            "Full-Year Guidance"
+          ],
+          "children": []
+        },
+        {
+          "id": "narrative.other",
+          "label": "Other",
+          "description": "Narrative content about the company or fund that fits none of the other narrative leaves, such as company history, case studies, and customer stories; a letter addressed to shareholders or investors belongs to narrative.shareholder_letter.",
+          "examples": [
+            "Our History",
+            "Year in Review",
+            "Case Studies",
+            "Customer Stories"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "financial",
+      "label": "Financial statements",
+      "description": "Financial statements and the material that accompanies them: the primary statements, a fund's schedule of investments, the notes, the auditor's report, financial highlights, and statements of a customer's account.",
+      "children": [
+        {
+          "id": "financial.financial_statements",
+          "label": "Financial statements",
+          "description": "A section that presents the primary financial statements together as a set under one heading, such as Item 8 of a Form 10-K or the condensed statements of a 10-Q; a section holding a single statement belongs to that statement's leaf, and the notes and the auditor's report have leaves of their own.",
+          "examples": [
+            "Item 8. Financial Statements and Supplementary Data",
+            "Consolidated Financial Statements",
+            "Financial Statements",
+            "Condensed Consolidated Financial Statements",
+            "Item 1. Financial Statements",
+            "Financial Information"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.financial_statements"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "financial.balance_sheet",
+          "label": "Balance sheet",
+          "description": "The statement of financial position at a date, listing assets, liabilities, and equity, or a fund's statement of assets and liabilities or of net assets; not the income statement, which covers a period.",
+          "examples": [
+            "Consolidated Balance Sheets",
+            "Balance Sheet",
+            "Statement of Financial Position",
+            "Statement of Assets and Liabilities",
+            "Statement of Net Assets",
+            "Condensed Consolidated Balance Sheets"
+          ],
+          "children": []
+        },
+        {
+          "id": "financial.income_statement",
+          "label": "Income statement",
+          "description": "The statement of revenues, expenses, and profit or loss for a period, including earnings per share and comprehensive income, or a fund's statement of operations; not management's narrative about those results (narrative.management_discussion) or the line-item detail in the notes.",
+          "examples": [
+            "Consolidated Statements of Operations",
+            "Income Statement",
+            "Statement of Profit or Loss",
+            "Consolidated Statements of Income",
+            "Statement of Comprehensive Income",
+            "Statement of Operations",
+            "Profit and Loss Account"
+          ],
+          "children": []
+        },
+        {
+          "id": "financial.cash_flow_statement",
+          "label": "Cash-flow statement",
+          "description": "The statement of cash flows for a period, splitting the cash generated and used into operating, investing, and financing activities; not the liquidity discussion in narrative.management_discussion.",
+          "examples": [
+            "Consolidated Statements of Cash Flows",
+            "Cash Flow Statement",
+            "Statement of Cash Flows",
+            "Condensed Consolidated Statements of Cash Flows"
+          ],
+          "children": []
+        },
+        {
+          "id": "financial.changes_in_equity",
+          "label": "Statement of changes in equity",
+          "description": "The statement of changes in shareholders' equity or, for a fund, in net assets, reconciling opening to closing equity through income, dividends, share issues, and buybacks; not the equity section of the balance sheet at a single date.",
+          "examples": [
+            "Consolidated Statements of Stockholders' Equity",
+            "Statement of Changes in Equity",
+            "Statement of Changes in Net Assets",
+            "Consolidated Statements of Shareholders' Equity",
+            "Statement of Changes in Shareholders' Equity"
+          ],
+          "children": []
+        },
+        {
+          "id": "financial.schedule_of_investments",
+          "label": "Schedule of investments",
+          "description": "The complete list of a fund's or investment company's positions at a date, with quantities, costs, and fair values, as part of its financial statements; not a summary of top holdings or allocations (fund.holdings_and_allocation).",
+          "examples": [
+            "Schedule of Investments",
+            "Portfolio of Investments",
+            "Consolidated Schedule of Investments",
+            "Investments in Securities",
+            "Statement of Investments"
+          ],
+          "children": []
+        },
+        {
+          "id": "financial.auditors_report",
+          "label": "Auditor's report",
+          "description": "The independent auditor's or accountant's report giving an opinion on, or the results of a review of, the financial statements or internal control, including critical or key audit matters; not management's own report on internal control (disclosure.controls_and_procedures).",
+          "examples": [
+            "Report of Independent Registered Public Accounting Firm",
+            "Independent Auditor's Report",
+            "Independent Auditors' Report",
+            "Report on Review of Interim Financial Information",
+            "Independent Review Report",
+            "Opinion on the Financial Statements"
+          ],
+          "children": []
+        },
+        {
+          "id": "financial.notes_to_financial_statements",
+          "label": "Notes to financial statements",
+          "description": "The numbered explanatory notes on accounting policies, estimates, and line-item detail that accompany and support the financial statements.",
+          "examples": [
+            "Notes to Consolidated Financial Statements",
+            "Notes to the Financial Statements",
+            "Note 1. Summary of Significant Accounting Policies",
+            "Note 2. Revenue Recognition",
+            "Income Taxes",
+            "Commitments and Contingencies"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.notes_to_financial_statements"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "financial.account_statement",
+          "label": "Account statement",
+          "description": "A statement of one customer's account for a period, such as a bank, brokerage, retirement, or insurance account, with that account's balance, transactions, holdings, and fees; not a company's or fund's own financial statements.",
+          "examples": [
+            "Account Summary",
+            "Statement of Account",
+            "Account Activity",
+            "Transaction History",
+            "Balance Summary"
+          ],
+          "children": []
+        },
+        {
+          "id": "financial.financial_highlights",
+          "label": "Financial highlights",
+          "description": "A short summary of headline figures for the period, such as key figures, selected financial data, the results table on a release's first page, or a fund's per-share financial highlights; the full statements belong to their own leaves.",
+          "examples": [
+            "Financial Highlights",
+            "Key Figures",
+            "Selected Financial Data",
+            "Highlights",
+            "Quarterly Highlights",
+            "Results at a Glance"
+          ],
+          "children": []
+        },
+        {
+          "id": "financial.other",
+          "label": "Other",
+          "description": "Financial material that fits none of the other financial leaves, such as non-GAAP reconciliations, segment tables, and supplementary or unaudited financial data; narrative about the results belongs to narrative.management_discussion.",
+          "examples": [
+            "Reconciliation of Non-GAAP Financial Measures",
+            "Non-GAAP Financial Measures",
+            "Supplementary Information",
+            "Segment Information",
+            "Supplementary Financial Data"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "disclosure",
+      "label": "Corporate disclosures",
+      "description": "Regulatory and corporate disclosures of a company's filings and shareholder documents: risk factors, governance, executive pay, shareholder-meeting proposals, controls, legal proceedings, properties, the market for its stock, forward-looking-statement legends, and exhibit lists.",
+      "children": [
+        {
+          "id": "disclosure.risk_factors",
+          "label": "Risk factors",
+          "description": "A discussion of the risks and uncertainties that could materially harm the business, a fund, or the value of the securities, such as the risk factors of a filing or offering document and a fund's principal risks (market, credit, interest-rate, liquidity); not the strategy that gives rise to them (fund.principal_investment_strategies).",
+          "examples": [
+            "Item 1A. Risk Factors",
+            "Risk Factors",
+            "Principal Risks and Uncertainties",
+            "Risks Related to Our Business",
+            "Summary of Risk Factors",
+            "Principal Risks",
+            "Principal Risks of Investing in the Fund",
+            "Main Risks"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.risk_factors",
+              "fund_document.principal_risks"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "disclosure.corporate_governance",
+          "label": "Corporate governance",
+          "description": "Information about the board of directors, its committees, director independence, officers, and governance practices and policies.",
+          "examples": [
+            "Item 10. Directors, Executive Officers and Corporate Governance",
+            "Corporate Governance",
+            "Board of Directors",
+            "Information About Our Executive Officers",
+            "Board Committees",
+            "Code of Ethics"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.corporate_governance"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "disclosure.executive_compensation",
+          "label": "Executive compensation",
+          "description": "Disclosure of pay for senior executives and directors, including salary, bonuses, equity awards, and pay-versus-performance tables.",
+          "examples": [
+            "Item 11. Executive Compensation",
+            "Executive Compensation",
+            "Compensation Discussion and Analysis",
+            "Directors' Remuneration Report",
+            "Summary Compensation Table",
+            "Pay Versus Performance"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.executive_compensation"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "disclosure.shareholder_meeting",
+          "label": "Shareholder meeting and proposals",
+          "description": "The notice and logistics of a shareholder meeting and the proposals to be voted on, such as voting procedures, proxy solicitation, quorum, and each proposal with the board's recommendation; the nominees' biographies belong to disclosure.corporate_governance and the pay tables to disclosure.executive_compensation.",
+          "examples": [
+            "Notice of Annual Meeting of Shareholders",
+            "Questions and Answers About the Annual Meeting and Voting",
+            "Voting Information",
+            "Proposal 1: Election of Directors",
+            "Ratification of Appointment of Independent Registered Public Accounting Firm",
+            "Advisory Vote to Approve Executive Compensation"
+          ],
+          "children": []
+        },
+        {
+          "id": "disclosure.controls_and_procedures",
+          "label": "Controls and procedures",
+          "description": "Management's evaluation of disclosure controls and internal control over financial reporting, including any material weaknesses (Item 9A).",
+          "examples": [
+            "Item 9A. Controls and Procedures",
+            "Controls and Procedures",
+            "Disclosure Controls and Procedures",
+            "Management's Report on Internal Control over Financial Reporting",
+            "Changes in Internal Control over Financial Reporting"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.controls_and_procedures"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "disclosure.legal_proceedings",
+          "label": "Legal proceedings",
+          "description": "A description of pending or threatened litigation, regulatory actions, and other legal matters involving the company (Item 3).",
+          "examples": [
+            "Item 3. Legal Proceedings",
+            "Legal Proceedings",
+            "Litigation",
+            "Legal Matters"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.legal_proceedings"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "disclosure.properties",
+          "label": "Properties",
+          "description": "A description of the company's principal physical facilities, such as plants, offices, and real estate it owns or leases (Item 2).",
+          "examples": [
+            "Item 2. Properties",
+            "Properties",
+            "Facilities",
+            "Real Estate"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.properties"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "disclosure.market_for_equity",
+          "label": "Market for equity",
+          "description": "Information on the market for the company's common stock, including listing, holders, dividends, share repurchases, and stock performance (Item 5).",
+          "examples": [
+            "Item 5. Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+            "Market for Common Equity",
+            "Stock Performance Graph",
+            "Dividend Policy",
+            "Issuer Purchases of Equity Securities",
+            "Shareholder Information"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.market_for_equity"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "disclosure.forward_looking_statements",
+          "label": "Forward-looking statements",
+          "description": "The legal legend cautioning that forward-looking statements involve risks and uncertainties, often naming the factors and claiming a safe harbor, and similar important-notice disclaimers of investor documents; the outlook itself belongs to narrative.outlook and the risks themselves to disclosure.risk_factors.",
+          "examples": [
+            "Cautionary Note Regarding Forward-Looking Statements",
+            "Forward-Looking Statements",
+            "Safe Harbor Statement",
+            "Special Note Regarding Forward-Looking Statements",
+            "Important Notice",
+            "Cautionary Statement"
+          ],
+          "children": []
+        },
+        {
+          "id": "disclosure.exhibits",
+          "label": "Exhibits",
+          "description": "The list of exhibits and filed documents, signatures, and schedules incorporated by reference in a regulatory filing, which carries no narrative content of its own (Item 15); the signature blocks and attachments of an agreement belong to contract.signatures_exhibits.",
+          "examples": [
+            "Item 15. Exhibits and Financial Statement Schedules",
+            "Exhibits",
+            "Exhibit Index",
+            "Financial Statement Schedules"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.exhibits"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "disclosure.other",
+          "label": "Other",
+          "description": "Disclosure material that fits none of the other disclosure leaves, such as mine safety, cybersecurity, auditor fees, related-party transactions, and unresolved staff comments; a filing's cover page and table of contents belong to general.front_matter.",
+          "examples": [
+            "Item 4. Mine Safety Disclosures",
+            "Item 1C. Cybersecurity",
+            "Principal Accountant Fees and Services",
+            "Certain Relationships and Related Transactions",
+            "Unresolved Staff Comments"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.other"
+            ]
+          },
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "esg",
+      "label": "Sustainability and ESG",
+      "description": "Sustainability and ESG reporting: the overall sustainability approach, environmental and climate topics, social and workforce topics, and ESG data tables and framework indexes.",
+      "children": [
+        {
+          "id": "esg.sustainability",
+          "label": "Sustainability",
+          "description": "A company's overall approach to sustainability, such as its strategy, materiality assessment, ESG governance, commitments, and stakeholder engagement, when no single environmental or social topic is the subject; board and corporate governance in general belongs to disclosure.corporate_governance.",
+          "examples": [
+            "Sustainability",
+            "Environmental, Social and Governance",
+            "ESG Report",
+            "Corporate Social Responsibility",
+            "Our Approach to Sustainability",
+            "Materiality Assessment"
+          ],
+          "metadata": {
+            "from": [
+              "annual_report.sustainability"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "esg.climate_environment",
+          "label": "Climate and environment",
+          "description": "Environmental topics such as climate strategy and risks, greenhouse-gas emissions, energy, water, waste, biodiversity, and climate-related financial disclosures; social topics belong to esg.social.",
+          "examples": [
+            "Climate-Related Disclosures",
+            "Climate Change",
+            "Environment",
+            "Greenhouse Gas Emissions",
+            "Energy and Emissions",
+            "Our Planet",
+            "Climate Risk"
+          ],
+          "children": []
+        },
+        {
+          "id": "esg.social",
+          "label": "Social and workforce",
+          "description": "Social topics such as workforce and human capital, diversity and inclusion, health and safety, human rights, labor in the supply chain, and communities and philanthropy; board governance belongs to disclosure.corporate_governance.",
+          "examples": [
+            "Human Capital",
+            "Our People",
+            "Diversity, Equity and Inclusion",
+            "Health and Safety",
+            "Human Rights",
+            "Community Engagement",
+            "Social"
+          ],
+          "children": []
+        },
+        {
+          "id": "esg.esg_metrics",
+          "label": "ESG data and indexes",
+          "description": "ESG data tables and the indexes that map disclosures to GRI, SASB, TCFD, or other frameworks, together with assurance statements on them; narrative about a topic belongs to that topic's leaf.",
+          "examples": [
+            "GRI Content Index",
+            "SASB Index",
+            "ESG Data",
+            "Performance Data",
+            "TCFD Index",
+            "Independent Assurance Statement"
+          ],
+          "children": []
+        },
+        {
+          "id": "esg.other",
+          "label": "Other",
+          "description": "Sustainability content that fits none of the other ESG leaves, such as product responsibility, responsible-investment policies, awards, and memberships; the overall approach belongs to esg.sustainability.",
+          "examples": [
+            "Responsible Investment",
+            "Product Responsibility",
+            "Awards and Recognition",
+            "Memberships and Associations"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "fund",
+      "label": "Fund",
+      "description": "Sections that describe an investment fund or share class to investors: objective, strategies, fees, performance, holdings, key facts, management, buying and selling shares, and taxes.",
+      "children": [
+        {
+          "id": "fund.investment_objective",
+          "label": "Investment objective",
+          "description": "The fund's stated investment goal, such as long-term capital growth, current income, or tracking an index, usually in one or two sentences; how the fund pursues that goal belongs to fund.principal_investment_strategies.",
+          "examples": [
+            "Investment Objective",
+            "Investment Objectives",
+            "Investment Goal",
+            "Fund Objective",
+            "Objective"
+          ],
+          "metadata": {
+            "from": [
+              "fund_document.investment_objective"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "fund.principal_investment_strategies",
+          "label": "Principal investment strategies",
+          "description": "How the fund pursues its objective: the kinds of securities it buys, its selection process or index methodology, and limits on what it may hold; not the risks of those investments (disclosure.risk_factors) or the portfolio held on a given date (fund.holdings_and_allocation).",
+          "examples": [
+            "Principal Investment Strategies",
+            "Principal Investment Strategies of the Fund",
+            "Investment Strategy",
+            "Investment Approach",
+            "Investment Policies",
+            "Investment Process"
+          ],
+          "metadata": {
+            "from": [
+              "fund_document.principal_investment_strategies"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "fund.fees_and_expenses",
+          "label": "Fees and expenses",
+          "description": "The costs of buying, holding, and selling fund shares: shareholder fees and sales charges, annual operating expenses and expense ratios, fee waivers, the expense example, and portfolio turnover.",
+          "examples": [
+            "Fees and Expenses of the Fund",
+            "Fees and Expenses",
+            "Annual Fund Operating Expenses",
+            "Shareholder Fees",
+            "Expense Example",
+            "Expense Ratio",
+            "Portfolio Turnover",
+            "Charges"
+          ],
+          "metadata": {
+            "from": [
+              "fund_document.fees_and_expenses"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "fund.performance",
+          "label": "Performance",
+          "description": "Past returns of the fund or share class and its benchmark: annual return bar charts, average annual total return tables, best and worst quarters, the growth of a hypothetical investment, and commentary on past results; not the fund's costs (fund.fees_and_expenses).",
+          "examples": [
+            "Performance",
+            "Past Performance",
+            "Fund Performance",
+            "Average Annual Total Returns",
+            "Annual Total Returns",
+            "Calendar Year Returns",
+            "Performance Information",
+            "Growth of $10,000"
+          ],
+          "metadata": {
+            "from": [
+              "fund_document.performance"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "fund.holdings_and_allocation",
+          "label": "Holdings and allocation",
+          "description": "What the fund holds as of a date: its top holdings, the number of holdings, and breakdowns by asset class, sector, region, credit quality, or maturity; not the strategy that selects them (fund.principal_investment_strategies) or the complete audited list of positions (financial.schedule_of_investments).",
+          "examples": [
+            "Top Holdings",
+            "Top 10 Holdings",
+            "Portfolio Holdings",
+            "Sector Allocation",
+            "Asset Allocation",
+            "Portfolio Composition",
+            "Geographic Breakdown"
+          ],
+          "metadata": {
+            "from": [
+              "fund_document.holdings_and_allocation"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "fund.fund_facts",
+          "label": "Fund facts",
+          "description": "The key-facts block that identifies a fund or share class, such as tickers and other identifiers, inception date, net assets, benchmark, share classes, and distribution frequency; a key-facts expense ratio belongs to fund.fees_and_expenses and the number of holdings to fund.holdings_and_allocation.",
+          "examples": [
+            "Fund Facts",
+            "Key Facts",
+            "Fund Details",
+            "Fund Information",
+            "Share Class Information",
+            "Key Information"
+          ],
+          "children": []
+        },
+        {
+          "id": "fund.management",
+          "label": "Management",
+          "description": "Who runs the fund: the investment adviser and any sub-advisers, the portfolio managers with their tenure and experience, and the management company; the fees paid to them belong to fund.fees_and_expenses.",
+          "examples": [
+            "Management",
+            "Management of the Fund",
+            "Fund Management",
+            "Investment Adviser",
+            "Investment Manager",
+            "Portfolio Managers",
+            "Management Team"
+          ],
+          "metadata": {
+            "from": [
+              "fund_document.management"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "fund.purchase_and_sale",
+          "label": "Purchase and sale",
+          "description": "How investors buy, sell, exchange, or redeem shares: minimum investments, available share classes, how orders are placed and priced, and exchange trading; the charges on those transactions belong to fund.fees_and_expenses.",
+          "examples": [
+            "Purchase and Sale of Fund Shares",
+            "Buying and Selling Shares",
+            "How to Buy Shares",
+            "How to Sell Shares",
+            "Redeeming Shares",
+            "Minimum Investment",
+            "Exchanges"
+          ],
+          "metadata": {
+            "from": [
+              "fund_document.purchase_and_sale"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "fund.tax_information",
+          "label": "Tax information",
+          "description": "How the fund's distributions and the sale of its shares are taxed, together with its dividend and capital gain distribution policy; distribution rates and yields as measures of return belong to fund.performance.",
+          "examples": [
+            "Tax Information",
+            "Taxes",
+            "Dividends, Distributions and Taxes",
+            "Tax Considerations",
+            "Federal Income Taxes",
+            "Distributions"
+          ],
+          "metadata": {
+            "from": [
+              "fund_document.tax_information"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "fund.other",
+          "label": "Other",
+          "description": "Fund content that fits none of the other fund leaves, such as payments to financial intermediaries, service providers, shareholder services, and legal notices; a fund document's cover page and table of contents belong to general.front_matter.",
+          "examples": [
+            "Payments to Broker-Dealers and Other Financial Intermediaries",
+            "Service Providers",
+            "Shareholder Services",
+            "Important Information"
+          ],
+          "metadata": {
+            "from": [
+              "fund_document.other"
+            ]
+          },
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "offering",
+      "label": "Securities offering",
+      "description": "Sections of an offering document for newly issued securities, such as an IPO or bond prospectus: the terms of the offering, the use of proceeds, capitalization and dilution, and underwriting.",
+      "children": [
+        {
+          "id": "offering.offering_terms",
+          "label": "Offering terms",
+          "description": "The terms of the securities being offered and of the offering itself, such as the summary of the offering, the description of the shares or notes, pricing, and the timetable; how the money raised will be used belongs to offering.use_of_proceeds.",
+          "examples": [
+            "The Offering",
+            "Description of Capital Stock",
+            "Description of the Notes",
+            "Terms of the Offering",
+            "Description of Securities",
+            "Summary of the Offering"
+          ],
+          "children": []
+        },
+        {
+          "id": "offering.use_of_proceeds",
+          "label": "Use of proceeds",
+          "description": "How the issuer intends to use the money raised by the offering; not the issuer's business strategy in general (narrative.business_overview).",
+          "examples": [
+            "Use of Proceeds",
+            "Use of Net Proceeds",
+            "Reasons for the Offer and Use of Proceeds"
+          ],
+          "children": []
+        },
+        {
+          "id": "offering.capitalization",
+          "label": "Capitalization and dilution",
+          "description": "The issuer's capitalization and indebtedness before and after the offering and the dilution new investors suffer; not the balance sheet itself (financial.balance_sheet).",
+          "examples": [
+            "Capitalization",
+            "Dilution",
+            "Capitalization and Indebtedness"
+          ],
+          "children": []
+        },
+        {
+          "id": "offering.underwriting",
+          "label": "Underwriting",
+          "description": "How the securities are sold: the underwriters or placement agents, their commitments and discounts, lock-ups, stabilization, and the plan of distribution; the fees an investor pays to a fund belong to fund.fees_and_expenses.",
+          "examples": [
+            "Underwriting",
+            "Plan of Distribution",
+            "Underwriting (Conflicts of Interest)",
+            "Selling Restrictions"
+          ],
+          "children": []
+        },
+        {
+          "id": "offering.other",
+          "label": "Other",
+          "description": "Offering content that fits none of the other offering leaves, such as the experts, the validity of the securities, shares eligible for future sale, and where to find more information; the issuer's risks belong to disclosure.risk_factors.",
+          "examples": [
+            "Experts",
+            "Validity of the Securities",
+            "Shares Eligible for Future Sale",
+            "Where You Can Find More Information"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "contract",
+      "label": "Contract and terms",
+      "description": "Clauses of agreements between named parties and of published terms of service and policies: parties, definitions, obligations, payment, intellectual property, warranties, liability, termination, disputes, privacy, acceptable use, and signatures.",
+      "children": [
+        {
+          "id": "contract.parties_recitals",
+          "label": "Parties and recitals",
+          "description": "The preamble that names the contracting parties, the effective date, and the background recitals (the whereas clauses) that explain the purpose.",
+          "examples": [
+            "Parties",
+            "Recitals",
+            "Whereas",
+            "Preamble",
+            "Parties and Recitals"
+          ],
+          "metadata": {
+            "from": [
+              "contract.parties_recitals"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.definitions",
+          "label": "Definitions",
+          "description": "Clauses that define capitalized terms and rules of interpretation used throughout the agreement; a standard's terms and definitions belong to standard.terminology.",
+          "examples": [
+            "Definitions",
+            "Definitions and Interpretation",
+            "Defined Terms",
+            "Article 1. Definitions",
+            "Interpretation"
+          ],
+          "metadata": {
+            "from": [
+              "contract.definitions"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.scope_services",
+          "label": "Scope and services",
+          "description": "The clauses describing the work, services, products, or deliverables that a party is to provide and the standards for providing them.",
+          "examples": [
+            "Services",
+            "Scope of Services",
+            "Scope of Work",
+            "Statement of Work",
+            "Deliverables",
+            "Obligations of the Supplier"
+          ],
+          "metadata": {
+            "from": [
+              "contract.scope_services"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.term",
+          "label": "Term",
+          "description": "The clauses fixing the duration of the agreement, its effective period, and renewal or extension mechanics.",
+          "examples": [
+            "Term",
+            "Term of Agreement",
+            "Duration",
+            "Renewal",
+            "Commencement and Term"
+          ],
+          "metadata": {
+            "from": [
+              "contract.term"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.payment",
+          "label": "Payment",
+          "description": "The clauses on fees, prices, invoicing, payment timing, expenses, taxes, and late-payment consequences.",
+          "examples": [
+            "Payment",
+            "Fees and Payment",
+            "Compensation",
+            "Payment Terms",
+            "Invoicing",
+            "Expenses"
+          ],
+          "metadata": {
+            "from": [
+              "contract.payment"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.confidentiality",
+          "label": "Confidentiality",
+          "description": "The clauses obliging the parties to protect each other's non-public information and limiting its use and disclosure.",
+          "examples": [
+            "Confidentiality",
+            "Confidential Information",
+            "Non-Disclosure",
+            "Nondisclosure Obligations"
+          ],
+          "metadata": {
+            "from": [
+              "contract.confidentiality"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.intellectual_property",
+          "label": "Intellectual property",
+          "description": "The clauses on ownership and assignment of, and licenses to, intellectual property such as inventions, work product, trademarks, and software.",
+          "examples": [
+            "Intellectual Property",
+            "Intellectual Property Rights",
+            "Ownership of Work Product",
+            "License Grant",
+            "Proprietary Rights"
+          ],
+          "metadata": {
+            "from": [
+              "contract.intellectual_property"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.warranties",
+          "label": "Warranties",
+          "description": "The clauses in which parties represent facts and promise quality or performance standards, together with disclaimers of other warranties.",
+          "examples": [
+            "Warranties",
+            "Representations and Warranties",
+            "Disclaimer of Warranties",
+            "Covenants"
+          ],
+          "metadata": {
+            "from": [
+              "contract.warranties"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.indemnification",
+          "label": "Indemnification",
+          "description": "The clauses requiring one party to compensate the other for specified third-party claims, losses, or damages.",
+          "examples": [
+            "Indemnification",
+            "Indemnity",
+            "Indemnification Procedures",
+            "Hold Harmless"
+          ],
+          "metadata": {
+            "from": [
+              "contract.indemnification"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.limitation_of_liability",
+          "label": "Limitation of liability",
+          "description": "The clauses capping or excluding damages and defining which types of loss each party cannot recover.",
+          "examples": [
+            "Limitation of Liability",
+            "Limitations of Liability",
+            "Exclusion of Damages",
+            "Liability Cap"
+          ],
+          "metadata": {
+            "from": [
+              "contract.limitation_of_liability"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.termination",
+          "label": "Termination",
+          "description": "The clauses stating how and when either party may end the agreement early, for cause or convenience, and what happens afterwards.",
+          "examples": [
+            "Termination",
+            "Termination for Cause",
+            "Termination for Convenience",
+            "Effect of Termination",
+            "Survival"
+          ],
+          "metadata": {
+            "from": [
+              "contract.termination"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.governing_law_disputes",
+          "label": "Governing law and disputes",
+          "description": "The clauses selecting the governing law, jurisdiction or venue, and dispute-resolution method such as arbitration or mediation.",
+          "examples": [
+            "Governing Law",
+            "Governing Law and Jurisdiction",
+            "Dispute Resolution",
+            "Arbitration",
+            "Venue"
+          ],
+          "metadata": {
+            "from": [
+              "contract.governing_law_disputes"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.general_provisions",
+          "label": "General provisions",
+          "description": "Boilerplate clauses such as notices, assignment, amendment, severability, entire agreement, force majeure, and counterparts.",
+          "examples": [
+            "General Provisions",
+            "Miscellaneous",
+            "Notices",
+            "Assignment",
+            "Entire Agreement",
+            "Severability",
+            "Force Majeure",
+            "Counterparts"
+          ],
+          "metadata": {
+            "from": [
+              "contract.general_provisions"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.signatures_exhibits",
+          "label": "Signatures and exhibits",
+          "description": "The signature blocks and the attached schedules, exhibits, or annexes that complete the agreement.",
+          "examples": [
+            "Signatures",
+            "In Witness Whereof",
+            "Signature Page",
+            "Exhibit A",
+            "Schedule 1",
+            "Schedules and Exhibits"
+          ],
+          "metadata": {
+            "from": [
+              "contract.signatures_exhibits"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "contract.privacy_data",
+          "label": "Privacy and personal data",
+          "description": "The terms on collecting, using, sharing, retaining, and protecting personal data and cookies, and the rights users have over their data, as in a privacy policy or data-processing terms; the parties' duty to protect each other's business secrets belongs to contract.confidentiality.",
+          "examples": [
+            "Information We Collect",
+            "How We Use Your Information",
+            "Cookies",
+            "Your Privacy Rights",
+            "Data Retention",
+            "Sharing of Personal Information",
+            "Data Protection"
+          ],
+          "children": []
+        },
+        {
+          "id": "contract.acceptable_use",
+          "label": "Acceptable use",
+          "description": "The rules on what users may and may not do with a published service, such as prohibited conduct and content, account rules, and the provider's enforcement; the work a party owes a named counterparty belongs to contract.scope_services.",
+          "examples": [
+            "Acceptable Use Policy",
+            "Prohibited Conduct",
+            "User Conduct",
+            "Restrictions on Use",
+            "Community Guidelines"
+          ],
+          "children": []
+        },
+        {
+          "id": "contract.other",
+          "label": "Other",
+          "description": "Clauses that fit none of the other contract leaves, such as non-competition, non-solicitation, insurance, audit rights, and employment benefits; boilerplate such as notices and assignment belongs to contract.general_provisions.",
+          "examples": [
+            "Non-Competition",
+            "Non-Solicitation",
+            "Insurance",
+            "Audit Rights",
+            "Benefits"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "law",
+      "label": "Court opinions and legislation",
+      "description": "Parts of court opinions and of legislation: the case caption, the syllabus, the court's opinion, concurring and dissenting opinions, and a statute's or regulation's preamble, operative provisions, and amendments.",
+      "children": [
+        {
+          "id": "law.caption",
+          "label": "Case caption",
+          "description": "The caption and docket block that identifies the court, the parties, the docket number, the dates argued and decided, and the judges or counsel; not the reporter's summary of the case (law.syllabus).",
+          "examples": [
+            "Supreme Court of the United States",
+            "On Writ of Certiorari",
+            "Appeal from the United States District Court",
+            "Docket No.",
+            "Argued and Submitted"
+          ],
+          "children": []
+        },
+        {
+          "id": "law.syllabus",
+          "label": "Syllabus",
+          "description": "The headnote or syllabus that summarizes the case and its holdings, prepared by the court's reporter for the reader's convenience; the court's own reasoning belongs to law.opinion.",
+          "examples": [
+            "Syllabus",
+            "Headnote",
+            "Headnotes",
+            "Held",
+            "Summary of the Decision"
+          ],
+          "children": []
+        },
+        {
+          "id": "law.opinion",
+          "label": "Opinion of the court",
+          "description": "The court's own opinion: the facts and procedural history as the court recites them, its legal analysis, holding, and disposition, whether for a majority, per curiam, or by a single judge; a separate concurrence or dissent belongs to law.separate_opinion.",
+          "examples": [
+            "Opinion of the Court",
+            "Per Curiam",
+            "Memorandum Opinion",
+            "Opinion and Order",
+            "Memorandum and Order",
+            "Standard of Review"
+          ],
+          "children": []
+        },
+        {
+          "id": "law.separate_opinion",
+          "label": "Concurring or dissenting opinion",
+          "description": "A concurring or dissenting opinion written separately by one or more judges, agreeing or disagreeing with the court's judgment or reasoning; the opinion for the court belongs to law.opinion.",
+          "examples": [
+            "Dissenting Opinion",
+            "Concurring Opinion",
+            "Dissent",
+            "Concurrence",
+            "Concurring in Part and Dissenting in Part"
+          ],
+          "children": []
+        },
+        {
+          "id": "law.preamble",
+          "label": "Title and enactment",
+          "description": "The opening of a statute, bill, regulation, or treaty: its long and short titles, the recitals of a regulation, the enacting clause, and statements of findings or purposes; the operative rules belong to law.provisions.",
+          "examples": [
+            "Short Title",
+            "Long Title",
+            "Enacting Clause",
+            "Findings and Purposes",
+            "Be It Enacted"
+          ],
+          "children": []
+        },
+        {
+          "id": "law.provisions",
+          "label": "Statutory provisions",
+          "description": "The operative provisions of a statute, bill, regulation, or treaty, arranged as titles, parts, articles, sections, and subsections that state the legal rules; changes made to other laws belong to law.amendments.",
+          "examples": [
+            "Sec. 101.",
+            "Article 1",
+            "Title I",
+            "Subpart A",
+            "§ 1.1",
+            "Part 2"
+          ],
+          "children": []
+        },
+        {
+          "id": "law.amendments",
+          "label": "Amendments to law",
+          "description": "Provisions that amend, repeal, or conform other laws or earlier versions of the same law; the new law's own rules belong to law.provisions.",
+          "examples": [
+            "Conforming Amendments",
+            "Technical Amendments",
+            "Amendments to Other Acts",
+            "Repeals",
+            "Technical and Conforming Amendments"
+          ],
+          "children": []
+        },
+        {
+          "id": "law.other",
+          "label": "Other",
+          "description": "Legal content that fits none of the other law leaves, such as effective dates, transitional and savings provisions, authorizations of appropriations, and appendices to an opinion; contract boilerplate belongs to contract.general_provisions.",
+          "examples": [
+            "Effective Date",
+            "Transitional Provisions",
+            "Savings Clause",
+            "Authorization of Appropriations"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "technical",
+      "label": "Product documentation",
+      "description": "Documentation of a hardware or software product: overview, installation, configuration, usage, reference, specifications, pins and interfaces, package data, ordering information, safety, and troubleshooting.",
+      "children": [
+        {
+          "id": "technical.overview",
+          "label": "Overview",
+          "description": "A high-level introduction to what the product or system is, its features, purpose, and intended audience.",
+          "examples": [
+            "Product Overview",
+            "Features",
+            "General Description",
+            "About This Manual",
+            "Product Description",
+            "Key Features"
+          ],
+          "metadata": {
+            "from": [
+              "technical_document.overview"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "technical.installation_getting_started",
+          "label": "Installation and getting started",
+          "description": "Instructions for installing, setting up, or first running the product, including requirements and quick-start steps.",
+          "examples": [
+            "Installation",
+            "Getting Started",
+            "Quick Start",
+            "Setup",
+            "System Requirements",
+            "Installing the Software"
+          ],
+          "metadata": {
+            "from": [
+              "technical_document.installation_getting_started"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "technical.configuration",
+          "label": "Configuration",
+          "description": "Explanation of settings, options, parameters, and environment needed to tailor the product's behavior.",
+          "examples": [
+            "Configuration",
+            "Settings",
+            "Options",
+            "Configuring the System",
+            "Environment Variables"
+          ],
+          "metadata": {
+            "from": [
+              "technical_document.configuration"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "technical.usage",
+          "label": "Usage",
+          "description": "Task-oriented instructions and examples showing how to operate the product in normal use, including a datasheet's typical application circuits.",
+          "examples": [
+            "Usage",
+            "Operation",
+            "User Guide",
+            "Examples",
+            "How to Use",
+            "Tutorial",
+            "Typical Application",
+            "Application Information"
+          ],
+          "metadata": {
+            "from": [
+              "technical_document.usage"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "technical.reference",
+          "label": "Reference",
+          "description": "Lookup material such as API, command, register, message, or function descriptions, organized for consultation rather than reading in order.",
+          "examples": [
+            "Reference",
+            "API Reference",
+            "Command Reference",
+            "Register Description",
+            "Function Reference"
+          ],
+          "metadata": {
+            "from": [
+              "technical_document.reference"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "technical.specifications",
+          "label": "Specifications",
+          "description": "Quantitative technical data such as electrical characteristics, ratings, dimensions, timing, and performance limits, typically in tables.",
+          "examples": [
+            "Specifications",
+            "Electrical Characteristics",
+            "Technical Data",
+            "Absolute Maximum Ratings",
+            "Dimensions",
+            "Performance Characteristics"
+          ],
+          "metadata": {
+            "from": [
+              "technical_document.specifications"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "technical.interfaces",
+          "label": "Pins and interfaces",
+          "description": "Descriptions of a product's pins, ports, connectors, signals, and buses, with pinout diagrams and pin-function tables; their electrical limits belong to technical.specifications and register maps to technical.reference.",
+          "examples": [
+            "Pin Configuration",
+            "Pin Descriptions",
+            "Pinout",
+            "Pin Functions",
+            "Ports and Connectors",
+            "Signal Descriptions",
+            "Interface Description"
+          ],
+          "children": []
+        },
+        {
+          "id": "technical.package_mechanical",
+          "label": "Package and mechanical data",
+          "description": "Package and mechanical information such as package outline drawings, footprints and land patterns, marking, and tape-and-reel details; tabulated ratings and dimensions of the product belong to technical.specifications.",
+          "examples": [
+            "Package Information",
+            "Package Outline",
+            "Mechanical Data",
+            "Land Pattern",
+            "Tape and Reel Information",
+            "Package Marking"
+          ],
+          "children": []
+        },
+        {
+          "id": "technical.ordering_information",
+          "label": "Ordering information",
+          "description": "How to order the product: part numbers and their coding, variants, order codes, available packages, accessories, and kits; the prices and payment terms of a sale belong to contract.payment.",
+          "examples": [
+            "Ordering Information",
+            "Part Numbering",
+            "Order Codes",
+            "Ordering Guide",
+            "Product Codes"
+          ],
+          "children": []
+        },
+        {
+          "id": "technical.safety",
+          "label": "Safety and compliance",
+          "description": "Safety instructions, warnings, and cautions, and regulatory compliance statements such as FCC, CE, or UL notices; the procedures for normal use belong to technical.usage.",
+          "examples": [
+            "Safety Information",
+            "Important Safety Instructions",
+            "Safety Instructions",
+            "Warnings and Cautions",
+            "Regulatory Information",
+            "Compliance Statements"
+          ],
+          "children": []
+        },
+        {
+          "id": "technical.troubleshooting",
+          "label": "Troubleshooting",
+          "description": "Guidance on diagnosing problems, including error messages, symptoms, causes, fixes, and frequently asked questions.",
+          "examples": [
+            "Troubleshooting",
+            "FAQ",
+            "Frequently Asked Questions",
+            "Error Messages",
+            "Known Issues"
+          ],
+          "metadata": {
+            "from": [
+              "technical_document.troubleshooting"
+            ]
+          },
+          "children": []
+        },
+        {
+          "id": "technical.other",
+          "label": "Other",
+          "description": "Product documentation that fits none of the other technical leaves, such as warranty and support information, release notes, and disposal; diagnosing errors belongs to technical.troubleshooting.",
+          "examples": [
+            "Warranty Information",
+            "Technical Support",
+            "Release Notes",
+            "Disposal and Recycling"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "standard",
+      "label": "Technical standard",
+      "description": "Sections specific to normative technical standards and protocol specifications, such as RFCs and ISO, IEEE, or W3C documents: scope, terminology and requirements language, the normative specification, conformance, security and registry considerations, and normative references.",
+      "children": [
+        {
+          "id": "standard.scope",
+          "label": "Scope",
+          "description": "The normative statement of what a standard covers, what it applies to, and what it leaves out; a general introduction or motivation belongs to general.introduction.",
+          "examples": [
+            "Scope",
+            "1 Scope",
+            "Scope and Field of Application",
+            "Applicability",
+            "Scope of This Document"
+          ],
+          "children": []
+        },
+        {
+          "id": "standard.terminology",
+          "label": "Terminology and conventions",
+          "description": "The terms, definitions, symbols, and abbreviations a standard uses, and its requirements language, such as the BCP 14 key words MUST and SHOULD; an agreement's defined terms belong to contract.definitions.",
+          "examples": [
+            "Terms and Definitions",
+            "Terminology",
+            "Conventions and Definitions",
+            "Requirements Language",
+            "Notational Conventions",
+            "Symbols and Abbreviated Terms",
+            "Conventions Used in This Document"
+          ],
+          "children": []
+        },
+        {
+          "id": "standard.specification",
+          "label": "Normative specification",
+          "description": "The normative body of a standard that precisely defines a protocol, format, data model, algorithm, or interface for implementers, using requirement key words; a vendor's user-facing API reference belongs to technical.reference.",
+          "examples": [
+            "Protocol Overview",
+            "Message Format",
+            "Protocol Operation",
+            "Data Model",
+            "Syntax",
+            "Encoding",
+            "Processing Rules"
+          ],
+          "children": []
+        },
+        {
+          "id": "standard.conformance",
+          "label": "Conformance",
+          "description": "The conditions an implementation must meet to claim conformance, such as conformance classes, levels, profiles, and test criteria; the requirements themselves belong to standard.specification.",
+          "examples": [
+            "Conformance",
+            "Conformance Requirements",
+            "Conformance Classes",
+            "Compliance Requirements",
+            "Implementation Requirements"
+          ],
+          "children": []
+        },
+        {
+          "id": "standard.security_considerations",
+          "label": "Security considerations",
+          "description": "The analysis of the security and privacy threats, attacks, and mitigations that implementers of the standard must consider; a product's safety warnings belong to technical.safety.",
+          "examples": [
+            "Security Considerations",
+            "Privacy Considerations",
+            "Security and Privacy Considerations",
+            "Threat Model"
+          ],
+          "children": []
+        },
+        {
+          "id": "standard.iana_considerations",
+          "label": "Registry considerations",
+          "description": "Instructions to a registry authority such as IANA to create or update the registries, code points, media types, or other identifiers the standard defines; what the identifiers mean belongs to standard.specification.",
+          "examples": [
+            "IANA Considerations",
+            "Registration Procedures",
+            "Media Type Registration",
+            "Registry Considerations"
+          ],
+          "children": []
+        },
+        {
+          "id": "standard.normative_references",
+          "label": "Normative references",
+          "description": "The lists of documents a standard cites, split into normative references needed to implement it and informative references for background; a general bibliography belongs to general.references.",
+          "examples": [
+            "Normative References",
+            "Informative References",
+            "Normative and Informative References"
+          ],
+          "children": []
+        },
+        {
+          "id": "standard.other",
+          "label": "Other",
+          "description": "Standards material that fits none of the other standard leaves, such as the document status, changes from previous versions, implementation status, contributors, and authors' addresses; the title page and copyright notice belong to general.front_matter.",
+          "examples": [
+            "Status of This Memo",
+            "Changes from Previous Versions",
+            "Implementation Status",
+            "Contributors",
+            "Authors' Addresses"
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
+}

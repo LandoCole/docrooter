@@ -112,7 +112,8 @@ def test_doc_types_example_runs(capsys, monkeypatch):
     runpy.run_path(str(EXAMPLES / "doc_types.py"), run_name="__main__")
     lines = capsys.readouterr().out.splitlines()
     assert lines[0].startswith(
-        "doc_types, element_functions, element_topics, section_types/annual_report"
+        "doc_types, element_functions, element_topics, section_catalogue, "
+        "section_types/annual_report"
     )
     assert lines[1:] == [
         "Research > Research paper 0.11",

@@ -9,42 +9,224 @@
           "id": "financial.annual_report",
           "label": "Annual report",
           "description": "A yearly report to shareholders covering a whole fiscal year, either a Form 10-K filing or a glossy annual report, with business overview, management discussion and audited financial statements. Not a 10-Q (partial year) or a standalone shareholder letter (a few pages of narrative only).",
+          "sections": {
+            "requires": [
+              [
+                "financial.financial_statements",
+                "financial.balance_sheet",
+                "financial.income_statement",
+                "financial.cash_flow_statement",
+                "financial.changes_in_equity",
+                "financial.schedule_of_investments",
+                "financial.notes_to_financial_statements",
+                "financial.auditors_report"
+              ],
+              [
+                "narrative.business_overview",
+                "narrative.management_discussion",
+                "narrative.shareholder_letter"
+              ]
+            ],
+            "typical": [
+              "financial.auditors_report",
+              "financial.notes_to_financial_statements",
+              "financial.financial_highlights",
+              "disclosure.risk_factors",
+              "disclosure.corporate_governance",
+              "disclosure.executive_compensation",
+              "disclosure.controls_and_procedures",
+              "disclosure.legal_proceedings",
+              "disclosure.properties",
+              "disclosure.market_for_equity",
+              "disclosure.exhibits",
+              "esg"
+            ],
+            "excludes": [
+              "offering.use_of_proceeds",
+              "offering.underwriting"
+            ]
+          },
           "children": []
         },
         {
           "id": "financial.quarterly_report",
           "label": "Quarterly report",
           "description": "An interim report covering a single quarter or half-year, such as a Form 10-Q or a quarterly or half-year report, with unaudited or reviewed financial statements and short management discussion. Not a press-release style earnings_release and not a full-year annual_report.",
+          "sections": {
+            "requires": [
+              [
+                "financial.financial_statements",
+                "financial.balance_sheet",
+                "financial.income_statement",
+                "financial.cash_flow_statement",
+                "financial.changes_in_equity",
+                "financial.schedule_of_investments",
+                "financial.notes_to_financial_statements"
+              ],
+              [
+                "narrative.shareholder_letter",
+                "narrative.management_discussion"
+              ]
+            ],
+            "typical": [
+              "financial.notes_to_financial_statements",
+              "disclosure.controls_and_procedures",
+              "disclosure.legal_proceedings",
+              "disclosure.risk_factors",
+              "disclosure.exhibits",
+              "disclosure.forward_looking_statements",
+              "financial.financial_highlights"
+            ],
+            "excludes": [
+              "disclosure.executive_compensation",
+              "disclosure.properties",
+              "offering.use_of_proceeds",
+              "offering.underwriting"
+            ]
+          },
           "children": []
         },
         {
           "id": "financial.shareholder_letter",
           "label": "Shareholder letter",
           "description": "A letter from a company's management or an investment manager addressed to shareholders or investors that reviews performance and outlook in narrative prose, typically signed by the CEO, chairman or fund manager. Not a full annual_report with financial statements.",
+          "sections": {
+            "requires": [
+              [
+                "narrative.shareholder_letter"
+              ]
+            ],
+            "typical": [
+              "narrative.outlook",
+              "fund.performance",
+              "fund.holdings_and_allocation",
+              "financial.financial_highlights"
+            ],
+            "excludes": [
+              "financial.financial_statements",
+              "financial.balance_sheet",
+              "financial.income_statement",
+              "financial.cash_flow_statement",
+              "financial.changes_in_equity",
+              "financial.schedule_of_investments",
+              "financial.notes_to_financial_statements",
+              "financial.auditors_report"
+            ]
+          },
           "children": []
         },
         {
           "id": "financial.earnings_release",
           "label": "Earnings release",
           "description": "A short press release announcing quarterly or annual financial results, with headline figures, a business summary and condensed financial tables, usually 3 to 15 pages. Not a full quarterly_report or an investor_presentation slide deck.",
+          "sections": {
+            "requires": [
+              [
+                "financial.income_statement",
+                "financial.balance_sheet",
+                "financial.cash_flow_statement",
+                "financial.financial_statements",
+                "financial.financial_highlights"
+              ]
+            ],
+            "typical": [
+              "financial.financial_highlights",
+              "narrative.outlook",
+              "disclosure.forward_looking_statements"
+            ],
+            "excludes": [
+              "financial.notes_to_financial_statements",
+              "financial.auditors_report",
+              "disclosure.controls_and_procedures",
+              "disclosure.risk_factors"
+            ]
+          },
           "children": []
         },
         {
           "id": "financial.prospectus",
           "label": "Prospectus",
           "description": "A formal securities-offering or fund document describing an investment's objectives, risks, fees, and terms so investors can decide whether to buy, such as a mutual fund, ETF or IPO prospectus. Not an annual_report and not a marketing white_paper.",
+          "sections": {
+            "requires": [
+              [
+                "fund.investment_objective",
+                "fund.principal_investment_strategies",
+                "offering.offering_terms",
+                "offering.use_of_proceeds",
+                "offering.underwriting"
+              ],
+              [
+                "disclosure.risk_factors",
+                "fund.fees_and_expenses"
+              ]
+            ],
+            "typical": [
+              "fund.fees_and_expenses",
+              "fund.performance",
+              "fund.management",
+              "fund.purchase_and_sale",
+              "fund.tax_information",
+              "offering.capitalization",
+              "narrative.business_overview"
+            ],
+            "excludes": []
+          },
           "children": []
         },
         {
           "id": "financial.proxy_statement",
           "label": "Proxy statement",
           "description": "A document sent to shareholders ahead of a shareholder meeting that describes the items to be voted on, the board nominees, executive compensation and governance, such as a Schedule 14A or DEF 14A. Not an annual_report even when it is bundled with one.",
+          "sections": {
+            "requires": [
+              [
+                "disclosure.shareholder_meeting"
+              ],
+              [
+                "disclosure.corporate_governance",
+                "disclosure.executive_compensation"
+              ]
+            ],
+            "typical": [
+              "disclosure.corporate_governance",
+              "disclosure.executive_compensation"
+            ],
+            "excludes": []
+          },
           "children": []
         },
         {
           "id": "financial.fact_sheet",
           "label": "Fact sheet",
           "description": "A short (typically one- to four-page) periodic summary of a single fund or share class: objective, fund facts, fees, performance table and chart, top holdings and allocation, as of a date. Not a full prospectus and not an annual_report.",
+          "sections": {
+            "requires": [
+              [
+                "fund.performance"
+              ],
+              [
+                "fund.holdings_and_allocation",
+                "fund.fund_facts",
+                "fund.investment_objective"
+              ]
+            ],
+            "typical": [
+              "fund.fund_facts",
+              "fund.holdings_and_allocation",
+              "fund.investment_objective",
+              "fund.fees_and_expenses",
+              "fund.management"
+            ],
+            "excludes": [
+              "fund.purchase_and_sale",
+              "fund.tax_information",
+              "financial.schedule_of_investments",
+              "financial.notes_to_financial_statements",
+              "financial.auditors_report",
+              "offering"
+            ]
+          },
           "children": []
         }
       ]
@@ -58,24 +240,112 @@
           "id": "legal.contract",
           "label": "Contract",
           "description": "A legally binding agreement between named parties, with recitals, defined terms, numbered clauses and signature blocks, such as a services, license, lease, employment or supply agreement. Not a public terms_policy that is posted unilaterally for all users.",
+          "sections": {
+            "requires": [
+              [
+                "contract.parties_recitals",
+                "contract.signatures_exhibits"
+              ],
+              [
+                "contract.scope_services",
+                "contract.term",
+                "contract.payment",
+                "contract.confidentiality",
+                "contract.intellectual_property",
+                "contract.warranties",
+                "contract.indemnification",
+                "contract.limitation_of_liability",
+                "contract.termination"
+              ]
+            ],
+            "typical": [
+              "contract.definitions",
+              "contract.governing_law_disputes",
+              "contract.general_provisions",
+              "contract.signatures_exhibits"
+            ],
+            "excludes": [
+              "contract.acceptable_use"
+            ]
+          },
           "children": []
         },
         {
           "id": "legal.terms_policy",
           "label": "Terms and policies",
           "description": "A unilaterally published set of terms of service, terms of use, privacy policy, cookie policy or acceptable-use policy that governs the public's use of a product or service. Not a negotiated contract between named parties.",
+          "sections": {
+            "requires": [
+              [
+                "contract.privacy_data",
+                "contract.acceptable_use",
+                "contract.limitation_of_liability",
+                "contract.warranties",
+                "contract.termination",
+                "contract.intellectual_property",
+                "contract.governing_law_disputes"
+              ]
+            ],
+            "typical": [
+              "contract.privacy_data",
+              "contract.acceptable_use",
+              "contract.governing_law_disputes",
+              "contract.general_provisions"
+            ],
+            "excludes": [
+              "contract.parties_recitals",
+              "contract.signatures_exhibits"
+            ]
+          },
           "children": []
         },
         {
           "id": "legal.court_opinion",
           "label": "Court opinion",
           "description": "A judicial decision issued by a court, including the syllabus, the majority opinion and any concurring or dissenting opinions, with case caption, docket number, holdings and reasoning. Not legislation and not a legal brief filed by a party.",
+          "sections": {
+            "requires": [
+              [
+                "law.opinion",
+                "law.separate_opinion",
+                "law.syllabus"
+              ]
+            ],
+            "typical": [
+              "law.caption",
+              "law.syllabus",
+              "law.separate_opinion"
+            ],
+            "excludes": [
+              "law.preamble",
+              "law.amendments"
+            ]
+          },
           "children": []
         },
         {
           "id": "legal.legislation",
           "label": "Legislation",
           "description": "The text of enacted or proposed law, such as a statute, bill, act, treaty or administrative regulation, organized in titles, sections and subsections with enacting clauses. Not a court_opinion interpreting the law and not a government_report about it.",
+          "sections": {
+            "requires": [
+              [
+                "law.provisions",
+                "law.preamble",
+                "law.amendments"
+              ]
+            ],
+            "typical": [
+              "law.preamble",
+              "law.amendments",
+              "contract.definitions"
+            ],
+            "excludes": [
+              "law.opinion",
+              "law.separate_opinion",
+              "law.syllabus"
+            ]
+          },
           "children": []
         }
       ]
@@ -89,18 +359,105 @@
           "id": "research.research_paper",
           "label": "Research paper",
           "description": "A scholarly paper reporting original research, with an abstract, introduction, methods, results and references, typically from arXiv, journals or conferences. Not an industry white_paper or a technical_standard.",
+          "sections": {
+            "requires": [
+              [
+                "research.abstract",
+                "research.related_work"
+              ],
+              [
+                "research.method",
+                "research.experiments",
+                "research.results",
+                "research.discussion"
+              ]
+            ],
+            "typical": [
+              "research.related_work",
+              "general.background",
+              "research.limitations",
+              "general.acknowledgements",
+              "general.references"
+            ],
+            "excludes": [
+              "standard.normative_references",
+              "standard.conformance"
+            ]
+          },
           "children": []
         },
         {
           "id": "research.technical_standard",
           "label": "Technical standard",
           "description": "A normative technical standard or specification, such as an RFC, IETF, W3C, ISO or IEEE document, that uses requirement keywords (MUST, SHOULD) to define a protocol, format or interface precisely. Not a vendor datasheet or a user_manual.",
+          "sections": {
+            "requires": [
+              [
+                "standard"
+              ]
+            ],
+            "typical": [
+              "standard.scope",
+              "standard.terminology",
+              "standard.specification",
+              "standard.conformance",
+              "standard.security_considerations",
+              "standard.iana_considerations",
+              "standard.normative_references"
+            ],
+            "excludes": [
+              "research.experiments"
+            ]
+          },
           "children": []
         },
         {
           "id": "research.white_paper",
           "label": "White paper",
           "description": "An industry, vendor, consultancy or think-tank report that argues for a position, explains a topic or presents analysis aimed at a professional audience, without being peer-reviewed or normative. Not a research_paper (academic) or a government_report (issued by an agency).",
+          "sections": {
+            "requires": [
+              [
+                "general.summary",
+                "general.introduction",
+                "general.background",
+                "general.body",
+                "general.findings",
+                "general.recommendations",
+                "general.conclusion"
+              ]
+            ],
+            "typical": [
+              "general.summary",
+              "general.background",
+              "general.recommendations",
+              "general.references"
+            ],
+            "excludes": [
+              "research.abstract",
+              "research.related_work",
+              "standard.normative_references",
+              "standard.conformance",
+              "standard.iana_considerations",
+              "law.syllabus",
+              "law.opinion",
+              "law.separate_opinion",
+              "contract.parties_recitals",
+              "contract.signatures_exhibits",
+              "offering",
+              "fund.fees_and_expenses",
+              "fund.purchase_and_sale",
+              "technical.installation_getting_started",
+              "technical.troubleshooting",
+              "disclosure.shareholder_meeting",
+              "financial.financial_statements",
+              "financial.balance_sheet",
+              "financial.income_statement",
+              "financial.cash_flow_statement",
+              "financial.changes_in_equity",
+              "financial.notes_to_financial_statements"
+            ]
+          },
           "children": []
         }
       ]
@@ -114,12 +471,53 @@
           "id": "technical.user_manual",
           "label": "User manual",
           "description": "Task-oriented documentation that guides an end user or administrator through installing, configuring, operating and troubleshooting a product, with chapters, procedures and a table of contents. Not a datasheet, which lists specifications rather than procedures.",
+          "sections": {
+            "requires": [
+              [
+                "technical.installation_getting_started",
+                "technical.configuration",
+                "technical.usage",
+                "technical.troubleshooting"
+              ]
+            ],
+            "typical": [
+              "technical.overview",
+              "technical.safety",
+              "technical.troubleshooting",
+              "technical.reference",
+              "technical.specifications"
+            ],
+            "excludes": [
+              "technical.package_mechanical"
+            ]
+          },
           "children": []
         },
         {
           "id": "technical.datasheet",
           "label": "Datasheet",
           "description": "A concise specification document for a hardware component or product, with features, pin or port descriptions, electrical or performance characteristics, ordering information and package details, normally from the manufacturer. Not a procedural user_manual.",
+          "sections": {
+            "requires": [
+              [
+                "technical.specifications"
+              ],
+              [
+                "technical.interfaces",
+                "technical.package_mechanical",
+                "technical.ordering_information",
+                "technical.overview"
+              ]
+            ],
+            "typical": [
+              "technical.interfaces",
+              "technical.package_mechanical",
+              "technical.ordering_information"
+            ],
+            "excludes": [
+              "technical.troubleshooting"
+            ]
+          },
           "children": []
         }
       ]
@@ -133,6 +531,44 @@
           "id": "government.government_report",
           "label": "Government report",
           "description": "A report published by a government agency, central bank, legislative office or audit office, presenting analysis, findings, monetary policy, oversight results or recommendations to policymakers and the public. Not legislation itself and not a think-tank white_paper.",
+          "sections": {
+            "requires": [
+              [
+                "general.summary",
+                "general.introduction",
+                "general.background",
+                "general.body",
+                "general.findings",
+                "general.recommendations",
+                "general.conclusion"
+              ]
+            ],
+            "typical": [
+              "general.summary",
+              "general.findings",
+              "general.recommendations",
+              "general.background",
+              "research.method"
+            ],
+            "excludes": [
+              "research.abstract",
+              "research.related_work",
+              "standard.normative_references",
+              "standard.conformance",
+              "standard.iana_considerations",
+              "law.syllabus",
+              "law.opinion",
+              "law.separate_opinion",
+              "contract.parties_recitals",
+              "contract.signatures_exhibits",
+              "offering",
+              "fund.fees_and_expenses",
+              "fund.purchase_and_sale",
+              "technical.installation_getting_started",
+              "technical.troubleshooting",
+              "disclosure.shareholder_meeting"
+            ]
+          },
           "children": []
         }
       ]
@@ -146,12 +582,58 @@
           "id": "corporate.sustainability_report",
           "label": "Sustainability report",
           "description": "A company report on environmental, social and governance (ESG), sustainability, climate or impact performance, with metrics, targets and frameworks such as GRI, SASB or TCFD. Not a financial annual_report, although the two are sometimes combined.",
+          "sections": {
+            "requires": [
+              [
+                "esg"
+              ]
+            ],
+            "typical": [
+              "esg.climate_environment",
+              "esg.social",
+              "esg.esg_metrics",
+              "esg.sustainability",
+              "disclosure.corporate_governance"
+            ],
+            "excludes": [
+              "financial.financial_statements",
+              "financial.balance_sheet",
+              "financial.income_statement",
+              "financial.cash_flow_statement",
+              "financial.changes_in_equity"
+            ]
+          },
           "children": []
         },
         {
           "id": "corporate.investor_presentation",
           "label": "Investor presentation",
           "description": "A slide deck prepared for investors and analysts, such as an earnings call presentation or investor day deck, laid out as landscape slides with short bullets, charts and forward-looking-statement disclaimers. Not a prose earnings_release.",
+          "sections": {
+            "requires": [
+              [
+                "financial.financial_highlights",
+                "narrative.outlook",
+                "narrative.business_overview",
+                "narrative.management_discussion"
+              ],
+              [
+                "disclosure.forward_looking_statements"
+              ]
+            ],
+            "typical": [
+              "general.front_matter",
+              "financial.financial_highlights",
+              "narrative.outlook"
+            ],
+            "excludes": [
+              "financial.notes_to_financial_statements",
+              "financial.auditors_report",
+              "disclosure.controls_and_procedures",
+              "disclosure.legal_proceedings",
+              "disclosure.exhibits"
+            ]
+          },
           "children": []
         }
       ]

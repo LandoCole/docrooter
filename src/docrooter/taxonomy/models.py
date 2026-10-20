@@ -19,6 +19,7 @@ from pydantic import (
 )
 
 from docrooter.errors import TaxonomyError
+from docrooter.rules import DocTypeRules
 from docrooter.taxonomy.validate import ROOT_ID, TaxonomyIssue, validate_nodes
 
 
@@ -28,6 +29,10 @@ class TaxonomyNode(BaseModel):
     ``keywords`` (optional) holds class terms, such as those mined from a corpus. An empty list is
     left out of every dump, so a taxonomy without keywords dumps and hashes exactly as before the
     field existed (trained bundles store that hash).
+
+    ``sections`` (optional, doc-type leaves) holds the section rules that define the type; see
+    :mod:`docrooter.rules`. It is left out of a dump when unset, and out of
+    :meth:`Taxonomy.content_hash` always: rules decide among the labels, they do not change them.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -43,12 +48,15 @@ class TaxonomyNode(BaseModel):
     backend: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     keywords: list[str] = Field(default_factory=list)
+    sections: DocTypeRules | None = None
 
     @model_serializer(mode="wrap")
-    def _omit_empty_keywords(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+    def _omit_unset_extras(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
         data = handler(self)
         if not self.keywords:
             data.pop("keywords", None)
+        if self.sections is None:
+            data.pop("sections", None)
         return data
 
 
@@ -203,9 +211,13 @@ class Taxonomy:
     def content_hash(self) -> str:
         """sha256 of the canonical JSON; equal for the same tree whatever format it came from.
 
-        Covers every node, the root settings and the order of the top-level nodes.
+        Covers every node, the root settings and the order of the top-level nodes. Doc-type
+        ``sections`` rules are left out, so adding or editing them keeps trained bundles valid.
         """
-        ordered = sorted((n.model_dump() for n in self.nodes.values()), key=lambda d: d["id"])
+        dumps = [n.model_dump() for n in self.nodes.values()]
+        for dump in dumps:
+            dump.pop("sections", None)
+        ordered = sorted(dumps, key=lambda d: d["id"])
         payload = {"nodes": ordered, "root": self._root_settings, "top": self._children[ROOT_ID]}
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

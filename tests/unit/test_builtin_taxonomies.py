@@ -16,17 +16,20 @@ SECTION_NAMES = [
     "section_types/fund_document",
 ]
 ELEMENT_NAMES = ["element_topics", "element_functions"]
+CATALOGUE = "section_catalogue"
 
 
 def test_list_builtin_taxonomies():
-    assert list_builtin_taxonomies() == sorted(["doc_types", *ELEMENT_NAMES, *SECTION_NAMES])
+    assert list_builtin_taxonomies() == sorted(
+        ["doc_types", CATALOGUE, *ELEMENT_NAMES, *SECTION_NAMES]
+    )
 
 
 def test_exported_from_package():
     assert dr.builtin_taxonomy is builtin_taxonomy
 
 
-@pytest.mark.parametrize("name", ["doc_types", *ELEMENT_NAMES, *SECTION_NAMES])
+@pytest.mark.parametrize("name", ["doc_types", CATALOGUE, *ELEMENT_NAMES, *SECTION_NAMES])
 def test_every_builtin_loads_with_descriptions(name):
     taxonomy = builtin_taxonomy(name)
     assert len(taxonomy) > 0

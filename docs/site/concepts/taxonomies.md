@@ -37,7 +37,7 @@ print(", ".join(list_builtin_taxonomies()))
 ```
 
 ```text
-doc_types, element_functions, element_topics, section_types/annual_report, section_types/contract, section_types/fund_document, section_types/generic, section_types/research_paper, section_types/technical_document
+doc_types, element_functions, element_topics, section_catalogue, section_types/annual_report, section_types/contract, section_types/fund_document, section_types/generic, section_types/research_paper, section_types/technical_document
 ```
 
 **`doc_types`**: 19 document types in 6 groups. Every node has a definition written for the

@@ -350,7 +350,8 @@ def test_cumulative_usage_is_split_over_the_texts_of_a_call():
 
     result = classify(financial_doc(), backend=UsageOnly())
     assert result.tokens == TokenUsage(50, 5, 5, True)
-    assert all(t.tokens == TokenUsage(20, 2, 2, True) for t in result.sections)
+    # a share of a call's usage is an estimate: exact only at call and document level
+    assert all(t.tokens.prompt == 20 and not t.tokens.exact for t in result.sections)
 
 
 def test_cascade_escalates_only_low_confidence():
@@ -516,12 +517,36 @@ def test_unowned_section_calls_still_count(monkeypatch):
     assert result.tokens.calls == 6
 
 
-def test_cumulative_inexact_usage_split_keeps_estimated_calls():
+def test_a_split_usage_is_shared_as_estimates():
     from docrooter.flow import _split
 
-    parts = _split(TokenUsage(30, 3, 1, False), 3)
-    total = sum(parts, TokenUsage())
-    assert total == TokenUsage(30, 3, 1, False) and total.estimated_calls == 1
+    for exact in (True, False):
+        parts = _split(TokenUsage(30, 3, 1, exact), 3)
+        assert [p.prompt for p in parts] == [10, 10, 10] and sum(p.completion for p in parts) == 3
+        assert not any(p.exact for p in parts)
+    (whole,) = _split(TokenUsage(30, 3, 1, True), 1)
+    assert whole == TokenUsage(30, 3, 1, True)  # a call of its own is not a share
+
+
+def test_estimated_section_shares_are_never_exact():
+    for calls in ("batched", "batched_flat", "per_item"):
+        result = classify(financial_doc(EXEC_COMP), backend=KeywordBackend(), calls=calls)
+        sections = result.stage_tokens["sections"]
+        assert result.sections and not any(t.tokens.exact for t in result.sections), calls
+        assert sum(t.tokens.prompt for t in result.sections) == sections.prompt
+        assert sections.calls == len(result.section_calls)
+        assert not any(c.exact for c in result.section_calls)
+        assert sum(c.prompt_tokens for c in result.section_calls) == sections.prompt
+
+
+def test_section_calls_record_every_per_item_call():
+    backend = Scripted(document=lambda text: ("financial.annual_report", 0.9), metered=True)
+    result = classify(financial_doc(), backend=backend, level="headings")
+    assert len(result.section_calls) == result.stage_tokens["sections"].calls == 4
+    assert all(c.exact and c.level == "headings" for c in result.section_calls)
+    assert [c.prompt_tokens for c in result.section_calls] == [
+        100 + len(text.split()) for text, _ in backend.of("section")
+    ]
 
 
 def test_classification_round_trips_as_json():

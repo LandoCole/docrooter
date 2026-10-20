@@ -23,15 +23,21 @@ from __future__ import annotations
 
 import dataclasses
 import json
-from collections.abc import Collection, Mapping, Sequence
+import math
+import re
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from docrooter.ladder import FULL_CAP, FULL_RESERVE_SHARE
 from docrooter.taxonomy import Taxonomy
-from docrooter.views import estimate_tokens
+from docrooter.views import estimate_tokens, tokens_for_words
 
 MAX_BATCH = 40
 """The most sections one batched call carries."""
+MAX_CALL_TOKENS = FULL_CAP
+"""The default size limit of one call's prompt (instructions, options and views): the 16,000
+tokens of the ``full`` cap (spec ruling 6.1)."""
 
 SECTION_INSTRUCTION = (
     "You label the sections of one document. For each numbered section, choose the single "
@@ -181,6 +187,72 @@ def chunks(items: Sequence[Any], size: int = MAX_BATCH) -> list[Sequence[Any]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
+def call_budget(max_call_tokens: int = MAX_CALL_TOKENS) -> int:
+    """The estimated prompt tokens a call is packed to: ``max_call_tokens`` less
+    :data:`~docrooter.ladder.FULL_RESERVE_SHARE` (15%) of it, which covers the error of the
+    estimate, so the measured prompt stays within ``max_call_tokens`` (13,600 of 16,000).
+    ``ValueError`` below 1."""
+    if max_call_tokens < 1:
+        raise ValueError(f"max_call_tokens must be at least 1, got {max_call_tokens}")
+    return max_call_tokens - math.ceil(round(FULL_RESERVE_SHARE * max_call_tokens, 6))
+
+
+def cut_to_tokens(text: str, max_tokens: int) -> str:
+    """The head of ``text`` whose :func:`~docrooter.views.estimate_tokens` is at most
+    ``max_tokens``: whole words, with the text's own spacing ("" when not one word fits)."""
+    words = max(0, math.floor(max_tokens / 1.3))
+    while words and tokens_for_words(words) > max_tokens:
+        words -= 1
+    while tokens_for_words(words + 1) <= max_tokens:
+        words += 1
+    if not words:
+        return ""
+    for i, match in enumerate(re.finditer(r"\S+", text), start=1):
+        if i == words:
+            return text[: match.end()]
+    return text  # it has no more words than fit
+
+
+def pack(
+    views: Mapping[str, str],
+    prompt_for: Callable[[dict[str, str]], BatchPrompt],
+    budget: int,
+    size: int = MAX_BATCH,
+) -> list[dict[str, str]]:
+    """``views`` (by section number, in order) packed into calls: each call carries at most
+    ``size`` views, and its prompt, also when asked again (:meth:`BatchPrompt.retry`), is
+    estimated at most ``budget`` tokens. A view too large to fit a call alone is cut head-first
+    (:func:`cut_to_tokens`) and sent alone; compare a call's views with ``views`` to see which.
+    ``ValueError`` when the instructions and options leave no room for a view."""
+    overhead = prompt_for({}).retry().estimate()
+    room = budget - overhead
+    if room < tokens_for_words(2):  # "[n]" and one word
+        raise ValueError(
+            f"a {budget}-token call budget leaves no room for a section view after the "
+            f"{overhead}-token instructions and options; raise max_call_tokens"
+        )
+    calls: list[dict[str, str]] = []
+    current: dict[str, str] = {}
+    used = 0
+    for n, view in views.items():
+        cost = estimate_tokens(f"[{n}] {view}")  # an item's words, so the sum bounds the join
+        if cost > room:  # too large for any call: cut, and sent alone
+            if current:
+                calls.append(current)
+                current, used = {}, 0
+            prefix = f"[{n}] "
+            calls.append({n: cut_to_tokens(prefix + view, room)[len(prefix) :]})
+            continue
+        if current and (len(current) >= size or used + cost > room):
+            calls.append(current)
+            current, used = {}, 0
+        current[n] = view
+        used += cost
+    if current:
+        calls.append(current)
+    return calls
+
+
 def reply_tokens(reply: Mapping[str, str]) -> int:
     """The estimated completion tokens of a JSON reply."""
     return estimate_tokens(json.dumps(dict(reply)))
@@ -204,16 +276,20 @@ __all__ = [
     "DOC_TYPE_KEY",
     "GROUP_INSTRUCTION",
     "MAX_BATCH",
+    "MAX_CALL_TOKENS",
     "RETRY_NOTE",
     "SECTION_INSTRUCTION",
     "BatchPrompt",
+    "call_budget",
     "chunks",
+    "cut_to_tokens",
     "document_prompt",
     "group_leaves",
     "messages_tokens",
     "group_prompt",
     "groups_listing",
     "options_listing",
+    "pack",
     "reply_tokens",
     "section_prompt",
     "section_reply_max_tokens",

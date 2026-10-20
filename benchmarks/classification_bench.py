@@ -90,6 +90,7 @@ option listed once (two-step groups then leaves, or flat)."""
 MAX_SECTIONS = 40  # spec §6.2: classify tags at most 40 level-1/2 sections per document
 DOCS_SPLITS: tuple[str, ...] = ("gold", "heldout")
 FULL_CAP = 16000  # spec §6.1: the measured prompt size of a ``full`` document call
+CALL_VIEWS = 40  # docrooter.batch.MAX_BATCH: the most section views one batched call carries
 WITHIN_POINTS = 2.0  # spec §6.2: "within 2 points of full"
 MAX_ERRORS = 5
 # The reading fields that must equal the section gold's (the docrooter version may differ).
@@ -442,7 +443,7 @@ def _stage_usage(classification: Any, stage: str) -> Any:
 
 
 def _call(record: Any) -> dict[str, Any]:
-    """A document-call record (``CallRecord``) as ids and numbers."""
+    """A call record (``CallRecord``, of either stage) as ids and numbers."""
     return {
         "level": _get(record, "level"),
         "prompt_tokens": int(_get(record, "prompt_tokens") or 0),
@@ -530,6 +531,7 @@ def _document_record(
     tags = list(_get(result, "sections") or []) if result is not None else []
     document_usage = _usage(_stage_usage(result, "document")) if result is not None else None
     document_calls = [_call(c) for c in _get(result, "document_calls") or []] if result else []
+    section_calls = [_call(c) for c in _get(result, "section_calls") or []] if result else []
     split = _get(result, "tokens_split") if result is not None else None
     record: dict[str, Any] = {
         "id": item.id,
@@ -546,9 +548,10 @@ def _document_record(
             "document": document_usage,
         },
         "document_calls": document_calls,
-        # The largest exact prompt of a document call at ``full``: what the 16,000 cap is about.
-        "doc_call_max_prompt": max(
-            (c["prompt_tokens"] for c in document_calls if c["exact"] and c["level"] == "full"),
+        "section_calls": section_calls,
+        # The largest exact prompt of any call, of either stage: what the 16,000 cap is about.
+        "max_call_prompt": max(
+            (c["prompt_tokens"] for c in section_calls + document_calls if c["exact"]),
             default=None,
         ),
         "doc_truncated": bool(_get(result, "doc_truncated")) if result is not None else False,
@@ -580,15 +583,13 @@ def run_metrics(records: Sequence[Mapping[str, Any]], config: Config) -> dict[st
     gold = {r["id"]: r["gold"] for r in records}
     pred = {r["id"]: r["pred"] for r in records}
     counted = [r["tokens"] for r in records if r["tokens"] is not None]
-    over_cap: dict[str, Any] = {"over_cap_share": None, "over_cap_n": 0}
-    if config.doc_level == "full":
-        largest = [
-            r["doc_call_max_prompt"] for r in records if r["doc_call_max_prompt"] is not None
-        ]
-        over_cap = {
-            "over_cap_share": _share([p > FULL_CAP for p in largest]),
-            "over_cap_n": len(largest),
-        }
+    # every call of both stages, at any level; only exact (measured) prompts count
+    largest = [r["max_call_prompt"] for r in records if r.get("max_call_prompt") is not None]
+    over_cap: dict[str, Any] = {
+        "over_cap_share": _share([p > FULL_CAP for p in largest]),
+        "over_cap_n": len(largest),
+        "max_call_prompt": max(largest, default=None),
+    }
     splits = [r["tokens_split"] for r in records if r["tokens_split"]]
     split_keys = sorted({k for split in splits for k in split})
     with_sections = all("sections" in r for r in records) and bool(records)
@@ -978,11 +979,14 @@ def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
         "`batched_flat` lists every leaf once. Keyword and embedding backends always classify "
         "one item at a time: their `batched` rows differ from `per_item` only in the token "
         "estimate (what an LLM would be sent).",
-        f"- **Over the cap.** `full` cuts the document view head-first to fit a "
-        f"{FULL_CAP:,}-token prompt. The over-cap table gives the share of `full` documents "
-        f"whose largest exact document-call prompt still exceeded {FULL_CAP:,} tokens (estimated "
-        f"runs have none), the share whose deciding document view was cut, and the share with "
-        f"any view (section or document) cut.",
+        f"- **Over the cap.** Every call is budgeted to a {FULL_CAP:,}-token target prompt: "
+        f"`full` cuts the document view head-first to fit it, and batched section calls are "
+        f"packed (at most {CALL_VIEWS} views, and an estimated 85% of the cap, per call), a "
+        f"view too large for any call being cut and sent alone. The over-cap table covers every "
+        f"call of both stages, for each run with a `full` level: the share of documents with an "
+        f"exact call over {FULL_CAP:,} tokens, the largest exact call (estimated runs have none), "
+        f"the share whose deciding document view was cut, and the share with any view (section "
+        f"or document) cut.",
         f"- **At most {MAX_SECTIONS} sections** (level 1 first, then level 2, in reading order) "
         f"are tagged per document. A gold section past the cap is untagged and counts as a miss: "
         f"the Sections column gives scored / excluded (reading mismatch) / untagged.",
@@ -1128,20 +1132,23 @@ def _cross_tables(runs: Sequence[Mapping[str, Any]]) -> list[str]:
 
 
 def _over_cap(runs: Sequence[Mapping[str, Any]]) -> list[str]:
-    full = [r for r in runs if r["config"]["doc_level"] == "full"]
+    full = [r for r in runs if "full" in (r["config"]["section_level"], r["config"]["doc_level"])]
     if not full:
         return []
     lines = [
-        "| Backend | Calls | Docs | Flow | Section level | Documents with an exact full call "
-        f"| Largest call over {FULL_CAP:,} | Document view truncated | Any view truncated |",
-        "|---|---|---|---|---|---:|---:|---:|---:|",
+        "| Backend | Calls | Docs | Flow | Section level | Doc level | Documents with an exact "
+        f"call | Any call over {FULL_CAP:,} | Largest exact call | Document view truncated "
+        "| Any view truncated |",
+        "|---|---|---|---|---|---|---:|---:|---:|---:|---:|",
     ]
     for r in full:
-        label, docs, calls, flow, level, _ = _key(r)
+        label, docs, calls, flow, section_level, doc_level = _key(r)
         n = _metric(r, "over_cap_n") or 0
+        largest = _metric(r, "max_call_prompt")
         lines.append(
-            f"| {label} | {calls} | {docs} | {flow} | {level} | {n} "
+            f"| {label} | {calls} | {docs} | {flow} | {section_level} | {doc_level} | {n} "
             f"| {_pct(_metric(r, 'over_cap_share')) if n else 'n/a (estimated)'} "
+            f"| {f'{largest:,}' if n and largest is not None else 'n/a'} "
             f"| {_pct(_metric(r, 'doc_truncated_share'))} "
             f"| {_pct(_metric(r, 'truncated_share'))} |"
         )
@@ -1208,7 +1215,7 @@ def render_report(results: Sequence[Mapping[str, Any]]) -> str:
             lines += ["", "## Cross-grid: section level x document level", "", *cross]
         over = _over_cap(gold + heldout)
         if over:
-            lines += ["", "## Over the 16,000-token cap at `full`", "", *over]
+            lines += ["", f"## Over the {FULL_CAP:,}-token cap at `full`", "", *over]
         if heldout:
             lines += [
                 "",

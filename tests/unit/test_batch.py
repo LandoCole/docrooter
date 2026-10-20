@@ -16,7 +16,7 @@ httpx = pytest.importorskip("httpx")
 
 from docrooter import classify  # noqa: E402
 from docrooter.backends import KeywordBackend  # noqa: E402
-from docrooter.backends.base import Scores, TokenUsage  # noqa: E402
+from docrooter.backends.base import Scores  # noqa: E402
 from docrooter.backends.openai import OpenAIBackend  # noqa: E402
 from docrooter.batch import (  # noqa: E402
     RETRY_NOTE,
@@ -149,7 +149,11 @@ def test_batched_one_call_per_document_stage():
     assert result.tokens.exact and result.tokens.calls == 2
     assert result.stage_tokens["sections"].prompt == 1001
     assert result.stage_tokens["document"].prompt == 1002
-    assert sum((t.tokens for t in result.sections), TokenUsage()) == result.stage_tokens["sections"]
+    assert sum(t.tokens.prompt for t in result.sections) == result.stage_tokens["sections"].prompt
+    assert not any(t.tokens.exact for t in result.sections)  # shares of a call: estimates
+    (section_call,) = result.section_calls
+    assert section_call.prompt_tokens == 1001 and section_call.exact
+    assert section_call.options_count == len(CATALOGUE.leaves())
     (doc_call,) = result.document_calls
     assert doc_call.prompt_tokens == 1002 and doc_call.exact and doc_call.options_count == 2
 
@@ -475,9 +479,24 @@ def test_two_step_chunks_and_exact_per_tag_sums():
     leaf_calls = [len(numbered(b["messages"][1]["content"])) for b in fake.of("sections")]
     assert group_calls == [40, 5]
     assert sorted(leaf_calls) == [15, 15, 15]
-    assert result.tokens.exact
-    assert sum((t.tokens for t in result.sections), TokenUsage()) == result.stage_tokens["sections"]
-    assert result.stage_tokens["sections"].calls == 5
+    assert result.tokens.exact and result.stage_tokens["sections"].exact
+    assert sum(t.tokens.prompt for t in result.sections) == result.stage_tokens["sections"].prompt
+    assert not any(t.tokens.exact for t in result.sections)
+    assert result.stage_tokens["sections"].calls == len(result.section_calls) == 5
+    assert all(c.exact for c in result.section_calls)
+
+
+def test_a_section_share_of_an_unmetered_call_is_never_exact():
+    def no_usage(request):
+        data = FakeLLM()(request).json()
+        del data["usage"]
+        return httpx.Response(200, json=data)
+
+    for calls in ("batched", "batched_flat"):
+        result = classify(financial_doc(EXEC_COMP_SECTION), backend=llm(no_usage), calls=calls)
+        assert not result.tokens.exact
+        assert not any(t.tokens.exact for t in result.sections), calls
+        assert not any(c.exact for c in result.section_calls)
 
 
 def test_estimates_say_their_pattern_and_count_calls_once():
@@ -566,3 +585,26 @@ def test_estimates_match_what_the_requests_carry():
         assert estimated.tokens.calls == len(bodies), calls
         assert estimated.tokens.prompt == sent_tokens(bodies), calls
         assert sum(estimated.tokens_split.values()) == estimated.tokens.prompt
+
+
+def test_batched_llm_calls_are_packed_by_size():
+    long = " ".join(["figure"] * 1400)
+    titles = ["Balance sheet", "Risk factors", "Outlook", "Properties"]
+    doc = Document.from_sections(
+        [{"title": titles[i % 4], "level": 1, "text": f"{long} {i}"} for i in range(40)]
+    )
+    fake = FakeLLM()
+    result = classify(doc, backend=llm(fake), level="full")
+    sections = [b for b in fake.bodies if fake.kind(b) != "document"]
+    assert len(fake.of("groups")) > 1  # 40 views of ~1,850 tokens cannot share one call
+    assert all(sent_tokens([b]) <= 13600 for b in sections)  # the estimated budget
+    assert len(result.section_calls) == len(sections)
+    assert {t.label for t in result.sections} == {SECTIONS[t] for t in titles}
+
+
+def test_a_leaf_id_in_the_groups_step_counts_as_its_group():
+    fake = FakeLLM(group=lambda n, view, attempt: _by_title(view))  # leaf ids, not group ids
+    result = classify(financial_doc(), backend=llm(fake))
+    assert len(fake.of("groups")) == 1  # no re-ask
+    assert "unparsed" not in result.flags
+    assert {t.label for t in result.sections} == set(list(SECTIONS.values())[:2])

@@ -42,6 +42,7 @@ def _classification(
     sections_usage: TokenUsage | None = None,
     document_usage: TokenUsage | None = None,
     document_calls: list[tuple[str, int, bool]] | None = None,
+    section_calls: list[tuple[str, int, bool]] = (),  # type: ignore[assignment]
     doc_truncated: bool = False,
     tokens_split: dict[str, int] | None = None,
     calls: str = "per_item",
@@ -71,6 +72,17 @@ def _classification(
                 options_count=19,
             )
             for level, prompt, exact in document_calls
+        ],
+        section_calls=[
+            SimpleNamespace(
+                level=level,
+                prompt_tokens=prompt,
+                completion_tokens=1,
+                exact=exact,
+                truncated=False,
+                options_count=12,
+            )
+            for level, prompt, exact in section_calls
         ],
         doc_truncated=doc_truncated,
         tokens_split=tokens_split or {"options": 30, "content": 60, "instructions": 10},
@@ -315,7 +327,7 @@ def test_run_configuration_metrics(tmp_path):
     assert m["calls_used"] == ["batched"]
     doc = result["documents"][0]
     assert doc["stage_tokens"]["document"]["prompt"] == 26000
-    assert doc["doc_call_max_prompt"] == 17000
+    assert doc["max_call_prompt"] == 17000 and m["max_call_prompt"] == 17000
     assert [c["prompt_tokens"] for c in doc["document_calls"]] == [9000, 17000]
     assert result["config"]["calls"] == "batched" and result["settings"]["calls"] == "batched"
     assert result["code"] == {"git_sha": "a" * 40, "dirty": False}
@@ -323,7 +335,32 @@ def test_run_configuration_metrics(tmp_path):
     assert heldout["metrics"]["sections"] is None and "sections" not in heldout["documents"][0]
 
 
-def test_over_cap_counts_only_exact_full_document_calls(tmp_path):
+def test_over_cap_covers_every_call_of_both_stages(tmp_path):
+    def classify(document, **kwargs):
+        return _classification(
+            "legal.contract",
+            section_calls=[("full", 900, True), ("full", 18000, True), ("full", 30000, False)],
+            document_calls=[("full", 9000, True)],
+        )
+
+    result = _run(tmp_path, classify=classify)
+    m = result["metrics"]
+    # a batched sections call over the cap counts as much as a document call would
+    assert m["over_cap_share"] == 1.0 and m["over_cap_n"] == 1
+    assert m["max_call_prompt"] == 18000  # the largest exact call: estimates are not measured
+    doc = result["documents"][0]
+    assert doc["max_call_prompt"] == 18000
+    assert [c["prompt_tokens"] for c in doc["section_calls"]] == [900, 18000, 30000]
+
+
+def test_cap_constants_match_the_library():
+    from docrooter.batch import MAX_BATCH
+    from docrooter.ladder import FULL_CAP
+
+    assert bench.CALL_VIEWS == MAX_BATCH and bench.FULL_CAP == FULL_CAP
+
+
+def test_over_cap_counts_only_exact_calls(tmp_path):
     def classify(document, **kwargs):
         return _classification(
             "legal.contract",
@@ -336,7 +373,7 @@ def test_over_cap_counts_only_exact_full_document_calls(tmp_path):
     m = result["metrics"]
     assert m["over_cap_share"] is None and m["over_cap_n"] == 0  # estimated: not counted
     assert m["doc_truncated_share"] == 1.0
-    assert result["documents"][0]["doc_call_max_prompt"] is None
+    assert result["documents"][0]["max_call_prompt"] is None and m["max_call_prompt"] is None
 
 
 def test_results_hold_no_text(tmp_path):

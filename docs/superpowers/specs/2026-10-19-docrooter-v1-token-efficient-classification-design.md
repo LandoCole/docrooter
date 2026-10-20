@@ -169,7 +169,34 @@ Example: `financial.quarterly_report` requires {financial statements} and {inves
 - Never commit PDFs from the corpus, the user's private PDF, or annotation text.
 - Publishing to GitHub happens once, at the end, after the user confirms the owner and visibility.
 
-## 6. Left to the builder
+## 6. Rulings after the builder check (binding; these are my calls under the user's standing instruction)
+
+1. **`full` and the hosted default.**
+   - On the local stand-in, `full` means the whole document, cut head-first to **16,000 prompt tokens**. The benchmark reports the share of documents that exceed that cap.
+   - The default level for the OpenAI-compatible backend is the one measured on the Qwen3-4B stand-in, labelled "measured on a local stand-in". A hosted-model run is optional, user-funded, and reported separately when it is done.
+2. **Grid.**
+   - The main grid pairs the levels (section level = document level) across both flows and all backends.
+   - A small cross-grid (section level × document level) is run for the best flow and backend only.
+   - `sections_first` tags level-1 and level-2 sections, **at most 40 per document**: level 1 first, then level 2, in reading order.
+   - Section-tagging tokens count in the document's `tokens`.
+   - "Within 2 points" means doc-type accuracy for the document ladder and section macro-F1 for the section ladder, chosen independently.
+3. **Rule semantics.**
+   - A `requires` entry is a list of catalogue ids. An id may be a leaf, or a group, which matches any of its leaves.
+   - An `excludes` hit removes a candidate, unless that would leave none.
+   - When several candidates remain, the document-level call chooses among them. `typical` is passed to it only as an ordering, most typical-matches first, and never as a gate.
+   - A single candidate is decided by rules only when every supporting section tag has confidence ≥ **0.7**. Otherwise the document-level call chooses among that candidate and its near misses.
+   - The benchmark states that only 8 of the 19 doc types are validated by the corpus.
+4. **Defaults and compatibility.**
+   - Existing functions keep their current defaults. `level=None` is the old behaviour.
+   - The new top-level `docrooter.classify(source_or_doc, *, flow="sections_first", level="terms", backend=..., log=None)` is the v1 headline API. The CLI's `docrooter classify` uses the same defaults.
+   - Passing both `level=` and `view=` raises `ValueError`.
+5. **Section gold size.**
+   - At most **12 sections per document**: level 1 and level 2, spread across the document. That gives up to about 1,356 items. 20% are double-annotated.
+   - The frozen held-out `section_gold.jsonl` is not reused.
+   - If topic κ < 0.7, the guide is revised for the confused leaves, those items are relabelled once, and the result is reported as it stands.
+6. **Option markers.** The OpenAI-compatible backend switches from option numbers to **letters A–Z**, at most 26 options per call. Hierarchical strategies keep calls small. Existing tests are updated.
+
+## 7. Left to the builder
 
 - The catalogue's exact leaves and definitions, reviewed like taxonomies.
 - The rule blocks for every doc type.

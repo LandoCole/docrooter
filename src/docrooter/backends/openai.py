@@ -46,6 +46,29 @@ def prompt_hash(messages: list[dict[str, str]]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def choice_messages(
+    text: str, options: Sequence[str], instruction: str | None = None
+) -> list[dict[str, str]]:
+    """The chat messages one per-item request sends: the system prompt, then the question, the
+    text and the lettered options. ``OpenAIBackend`` sends exactly these, and token estimates
+    for backends that report no usage are made from them. Past 26 options (which the backend
+    refuses) the options are numbered, for estimates only."""
+    markers: Sequence[str] = (
+        LETTERS if len(options) <= len(LETTERS) else [str(i + 1) for i in range(len(options))]
+    )
+    prompt = build_choice_prompt(
+        text,
+        list(options),
+        instruction=instruction or DEFAULT_INSTRUCTION,
+        answer="",
+        markers=markers,
+    )
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
+    ]
+
+
 def _letter_of(token: object) -> str:
     """A logprob token as a bare letter candidate: space markers, spaces and "(", ".", ")" off."""
     return str(token).translate(_SPACE_MARKERS).strip().strip("(.)")
@@ -235,18 +258,8 @@ class OpenAIBackend:
         self, text: str, options: list[str], instruction: str | None = None
     ) -> list[dict[str, str]]:
         """The chat messages one ``score`` request sends for ``text`` (hash them with
-        :func:`prompt_hash`)."""
-        prompt = build_choice_prompt(
-            text,
-            options,
-            instruction=instruction or DEFAULT_INSTRUCTION,
-            answer="",
-            markers=LETTERS,
-        )
-        return [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ]
+        :func:`prompt_hash`): :func:`choice_messages`."""
+        return choice_messages(text, options, instruction)
 
     def _request(self, text: str, options: list[str], instruction: str) -> dict[str, Any]:
         return {
@@ -364,8 +377,9 @@ class OpenAIBackend:
         """Send ``messages`` as one chat call and return the JSON object of the reply (``None``
         when it holds none). For batched calls (:mod:`docrooter.batch`).
 
-        Asks for ``response_format={"type": "json_object"}``; a server that refuses it with an
-        HTTP 400 is asked again without it, and never again with it. The reply is parsed
+        Asks for ``response_format={"type": "json_object"}``; a server that refuses it (an
+        HTTP 400 naming ``response_format`` or JSON) is asked again without it, and, once that
+        works, never again with it. The reply is parsed
         tolerantly (:func:`parse_json_reply`). The call counts in :meth:`usage` and is reported
         to ``on_call`` (``index`` 0, ``options`` as given) like a ``score`` call.
         """
@@ -381,11 +395,15 @@ class OpenAIBackend:
         try:
             data = run_sync(self._chat(body))
         except BackendError as exc:
-            if "response_format" not in body or "HTTP 400" not in str(exc):
+            # only a refusal of JSON mode itself, not any 400 (a context limit, say)
+            message = str(exc)
+            if "response_format" not in body or "HTTP 400" not in message:
                 raise
-            self._json_mode = False
+            if "response_format" not in message and "json" not in message.lower():
+                raise
             del body["response_format"]
             data = run_sync(self._chat(body))
+            self._json_mode = False  # the retry worked: never ask for JSON mode again
         self._record_call(0, body, data, list(options))
         return parse_json_reply(_reply(data)[1])
 

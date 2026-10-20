@@ -21,6 +21,7 @@ sum.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
@@ -52,6 +53,11 @@ DOCUMENT_INSTRUCTION = (
     'Reply with a JSON object {"doc_type": "<id>"}. Use only the ids listed.'
 )
 DOC_TYPE_KEY = "doc_type"
+RETRY_NOTE = (
+    "\nYour previous reply named an id that is not one of the listed ids. Answer again, with "
+    "listed ids only."
+)
+"""Added to the instructions of a re-ask, so the model knows why it is asked again."""
 
 
 @dataclass(frozen=True)
@@ -74,16 +80,26 @@ class BatchPrompt:
         ]
 
     def parts(self) -> dict[str, int]:
-        """Estimated prompt tokens of the ``instructions``, the ``options`` and the ``content``."""
-        return {
-            "instructions": estimate_tokens(self.instructions),
-            "options": estimate_tokens(self.options),
-            "content": sum(estimate_tokens(item) for item in self.items),
-        }
+        """Estimated prompt tokens of the ``instructions``, the ``options`` and the ``content``
+        (the rest of :meth:`estimate`, so the parts sum to it)."""
+        instructions = estimate_tokens(self.instructions)
+        options = estimate_tokens(self.options)
+        content = self.estimate() - instructions - options
+        return {"instructions": instructions, "options": options, "content": content}
 
     def estimate(self) -> int:
-        """The estimated prompt tokens: the sum of :meth:`parts`."""
-        return sum(self.parts().values())
+        """The estimated prompt tokens of :attr:`messages`, as the backend estimates a call
+        that reports no usage."""
+        return messages_tokens(self.messages)
+
+    def retry(self) -> BatchPrompt:
+        """This prompt for a re-ask: the instructions say the last reply named no listed id."""
+        return dataclasses.replace(self, instructions=self.instructions + RETRY_NOTE)
+
+
+def messages_tokens(messages: Sequence[Mapping[str, str]]) -> int:
+    """The estimated prompt tokens of chat ``messages``: each message's text, estimated."""
+    return sum(estimate_tokens(m["content"]) for m in messages)
 
 
 def options_listing(taxonomy: Taxonomy, leaf_ids: Collection[str] | None = None) -> str:
@@ -188,11 +204,13 @@ __all__ = [
     "DOC_TYPE_KEY",
     "GROUP_INSTRUCTION",
     "MAX_BATCH",
+    "RETRY_NOTE",
     "SECTION_INSTRUCTION",
     "BatchPrompt",
     "chunks",
     "document_prompt",
     "group_leaves",
+    "messages_tokens",
     "group_prompt",
     "groups_listing",
     "options_listing",

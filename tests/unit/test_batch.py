@@ -9,19 +9,27 @@ from __future__ import annotations
 import json
 import re
 
+import numpy as np
 import pytest
 
 httpx = pytest.importorskip("httpx")
 
 from docrooter import classify  # noqa: E402
 from docrooter.backends import KeywordBackend  # noqa: E402
-from docrooter.backends.base import TokenUsage  # noqa: E402
+from docrooter.backends.base import Scores, TokenUsage  # noqa: E402
 from docrooter.backends.openai import OpenAIBackend  # noqa: E402
-from docrooter.batch import document_prompt, section_prompt  # noqa: E402
+from docrooter.batch import (  # noqa: E402
+    RETRY_NOTE,
+    SECTION_INSTRUCTION,
+    document_prompt,
+    section_prompt,
+)
 from docrooter.document import Document  # noqa: E402
 from docrooter.errors import BackendError  # noqa: E402
 from docrooter.taxonomies import builtin_taxonomy  # noqa: E402
+from docrooter.views import estimate_tokens  # noqa: E402
 
+TEST_KEY = "test-key-not-real-0000"
 CATALOGUE = builtin_taxonomy("section_catalogue")
 DOC_TYPES = builtin_taxonomy("doc_types")
 
@@ -40,6 +48,13 @@ SECTIONS = {
     "Legal proceedings": "disclosure.legal_proceedings",
     "Opinion": "law.opinion",
     "Syllabus": "law.syllabus",
+}
+
+
+EXEC_COMP_SECTION = {
+    "title": "Executive compensation",
+    "level": 1,
+    "text": "Salaries and bonuses of the named executive officers.",
 }
 
 
@@ -114,7 +129,8 @@ def _by_title(view):
 
 
 def llm(handler):
-    backend = OpenAIBackend("gpt-test", base_url="http://llm.test/v1", api_key="k")
+    # a key shaped like a real one: the results log scrubs the key wherever it appears
+    backend = OpenAIBackend("gpt-test", base_url="http://llm.test/v1", api_key=TEST_KEY)
     backend._transport = httpx.MockTransport(handler)
     return backend
 
@@ -170,7 +186,10 @@ def test_batched_invalid_ids_reasked_once_then_unparsed():
     result = classify(financial_doc(), backend=llm(fake), calls="batched_flat")
     first, again = fake.of("sections")
     assert set(numbered(again["messages"][1]["content"])) == {"2"}  # only the failure
-    assert again["messages"][0] == first["messages"][0]
+    told_why = SECTION_INSTRUCTION + RETRY_NOTE  # the same prompt, plus why it is asked again
+    assert again["messages"][0]["content"] == first["messages"][0]["content"].replace(
+        SECTION_INSTRUCTION, told_why
+    )
     tags = {t.title: t for t in result.sections}
     assert tags["Notes to the financial statements"].confidence == 1.0
     bad = tags["Management discussion"]
@@ -378,3 +397,172 @@ def test_batched_rule_gate_needs_two_supporting_sections():
     result = classify(two, backend=llm(fake))
     assert result.decided_by == "rules" and result.doc_type == "legal.court_opinion"
     assert fake.of("document") == [] and "low_support" not in result.flags
+
+
+@pytest.mark.parametrize("calls", ["batched", "batched_flat"])
+def test_batched_run_writes_the_results_log(tmp_path, calls):
+    path = tmp_path / "log.jsonl"
+    fake = FakeLLM()
+    result = classify(financial_doc(), backend=llm(fake), calls=calls, log=path)
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert len(rows) == len(fake.bodies) == result.tokens.calls
+    steps = [r["step"] for r in rows]
+    expected = ["batch_group", "batch_leaf", "batch_leaf"] if calls == "batched" else ["batch"]
+    assert steps == [*expected, "document"]
+    assert TEST_KEY not in path.read_text()
+    for row in rows:
+        assert row["confidence_source"] == "batched" and row["probs"] == {}
+        assert row["prompt_hash"] and row["tokens"]["exact"] is True
+    ids = {t.id: t.label for t in result.sections}
+    section_rows = [r for r in rows if r["stage"] == "sections"]
+    answered = {
+        k: v for r in section_rows if r["step"] != "batch_group" for k, v in r["label"].items()
+    }
+    assert answered == ids
+    if calls == "batched":
+        assert set(section_rows[0]["label"].values()) == {"financial", "narrative"}
+    assert rows[-1]["label"] == result.doc_type
+
+
+def test_batched_document_reask_says_why():
+    class Wrong(FakeLLM):
+        def __call__(self, request):
+            self.doc_type = "not.a.type" if not self.of("document") else "financial.annual_report"
+            return super().__call__(request)
+
+    fake = Wrong()
+    result = classify(financial_doc(), backend=llm(fake))
+    first, again = fake.of("document")
+    assert "not one of the listed ids" in again["messages"][0]["content"]
+    assert result.doc_type == "financial.annual_report"
+    assert len(result.document_calls) == 2
+
+
+def test_json_mode_off_through_classify_only_for_a_response_format_refusal():
+    seen = []
+
+    def refusing(request):
+        body = json.loads(request.content)
+        seen.append("response_format" in body)
+        if "response_format" in body:
+            return httpx.Response(400, json={"error": "response_format json_object unsupported"})
+        return FakeLLM()(request)
+
+    backend = llm(refusing)
+    result = classify(financial_doc(), backend=backend)
+    assert result.doc_type is not None and seen[0] is True and seen[1:] and not any(seen[1:])
+
+    def too_long(request):
+        return httpx.Response(400, json={"error": "context length exceeded"})
+
+    backend = llm(too_long)
+    with pytest.raises(BackendError):
+        classify(financial_doc(), backend=backend)
+    assert backend._json_mode is True  # an unrelated 400 keeps JSON mode
+
+
+def test_two_step_chunks_and_exact_per_tag_sums():
+    many = Document.from_sections(
+        [
+            {"title": t, "level": 1, "text": f"{t}, part {i}."}
+            for i in range(15)
+            for t in ("Balance sheet", "Risk factors", "Outlook")
+        ]
+    )
+    fake = FakeLLM()
+    result = classify(many, backend=llm(fake), max_sections=45)
+    group_calls = [len(numbered(b["messages"][1]["content"])) for b in fake.of("groups")]
+    leaf_calls = [len(numbered(b["messages"][1]["content"])) for b in fake.of("sections")]
+    assert group_calls == [40, 5]
+    assert sorted(leaf_calls) == [15, 15, 15]
+    assert result.tokens.exact
+    assert sum((t.tokens for t in result.sections), TokenUsage()) == result.stage_tokens["sections"]
+    assert result.stage_tokens["sections"].calls == 5
+
+
+def test_estimates_say_their_pattern_and_count_calls_once():
+    doc = financial_doc()
+    for calls, pattern in ((None, "batched"), ("batched_flat", "batched_flat"),
+                           ("per_item", "per_item")):  # fmt: skip
+        result = classify(doc, backend=KeywordBackend(), calls=calls)
+        assert result.tokens_pattern == pattern
+        assert result.tokens.estimated_calls == result.tokens.calls
+    exact = classify(doc, backend=llm(FakeLLM()))
+    assert exact.tokens_pattern == "batched"
+    # cascade with a backend that cannot batch: per-item calls, so a per-item estimate
+    cascaded = classify(doc, backend=KeywordBackend(), cascade=True)
+    assert cascaded.tokens_pattern == "per_item"
+    assert cascaded.tokens.estimated_calls == cascaded.tokens.calls
+
+
+class FirstOption:
+    """A non-LLM backend (no usage) that always picks the first option, with certainty."""
+
+    name = "first"
+    max_candidates = None
+    temperature = 1.0
+
+    def score(self, texts, candidates, *, instruction=None, multi_label=False):
+        values = np.zeros((len(texts), len(candidates)))
+        values[:, 0] = 1.0
+        return Scores(values, "softmax")
+
+    def supports(self, node_id):
+        return True
+
+    def tokenizer(self):
+        return None
+
+
+def first_listed(system: str, indented: bool) -> str:
+    """The first option id a batched system turn lists (the first leaf when ``indented``)."""
+    lines = system.split("Options:\n", 1)[1].splitlines()
+    pick = next((ln for ln in lines if ln.startswith("  ")), lines[0]) if indented else lines[0]
+    return pick.strip().split(": ", 1)[0]
+
+
+def sent_tokens(bodies) -> int:
+    """What the requests carried, estimated the way the backend estimates a call."""
+    return sum(estimate_tokens(m["content"]) for b in bodies for m in b["messages"])
+
+
+def test_estimates_match_what_the_requests_carry():
+    doc = financial_doc(EXEC_COMP_SECTION)
+
+    # per item: the fake answers "A", the first option, as FirstOption picks it
+    bodies: list[dict] = []
+
+    def per_item(request):
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "A"}}]})
+
+    real = classify(doc, backend=llm(per_item), calls="per_item", level="headings")
+    estimated = classify(doc, backend=FirstOption(), calls="per_item", level="headings")
+    assert real.tokens.calls == estimated.tokens.calls == len(bodies)
+    assert estimated.tokens.prompt == sent_tokens(bodies)
+    assert estimated.tokens_split["instructions"] > 0  # system prompt and question, every call
+    assert sum(estimated.tokens_split.values()) == estimated.tokens.prompt
+
+    # batched: the fake answers the first group, then the first leaf, then the first type
+    bodies = []
+
+    def batched(request):
+        body = json.loads(request.content)
+        bodies.append(body)
+        system, user = body["messages"][0]["content"], body["messages"][1]["content"]
+        if '"doc_type"' in system:
+            reply = {"doc_type": first_listed(system, indented=True)}
+        else:
+            pick = first_listed(system, indented="group id" not in system)
+            reply = dict.fromkeys(numbered(user), pick)
+        content = json.dumps(reply)
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    for calls in ("batched", "batched_flat"):
+        bodies.clear()
+        real = classify(doc, backend=llm(batched), calls=calls, level="headings")
+        estimated = classify(doc, backend=FirstOption(), calls=calls, level="headings")
+        assert [t.label for t in real.sections] == [t.label for t in estimated.sections]
+        assert estimated.tokens.calls == len(bodies), calls
+        assert estimated.tokens.prompt == sent_tokens(bodies), calls
+        assert sum(estimated.tokens_split.values()) == estimated.tokens.prompt

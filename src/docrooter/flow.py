@@ -29,8 +29,10 @@ until ``full``; only those items are asked again, and every attempt's tokens cou
 **Tokens.** Every backend call is metered. A backend with a per-call record sink (``on_call``,
 the OpenAI-compatible backend) gives each call's exact tokens from the API's ``usage``. One that
 only reports a cumulative ``usage()`` has each call's change split over its texts. Any other
-backend (keyword, embedding, NLI) is charged what the same view and options would cost an LLM,
-``estimate_tokens(view) + estimate_tokens(options block)`` per text, marked estimated.
+backend (keyword, embedding, NLI) is charged what an LLM would be sent, marked estimated: the
+messages the OpenAI-compatible backend would build for the same call (system prompt, question,
+text and options per item; :mod:`docrooter.batch` prompts when batched), each estimated with
+:func:`~docrooter.views.estimate_tokens`, as the backend estimates a call without ``usage``.
 ``Classification.tokens`` is exact only when every call was.
 
 **Calls.** ``calls="batched"`` (the default for a backend that can, the OpenAI-compatible one)
@@ -56,7 +58,13 @@ are offered to the model.
 
 **Results log.** ``log=path`` appends one :class:`~docrooter.results_log.ResultsLog` row per
 backend decision (each section step and each document call), with the level, the view hash, the
-options, the probabilities, the tokens and, from the call record, the prompt hash.
+options, the probabilities, the tokens and, from the call record, the prompt hash. A batched
+call's row has ``step`` ``batch_group``, ``batch_leaf``, ``batch`` (flat) or ``document``, its
+``label`` maps each section id to its answer (the doc type id for the document), ``probs`` is
+``{}`` since a batched answer has no probabilities, and ``confidence_source`` is ``"batched"``
+(``"probability"`` on per-item rows). Each row's tokens are those of its own call: for a backend
+that reports no usage, the per-item estimate of that call, while ``Classification.tokens``
+follows ``tokens_pattern``, so such a log need not sum to the result.
 """
 
 from __future__ import annotations
@@ -89,6 +97,7 @@ from docrooter.batch import (
     document_prompt,
     group_leaves,
     group_prompt,
+    messages_tokens,
     reply_tokens,
     section_prompt,
     section_reply_max_tokens,
@@ -216,8 +225,11 @@ class Classification(BaseModel):
     - ``tokens``: everything spent, ``stage_tokens["sections"] + stage_tokens["document"]``.
     - ``levels``: the ``section`` level asked for and the ``document`` level of the final
       document decision (``None`` when no document call was made).
-    - ``backend``: the backend's name; ``calls``: how it was asked, ``"batched"`` or
-      ``"per_item"``.
+    - ``backend``: the backend's name; ``calls``: how it was asked, ``"batched"`` (two-step
+      sections), ``"batched_flat"`` or ``"per_item"``; ``tokens_pattern``: the call pattern the
+      tokens describe. It equals ``calls`` when the backend reports usage; a backend that does
+      not is asked per item but estimated as the pattern ``calls`` asked for (per item with
+      ``cascade``).
     - ``tokens_split``: the estimated prompt tokens of the ``options``, the ``content`` (the
       views) and the ``instructions``. For an estimated run they sum to ``tokens.prompt``; next
       to exact totals they show the share the options take.
@@ -242,6 +254,7 @@ class Classification(BaseModel):
     levels: dict[str, Level | None] = Field(default_factory=dict)
     backend: str
     calls: Calls = "per_item"
+    tokens_pattern: Calls = "per_item"
     tokens_split: dict[str, int] = Field(default_factory=dict)
 
 
@@ -314,7 +327,8 @@ def classify(
             threshold=threshold,
             batched=can_batch and calls != "per_item",
             flat=calls == "batched_flat",
-            batch_estimate=estimating and calls != "per_item",
+            # cascade re-asks single items, which no batched call could: estimate per item
+            batch_estimate=estimating and calls != "per_item" and not cascade,
         )
         if flow == "doc_first":
             result = run.doc_first(levels["section"], levels["document"], max_sections)
@@ -357,7 +371,7 @@ class _Call:
     probs: tuple[float, ...]
     usage: TokenUsage
     record: Mapping[str, Any] | None
-    options_tokens: int = 0
+    parts: Mapping[str, int] = field(default_factory=dict)  # estimated prompt parts
 
 
 class _Metered:
@@ -415,14 +429,13 @@ class _Metered:
             return scores  # the engine reports the bad shape
         after = usage_of(self.inner)
         by_index = {r.get("index"): r for r in records}
-        usages = self._usages(texts, candidates, by_index, before, after)
+        parts = [_choice_parts(text, candidates, instruction) for text in texts]
+        usages = self._usages(texts, parts, by_index, before, after)
         probs = to_probs(scores, temperature=self.temperature, multi_label=multi_label)
         options = tuple(c.node_id for c in candidates)
-        options_tokens = estimate_tokens(options_block(candidates))
         for i, text in enumerate(texts):
             row = tuple(float(p) for p in probs[i])
-            call = _Call(text, options, row, usages[i], by_index.get(i), options_tokens)
-            self.calls.append(call)
+            self.calls.append(_Call(text, options, row, usages[i], by_index.get(i), parts[i]))
         return scores
 
     def chat(
@@ -461,7 +474,7 @@ class _Metered:
     @staticmethod
     def _usages(
         texts: list[str],
-        candidates: Sequence[Candidate],
+        parts: list[dict[str, int]],
         records: Mapping[Any, Mapping[str, Any]],
         before: TokenUsage | None,
         after: TokenUsage | None,
@@ -470,12 +483,12 @@ class _Metered:
         estimate of what an LLM would be sent."""
         if records:
             return [
-                _record_usage(records[i]) if i in records else _estimate(text, candidates)
-                for i, text in enumerate(texts)
+                _record_usage(records[i]) if i in records else _estimate(parts[i])
+                for i in range(len(texts))
             ]
         if before is not None and after is not None:
             return _split(after - before, len(texts))
-        return [_estimate(text, candidates) for text in texts]
+        return [_estimate(p) for p in parts]
 
 
 def _record_usage(record: Mapping[str, Any]) -> TokenUsage:
@@ -487,10 +500,30 @@ def _record_usage(record: Mapping[str, Any]) -> TokenUsage:
     )
 
 
-def _estimate(text: str, candidates: Sequence[Candidate]) -> TokenUsage:
-    """What one LLM call on ``text`` with these options would be sent, estimated."""
-    prompt = estimate_tokens(text) + estimate_tokens(options_block(candidates))
-    return TokenUsage(prompt, 0, 1, False)
+def _estimate(parts: Mapping[str, int]) -> TokenUsage:
+    """One per-item LLM call, estimated from its prompt parts."""
+    return TokenUsage(sum(parts.values()), 0, 1, False)
+
+
+def _choice_parts(
+    text: str, candidates: Sequence[Candidate], instruction: str | None
+) -> dict[str, int]:
+    """The estimated prompt of the per-item request for ``text``, built as the OpenAI-compatible
+    backend builds it (:func:`~docrooter.backends.openai.choice_messages`), in parts: the
+    system prompt and the question, the options, and the rest (the text), summing to the
+    estimate of the messages sent."""
+    from docrooter.backends.openai import DEFAULT_INSTRUCTION, SYSTEM_PROMPT, choice_messages
+
+    total = messages_tokens(choice_messages(text, [c.text for c in candidates], instruction))
+    instructions = estimate_tokens(SYSTEM_PROMPT) + estimate_tokens(
+        instruction or DEFAULT_INSTRUCTION
+    )
+    options = estimate_tokens(options_block(candidates))
+    return {
+        "instructions": instructions,
+        "options": options,
+        "content": total - instructions - options,
+    }
 
 
 def options_block(candidates: Sequence[Candidate]) -> str:
@@ -757,12 +790,19 @@ class _Run:
         return [rendered[s.id].text for s in sections]
 
     def _add_split(self, call: _Call) -> None:
-        self.split["options"] += call.options_tokens
-        self.split["content"] += estimate_tokens(call.text)
+        for part, tokens in call.parts.items():
+            self.split[part] += tokens
 
     def _add_parts(self, prompt: BatchPrompt) -> None:
         for part, tokens in prompt.parts().items():
             self.split[part] += tokens
+
+    @property
+    def tokens_pattern(self) -> Calls:
+        """The call pattern the tokens describe."""
+        if self.batched or self.batch_estimate:
+            return "batched_flat" if self.flat else "batched"
+        return "per_item"
 
     def _two_step(self, taxonomy: Taxonomy) -> bool:
         """Whether the batched sections stage takes two steps: not flat, and the taxonomy has
@@ -784,6 +824,8 @@ class _Run:
             groups = [_group_of(taxonomy, label) for label in labels]
             asks = [(everyone, "groups", groups)]
             for group in dict.fromkeys(g for g in groups if g):
+                if group_leaves(taxonomy, group) == [group]:
+                    continue  # a top-level leaf: the group call answered it (as _tag_batched)
                 members = [i for i in everyone if groups[i] == group]
                 asks.append((members, group, labels))
         for members, step, answers in asks:
@@ -796,14 +838,17 @@ class _Run:
                 else:
                     prompt = section_prompt(views, taxonomy, group_leaves(taxonomy, step))
                 self._add_parts(prompt)
-                parts = prompt.parts()
-                overhead = parts["instructions"] + parts["options"]
+                # each section gets its own item; the rest of the call is shared
+                overhead = prompt.estimate() - sum(estimate_tokens(it) for it in prompt.items)
                 completion = reply_tokens({str(i + 1): answers[i] or "" for i in chunk})
                 shares = _split(TokenUsage(overhead, completion, 1, False), len(chunk))
                 for item, i, share in zip(prompt.items, chunk, shares, strict=True):
                     # each section is one estimated part of the call (see TokenUsage)
                     prompt_tokens = share.prompt + estimate_tokens(item)
-                    usage = TokenUsage(prompt_tokens, share.completion, share.calls, False)
+                    estimated = share.estimated_calls  # the call is counted once
+                    usage = TokenUsage(
+                        prompt_tokens, share.completion, share.calls, estimated == 0, estimated
+                    )
                     spent[i] = spent[i] + usage
         return spent
 
@@ -877,10 +922,12 @@ class _Run:
         answers: dict[str, str | None] = dict.fromkeys(views)
         for chunk in chunks(list(views)):
             pending = list(chunk)
-            for _ in range(2):  # the first ask, then once more for the failures
+            for attempt in range(2):  # the first ask, then once more for the failures
                 if not pending:
                     break
                 prompt = prompt_for({n: views[n] for n in pending})
+                if attempt:
+                    prompt = prompt.retry()
                 reply, usage, record = self._chat(prompt, options, len(pending))
                 for n in pending:
                     answers[n] = valid_id((reply or {}).get(n), valid)
@@ -966,8 +1013,8 @@ class _Run:
         valid = {leaf_id.lower(): leaf_id for leaf_id in leaf_ids}
         prompt = document_prompt(view.text, taxonomy)
         tokens, records, chosen = TokenUsage(), [], None
-        for _ in range(2):
-            reply, usage, record = self._chat(prompt, leaf_ids, 1)
+        for attempt in range(2):
+            reply, usage, record = self._chat(prompt.retry() if attempt else prompt, leaf_ids, 1)
             chosen = valid_id((reply or {}).get(DOC_TYPE_KEY), valid)
             call = _Call(view.text, tuple(leaf_ids), (), usage, record)
             self.decisions.append(
@@ -1063,6 +1110,7 @@ class _Run:
             },
             backend=self.metered.name,
             calls=("batched_flat" if self.flat else "batched") if self.batched else "per_item",
+            tokens_pattern=self.tokens_pattern,
             tokens_split=dict(self.split),
         )
 
@@ -1073,7 +1121,7 @@ class _Run:
         for decision in self.decisions:
             call, record = decision.call, decision.call.record or {}
             best = int(np.argmax(call.probs)) if call.probs else None
-            label = decision.label if decision.label is not None or not call.probs else None
+            batched = not call.probs  # a batched answer: a label, no probabilities
             log.write(
                 {
                     "source": source,
@@ -1084,8 +1132,9 @@ class _Run:
                     "level": decision.level,
                     "view_hash": text_hash(call.text),
                     "options": list(call.options),
-                    "label": label if best is None else call.options[best],
-                    "probs": dict(zip(call.options, call.probs, strict=True)),
+                    "label": decision.label if best is None else call.options[best],
+                    "probs": {} if batched else dict(zip(call.options, call.probs, strict=True)),
+                    "confidence_source": "batched" if batched else "probability",
                     "model": record.get("model", self.metered.name),
                     "backend": self.metered.name,
                     "endpoint_host": record.get("endpoint_host"),

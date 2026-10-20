@@ -284,3 +284,119 @@ def test_barred_lists_every_type_an_exclude_argues_against():
     match = match_rules(rules, {"x": 0.9})
     assert match.candidates == ["a"] and match.barred == ["b"]
     assert match.excluded == []  # b was neither a candidate nor a near miss
+
+
+# --- F6: contract and terms_policy are told apart by what only each carries -------------
+
+COMMERCIAL_CLAUSES = (
+    "contract.limitation_of_liability",
+    "contract.warranties",
+    "contract.termination",
+    "contract.intellectual_property",
+    "contract.governing_law_disputes",
+    "contract.general_provisions",
+    "contract.definitions",
+)
+
+
+def builtin_rules():
+    return doc_type_rules(builtin_taxonomy("doc_types"))
+
+
+@pytest.mark.parametrize("clause", COMMERCIAL_CLAUSES)
+def test_ordinary_commercial_clauses_never_make_a_terms_policy(clause):
+    result = match_rules(builtin_rules(), {clause: 0.95, "contract.payment": 0.95})
+    assert "legal.terms_policy" not in result.candidates
+
+
+def test_a_contract_needs_no_parties_or_signatures_heading():
+    """An agreement whose preamble is untitled and whose signature block is no heading."""
+    tags = {
+        "contract.definitions": 0.9,
+        "contract.scope_services": 0.9,
+        "contract.payment": 0.9,
+        "contract.term": 0.9,
+        "contract.warranties": 0.9,
+        "contract.limitation_of_liability": 0.9,
+        "contract.governing_law_disputes": 0.9,
+    }
+    result = match_rules(builtin_rules(), tags)
+    assert result.candidates == ["legal.contract"] and result.decided == "legal.contract"
+
+
+def test_terms_policy_needs_a_section_only_published_terms_carry():
+    rules = builtin_rules()
+    privacy = match_rules(rules, {"contract.privacy_data": 0.9, "general.other": 0.9})
+    assert privacy.candidates == ["legal.terms_policy"]
+    terms = match_rules(
+        rules,
+        {
+            "contract.acceptable_use": 0.9,
+            "contract.limitation_of_liability": 0.9,
+            "contract.warranties": 0.9,
+        },
+    )
+    # liability and warranty clauses also make a contract candidate: the model chooses
+    assert set(terms.candidates) == {"legal.terms_policy", "legal.contract"}
+    assert terms.candidates[0] == "legal.terms_policy" and terms.decided is None
+    named = match_rules(rules, {"contract.acceptable_use": 0.9, "contract.parties_recitals": 0.9})
+    # named parties argue against published terms: kept only as a waived, never decided type
+    assert named.waived == ["legal.terms_policy"] and named.decided is None
+
+
+def test_acceptable_use_covers_the_user_terms_of_published_terms():
+    leaf = builtin_taxonomy("section_catalogue").node("contract.acceptable_use")
+    text = leaf.description.lower()
+    for clause in ("acceptance", "account", "change"):
+        assert clause in text
+    assert {"Acceptance of Terms", "Changes to These Terms"} <= set(leaf.examples)
+
+
+# --- F6 re-check: other rules a generic or borrowed section could meet alone --------------
+
+
+def test_financial_statements_alone_do_not_make_an_earnings_release():
+    rules = builtin_rules()
+    statements = {"financial.income_statement": 0.9, "financial.balance_sheet": 0.9}
+    assert "financial.earnings_release" not in match_rules(rules, statements).candidates
+    release = {**statements, "financial.financial_highlights": 0.9, "narrative.outlook": 0.9}
+    assert "financial.earnings_release" in match_rules(rules, release).candidates
+    audited = match_rules(rules, {**release, "financial.notes_to_financial_statements": 0.9})
+    assert audited.decided is None and "financial.earnings_release" in audited.barred
+
+
+def test_a_generic_body_section_does_not_make_a_report():
+    result = match_rules(builtin_rules(), {"general.body": 0.95, "general.conclusion": 0.9})
+    assert "government.government_report" not in result.candidates
+    assert "research.white_paper" not in result.candidates
+    findings = match_rules(builtin_rules(), {"general.findings": 0.9, "general.body": 0.9})
+    assert "government.government_report" in findings.candidates
+
+
+def test_filing_items_bar_an_investor_presentation():
+    tags = {
+        "narrative.management_discussion": 0.9,
+        "disclosure.forward_looking_statements": 0.9,
+        "disclosure.controls_and_procedures": 0.9,
+    }
+    filing = match_rules(builtin_rules(), tags)
+    assert filing.decided is None and "corporate.investor_presentation" in filing.barred
+    deck = {"narrative.outlook": 0.9, "disclosure.forward_looking_statements": 0.9}
+    assert "corporate.investor_presentation" in match_rules(builtin_rules(), deck).candidates
+
+
+def test_a_financial_report_with_an_esg_chapter_is_no_sustainability_report():
+    tags = {
+        "esg.climate_environment": 0.9,
+        "esg.social": 0.9,
+        "narrative.management_discussion": 0.9,
+    }
+    result = match_rules(builtin_rules(), tags)
+    assert result.decided is None and "corporate.sustainability_report" in result.barred
+    esg_only = {"esg.climate_environment": 0.9, "esg.social": 0.9}
+    assert match_rules(builtin_rules(), esg_only).candidates == ["corporate.sustainability_report"]
+
+
+def test_highlights_of_a_non_financial_document_are_a_summary():
+    leaf = builtin_taxonomy("section_catalogue").node("financial.financial_highlights")
+    assert "general.summary" in leaf.description

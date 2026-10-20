@@ -112,22 +112,27 @@
           "sections": {
             "requires": [
               [
+                "financial.financial_highlights"
+              ],
+              [
                 "financial.income_statement",
                 "financial.balance_sheet",
                 "financial.cash_flow_statement",
                 "financial.financial_statements",
-                "financial.financial_highlights"
+                "narrative.outlook"
               ]
             ],
             "typical": [
-              "financial.financial_highlights",
+              "financial.income_statement",
               "narrative.outlook",
               "disclosure.forward_looking_statements"
             ],
             "excludes": [
               "disclosure.controls_and_procedures",
               "disclosure.executive_compensation",
-              "financial.schedule_of_investments"
+              "financial.schedule_of_investments",
+              "financial.notes_to_financial_statements",
+              "financial.auditors_report"
             ]
           },
           "children": []
@@ -229,22 +234,19 @@
           "sections": {
             "requires": [
               [
-                "contract.parties_recitals",
-                "contract.signatures_exhibits"
-              ],
-              [
                 "contract.scope_services",
                 "contract.term",
+                "contract.termination",
                 "contract.payment",
                 "contract.confidentiality",
                 "contract.intellectual_property",
                 "contract.warranties",
                 "contract.indemnification",
-                "contract.limitation_of_liability",
-                "contract.termination"
+                "contract.limitation_of_liability"
               ]
             ],
             "typical": [
+              "contract.parties_recitals",
               "contract.definitions",
               "contract.governing_law_disputes",
               "contract.general_provisions",
@@ -262,17 +264,16 @@
             "requires": [
               [
                 "contract.privacy_data",
-                "contract.acceptable_use",
-                "contract.limitation_of_liability",
-                "contract.warranties",
-                "contract.termination",
-                "contract.intellectual_property",
-                "contract.governing_law_disputes"
+                "contract.acceptable_use"
               ]
             ],
             "typical": [
               "contract.privacy_data",
               "contract.acceptable_use",
+              "contract.limitation_of_liability",
+              "contract.warranties",
+              "contract.intellectual_property",
+              "contract.termination",
               "contract.governing_law_disputes",
               "contract.general_provisions"
             ],
@@ -403,7 +404,6 @@
             "requires": [
               [
                 "general.summary",
-                "general.body",
                 "general.findings",
                 "general.recommendations"
               ]
@@ -412,7 +412,8 @@
               "general.summary",
               "general.background",
               "general.recommendations",
-              "general.references"
+              "general.references",
+              "general.body"
             ],
             "excludes": [
               "standard.normative_references",
@@ -501,7 +502,6 @@
             "requires": [
               [
                 "general.summary",
-                "general.body",
                 "general.findings",
                 "general.recommendations"
               ]
@@ -511,7 +511,8 @@
               "general.findings",
               "general.recommendations",
               "general.background",
-              "research.method"
+              "research.method",
+              "general.body"
             ],
             "excludes": [
               "standard.normative_references",
@@ -551,7 +552,10 @@
               "financial.balance_sheet",
               "financial.income_statement",
               "financial.cash_flow_statement",
-              "financial.changes_in_equity"
+              "financial.changes_in_equity",
+              "financial.notes_to_financial_statements",
+              "financial.auditors_report",
+              "narrative.management_discussion"
             ]
           },
           "children": []
@@ -579,7 +583,11 @@
             ],
             "excludes": [
               "financial.notes_to_financial_statements",
-              "financial.auditors_report"
+              "financial.auditors_report",
+              "disclosure.controls_and_procedures",
+              "disclosure.market_for_equity",
+              "disclosure.properties",
+              "disclosure.exhibits"
             ]
           },
           "children": []

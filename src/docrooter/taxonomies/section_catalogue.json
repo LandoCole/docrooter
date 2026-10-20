@@ -601,7 +601,7 @@
         {
           "id": "financial.financial_highlights",
           "label": "Financial highlights",
-          "description": "A short summary of headline figures for the period, such as key figures, selected financial data, the results table on a release's first page, or a fund's per-share financial highlights; the full statements belong to their own leaves.",
+          "description": "A short summary of headline figures for the period, such as key figures, selected financial data, the results table on a release's first page, or a fund's per-share financial highlights; the full statements belong to their own leaves; the key points of a non-financial document, such as a report's highlights page, belong to general.summary.",
           "examples": [
             "Financial Highlights",
             "Key Figures",
@@ -1447,14 +1447,17 @@
         },
         {
           "id": "contract.acceptable_use",
-          "label": "Acceptable use",
-          "description": "The rules on what users may and may not do with a published service, such as prohibited conduct and content, account rules, and the provider's enforcement; the work a party owes a named counterparty belongs to contract.scope_services.",
+          "label": "Acceptable use and user terms",
+          "description": "The terms a published service sets for its users, as in terms of service or an acceptable-use policy: acceptance of the terms, eligibility and account obligations, what users may and may not do (prohibited conduct and content), the provider's enforcement, and its right to change the terms; the work a party owes a named counterparty belongs to contract.scope_services, and an amendment agreed between named parties to contract.general_provisions.",
           "examples": [
             "Acceptable Use Policy",
             "Prohibited Conduct",
             "User Conduct",
             "Restrictions on Use",
-            "Community Guidelines"
+            "Community Guidelines",
+            "Acceptance of Terms",
+            "Your Account",
+            "Changes to These Terms"
           ],
           "children": []
         },

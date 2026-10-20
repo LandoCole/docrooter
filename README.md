@@ -608,7 +608,7 @@ classifier can use different backends at different nodes or depths (`overrides=`
 | `nli[:model]` | Textual entailment | `models` | Default `MoritzLaurer/deberta-v3-base-zeroshot-v2.0` |
 | `mlm-choice[:model]` | A masked LM fills in the letter of the right option | `models` | Experimental; default `dmis-lab/UltraBERT-380M` |
 | `trained:<dir>` | Per-node heads on a fine-tuned body | `models` | From `docrooter train` / `train()`; see the pickle warning above |
-| `openai:<model>` | Chat model answers with an option number | `llm` | Any OpenAI-compatible endpoint, e.g. `openai:gpt-4o-mini`; the model is required |
+| `openai:<model>` | Chat model answers with an option letter (A-Z) | `llm` | Any OpenAI-compatible endpoint, e.g. `openai:gpt-4o-mini`; the model is required |
 | `jev[:model]` | TypeSafe Jev typed choice and yes/no probabilities | `jev` | Default `jev-1.13.0`; needs `TYPESAFE_API_KEY` |
 
 Model-backed backends pick the device in the order CUDA, MPS, CPU. FlashAttention 2 is used only on

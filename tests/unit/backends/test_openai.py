@@ -42,7 +42,7 @@ def test_openai_logprob_parsing():
 
     def handler(request):
         seen.append((request, json.loads(request.content)))
-        return httpx.Response(200, json=completion("2", {"2": -0.1, "1": -2.5, "x": -0.2}))
+        return httpx.Response(200, json=completion("B", {"B": -0.1, "A": -2.5, "x": -0.2}))
 
     scores = backend(handler).score(["some text"], CANDIDATES)
     assert scores.kind == "softmax"
@@ -58,16 +58,16 @@ def test_openai_logprob_parsing():
     assert body["max_tokens"] == 3 and body["temperature"] == 0
     assert body["messages"][0] == {
         "role": "system",
-        "content": "Answer with the option number only.",
+        "content": "Answer with the option letter only.",
     }
     user = body["messages"][1]["content"]
-    assert "1. Tax: income taxes" in user and "2. Litigation: lawsuits" in user
+    assert "A. Tax: income taxes" in user and "B. Litigation: lawsuits" in user
     assert user.endswith("Answer:")
 
 
 def test_openai_logprobs_pool_whitespace_variants_and_missing_options():
     def handler(request):
-        return httpx.Response(200, json=completion("1", {" 1": -1.0, "1": -1.0}))
+        return httpx.Response(200, json=completion("A", {" A": -1.0, "A": -1.0}))
 
     row = backend(handler).score(["t"], CANDIDATES).values[0]
     assert np.allclose(row, [1.0, 0.0])  # option 2 was not listed: -inf
@@ -75,7 +75,7 @@ def test_openai_logprobs_pool_whitespace_variants_and_missing_options():
 
 def test_openai_fallback_parse():
     def handler(request):
-        return httpx.Response(200, json=completion(" 2."))
+        return httpx.Response(200, json=completion(" B."))
 
     scores = backend(handler).score(["a", "b"], CANDIDATES)
     assert np.array_equal(scores.values, [[0.0, 1.0], [0.0, 1.0]])
@@ -92,9 +92,9 @@ def test_openai_garbage_uniform(caplog):
     assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1
 
 
-def test_openai_out_of_range_number_is_garbage():
+def test_openai_out_of_range_letter_is_garbage():
     def handler(request):
-        return httpx.Response(200, json=completion("7"))
+        return httpx.Response(200, json=completion("G"))
 
     assert np.allclose(backend(handler).score(["a"], CANDIDATES).values, 0.5)
 
@@ -102,7 +102,7 @@ def test_openai_out_of_range_number_is_garbage():
 def test_openai_keeps_text_order_under_concurrency():
     def handler(request):
         user = json.loads(request.content)["messages"][1]["content"]
-        return httpx.Response(200, json=completion("2" if "second" in user else "1"))
+        return httpx.Response(200, json=completion("B" if "second" in user else "A"))
 
     scores = backend(handler, concurrency=2).score(
         ["first a", "second b", "first c", "second d"], CANDIDATES
@@ -119,9 +119,9 @@ def test_openai_http_error_is_backend_error():
 
 
 def test_openai_too_many_candidates_and_empty():
-    b = backend(lambda request: httpx.Response(200, json=completion("1")))
-    many = [Candidate(str(i), f"c{i}") for i in range(51)]
-    with pytest.raises(BackendError, match="at most 50"):
+    b = backend(lambda request: httpx.Response(200, json=completion("A")))
+    many = [Candidate(str(i), f"c{i}") for i in range(27)]
+    with pytest.raises(BackendError, match="at most 26"):
         b.score(["a"], many)
     assert b.score([], CANDIDATES).values.shape == (0, 2)
     assert b.score(["a"], []).values.shape == (1, 0)
@@ -151,7 +151,7 @@ def test_openai_properties_and_registry(monkeypatch):
     monkeypatch.setenv("DOCROOTER_LLM_API_KEY", "k")
     b = resolve_backend("openai:gpt-4o-mini", concurrency=3)
     assert isinstance(b, OpenAIBackend)
-    assert b.name == "openai:gpt-4o-mini" and b.max_candidates == 50
+    assert b.name == "openai:gpt-4o-mini" and b.max_candidates == 26
     assert b.temperature == 1.0 and b.concurrency == 3
     assert b.supports("x") and b.tokenizer() is None
     with pytest.raises(BackendError, match="revision"):
@@ -163,7 +163,7 @@ def test_openai_api_key_is_stripped():
 
     def handler(request):
         seen.append(request.headers["authorization"])
-        return httpx.Response(200, json=completion("1"))
+        return httpx.Response(200, json=completion("A"))
 
     b = OpenAIBackend("m", base_url="http://llm.test/v1", api_key=" k\n")
     b._transport = httpx.MockTransport(handler)

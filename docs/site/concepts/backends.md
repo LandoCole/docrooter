@@ -14,7 +14,7 @@ A backend is chosen by a spec string `kind[:model[@revision]]`, or by passing an
 | `mlm-choice[:model]` | A masked LM picks the letter of the right option | `models` | locally | Experimental; default `dmis-lab/UltraBERT-380M` |
 | `trained:<dir>` | Per-node heads on a fine-tuned body | `models` | locally | From `docrooter train` or `train()`; see [Training](../guides/training-evaluation.md) |
 | `jev[:model]` | TypeSafe Jev typed choice probabilities | `jev` | hosted API | Default `jev-1.13.0`; needs `TYPESAFE_API_KEY`. The most accurate backend in every docrooter benchmark it ran in |
-| `openai:<model>` | A chat model answers with an option number | `llm` | hosted or local server | Any OpenAI-compatible endpoint; the model is required |
+| `openai:<model>` | A chat model answers with an option letter (A-Z) | `llm` | hosted or local server | Any OpenAI-compatible endpoint; the model is required |
 
 ```python
 classifier = Classifier(taxonomy, "jev", strategy=Greedy())

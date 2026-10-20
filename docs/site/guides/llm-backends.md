@@ -6,7 +6,8 @@ Two backends call a language model over HTTP instead of running one locally:
   a probability for each option, which is what the classifier's thresholds and beams need. It
   was the most accurate backend in every docrooter benchmark it ran in.
 - **`openai:<model>`**: any server that speaks the OpenAI chat API (OpenAI itself, or a local
-  server such as Ollama, vLLM or llama.cpp). The model answers with an option number.
+  server such as Ollama, vLLM, llama.cpp or `mlx_lm.server`). The model answers with an option
+  letter.
 
 Both send the rendered [views](../concepts/views.md) (not whole documents) to the server, so
 check that this is acceptable for your data before you use them.
@@ -92,9 +93,49 @@ The model name is required (`openai:gpt-4o-mini`). For a local server, set
 without one. Requests run concurrently (8 at a time). The script is
 [`examples/openai_backend.py`](../../../examples/openai_backend.py).
 
-A chat model answers with one option number, so its "probabilities" are coarse. Prefer `Greedy`
-or `Flat` with it, and evaluate it on your data before trusting a threshold: this backend is not
-part of the published benchmarks.
+The options are lettered A-Z and the model answers with one letter. When the server returns
+logprobs, the probabilities are the first token's logprobs over the option letters; otherwise
+the letter in the reply gets probability 1, so the "probabilities" are coarse. Prefer `Greedy`
+(or `Beam`) with it, and evaluate it on your data before trusting a threshold. One call offers
+at most 26 options; a decision with more raises an error rather than dropping options, and a
+hierarchical strategy keeps every call below that.
+
+### Token usage
+
+The backend counts the tokens of every call, from the `usage` the server returns, so the counts
+are exact. A server that returns no `usage` gets an estimate instead (about 1.3 tokens per word
+of the prompt), and the counts are then marked as estimated, never as exact.
+
+### A free local stand-in
+
+To develop against the same code path as a hosted model without paying for one, serve a small
+instruct model locally with [`mlx_lm.server`](https://github.com/ml-explore/mlx-lm) (Apple
+silicon):
+
+```bash
+pip install mlx-lm
+mlx_lm.server --model mlx-community/Qwen3-4B-Instruct-2507-4bit --port 8080
+```
+
+Then, in another shell, point docrooter at it (it needs no key):
+
+```bash
+export DOCROOTER_LLM_BASE_URL=http://127.0.0.1:8080/v1
+uv run python examples/openai_backend.py mlx-community/Qwen3-4B-Instruct-2507-4bit
+```
+
+`mlx_lm.server` may return no `usage` and no logprobs in the OpenAI format. docrooter then
+reads the letter from the reply and marks the token counts as estimated. The 4-bit model needs
+about 3 GB of memory; run one model process at a time on a small machine.
+
+### The results log
+
+Each LLM decision can be logged as one JSON line: the input level and view hash, the options,
+the chosen label and probabilities, the model, endpoint host and prompt hash, the tokens and a
+`trainable` flag. API keys never reach the log. Whether a row may train another model is for
+the provider's terms to decide: rows from Jev are always written with `trainable: false`
+(TypeSafe's terms forbid training models on its outputs), and you should check your provider's
+terms before training on any other rows.
 
 ## Mixing local and hosted
 

@@ -1,4 +1,4 @@
-"""OpenAI-compatible chat-completions backend: the model answers with an option number."""
+"""OpenAI-compatible chat-completions backend: the model answers with an option letter."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import re
+import threading
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -14,37 +15,39 @@ import numpy as np
 from docrooter._extras import require
 from docrooter.backends._async import run_sync
 from docrooter.backends._secrets import redact
-from docrooter.backends.base import Candidate, Scores
-from docrooter.backends.mlm_choice import build_choice_prompt
+from docrooter.backends.base import Candidate, Scores, TokenUsage
+from docrooter.backends.mlm_choice import LETTERS, build_choice_prompt
 from docrooter.errors import BackendError
+from docrooter.views import estimate_tokens
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = "Answer with the option number only."
+SYSTEM_PROMPT = "Answer with the option letter only."
 DEFAULT_INSTRUCTION = "Which option best describes this document section?"
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 _TOP_LOGPROBS = 20
-_INTEGER = re.compile(r"\d+")
+# A capital letter standing alone: "B", " B.", "(B)", but not the "O" of "Option".
+_LETTER = re.compile(r"(?<![A-Za-z])[A-Z](?![A-Za-z])")
 
 
 def _first_env(*names: str) -> str | None:
     return next((os.environ[n] for n in names if os.environ.get(n)), None)
 
 
-def _logprob_distribution(top_logprobs: Sequence[dict[str, Any]], n: int) -> np.ndarray | None:
-    """Softmax over the option numbers among a first token's ``top_logprobs``.
+def _logprob_distribution(top_logprobs: Sequence[Any], n: int) -> np.ndarray | None:
+    """Softmax over the option letters among a first token's ``top_logprobs``.
 
-    Options the model did not list get ``-inf``. Tokens that differ only in whitespace (``"2"``
-    and ``" 2"``) pool their probability. Returns ``None`` when no option number is listed.
+    Options the model did not list get ``-inf``. Tokens that differ only in whitespace (``"B"``
+    and ``" B"``) pool their probability. Returns ``None`` when no option letter is listed.
     """
+    index_of = {letter: i for i, letter in enumerate(LETTERS[:n])}
     logits = np.full(n, -np.inf)
     for entry in top_logprobs:
-        token = str(entry.get("token", "")).strip()
-        logprob = entry.get("logprob")
-        if not token.isdigit() or logprob is None:
+        if not isinstance(entry, dict):
             continue
-        index = int(token) - 1
-        if 0 <= index < n:
+        index = index_of.get(str(entry.get("token", "")).strip())
+        logprob = entry.get("logprob")
+        if index is not None and logprob is not None:
             logits[index] = np.logaddexp(logits[index], float(logprob))
     if not np.isfinite(logits).any():
         return None
@@ -52,39 +55,84 @@ def _logprob_distribution(top_logprobs: Sequence[dict[str, Any]], n: int) -> np.
     return probs / probs.sum()
 
 
-def _parse_answer(data: dict[str, Any], n: int) -> np.ndarray | None:
-    """Probabilities over ``n`` options from one chat-completion response, or ``None``."""
+def _reply(data: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """The first choice of a chat-completion response and its message text."""
     choice = (data.get("choices") or [{}])[0]
-    content = ((choice.get("logprobs") or {}).get("content")) or []
-    if content:
+    if not isinstance(choice, dict):
+        return {}, ""
+    message = choice.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    return choice, content if isinstance(content, str) else ""
+
+
+def _parse_answer(data: dict[str, Any], n: int) -> np.ndarray | None:
+    """Probabilities over ``n`` options from one chat-completion response, or ``None``.
+
+    Logprobs over the option letters when the server returns them in the OpenAI format;
+    otherwise the first standalone capital letter of the reply, if it names an option.
+    """
+    choice, message = _reply(data)
+    logprobs = choice.get("logprobs")
+    content = logprobs.get("content") if isinstance(logprobs, dict) else None
+    if isinstance(content, list) and content and isinstance(content[0], dict):
         probs = _logprob_distribution(content[0].get("top_logprobs") or [], n)
         if probs is not None:
             return probs
-    message = (choice.get("message") or {}).get("content") or ""
-    match = _INTEGER.search(message)
-    if match and 1 <= int(match.group()) <= n:
+    match = _LETTER.search(message)
+    index = LETTERS.index(match.group()) if match else n
+    if index < n:
         probs = np.zeros(n)
-        probs[int(match.group()) - 1] = 1.0
+        probs[index] = 1.0
         return probs
     return None
+
+
+def _count(value: object) -> int | None:
+    """``value`` when it is a token count (a non-negative int), else ``None``."""
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return None
+
+
+def _call_usage(body: dict[str, Any], data: dict[str, Any]) -> TokenUsage:
+    """Tokens one call spent: the response's ``usage`` when complete, else an estimate.
+
+    The estimate counts the message texts with :func:`~docrooter.views.estimate_tokens`
+    (no chat-template overhead) and is marked ``exact=False``.
+    """
+    usage = data.get("usage")
+    if isinstance(usage, dict):
+        prompt, completion = (
+            _count(usage.get("prompt_tokens")),
+            _count(usage.get("completion_tokens")),
+        )
+        if prompt is not None and completion is not None:
+            return TokenUsage(prompt, completion, 1, True)
+    prompt_estimate = sum(estimate_tokens(m["content"]) for m in body["messages"])
+    return TokenUsage(prompt_estimate, estimate_tokens(_reply(data)[1]), 1, False)
 
 
 class OpenAIBackend:
     """Zero-shot classification through any OpenAI-compatible chat-completions endpoint.
 
-    Each text becomes a numbered multiple-choice prompt answered with one number. When the server
-    returns logprobs the scores are a softmax over the first token's option numbers; otherwise
-    the first integer in the reply gets probability 1. Replies that name no option score a
-    uniform distribution, with one warning per ``score`` call. Option numbers above 9 depend on
-    the server tokenising them as one token. The model cannot judge options independently, so
-    ``multi_label`` is ignored and the result is a ``softmax``.
+    Each text becomes a multiple-choice prompt with options lettered A-Z, answered with one
+    letter. When the server returns logprobs the scores are a softmax over the first token's
+    option letters; otherwise the first standalone capital letter in the reply gets probability
+    1. Replies that name no option score a uniform distribution, with one warning per ``score``
+    call. At most 26 options fit one call; more raise ``BackendError`` (a hierarchical strategy
+    keeps each call small). The model cannot judge options independently, so ``multi_label`` is
+    ignored and the result is a ``softmax``.
+
+    :meth:`usage` counts the tokens of every call, from the response's ``usage``. A response
+    without one (some local servers) is estimated, and the running total is then marked
+    ``exact=False``.
 
     ``base_url`` and ``api_key`` default to ``DOCROOTER_LLM_BASE_URL`` / ``DOCROOTER_LLM_API_KEY``,
     then ``OPENAI_BASE_URL`` / ``OPENAI_API_KEY``. Without a ``base_url`` the OpenAI API is used
     and an API key is required; for other servers the key is optional. Needs the ``llm`` extra.
     """
 
-    max_candidates: int | None = 50
+    max_candidates: int | None = len(LETTERS)
 
     def __init__(
         self,
@@ -114,6 +162,12 @@ class OpenAIBackend:
                 "(or pass api_key=), or point base_url at a server that needs none"
             )
         self._transport: Any = None  # an httpx transport; tests replace it with a MockTransport
+        self._usage = TokenUsage()
+        self._usage_lock = threading.Lock()  # score may run on worker threads (see run_sync)
+
+    def usage(self) -> TokenUsage:
+        """Tokens spent by every call so far (cumulative); see :class:`TokenUsage`."""
+        return self._usage
 
     def _request(self, text: str, options: list[str], instruction: str) -> dict[str, Any]:
         prompt = build_choice_prompt(
@@ -121,7 +175,7 @@ class OpenAIBackend:
             options,
             instruction=instruction,
             answer="",
-            markers=[str(i) for i in range(1, len(options) + 1)],
+            markers=LETTERS,
         )
         return {
             "model": self.model_id,
@@ -148,9 +202,12 @@ class OpenAIBackend:
             excerpt = redact(response.text, self._api_key)[:300].strip()
             raise BackendError(f"{self.name}: HTTP {response.status_code}: {excerpt}")
         try:
-            return response.json()
+            data = response.json()
         except ValueError:  # JSONDecodeError; its .doc is the whole body, so do not chain it
             raise BackendError(f"{self.name}: response was not JSON") from None
+        if not isinstance(data, dict):
+            raise BackendError(f"{self.name}: response was not a JSON object")
+        return data
 
     async def _score_all(self, bodies: list[dict[str, Any]], n: int) -> np.ndarray:
         httpx = require("httpx", "llm")
@@ -166,7 +223,11 @@ class OpenAIBackend:
 
             async def one(body: dict[str, Any]) -> np.ndarray | None:
                 async with semaphore:
-                    return _parse_answer(await self._complete(client, body), n)
+                    data = await self._complete(client, body)
+                # Counted per reply, so calls that succeed before another fails still count.
+                with self._usage_lock:
+                    self._usage = self._usage + _call_usage(body, data)
+                return _parse_answer(data, n)
 
             answers = await asyncio.gather(*(one(b) for b in bodies))
 
@@ -191,7 +252,11 @@ class OpenAIBackend:
     ) -> Scores:
         n = len(candidates)
         if self.max_candidates is not None and n > self.max_candidates:
-            raise BackendError(f"openai takes at most {self.max_candidates} candidates, got {n}")
+            raise BackendError(
+                f"openai takes at most {self.max_candidates} options per call (letters A-Z), "
+                f"got {n}; use a hierarchical strategy (Greedy or Beam over a taxonomy whose "
+                f"nodes have at most {self.max_candidates} children) so each call is smaller"
+            )
         if not len(texts) or not n:
             return Scores(np.zeros((len(texts), n)), "softmax")
         require("httpx", "llm")

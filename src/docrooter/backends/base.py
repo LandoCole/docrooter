@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, NamedTuple, Protocol, runtime_checkable
 
 import numpy as np
@@ -61,6 +62,50 @@ class Backend(Protocol):
     def supports(self, node_id: str) -> bool: ...
 
     def tokenizer(self) -> Callable[[str], int] | None: ...
+
+
+@dataclass(frozen=True)
+class TokenUsage:
+    """Tokens spent on LLM calls: prompt and completion tokens over ``calls`` requests.
+
+    ``exact`` is true only when every count came from the API's ``usage``; any estimated part
+    makes the whole estimated. Usages add with ``+``.
+    """
+
+    prompt: int = 0
+    completion: int = 0
+    calls: int = 0
+    exact: bool = True
+
+    def __add__(self, other: TokenUsage) -> TokenUsage:
+        if not isinstance(other, TokenUsage):
+            return NotImplemented
+        return TokenUsage(
+            self.prompt + other.prompt,
+            self.completion + other.completion,
+            self.calls + other.calls,
+            self.exact and other.exact,
+        )
+
+
+@runtime_checkable
+class ReportsUsage(Protocol):
+    """A backend that counts its LLM tokens. ``usage()`` is cumulative over the backend's life."""
+
+    def usage(self) -> TokenUsage: ...
+
+
+def usage_of(backend: object) -> TokenUsage | None:
+    """The backend's cumulative :class:`TokenUsage`, or ``None`` when it reports none.
+
+    Works for any backend: those without a ``usage()`` method (embedding, NLI, keyword, ...)
+    return ``None``, and the caller decides whether to estimate.
+    """
+    usage = getattr(backend, "usage", None)
+    if not callable(usage):
+        return None
+    result = usage()
+    return result if isinstance(result, TokenUsage) else None
 
 
 def close_backend(backend: object) -> None:

@@ -329,7 +329,7 @@ def test_tokens_sum_sections_and_document():
     assert result.tokens.prompt == expected and result.tokens.completion == 5
 
     # No usage at all (a keyword backend): what the views and options would cost an LLM.
-    estimated = classify(financial_doc(), backend=KeywordBackend())
+    estimated = classify(financial_doc(), backend=KeywordBackend(), calls="per_item")
     assert not estimated.tokens.exact
     assert estimated.tokens.prompt > 0
     assert estimated.tokens.estimated_calls == estimated.tokens.calls >= 4
@@ -453,7 +453,7 @@ def test_doc_first_level_aware():
     research = builtin_taxonomy("section_types/research_paper")
     assert all(t.label in research and t.level_used == "lead" for t in result.sections)
     assert result.stage_tokens["document"].calls == 1
-    assert result.stage_tokens["sections"].calls == 2
+    assert result.stage_tokens["sections"].calls == 1  # estimated as one batched call
     assert not result.tokens.exact  # no usage reported: estimated
 
 

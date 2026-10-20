@@ -33,6 +33,17 @@ backend (keyword, embedding, NLI) is charged what the same view and options woul
 ``estimate_tokens(view) + estimate_tokens(options block)`` per text, marked estimated.
 ``Classification.tokens`` is exact only when every call was.
 
+**Calls.** ``calls="batched"`` (the default for a backend that can, the OpenAI-compatible one)
+makes one chat call per document stage: the sections in batches of up to 40 with the options
+listed once, then the document among the offered types (:mod:`docrooter.batch`). A batched
+answer has confidence 1.0 (``confidence_source="batched"``); an id that is not an option is
+asked again once, in one call for the failures only, then tagged ``general.other`` with
+confidence 0 and flagged ``unparsed``. ``calls="per_item"`` asks one item at a time, with
+probabilities; ``cascade`` needs it. A backend that cannot batch always asks per item, but its
+token estimate follows the ``calls`` pattern: batched unless ``calls="per_item"``, since that is
+what an LLM would be sent. ``Classification.tokens_split`` estimates how much of the prompt was
+options, content and instructions.
+
 **Results log.** ``log=path`` appends one :class:`~docrooter.results_log.ResultsLog` row per
 backend decision (each section step and each document call), with the level, the view hash, the
 options, the probabilities, the tokens and, from the call record, the prompt hash.
@@ -60,8 +71,18 @@ from docrooter.backends.base import (
     to_probs,
     usage_of,
 )
+from docrooter.batch import (
+    DOC_TYPE_KEY,
+    BatchPrompt,
+    chunks,
+    document_prompt,
+    reply_tokens,
+    section_prompt,
+    section_reply_max_tokens,
+    valid_id,
+)
 from docrooter.classify.classifier import DEFAULT_BACKEND, Classifier
-from docrooter.classify.documents import classify_document
+from docrooter.classify.documents import _has_content, classify_document
 from docrooter.classify.engine import backend_temperature, score_batch
 from docrooter.classify.normalize import (
     CUSTOM_TAXONOMY,
@@ -69,10 +90,17 @@ from docrooter.classify.normalize import (
     _section_taxonomy_name,
     section_classifier,
 )
-from docrooter.classify.results import DocTypeResult
+from docrooter.classify.results import DocTypeResult, PathResult
 from docrooter.classify.strategies import Flat, Greedy
 from docrooter.document import Document, Section
-from docrooter.ladder import LEVELS, Level, check_level_and_view, next_level, section_view
+from docrooter.ladder import (
+    LEVELS,
+    Level,
+    check_level_and_view,
+    document_view,
+    next_level,
+    section_view,
+)
 from docrooter.results_log import ResultsLog, secrets_of, text_hash
 from docrooter.rules import DocTypeRules, doc_type_rules, match_rules, unknown_section_ids
 from docrooter.taxonomies import builtin_taxonomy
@@ -83,9 +111,19 @@ Flow = Literal["sections_first", "doc_first"]
 FLOWS: tuple[str, ...] = ("sections_first", "doc_first")
 DecidedBy = Literal["rules", "model", "fallback"]
 Flag = Literal[
-    "no_sections", "rules_unmet", "near_miss", "low_support", "excludes_waived", "truncated"
+    "no_sections",
+    "rules_unmet",
+    "near_miss",
+    "low_support",
+    "excludes_waived",
+    "truncated",
+    "unparsed",
 ]
-Step = Literal["group", "leaf", "document"]
+Step = Literal["group", "leaf", "batch", "document"]
+Calls = Literal["batched", "per_item"]
+CALLS: tuple[str, ...] = ("batched", "per_item")
+UNPARSED_LABEL = "general.other"
+"""The tag of a section whose batched answer named no option twice."""
 CATALOGUE = "section_catalogue"
 """The built-in section catalogue that ``sections_first`` tags against."""
 SECTION_LEVELS = (1, 2)
@@ -98,8 +136,10 @@ _LETTERS = string.ascii_uppercase
 
 class SectionTag(BaseModel):
     """One tagged section: its ``label`` (a node id of the section taxonomy, ``None`` when nothing
-    was assigned) with the label's ``confidence`` (the path probability), the ``level_used`` for
-    the final answer and the ``tokens`` of every attempt."""
+    was assigned) with the label's ``confidence``, the ``level_used`` for the final answer and
+    the ``tokens`` of every attempt. ``confidence_source`` says what the confidence is: the path
+    probability of a per-item answer (``"probability"``), or 1.0 for a valid batched answer and
+    0 for an unparsed one (``"batched"``)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -110,6 +150,7 @@ class SectionTag(BaseModel):
     confidence: float = 0.0
     level_used: Level
     tokens: TokenUsage = Field(default_factory=TokenUsage)
+    confidence_source: Literal["probability", "batched"] = "probability"
 
 
 class CallRecord(BaseModel):
@@ -143,7 +184,8 @@ class Classification(BaseModel):
       (``low_support``); empty in ``doc_first``.
     - ``flags``: ``no_sections``, ``rules_unmet``, ``near_miss``, ``low_support`` (a lone
       undecided candidate or near miss, offered with its doc-type siblings), ``excludes_waived``
-      and ``truncated`` (a section or document view was cut to its budget).
+      ``truncated`` (a section or document view was cut to its budget) and ``unparsed`` (a
+      batched answer named no option, twice).
     - ``document_calls``: one :class:`CallRecord` per document-stage attempt (cascade attempts
       included), in order; the last made the decision. ``doc_truncated``: whether the deciding
       document view was cut.
@@ -152,7 +194,11 @@ class Classification(BaseModel):
     - ``tokens``: everything spent, ``stage_tokens["sections"] + stage_tokens["document"]``.
     - ``levels``: the ``section`` level asked for and the ``document`` level of the final
       document decision (``None`` when no document call was made).
-    - ``backend``: the backend's name.
+    - ``backend``: the backend's name; ``calls``: how it was asked, ``"batched"`` or
+      ``"per_item"``.
+    - ``tokens_split``: the estimated prompt tokens of the ``options``, the ``content`` (the
+      views) and the ``instructions``. For an estimated run they sum to ``tokens.prompt``; next
+      to exact totals they show the share the options take.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -173,6 +219,8 @@ class Classification(BaseModel):
     stage_tokens: dict[str, TokenUsage] = Field(default_factory=dict)
     levels: dict[str, Level | None] = Field(default_factory=dict)
     backend: str
+    calls: Calls = "per_item"
+    tokens_split: dict[str, int] = Field(default_factory=dict)
 
 
 def classify(
@@ -191,6 +239,7 @@ def classify(
     threshold: float = 0.5,
     doc_types: Taxonomy | None = None,
     catalogue: Taxonomy | None = None,
+    calls: Calls | None = None,
 ) -> Classification:
     """Classify a document's sections and type with the minimum context (see the module docs).
 
@@ -198,7 +247,9 @@ def classify(
     ``section_level`` and ``doc_level`` default to ``level``. At most ``max_sections`` sections
     are tagged: level 1 first, then level 2, each in reading order. ``rule_min_conf`` is the
     least confidence a tag needs to count for a rule, ``decide_conf`` the least every supporting
-    tag needs for the rules to decide alone. ``cascade`` and ``threshold`` control escalation.
+    tag needs for the rules to decide alone. ``cascade`` and ``threshold`` control escalation
+    (per-item calls only). ``calls`` is ``"batched"`` or ``"per_item"``; ``None`` batches when
+    the backend can (see the module docs).
 
     ``doc_types`` and ``catalogue`` replace the built-in doc-type taxonomy (with its ``sections``
     rules) and section catalogue; a rule naming an id the catalogue lacks raises ``ValueError``.
@@ -212,6 +263,8 @@ def classify(
         check_level_and_view(name, None)
     if max_sections < 0:
         raise ValueError(f"max_sections must be at least 0, got {max_sections}")
+    if calls is not None and calls not in CALLS:
+        raise ValueError(f"unknown calls {calls!r}; use 'batched' or 'per_item'")
     doc_type_taxonomy = doc_types if doc_types is not None else builtin_taxonomy(DOC_TYPES)
     catalogue_taxonomy = catalogue if catalogue is not None else builtin_taxonomy(CATALOGUE)
     rules = doc_type_rules(doc_type_taxonomy)
@@ -223,6 +276,13 @@ def classify(
 
     inner = _resolved(backend)
     try:
+        can_batch = callable(getattr(inner, "chat_json", None))
+        if cascade and (calls == "batched" or (calls is None and can_batch)):
+            raise ValueError(
+                "cascade re-asks single items, so it needs calls='per_item'; batched calls "
+                "answer a whole stage at once"
+            )
+        estimating = usage_of(inner) is None and not hasattr(inner, "on_call")
         run = _Run(
             doc=doc,
             flow=flow,
@@ -230,6 +290,8 @@ def classify(
             doc_types=doc_type_taxonomy,
             cascade=cascade,
             threshold=threshold,
+            batched=can_batch and calls != "per_item",
+            batch_estimate=estimating and calls != "per_item",
         )
         if flow == "doc_first":
             result = run.doc_first(levels["section"], levels["document"], max_sections)
@@ -272,6 +334,7 @@ class _Call:
     probs: tuple[float, ...]
     usage: TokenUsage
     record: Mapping[str, Any] | None
+    options_tokens: int = 0
 
 
 class _Metered:
@@ -332,10 +395,45 @@ class _Metered:
         usages = self._usages(texts, candidates, by_index, before, after)
         probs = to_probs(scores, temperature=self.temperature, multi_label=multi_label)
         options = tuple(c.node_id for c in candidates)
+        options_tokens = estimate_tokens(options_block(candidates))
         for i, text in enumerate(texts):
             row = tuple(float(p) for p in probs[i])
-            self.calls.append(_Call(text, options, row, usages[i], by_index.get(i)))
+            call = _Call(text, options, row, usages[i], by_index.get(i), options_tokens)
+            self.calls.append(call)
         return scores
+
+    def chat(
+        self, prompt: BatchPrompt, *, max_tokens: int, options: Sequence[str]
+    ) -> tuple[dict[str, Any] | None, TokenUsage, Mapping[str, Any] | None]:
+        """One batched call through the backend's ``chat_json``: the parsed reply, the tokens
+        it spent and its call record (when the backend reports one)."""
+        records: list[Mapping[str, Any]] = []
+        previous = getattr(self.inner, "on_call", None)
+        has_sink = hasattr(self.inner, "on_call")
+        before = usage_of(self.inner)
+        if has_sink:
+
+            def sink(record: Mapping[str, Any]) -> None:
+                records.append(record)
+                if previous is not None:
+                    previous(record)
+
+            self.inner.on_call = sink  # type: ignore[attr-defined]
+        try:
+            reply = self.inner.chat_json(  # type: ignore[attr-defined]
+                prompt.messages, max_tokens=max_tokens, options=list(options)
+            )
+        finally:
+            if has_sink:
+                self.inner.on_call = previous  # type: ignore[attr-defined]
+        after = usage_of(self.inner)
+        if records:
+            usage = _record_usage(records[-1])
+        elif before is not None and after is not None:
+            usage = after - before
+        else:
+            usage = TokenUsage(prompt.estimate(), 0, 1, False)
+        return reply, usage, records[-1] if records else None
 
     @staticmethod
     def _usages(
@@ -418,6 +516,7 @@ class _Tag:
     confidence: float = 0.0
     level: Level = "terms"
     tokens: TokenUsage = field(default_factory=TokenUsage)
+    source: Literal["probability", "batched"] = "probability"
 
 
 @dataclass
@@ -429,6 +528,7 @@ class _Decision:
     section_id: str | None
     level: Level
     call: _Call
+    label: Any = None  # a batched call's answer; else the argmax option
 
 
 @dataclass
@@ -447,9 +547,15 @@ class _Run:
     doc_types: Taxonomy
     cascade: bool
     threshold: float
+    batched: bool = False  # one chat call per stage
+    batch_estimate: bool = False  # per-item calls, estimated as the batched calls they stand for
     truncated: bool = False
+    unparsed: bool = False
     decisions: list[_Decision] = field(default_factory=list)
     unowned: TokenUsage = field(default_factory=TokenUsage)  # section calls no text claimed
+    split: dict[str, int] = field(
+        default_factory=lambda: {"options": 0, "content": 0, "instructions": 0}
+    )
 
     # --- flows
 
@@ -480,7 +586,7 @@ class _Run:
         def tagger(view: SectionView) -> Classifier:
             return Classifier(catalogue, self.metered, strategy=Greedy(), view=view, threshold=0.0)
 
-        tags = self.tag(selected, section_level, tagger, catalogue_name)
+        tags = self.tag(selected, section_level, tagger, catalogue, catalogue_name)
         evidence: dict[str, float] = {}
         for tag in tags:
             if tag.label is not None:
@@ -533,7 +639,8 @@ class _Run:
                 section_taxonomy, self.metered, doc_type, view, self.doc_types
             )
 
-        tags = self.tag(select_sections(self.doc, max_sections), section_level, tagger, name)
+        selected = select_sections(self.doc, max_sections)
+        tags = self.tag(selected, section_level, tagger, section_taxonomy, name)
         return self.result(decision, "model", [], [], name, tags, section_level)
 
     # --- stages
@@ -543,6 +650,7 @@ class _Run:
         sections: list[Section],
         level: Level,
         tagger: Callable[[SectionView], Classifier],
+        taxonomy: Taxonomy,
         taxonomy_name: str,
     ) -> list[_Tag]:
         """Tag ``sections`` at ``level``, asking the low-confidence ones again one rung up while
@@ -554,6 +662,9 @@ class _Run:
         pending: list[Section] = sections
         current: Level | None = level
         while pending and current is not None:
+            if self.batched:
+                self._tag_batched(pending, current, taxonomy, tags)
+                break
             self._tag_once(pending, current, tagger, tags)
             if not self.cascade:
                 break
@@ -571,27 +682,21 @@ class _Run:
     ) -> None:
         view = section_view(level)
         classifier = tagger(view)
-        count = classifier._token_counter()
-        rendered = view.render_all(self.doc, [s.id for s in sections], count)
-        blank = [s.id for s in sections if not s.title.strip()]
-        if blank and not _BODY_FIELDS.intersection(view.fields):
-            # a section with no title still shows something: its lead
-            with_lead = view.model_copy(update={"fields": (*view.fields, "lead")})
-            rendered |= with_lead.render_all(self.doc, blank, count)
-        texts = [rendered[s.id].text for s in sections]
-        self.truncated = self.truncated or any(rendered[s.id].truncated for s in sections)
+        texts = self._render(sections, view, classifier._token_counter())
         mark = len(self.metered.calls)
         results = classifier.classify_texts(texts)
         owners = _owners(texts, self.metered.calls[mark:])
         leaves = {n.id for n in classifier.taxonomy.leaves()}
+        spent: dict[int, TokenUsage] = {}
         for call, index in owners:
             sid = sections[index].id if index is not None else None
             step: Step = "leaf" if set(call.options) <= leaves else "group"
             self.decisions.append(_Decision(SECTION_STAGE, step, sid, level, call))
+            if not self.batch_estimate:
+                self._add_split(call)
             if index is not None:
-                tag = tags[sections[index].id]
-                tag.tokens = tag.tokens + call.usage
-            else:  # still spent: counted in the stage, if not in any one section
+                spent[index] = spent.get(index, TokenUsage()) + call.usage
+            elif not self.batch_estimate:  # still spent: in the stage, if not in one section
                 self.unowned = self.unowned + call.usage
         for section, result in zip(sections, results, strict=True):
             tag = tags[section.id]
@@ -600,10 +705,107 @@ class _Run:
             tag.label = best.node_ids[-1] if assigned and best is not None else None
             tag.confidence = float(best.score) if assigned and best is not None else 0.0
             tag.level = level
+        if self.batch_estimate:
+            labels = [tags[s.id].label or "" for s in sections]
+            spent = self._batch_estimate(texts, labels, classifier.taxonomy)
+        for index, usage in spent.items():
+            tag = tags[sections[index].id]
+            tag.tokens = tag.tokens + usage
+
+    def _render(
+        self, sections: list[Section], view: SectionView, count: Callable[[str], int]
+    ) -> list[str]:
+        """The sections' views; a section with no title still shows its lead."""
+        rendered = view.render_all(self.doc, [s.id for s in sections], count)
+        blank = [s.id for s in sections if not s.title.strip()]
+        if blank and not _BODY_FIELDS.intersection(view.fields):
+            with_lead = view.model_copy(update={"fields": (*view.fields, "lead")})
+            rendered |= with_lead.render_all(self.doc, blank, count)
+        self.truncated = self.truncated or any(rendered[s.id].truncated for s in sections)
+        return [rendered[s.id].text for s in sections]
+
+    def _add_split(self, call: _Call) -> None:
+        self.split["options"] += call.options_tokens
+        self.split["content"] += estimate_tokens(call.text)
+
+    def _add_parts(self, prompt: BatchPrompt) -> None:
+        for part, tokens in prompt.parts().items():
+            self.split[part] += tokens
+
+    def _batch_estimate(
+        self, texts: list[str], labels: list[str], taxonomy: Taxonomy
+    ) -> dict[int, TokenUsage]:
+        """Each section's share of the batched calls an LLM would have been sent for
+        ``texts``: its own view, plus an even share of the options and instructions."""
+        spent: dict[int, TokenUsage] = {}
+        for chunk in chunks(list(range(len(texts)))):
+            views = {str(k + 1): texts[i] for k, i in enumerate(chunk)}
+            prompt = section_prompt(views, taxonomy)
+            self._add_parts(prompt)
+            parts = prompt.parts()
+            overhead = parts["instructions"] + parts["options"]
+            completion = reply_tokens({n: labels[i] for n, i in zip(views, chunk, strict=True)})
+            shares = _split(TokenUsage(overhead, completion, 1, False), len(chunk))
+            for item, i, share in zip(prompt.items, chunk, shares, strict=True):
+                # each section is one estimated part of the call (see TokenUsage)
+                prompt_tokens = share.prompt + estimate_tokens(item)
+                spent[i] = TokenUsage(prompt_tokens, share.completion, share.calls, False)
+        return spent
+
+    def _tag_batched(
+        self, sections: list[Section], level: Level, taxonomy: Taxonomy, tags: dict[str, _Tag]
+    ) -> None:
+        """Tag ``sections`` with one chat call per batch of 40, the options listed once; ids
+        that are not options are asked again once, together."""
+        count = self.metered.tokenizer() or estimate_tokens
+        texts = self._render(sections, section_view(level), count)
+        leaf_ids = [leaf.id for leaf in taxonomy.leaves()]
+        valid = {leaf_id.lower(): leaf_id for leaf_id in leaf_ids}
+        fallback = UNPARSED_LABEL if UNPARSED_LABEL in taxonomy else None
+        for chunk in chunks(list(range(len(sections)))):
+            views = {str(k + 1): texts[i] for k, i in enumerate(chunk)}
+            index_of = dict(zip(views, chunk, strict=True))
+            spent = {n: TokenUsage() for n in views}
+            labels: dict[str, str | None] = dict.fromkeys(views)
+            pending = list(views)
+            for _ in range(2):  # the first ask, then once more for the failures
+                if not pending:
+                    break
+                prompt = section_prompt({n: views[n] for n in pending}, taxonomy)
+                reply, usage, record = self._chat(prompt, leaf_ids, len(pending))
+                for n in pending:
+                    labels[n] = valid_id((reply or {}).get(n), valid)
+                for n, share in zip(pending, _split(usage, len(pending)), strict=True):
+                    spent[n] = spent[n] + share
+                answers = {sections[index_of[n]].id: labels[n] for n in pending}
+                call = _Call(prompt.messages[1]["content"], tuple(leaf_ids), (), usage, record)
+                self.decisions.append(
+                    _Decision(SECTION_STAGE, "batch", None, level, call, label=answers)
+                )
+                pending = [n for n in pending if labels[n] is None]
+            for n, i in index_of.items():
+                tag = tags[sections[i].id]
+                found = labels[n]
+                tag.label = found if found is not None else fallback
+                tag.confidence = 1.0 if found is not None else 0.0
+                tag.source = "batched"
+                tag.level = level
+                tag.tokens = tag.tokens + spent[n]
+            self.unparsed = self.unparsed or bool(pending)
+
+    def _chat(
+        self, prompt: BatchPrompt, options: Sequence[str], n_answers: int
+    ) -> tuple[dict[str, Any] | None, TokenUsage, Mapping[str, Any] | None]:
+        self._add_parts(prompt)
+        return self.metered.chat(
+            prompt, max_tokens=section_reply_max_tokens(n_answers), options=options
+        )
 
     def decide_document(self, taxonomy: Taxonomy, level: Level) -> _DocDecision:
         """The document's type among ``taxonomy``'s leaves, asked again one rung up while
         ``cascade`` allows and the confidence is below ``threshold``."""
+        if self.batched:
+            return self._decide_batched(taxonomy, level)
         current: Level | None = level
         tokens = TokenUsage()
         result: DocTypeResult | None = None
@@ -619,6 +821,14 @@ class _Run:
             for call in self.metered.calls[mark:]:
                 self.decisions.append(_Decision(DOCUMENT_STAGE, "document", None, current, call))
                 attempt = attempt + call.usage
+                if not self.batch_estimate:
+                    self._add_split(call)
+            if self.batch_estimate and attempt.calls:
+                prompt = document_prompt(result.view_text, taxonomy)
+                self._add_parts(prompt)
+                best = result.best.node_ids[-1] if result.best.node_ids else ""
+                completion = reply_tokens({DOC_TYPE_KEY: best})
+                attempt = TokenUsage(prompt.estimate(), completion, 1, False)
             tokens = tokens + attempt
             if attempt.calls:  # an empty document is never sent
                 records.append(
@@ -641,6 +851,60 @@ class _Run:
             current = next_level(current)
         assert result is not None
         return _DocDecision(result, used, tokens, records)
+
+    def _decide_batched(self, taxonomy: Taxonomy, level: Level) -> _DocDecision:
+        """The document's type among ``taxonomy``'s leaves in one chat call (asked once more
+        when the reply names no option)."""
+        if not _has_content(self.doc):
+            empty = PathResult(node_ids=[], stopped_reason="empty_text")
+            return _DocDecision(
+                DocTypeResult(source=self.doc.source, best=empty), level, TokenUsage(), []
+            )
+        count = self.metered.tokenizer() or estimate_tokens
+        view = document_view(level).render(self.doc, count)
+        self.truncated = self.truncated or view.truncated
+        leaf_ids = [leaf.id for leaf in taxonomy.leaves()]
+        valid = {leaf_id.lower(): leaf_id for leaf_id in leaf_ids}
+        prompt = document_prompt(view.text, taxonomy)
+        tokens, records, chosen = TokenUsage(), [], None
+        for _ in range(2):
+            reply, usage, record = self._chat(prompt, leaf_ids, 1)
+            chosen = valid_id((reply or {}).get(DOC_TYPE_KEY), valid)
+            call = _Call(view.text, tuple(leaf_ids), (), usage, record)
+            self.decisions.append(
+                _Decision(DOCUMENT_STAGE, "document", None, level, call, label=chosen)
+            )
+            tokens = tokens + usage
+            records.append(
+                CallRecord(
+                    level=level,
+                    prompt_tokens=usage.prompt,
+                    completion_tokens=usage.completion,
+                    exact=usage.exact,
+                    truncated=view.truncated,
+                    options_count=len(leaf_ids),
+                )
+            )
+            if chosen is not None:
+                break
+        if chosen is not None:
+            nodes = taxonomy.path(chosen)
+            best = PathResult(
+                node_ids=[n.id for n in nodes], labels=[n.label for n in nodes], score=1.0
+            )
+            probs = {chosen: 1.0}
+        else:
+            self.unparsed = True
+            best, probs = PathResult(node_ids=[], stopped_reason="unparsed"), {}
+        result = DocTypeResult(
+            source=self.doc.source,
+            best=best,
+            confidence=1.0 if chosen is not None else 0.0,
+            leaf_probs=probs,
+            view_text=view.text,
+            truncated=view.truncated,
+        )
+        return _DocDecision(result, level, tokens, records)
 
     # --- output
 
@@ -665,6 +929,8 @@ class _Run:
         document_tokens = decision.tokens if decision is not None else TokenUsage()
         if self.truncated:
             flags = [*flags, "truncated"]
+        if self.unparsed:
+            flags = [*flags, "unparsed"]
         return Classification(
             source=self.doc.source,
             flow=self.flow,
@@ -686,6 +952,7 @@ class _Run:
                     confidence=t.confidence,
                     level_used=t.level,
                     tokens=t.tokens,
+                    confidence_source=t.source,
                 )
                 for t in tags
             ],
@@ -696,6 +963,8 @@ class _Run:
                 "document": decision.level if decision is not None else None,
             },
             backend=self.metered.name,
+            calls="batched" if self.batched else "per_item",
+            tokens_split=dict(self.split),
         )
 
     def write_log(self, path: str | os.PathLike[str], backend: Backend) -> None:
@@ -705,6 +974,7 @@ class _Run:
         for decision in self.decisions:
             call, record = decision.call, decision.call.record or {}
             best = int(np.argmax(call.probs)) if call.probs else None
+            label = decision.label if decision.label is not None or not call.probs else None
             log.write(
                 {
                     "source": source,
@@ -715,7 +985,7 @@ class _Run:
                     "level": decision.level,
                     "view_hash": text_hash(call.text),
                     "options": list(call.options),
-                    "label": call.options[best] if best is not None else None,
+                    "label": label if best is None else call.options[best],
                     "probs": dict(zip(call.options, call.probs, strict=True)),
                     "model": record.get("model", self.metered.name),
                     "backend": self.metered.name,
@@ -784,6 +1054,7 @@ def _resolved(backend: str | Backend) -> Backend:
 
 
 __all__ = [
+    "CALLS",
     "CATALOGUE",
     "FLOWS",
     "CallRecord",

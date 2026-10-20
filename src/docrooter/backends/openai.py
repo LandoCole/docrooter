@@ -109,6 +109,24 @@ def _parse_answer(data: dict[str, Any], n: int) -> np.ndarray | None:
     return None
 
 
+def parse_json_reply(text: str) -> dict[str, Any] | None:
+    """The JSON object in a reply: the whole text, else the span from its first ``{`` to its
+    last ``}`` (a model that wraps the object in prose or a code fence). ``None`` when there is
+    no object."""
+    candidates = [text.strip()]
+    start, end = text.find("{"), text.rfind("}")
+    if 0 <= start < end:
+        candidates.append(text[start : end + 1])
+    for candidate in candidates:
+        try:
+            value = json.loads(candidate)
+        except ValueError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
+
+
 def _count(value: object) -> int | None:
     """``value`` when it is a token count (a non-negative int), else ``None``."""
     if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
@@ -203,6 +221,7 @@ class OpenAIBackend:
         self._usage_lock = threading.Lock()  # score may run on worker threads (see run_sync)
         self.on_call: Callable[[CallRecord], None] | None = None
         self.endpoint_host = urlsplit(self.base_url).hostname or ""
+        self._json_mode = True  # off once the server refuses response_format
 
     def usage(self) -> TokenUsage:
         """Tokens spent by every call so far (cumulative); see :class:`TokenUsage`."""
@@ -334,6 +353,52 @@ class OpenAIBackend:
         options = [c.text for c in candidates]
         bodies = [self._request(t, options, instruction or DEFAULT_INSTRUCTION) for t in texts]
         return Scores(run_sync(self._score_all(bodies, options)), "softmax")
+
+    def chat_json(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        max_tokens: int = 512,
+        options: Sequence[str] = (),
+    ) -> dict[str, Any] | None:
+        """Send ``messages`` as one chat call and return the JSON object of the reply (``None``
+        when it holds none). For batched calls (:mod:`docrooter.batch`).
+
+        Asks for ``response_format={"type": "json_object"}``; a server that refuses it with an
+        HTTP 400 is asked again without it, and never again with it. The reply is parsed
+        tolerantly (:func:`parse_json_reply`). The call counts in :meth:`usage` and is reported
+        to ``on_call`` (``index`` 0, ``options`` as given) like a ``score`` call.
+        """
+        require("httpx", "llm")
+        body: dict[str, Any] = {
+            "model": self.model_id,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": 0,
+        }
+        if self._json_mode:
+            body["response_format"] = {"type": "json_object"}
+        try:
+            data = run_sync(self._chat(body))
+        except BackendError as exc:
+            if "response_format" not in body or "HTTP 400" not in str(exc):
+                raise
+            self._json_mode = False
+            del body["response_format"]
+            data = run_sync(self._chat(body))
+        self._record_call(0, body, data, list(options))
+        return parse_json_reply(_reply(data)[1])
+
+    async def _chat(self, body: dict[str, Any]) -> dict[str, Any]:
+        httpx = require("httpx", "llm")
+        headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
+        async with httpx.AsyncClient(
+            base_url=self.base_url,
+            headers=headers,
+            timeout=self.timeout,
+            transport=self._transport,
+        ) as client:
+            return await self._complete(client, body)
 
     def close(self) -> None:
         """Nothing to release: each ``score`` call opens and closes its own client."""

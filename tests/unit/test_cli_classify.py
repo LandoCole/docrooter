@@ -49,7 +49,9 @@ def test_cli_classify_json(report, tmp_path):
     ]
     assert not parsed.tokens.exact and parsed.tokens.prompt > 0  # keyword: estimated
     rows = [json.loads(line) for line in log.read_text().splitlines()]
-    assert len(rows) == parsed.tokens.calls
+    section_rows = [r for r in rows if r["stage"] == "sections"]
+    assert len(section_rows) == 2 * len(parsed.sections)  # keyword asks per item: group, leaf
+    assert all(r["level"] == "headings" for r in rows)
 
     doc_first = runner.invoke(
         app,

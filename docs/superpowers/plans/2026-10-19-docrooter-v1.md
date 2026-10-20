@@ -165,6 +165,39 @@
 - [ ] **Step 2:** Run. Expected: FAIL. **Step 3:** Implement. **Step 4:** Run. Expected: PASS.
 - [ ] **Step 5:** Commit `feat: classify() with sections-first and doc-first flows`.
 
+### Task V4b: Batched LLM calls (options once per document stage)
+
+*Added by the controller after the benchmark smoke run (ledger). Per-item calls repeat the option list for every section, so option text dominated the prompt tokens: about 5.6k to 12.6k estimated tokens per document at the `headings` level, against a few hundred tokens of content. A hosted LLM should see the options once.*
+
+**Files:**
+- Modify: `src/docrooter/flow.py`, `src/docrooter/backends/openai.py`
+- Create: `src/docrooter/batch.py`
+- Test: `tests/unit/test_batch.py`
+
+**Interfaces (produces):**
+- **`classify(..., calls="batched" | "per_item")`.** The default is `"batched"` for backends that support it (`OpenAIBackend`), and `"per_item"` otherwise.
+- **Batched sections stage.** One chat call per document, or per chunk of at most 40 sections:
+  - the system turn holds the instruction and the catalogue options ONCE. Each option is `id: label: definition`; groups are listed with their leaves;
+  - the user turn holds the numbered section views at the chosen level;
+  - the reply is JSON `{"<n>": "<leaf id>", ...}`. Use `response_format={"type": "json_object"}` when the server accepts it, and parse tolerantly otherwise.
+  - An invalid or missing id is re-asked once, in a single follow-up call for the failures only, then marked as `general.other` with confidence 0 and flag `unparsed`.
+  - Valid answers get confidence 1.0, and `SectionTag.confidence_source="batched"`.
+- **Batched document stage.** One call offering only the candidates (as §6.3 says), the document view at the chosen level, and a JSON reply `{"doc_type": "<id>"}`.
+- **Token estimates for non-LLM backends.** Keyword, embedding and NLI backends estimate tokens with the batched pattern (options once per stage, plus the views), since that is what an LLM would be sent. The estimate stays labelled.
+- **Token split.** `Classification.tokens_split` gives `{options, content, instructions}` as estimates, so the report can show option overhead next to the exact totals.
+- **Cascade** applies to `per_item` only. In batched mode `cascade=True` raises ValueError.
+
+**Steps:**
+- [ ] **Step 1: Failing tests** (fake OpenAI transport).
+  - `test_batched_one_call_per_document_stage`.
+  - `test_batched_options_listed_once`.
+  - `test_batched_invalid_ids_reasked_once_then_unparsed`.
+  - `test_batched_doc_stage_offers_only_candidates`.
+  - `test_non_llm_estimate_uses_batched_pattern`.
+  - `test_tokens_split_sums_to_estimate`.
+  - `test_cascade_with_batched_raises`.
+- [ ] **Step 2:** Run, then implement, then run. Expected: PASS. **Step 3:** Commit `feat: batched LLM calls with options once per document stage`.
+
 ### Task V5: Section gold for the 113 gold-split documents
 
 **Files:**

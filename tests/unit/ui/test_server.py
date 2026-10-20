@@ -2099,3 +2099,18 @@ def test_a_kept_run_records_that_nothing_was_escalated(client, monkeypatch):
     monkeypatch.setattr(server.RouterConfig, "resolve", staticmethod(keyed))
     run_id, _ = run(client, "a.md", MARKDOWN, profile="balanced", normalize="true")
     assert client.app.state.playground.analyses[run_id].config.escalate == "none"
+
+
+def test_classification_parts_take_text_answers():
+    from docrooter.flow import Classification, SectionTag
+    from docrooter.taxonomies import builtin_taxonomy
+    from docrooter.ui.server import classification_parts
+
+    tag = SectionTag(id="s1", title="Opinion", level=1, label="law.opinion", confidence=None,
+                     level_used="terms", confidence_source="text")  # fmt: skip
+    result = Classification(source="c.md", flow="sections_first", doc_type="legal.court_opinion",
+                            doc_type_confidence=None, decided_by="rules", sections=[tag],
+                            backend="openai:test")  # fmt: skip
+    doc_type, norm = classification_parts(result, builtin_taxonomy("doc_types"))
+    assert doc_type.best.node_ids[-1] == "legal.court_opinion"
+    assert norm.sections["s1"].canonical == "law.opinion"

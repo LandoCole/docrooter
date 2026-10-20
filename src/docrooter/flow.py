@@ -54,11 +54,18 @@ pattern (two-step batched unless told otherwise), since that is what an LLM woul
 ``Classification.tokens_split`` estimates how much of the prompt was options, content and
 instructions.
 
-**The rule gate with batched calls.** Batched tags all carry confidence 1.0, so the
-``decide_conf`` gate cannot tell strong evidence from weak. With batched calls a lone candidate
-is decided by rules only when at least two tagged sections, in total, support its required
-groups. With fewer it takes the ``low_support`` path: the candidate and its doc-type siblings
-are offered to the model.
+**The rule gate without probabilities.** Batched tags all carry confidence 1.0, so the
+``decide_conf`` gate cannot tell strong evidence from weak. Neither can per-item answers from an
+endpoint that returns no logprobs: the reply's letter is read as the answer, and the tag's
+confidence is ``None`` (``confidence_source="text"``); such a tag counts for the rules, is never
+asked again by ``cascade``, and a document answer read this way has no confidence either. With
+batched calls, or when any supporting tag is a text answer, a lone candidate is decided by rules
+only when at least two tagged sections, in total, support its required groups. With fewer it
+takes the ``low_support`` path: the candidate and its doc-type siblings are offered to the
+model. A per-item reply that names no option is never
+read as the first option: the section gets the ``other`` leaf below the last answered step
+(or ``general.other``) at confidence 0, the document no type, and the result is flagged
+``unparsed``.
 
 **Results log.** ``log=path`` appends one :class:`~docrooter.results_log.ResultsLog` row per
 backend decision (each section step and each document call), with the level, the view hash, the
@@ -157,6 +164,7 @@ Flag = Literal[
 ]
 Step = Literal["group", "leaf", "batch", "batch_group", "batch_leaf", "document"]
 Calls = Literal["batched", "batched_flat", "per_item"]
+ConfidenceSource = Literal["probability", "batched", "text"]
 CALLS: tuple[str, ...] = ("batched", "batched_flat", "per_item")
 BATCHED_SUPPORT = 2
 """Tagged sections a lone candidate's required groups need, with batched calls, for the rules
@@ -177,8 +185,10 @@ class SectionTag(BaseModel):
     """One tagged section: its ``label`` (a node id of the section taxonomy, ``None`` when nothing
     was assigned) with the label's ``confidence``, the ``level_used`` for the final answer and
     the ``tokens`` of every attempt. ``confidence_source`` says what the confidence is: the path
-    probability of a per-item answer (``"probability"``), or 1.0 for a valid batched answer and
-    0 for an unparsed one (``"batched"``)."""
+    probability of a per-item answer (``"probability"``); 1.0 for a valid batched answer and 0
+    for an unparsed one (``"batched"``); or, for a per-item answer read from the reply's letter
+    because the endpoint returned no logprobs (``"text"``), ``None``, since a bare letter is no
+    probability, and 0 for a reply that named no option."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -186,10 +196,10 @@ class SectionTag(BaseModel):
     title: str
     level: int
     label: str | None
-    confidence: float = 0.0
+    confidence: float | None = 0.0
     level_used: Level
     tokens: TokenUsage = Field(default_factory=TokenUsage)
-    confidence_source: Literal["probability", "batched"] = "probability"
+    confidence_source: ConfidenceSource = "probability"
 
 
 class CallRecord(BaseModel):
@@ -214,7 +224,9 @@ class Classification(BaseModel):
     - ``doc_type`` (a doc-type leaf id, ``None`` when nothing could be classified) with its
       ``doc_type_confidence`` and ``doc_type_probs`` (the most probable types offered, most
       probable first; empty when the rules decided). A type decided by rules gets the lowest
-      confidence among its supporting section tags.
+      confidence among its supporting section tags. Without probabilities (a per-item answer
+      read from the reply's letter, or rules decided on such tags) the confidence is ``None``
+      and the probs are empty.
     - ``decided_by``: ``"rules"`` (no document-level call), ``"model"`` (the model chose among
       the narrowed ``candidates``, or among every type in ``doc_first``) or ``"fallback"`` (the
       model chose among every type: nothing was left to offer, a lone type had no siblings, or
@@ -224,8 +236,9 @@ class Classification(BaseModel):
       (``low_support``); empty in ``doc_first``.
     - ``flags``: ``no_sections``, ``rules_unmet``, ``near_miss``, ``low_support`` (a lone
       undecided candidate or near miss, offered with its doc-type siblings), ``excludes_waived``
-      ``truncated`` (a section or document view was cut to its budget) and ``unparsed`` (a
-      batched answer named no option, twice).
+      ``truncated`` (a section or document view was cut to its budget) and ``unparsed`` (an
+      answer named no option: a batched one twice, or a per-item one; the item gets no type,
+      or the ``other`` section leaf at confidence 0, never the first option).
     - ``document_calls``: one :class:`CallRecord` per document-stage attempt (cascade attempts
       included), in order; the last made the decision. ``doc_truncated``: whether the deciding
       document view was cut. ``section_calls``: one :class:`CallRecord` per sections-stage
@@ -255,7 +268,7 @@ class Classification(BaseModel):
     source: str
     flow: Flow
     doc_type: str | None
-    doc_type_confidence: float = 0.0
+    doc_type_confidence: float | None = 0.0
     doc_type_probs: dict[str, float] = Field(default_factory=dict)
     decided_by: DecidedBy
     candidates: list[str] = Field(default_factory=list)
@@ -596,10 +609,11 @@ def _sum(usages: Sequence[TokenUsage]) -> TokenUsage:
 class _Tag:
     section: Section
     label: str | None = None
-    confidence: float = 0.0
+    confidence: float = 0.0  # a text answer counts as 1.0 here, for the rules and the cascade
     level: Level = "terms"
     tokens: TokenUsage = field(default_factory=TokenUsage)
-    source: Literal["probability", "batched"] = "probability"
+    source: ConfidenceSource = "probability"
+    unparsed: bool = False
 
 
 @dataclass
@@ -611,7 +625,7 @@ class _Decision:
     section_id: str | None
     level: Level
     call: _Call
-    label: Any = None  # a batched call's answer; else the argmax option
+    label: Any = None  # a batched answer, or a document call's chosen type (None: unparsed)
 
 
 @dataclass
@@ -620,6 +634,7 @@ class _DocDecision:
     level: Level
     tokens: TokenUsage
     calls: list[CallRecord]
+    text: bool = False  # the answer was a letter, without probabilities
 
 
 @dataclass
@@ -679,13 +694,14 @@ class _Run:
                 evidence[tag.label] = max(evidence.get(tag.label, 0.0), tag.confidence)
         match = match_rules(rules, evidence, min_conf=rule_min_conf, decide_conf=decide_conf)
         flags: list[Flag] = ["excludes_waived"] if match.excludes_waived else []
-        weak = (
-            self.batched
-            and match.decided is not None
-            and _support_count(rules[match.decided], tags, rule_min_conf) < BATCHED_SUPPORT
-        )
+        support = _supporting(rules[match.decided], tags, rule_min_conf) if match.decided else []
+        # batched or letter answers carry no probability: count supporting sections instead
+        hard = self.batched or any(t.source == "text" for t in support)
+        weak = match.decided is not None and hard and len(support) < BATCHED_SUPPORT
         if match.decided is not None and not weak:
-            confidence = min(match.support[match.decided].values())
+            confidence: float | None = min(match.support[match.decided].values())
+            if any(t.source == "text" for t in support):
+                confidence = None
             return self.result(
                 None,
                 "rules",
@@ -788,6 +804,7 @@ class _Run:
         owners = _owners(texts, self.metered.calls[mark:])
         leaves = {n.id for n in classifier.taxonomy.leaves()}
         spent: dict[int, TokenUsage] = {}
+        answers: dict[int, list[str]] = {}  # how each section's replies were read, in order
         for call, index in owners:
             sid = sections[index].id if index is not None else None
             step: Step = "leaf" if set(call.options) <= leaves else "group"
@@ -799,15 +816,26 @@ class _Run:
                 self.section_calls.append(record)
             if index is not None:
                 spent[index] = spent.get(index, TokenUsage()) + call.usage
+                answers.setdefault(index, []).append(_answer(call))
         if not self.batch_estimate:  # every call, whether or not a section claimed it
             self.section_usage = self.section_usage + (self.metered.spent - before)
-        for section, result in zip(sections, results, strict=True):
+        for i, (section, result) in enumerate(zip(sections, results, strict=True)):
             tag = tags[section.id]
             best = result.best
             assigned = best is not None and bool(best.node_ids)
             tag.label = best.node_ids[-1] if assigned and best is not None else None
             tag.confidence = float(best.score) if assigned and best is not None else 0.0
             tag.level = level
+            tag.source, tag.unparsed = "probability", False
+            read = answers.get(i, [])
+            if "none" in read:  # a reply named no option: never the option it was scored as
+                failed = read.index("none")  # the first step whose reply named no option
+                path = best.node_ids if best is not None else []
+                parent = path[failed - 1] if 0 < failed <= len(path) else None
+                tag.label = _unparsed_label(classifier.taxonomy, parent)
+                tag.confidence, tag.source, tag.unparsed = 0.0, "text", True
+            elif "letter" in read and assigned:
+                tag.confidence, tag.source = 1.0, "text"  # a bare letter: no probability
         if self.batch_estimate:
             labels = [tags[s.id].label for s in sections]
             spent = self._batch_estimate(texts, labels, classifier.taxonomy, level, cut)
@@ -1044,6 +1072,7 @@ class _Run:
         result: DocTypeResult | None = None
         used = level
         records: list[CallRecord] = []
+        text = unparsed = False
         while current is not None:
             mark = len(self.metered.calls)
             result = classify_document(
@@ -1055,8 +1084,21 @@ class _Run:
             )
             used = current
             attempt = TokenUsage()
+            read = [_answer(call) for call in self.metered.calls[mark:]]
+            unparsed, text = "none" in read, "letter" in read
+            if unparsed:  # the reply named no type: none is chosen, nor the first offered
+                result = result.model_copy(
+                    update={
+                        "best": PathResult(node_ids=[], stopped_reason="unparsed"),
+                        "confidence": 0.0,
+                        "leaf_probs": {},
+                    }
+                )
             for call in self.metered.calls[mark:]:
-                self.decisions.append(_Decision(DOCUMENT_STAGE, "document", None, current, call))
+                label = None if unparsed else _argmax(call)
+                self.decisions.append(
+                    _Decision(DOCUMENT_STAGE, "document", None, current, call, label=label)
+                )
                 attempt = attempt + call.usage
                 if not self.batch_estimate:
                     self._add_split(call)
@@ -1087,7 +1129,8 @@ class _Run:
                 break
             current = next_level(current)
         assert result is not None
-        return _DocDecision(result, used, tokens, records)
+        self.unparsed = self.unparsed or unparsed  # the deciding attempt's reply
+        return _DocDecision(result, used, tokens, records, text=text and not unparsed)
 
     def _decide_batched(self, taxonomy: Taxonomy, level: Level) -> _DocDecision:
         """The document's type among ``taxonomy``'s leaves in one chat call (asked once more
@@ -1155,18 +1198,19 @@ class _Run:
         tags: list[_Tag],
         section_level: Level,
         *,
-        doc_type: tuple[str, float] | None = None,
+        doc_type: tuple[str, float | None] | None = None,
     ) -> Classification:
         probs: dict[str, float] = {}
         if decision is not None:
             best = decision.result.best
-            doc_type = (best.node_ids[-1], decision.result.confidence) if best.node_ids else None
-            probs = dict(decision.result.leaf_probs)
+            confidence = None if decision.text else decision.result.confidence
+            doc_type = (best.node_ids[-1], confidence) if best.node_ids else None
+            probs = {} if decision.text else dict(decision.result.leaf_probs)
         section_tokens = self.section_usage
         document_tokens = decision.tokens if decision is not None else TokenUsage()
         if self.truncated:
             flags = [*flags, "truncated"]
-        if self.unparsed:
+        if self.unparsed or any(t.unparsed for t in tags):
             flags = [*flags, "unparsed"]
         return Classification(
             source=self.doc.source,
@@ -1187,7 +1231,7 @@ class _Run:
                     title=t.section.title,
                     level=t.section.level,
                     label=t.label,
-                    confidence=t.confidence,
+                    confidence=None if t.source == "text" and not t.unparsed else t.confidence,
                     level_used=t.level,
                     tokens=t.tokens,
                     confidence_source=t.source,
@@ -1212,8 +1256,15 @@ class _Run:
         source = Path(self.doc.source).name
         for decision in self.decisions:
             call, record = decision.call, decision.call.record or {}
-            best = int(np.argmax(call.probs)) if call.probs else None
             batched = not call.probs  # a batched answer: a label, no probabilities
+            text = _answer(call) in ("letter", "none")  # a letter, or no answer: no probability
+            if batched:
+                label, source = decision.label, "batched"
+            elif decision.stage == DOCUMENT_STAGE:
+                label, source = decision.label, "text" if text else "probability"
+            else:
+                label = None if _answer(call) == "none" else _argmax(call)
+                source = "text" if text else "probability"
             log.write(
                 {
                     "source": source,
@@ -1224,9 +1275,11 @@ class _Run:
                     "level": decision.level,
                     "view_hash": text_hash(call.text),
                     "options": list(call.options),
-                    "label": decision.label if best is None else call.options[best],
-                    "probs": {} if batched else dict(zip(call.options, call.probs, strict=True)),
-                    "confidence_source": "batched" if batched else "probability",
+                    "label": label,
+                    "probs": (
+                        {} if batched or text else dict(zip(call.options, call.probs, strict=True))
+                    ),
+                    "confidence_source": source,
                     "model": record.get("model", self.metered.name),
                     "backend": self.metered.name,
                     "endpoint_host": record.get("endpoint_host"),
@@ -1257,6 +1310,19 @@ def _owners(texts: list[str], calls: list[_Call]) -> list[tuple[_Call, int | Non
         seen[call.text] = n + 1
         out.append((call, indices[n % len(indices)]))
     return out
+
+
+def _argmax(call: _Call) -> str | None:
+    """A per-item call's most probable option."""
+    return call.options[int(np.argmax(call.probs))] if call.probs else None
+
+
+def _answer(call: _Call) -> str:
+    """How a per-item call's reply was read: ``"logprobs"``, ``"letter"`` or ``"none"`` from
+    its record; ``"probability"`` for a backend that scores without replies."""
+    record = call.record or {}
+    answer = record.get("answer")
+    return answer if isinstance(answer, str) else "probability"
 
 
 def _call_record(level: Level, usage: TokenUsage, truncated: bool, n_options: int) -> CallRecord:
@@ -1290,16 +1356,24 @@ def _per_item_overhead(classifier: Classifier) -> int:
     )
 
 
-def _support_count(rule: DocTypeRules, tags: Sequence[_Tag], min_conf: float) -> int:
-    """How many tagged sections support any of ``rule``'s required groups."""
+def _supporting(rule: DocTypeRules, tags: Sequence[_Tag], min_conf: float) -> list[_Tag]:
+    """The tagged sections that support any of ``rule``'s required groups."""
     ids = [rule_id for group in rule.requires for rule_id in group]
-    return sum(
-        1
+    return [
+        tag
         for tag in tags
         if tag.label is not None
         and tag.confidence >= min_conf
         and any(covers(rule_id, tag.label) for rule_id in ids)
-    )
+    ]
+
+
+def _unparsed_label(taxonomy: Taxonomy, parent: str | None) -> str | None:
+    """The tag of a section whose answer named no option below ``parent`` (``None`` at the
+    top): the parent's ``other`` leaf, else ``general.other``, else nothing."""
+    if parent is not None and f"{parent}.other" in taxonomy:
+        return f"{parent}.other"
+    return UNPARSED_LABEL if UNPARSED_LABEL in taxonomy else None
 
 
 def _group_of(taxonomy: Taxonomy, label: str | None) -> str | None:

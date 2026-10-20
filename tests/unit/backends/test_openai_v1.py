@@ -290,3 +290,23 @@ def test_too_many_options_for_a_node_warns_and_names_the_fix(caplog):
     warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 2
     assert all("26" in w and "hierarchical" in w and b.name in w for w in warnings)
+
+
+def test_on_call_says_how_each_answer_was_read():
+    replies = {
+        "first": completion("B", top={"B": -0.1, "A": -2.5}),
+        "second": completion("C"),
+        "third": completion("I cannot tell."),
+    }
+
+    def handler(request):
+        user = json.loads(request.content)["messages"][1]["content"]
+        text = user.split("Text: ", 1)[1].split("\n", 1)[0]
+        return httpx.Response(200, json=replies[text])
+
+    records = []
+    b = backend(handler, concurrency=1)
+    b.on_call = records.append
+    b.score(["first", "second", "third"], CANDIDATES)
+    answers = {r["index"]: r["answer"] for r in records}
+    assert answers == {0: "logprobs", 1: "letter", 2: "none"}

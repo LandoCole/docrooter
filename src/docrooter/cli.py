@@ -307,7 +307,12 @@ def _print_classification(result: Any) -> None:
 
     type_line = f"doc type: {label(doc_types, result.doc_type)}"
     if result.doc_type is not None:
-        type_line += f", confidence {result.doc_type_confidence:.2f}"
+        confidence = result.doc_type_confidence
+        type_line += (
+            f", confidence {confidence:.2f}"
+            if confidence is not None
+            else ", no probability (a letter answer)"
+        )
     console.print(Text(f"{type_line}; decided by {result.decided_by}"))
     console.print(Text(f"candidates: {', '.join(result.candidates) or '-'}"))
     if result.flags:
@@ -318,7 +323,7 @@ def _print_classification(result: Any) -> None:
             table.add_row(
                 Text(tag.title or "(untitled)"),
                 Text(label(sections, tag.label)),
-                f"{tag.confidence:.2f}",
+                f"{tag.confidence:.2f}" if tag.confidence is not None else "letter",
                 tag.level_used,
             )
         console.print(table)

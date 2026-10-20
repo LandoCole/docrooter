@@ -608,3 +608,118 @@ def test_a_leaf_id_in_the_groups_step_counts_as_its_group():
     assert len(fake.of("groups")) == 1  # no re-ask
     assert "unparsed" not in result.flags
     assert {t.label for t in result.sections} == set(list(SECTIONS.values())[:2])
+
+
+# --- per item: answers without logprobs, and answers that name no option ------------------
+
+LABELS = {
+    "Opinion": ("Court opinions and legislation", "Opinion of the court"),
+    "Syllabus": ("Court opinions and legislation", "Syllabus"),
+}
+
+
+def letter_llm(pick, *, logprobs=False):
+    """A per-item endpoint: the letter of the option ``pick(text, options)`` names (prose for
+    ``None``), with logprobs (that letter only) when ``logprobs``."""
+    bodies = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        bodies.append(body)
+        user = body["messages"][1]["content"]
+        text, listed = user.split("Text: ", 1)[1].split("\nOptions:\n", 1)
+        options = re.findall(r"^([A-Z])\. (.*)$", listed, re.M)
+        index = pick(text, [option for _, option in options])
+        content = "I cannot tell." if index is None else options[index][0]
+        choice = {"message": {"role": "assistant", "content": content}}
+        if logprobs and index is not None:
+            top = [{"token": content, "logprob": -0.01}]
+            choice["logprobs"] = {
+                "content": [{"token": content, "logprob": -0.01, "top_logprobs": top}]
+            }
+        usage = {"prompt_tokens": 50, "completion_tokens": 1}
+        return httpx.Response(200, json={"choices": [choice], "usage": usage})
+
+    backend = llm(handler)
+    backend.bodies = bodies
+    return backend
+
+
+def by_label(doc_type="Court opinion", unparsed=()):
+    """Picks the option that starts with the section's labels (its group's, then its own);
+    for the document, the option naming ``doc_type``; ``None`` for the steps in
+    ``unparsed`` (``"group"``, ``"leaf"`` or ``"document"``)."""
+
+    def pick(text, options):
+        if "Stats:" in text:
+            if "document" in unparsed:
+                return None
+            return next(i for i, o in enumerate(options) if f"> {doc_type}:" in o)
+        title = re.search(r"^Title: (.*)$", text, re.M).group(1)
+        group, leaf = LABELS[title]
+        for step, label in (("group", group), ("leaf", leaf)):
+            hits = [i for i, o in enumerate(options) if o.startswith(f"{label}:") or o == label]
+            if hits:
+                return None if step in unparsed else hits[0]
+        return None
+
+    return pick
+
+
+def court(*titles):
+    return Document.from_sections(
+        [{"title": t, "level": 1, "text": f"The court and the {t.lower()}."} for t in titles]
+    )
+
+
+def test_per_item_answers_with_logprobs_are_probabilities():
+    result = classify(court("Opinion"), backend=letter_llm(by_label(), logprobs=True),
+                      calls="per_item")  # fmt: skip
+    (tag,) = result.sections
+    assert tag.confidence_source == "probability" and tag.confidence == pytest.approx(1.0)
+    assert result.decided_by == "rules" and result.doc_type == "legal.court_opinion"
+
+
+def test_per_item_answers_without_logprobs_are_not_certainties():
+    backend = letter_llm(by_label())
+    result = classify(court("Opinion"), backend=backend, calls="per_item")
+    (tag,) = result.sections
+    assert tag.label == "law.opinion"
+    assert tag.confidence is None and tag.confidence_source == "text"
+    # one section with no probability: as with batched tags, too little for the rules alone
+    assert result.decided_by == "model" and "low_support" in result.flags
+    assert result.document_calls and result.doc_type == "legal.court_opinion"
+    assert result.doc_type_confidence is None and result.doc_type_probs == {}
+
+    two = classify(court("Syllabus", "Opinion"), backend=letter_llm(by_label()), calls="per_item")
+    assert two.decided_by == "rules" and two.doc_type == "legal.court_opinion"
+    assert two.doc_type_confidence is None and not two.document_calls
+
+
+def test_a_per_item_reply_naming_no_option_is_flagged_never_defaulted():
+    result = classify(court("Opinion"), backend=letter_llm(by_label(unparsed=("document",))),
+                      calls="per_item")  # fmt: skip
+    assert result.document_calls  # it was asked
+    assert result.doc_type is None and "unparsed" in result.flags
+    assert result.doc_type_confidence == 0.0
+
+    result = classify(court("Opinion"), backend=letter_llm(by_label(unparsed=("group",))),
+                      calls="per_item")  # fmt: skip
+    (tag,) = result.sections
+    assert tag.label == "general.other" and tag.confidence == 0.0 and "unparsed" in result.flags
+
+    result = classify(court("Opinion"), backend=letter_llm(by_label(unparsed=("leaf",))),
+                      calls="per_item")  # fmt: skip
+    (tag,) = result.sections
+    assert tag.label == "law.other" and tag.confidence == 0.0 and "unparsed" in result.flags
+
+
+def test_per_item_log_rows_say_how_the_answer_was_read(tmp_path):
+    path = tmp_path / "log.jsonl"
+    classify(court("Opinion"), backend=letter_llm(by_label(unparsed=("document",))),
+             calls="per_item", log=path)  # fmt: skip
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    sections = [r for r in rows if r["stage"] == "sections"]
+    assert sections and all(r["confidence_source"] == "text" and r["probs"] == {} for r in sections)
+    document = rows[-1]
+    assert document["stage"] == "document" and document["label"] is None

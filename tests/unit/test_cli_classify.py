@@ -108,3 +108,38 @@ def test_cli_classify_rejects_options_that_do_not_apply(report, tmp_path, args, 
     result = runner.invoke(app, ["classify", str(report), "-b", "keyword", *args], env=WIDE)
     assert result.exit_code == 2
     assert hint in result.output
+
+
+def text_answers():
+    """A Classification whose confidences are text answers (an endpoint without logprobs)."""
+    return Classification.model_validate(
+        {
+            "source": "court.md",
+            "flow": "sections_first",
+            "doc_type": "legal.court_opinion",
+            "doc_type_confidence": None,
+            "decided_by": "rules",
+            "candidates": ["legal.court_opinion"],
+            "sections": [
+                {
+                    "id": "s1",
+                    "title": "Opinion",
+                    "level": 1,
+                    "label": "law.opinion",
+                    "confidence": None,
+                    "level_used": "terms",
+                    "confidence_source": "text",
+                }
+            ],
+            "backend": "openai:test",
+        }
+    )
+
+
+def test_cli_prints_text_answers_without_a_confidence(capsys):
+    from docrooter.cli import _print_classification
+
+    _print_classification(text_answers())
+    out = capsys.readouterr().out
+    assert "Court opinion" in out and "no probability" in out
+    assert "law.opinion" in out and "letter" in out

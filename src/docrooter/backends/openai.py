@@ -110,11 +110,13 @@ def _reply(data: dict[str, Any]) -> tuple[dict[str, Any], str]:
     return choice, content if isinstance(content, str) else ""
 
 
-def _parse_answer(data: dict[str, Any], n: int) -> np.ndarray | None:
-    """Probabilities over ``n`` options from one chat-completion response, or ``None``.
+def _parse_answer(data: dict[str, Any], n: int) -> tuple[np.ndarray | None, str]:
+    """Probabilities over ``n`` options from one chat-completion response, and how they were
+    read: ``"logprobs"``, ``"letter"`` or ``"none"`` (``None`` probabilities).
 
     Logprobs over the option letters when the server returns them in the OpenAI format;
-    otherwise the reply's letter, when the reply is an answer (see ``_ANSWER``) naming an option.
+    otherwise the reply's letter, when the reply is an answer (see ``_ANSWER``) naming an option
+    (a one-hot, not a probability).
     """
     choice, message = _reply(data)
     logprobs = choice.get("logprobs")
@@ -122,14 +124,14 @@ def _parse_answer(data: dict[str, Any], n: int) -> np.ndarray | None:
     if isinstance(content, list) and content and isinstance(content[0], dict):
         probs = _logprob_distribution(content[0].get("top_logprobs") or [], n)
         if probs is not None:
-            return probs
+            return probs, "logprobs"
     match = _ANSWER.match(message.strip())
     index = LETTERS.index(match.group(1)) if match else n
     if index < n:
         probs = np.zeros(n)
         probs[index] = 1.0
-        return probs
-    return None
+        return probs, "letter"
+    return None, "none"
 
 
 def parse_json_reply(text: str) -> dict[str, Any] | None:
@@ -183,9 +185,11 @@ class OpenAIBackend:
     - **With logprobs,** the scores are a softmax over the option letters among the first
       token's top 10 alternatives.
     - **Without them,** a reply that is a bare letter (``"B"``, ``"B."``, ``"(C)"``) gets
-      probability 1.
+      probability 1 (a one-hot: the call record's ``answer`` is ``"letter"``, so a caller can
+      tell it from a probability).
     - **A reply that names no option** scores a uniform distribution, with one warning per
-      ``score`` call.
+      ``score`` call (``answer`` ``"none"``; :func:`docrooter.classify` flags it ``unparsed``
+      rather than taking the first option).
 
     At most 26 options fit one call; more raise ``BackendError`` (a hierarchical strategy
     keeps each call small). The model cannot judge options independently, so ``multi_label`` is
@@ -200,10 +204,13 @@ class OpenAIBackend:
       - ``index``: the text's position in that ``score`` call;
       - ``prompt_hash``: :func:`prompt_hash` of the exact messages sent;
       - ``prompt_tokens``, ``completion_tokens`` and ``exact``;
-      - ``options``, ``model`` and ``endpoint_host``.
-      A caller that needs tokens per section (the v1 ``classify`` flow) or one log row per
-      decision sets ``on_call`` around a ``score`` call and joins the records to its texts by
-      ``index``. That attributes tokens without deltas, even when one backend is shared.
+      - ``options``, ``model`` and ``endpoint_host``;
+      - ``answer`` (``score`` calls only): ``"logprobs"``, ``"letter"`` or ``"none"``.
+      ``on_call`` is one attribute of the backend: a caller that needs tokens per section (the
+      v1 ``classify`` flow) or one log row per decision sets it around its own ``score`` call
+      and joins the records to its texts by ``index``. Two callers that share one backend
+      concurrently would replace each other's sink, so run them one at a time (or give each
+      its own backend); within one caller, records need no usage deltas.
 
     ``base_url`` and ``api_key`` default to ``DOCROOTER_LLM_BASE_URL`` / ``DOCROOTER_LLM_API_KEY``,
     then ``OPENAI_BASE_URL`` / ``OPENAI_API_KEY``. Without a ``base_url`` the OpenAI API is used
@@ -292,25 +299,31 @@ class OpenAIBackend:
         return data
 
     def _record_call(
-        self, index: int, body: dict[str, Any], data: dict[str, Any], options: list[str]
+        self,
+        index: int,
+        body: dict[str, Any],
+        data: dict[str, Any],
+        options: list[str],
+        answer: str | None = None,
     ) -> None:
         """Add one reply's tokens to :meth:`usage` and hand its record to ``on_call``."""
         call = _call_usage(body, data)
         with self._usage_lock:
             self._usage = self._usage + call
         if self.on_call is not None:
-            self.on_call(
-                {
-                    "index": index,
-                    "prompt_hash": prompt_hash(body["messages"]),
-                    "prompt_tokens": call.prompt,
-                    "completion_tokens": call.completion,
-                    "exact": call.exact,
-                    "options": list(options),
-                    "model": self.model_id,
-                    "endpoint_host": self.endpoint_host,
-                }
-            )
+            record: CallRecord = {
+                "index": index,
+                "prompt_hash": prompt_hash(body["messages"]),
+                "prompt_tokens": call.prompt,
+                "completion_tokens": call.completion,
+                "exact": call.exact,
+                "options": list(options),
+                "model": self.model_id,
+                "endpoint_host": self.endpoint_host,
+            }
+            if answer is not None:
+                record["answer"] = answer
+            self.on_call(record)
 
     async def _score_all(self, bodies: list[dict[str, Any]], options: list[str]) -> np.ndarray:
         n = len(options)
@@ -328,9 +341,10 @@ class OpenAIBackend:
             async def one(index: int, body: dict[str, Any]) -> np.ndarray | None:
                 async with semaphore:
                     data = await self._complete(client, body)
+                probs, answer = _parse_answer(data, n)
                 # Counted per reply, so calls that succeed before another fails still count.
-                self._record_call(index, body, data, options)
-                return _parse_answer(data, n)
+                self._record_call(index, body, data, options, answer)
+                return probs
 
             answers = await asyncio.gather(*(one(i, b) for i, b in enumerate(bodies)))
 

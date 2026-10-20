@@ -630,13 +630,16 @@ def classification_parts(
     result: Classification, doc_types: Taxonomy
 ) -> tuple[DocTypeResult, NormalizationResult]:
     """A flow's result in the classic shapes the page and the dial read: the type as a
-    :class:`DocTypeResult` and the tags as a :class:`NormalizationResult`."""
+    :class:`DocTypeResult` and the tags as a :class:`NormalizationResult`. A confidence that is
+    no probability (``None``, a letter answer) shows as 0 there; the flow payload's flags and
+    ``confidence_source`` say why."""
+    doc_confidence = result.doc_type_confidence or 0.0
     if result.doc_type is not None and result.doc_type in doc_types:
         nodes = doc_types.path(result.doc_type)
         best = PathResult(
             node_ids=[n.id for n in nodes],
             labels=[n.label for n in nodes],
-            score=result.doc_type_confidence,
+            score=doc_confidence,
         )
     elif result.doc_type is not None:
         best = PathResult(node_ids=[result.doc_type], labels=[result.doc_type])
@@ -645,7 +648,7 @@ def classification_parts(
     doc_type = DocTypeResult(
         source=result.source,
         best=best,
-        confidence=result.doc_type_confidence,
+        confidence=doc_confidence,
         leaf_probs=dict(result.doc_type_probs),
     )
     name = result.section_taxonomy or GENERIC_TAXONOMY
@@ -658,7 +661,7 @@ def classification_parts(
                 if taxonomy is not None and t.label is not None and t.label in taxonomy
                 else t.label
             ),
-            score=t.confidence if t.label is not None else 0.0,
+            score=(t.confidence or 0.0) if t.label is not None else 0.0,
             title=t.title,
         )
         for t in result.sections

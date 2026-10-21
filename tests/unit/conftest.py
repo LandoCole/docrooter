@@ -1,6 +1,15 @@
+import os
 import sys
 
 import pytest
+
+# Plain CLI output whatever the host: Typer forces a Rich terminal (ANSI colours, 80-column
+# boxes) when GITHUB_ACTIONS or FORCE_COLOR is set, which breaks the CLI tests' substring
+# checks on CI. Set before any test module imports typer.
+os.environ["_TYPER_FORCE_DISABLE_TERMINAL"] = "1"
+os.environ["NO_COLOR"] = "1"
+os.environ.setdefault("COLUMNS", "200")
+os.environ.pop("FORCE_COLOR", None)
 
 # Unit tests must never pull in torch, onnxruntime, mlx or an OCR engine. Snapshot at import
 # time so a package that something else imported before the unit tests ran does not count against

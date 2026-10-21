@@ -20,7 +20,11 @@ root = Path(sys.argv[1])
 for path in sorted((root / "tests" / "integration").glob("*.py")):
     spec = importlib.util.spec_from_file_location(f"_integration_{path.stem}", path)
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # import only: no test runs
+    try:
+        spec.loader.exec_module(module)  # import only: no test runs
+    except BaseException as exc:  # a module-level importorskip skips the module, as pytest does
+        if type(exc).__name__ != "Skipped":
+            raise
 heavy = sorted(m for m in ("torch", "mlx", "mlx_lm", "transformers") if m in sys.modules)
 print("HEAVY:" + ",".join(heavy))
 """

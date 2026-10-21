@@ -149,8 +149,9 @@ tags, selection); it is listed below the v1 entries.
   tokens for every flow, level and backend on the 113 documents of the gold split, against a
   Claude-annotated, evaluation-only section gold (951 sections, κ 0.923 at leaf). The annotators
   were all Claude (the same underlying model), so κ measures consistency, not correctness.
-  Every call of both stages counts toward the over-cap measure. Results are pending:
-  [docs/benchmarks-classification.md](docs/benchmarks-classification.md).
+  Every call of both stages counts toward the over-cap measure. Results:
+  [docs/benchmarks-classification.md](docs/benchmarks-classification.md) (held-out doc type with
+  UltraBERT at `lead`: 82.5%; the local Qwen3-4B ran three configurations only).
 - **Release packaging.** The `publish` workflow builds the sdist and wheel on a `v*` tag and
   attaches them to the GitHub release; uploading to PyPI is a manual workflow run with trusted
   publishing, so no PyPI token is stored (see [CONTRIBUTING.md](CONTRIBUTING.md#releasing)). `examples/classify_sections_first.py` runs the

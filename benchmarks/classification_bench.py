@@ -937,7 +937,7 @@ def _llm_disclosure(results: Sequence[Mapping[str, Any]]) -> list[str]:
     for label, backend in sorted(seen.items()):
         host = backend.get("endpoint_host")
         where = (
-            "a local stand-in on a local server, not a hosted model"
+            "a local server, not a hosted model"
             if host is None or host in _LOCAL_HOSTS
             else f"the hosted endpoint `{host}`"
         )

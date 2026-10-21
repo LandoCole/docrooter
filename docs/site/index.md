@@ -29,8 +29,9 @@ offered, sends only the context level you choose, and counts every token.
 Hosted LLMs (any OpenAI-compatible API) are the deployment target. Local models are a free
 stand-in for testing: the same code path runs against a small model served on your machine
 ([A free local stand-in](guides/llm-backends.md#a-free-local-stand-in)). The benchmark corpus
-is for validation, not training; its accuracy-against-tokens results are pending
-([Classification benchmark](benchmarks/classification.md)).
+is for validation, not training; its accuracy-against-tokens results are in the
+[Classification benchmark](benchmarks/classification.md): on the held-out set, UltraBERT at
+the `lead` level classifies 82.5% of documents correctly at about 3,900 estimated prompt tokens.
 
 Underneath, docrooter still does what it did before 1.0: it reads PDFs natively and finds their
 [table of contents](concepts/toc-engine.md), classifies sections against

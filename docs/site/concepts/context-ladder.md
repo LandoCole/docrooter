@@ -15,8 +15,9 @@ each extra rung buys.
 Each rung shows everything the rung below shows and adds one field, with a budget at least as
 large, so a higher rung never loses anything a lower one showed. `terms` is the default of
 `docrooter.classify` and `docrooter classify`, until the classification benchmark measures the
-cheapest rung within 2 points of `full` for each backend (results pending; see
-[the benchmark](../benchmarks/classification.md)). The older entry points
+cheapest rung within 2 points of `full` for a hosted LLM (see
+[the benchmark](../benchmarks/classification.md); for UltraBERT that rung is `lead`, which beat
+`full`). The older entry points
 (`classify_document`, `Classifier.classify_documents`, `normalize_sections`) default to
 `level=None`, their views from before 1.0 (see below).
 

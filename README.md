@@ -95,18 +95,43 @@ See [Sections first](docs/site/guides/sections-first.md) and
 
 ## Benchmark: accuracy against tokens
 
-**Results pending.** The classification benchmark measures how much accuracy each rung of the
-ladder buys, and at what token cost, against sending the whole document: doc-type accuracy and
-macro-F1, section macro- and micro-F1, the share decided by rules alone and prompt tokens per
-document, for both flows, every level, and the keyword, UltraBERT and local-LLM backends, on the
-113 public documents of the gold split (951 Claude-annotated sections, evaluation only; the
-annotators were all Claude, the same underlying model, so κ measures consistency, not
-correctness). The doc-type rules were revised once after a reviewer checked them against the
-section gold, so the gold split's doc-type numbers will be development numbers; the held-out run
-is the clean measure. It will
-also set the measured default level per backend; until then the default is `terms`. The report
-is [docs/benchmarks-classification.md](docs/benchmarks-classification.md), generated from the
-results files; its numbers will be quoted from there, never written by hand.
+The classification benchmark measures how much accuracy each rung of the ladder buys, and at
+what token cost, against sending the whole document. It ran on the 113 public documents of the
+gold split and once on the frozen 40-document held-out set. Every number below is quoted from
+[docs/benchmarks-classification.md](docs/benchmarks-classification.md), which is generated from
+the committed results files.
+
+| Backend, calls, flow | Level | Doc-type accuracy | Prompt tokens per doc | Share of `full` |
+|---|---|---:|---:|---:|
+| UltraBERT, batched, doc_first (gold, development) | `headings` | 61.1% | 1,870 (est.) | 10.9% |
+| UltraBERT, batched, doc_first (gold, development) | `lead` | **81.4%** | 3,480 (est.) | 20.2% |
+| UltraBERT, batched, doc_first (gold, development) | `full` | 75.2% | 17,229 (est.) | 100% |
+| UltraBERT, batched, doc_first (**held-out, clean**) | `lead` | **82.5%** | 3,913 (est.) | — |
+| Qwen3-4B, local server, batched, doc_first (gold) | `headings` / `terms` / `lead` | 71.7% / 75.2% / 78.8% | 2,453 / 3,139 / 5,011 (exact) | — |
+
+What it shows:
+- **More context is not always better.** On UltraBERT, `lead` beats sending the whole document
+  (`full`) by about 6 points, at a fifth of the tokens. Batched calls cut the option overhead
+  roughly 4× against per-item calls.
+- **Sections first does not pay off with an embedding backend.** UltraBERT's section tags are
+  too unsure for the doc-type rules to fire, so `sections_first` falls back to the same answer
+  as `doc_first`, at about twice the tokens. It tags sections slightly better (leaf macro-F1
+  28.5 against 27.0). The rules are built for a capable LLM tagger; a hosted-model run is the
+  next measurement.
+- **Section tags are the weak spot.** Leaf macro-F1 sits between about 8 and 32 across backends, against
+  a 112-type catalogue.
+
+**Caveats:**
+- Token counts for keyword and UltraBERT are estimates of what an LLM would be sent. Only the
+  Qwen rows are exact.
+- The local Qwen3-4B was run for three configurations only: it is too large for the 8 GB test
+  machine at the `lead` and `full` levels of a full grid.
+- The 951 section labels were written by Claude annotators, evaluation only. They were all the
+  same underlying model, so κ (0.923) measures consistency, not correctness.
+- The doc-type rules were revised after looking at gold results, so the gold doc-type numbers
+  are development numbers. The held-out run is the clean measure.
+
+The default level stays `terms` until a hosted LLM has been measured.
 
 ### Earlier results (TOC and document type, before v1)
 

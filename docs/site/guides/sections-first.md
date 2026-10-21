@@ -192,5 +192,7 @@ raises `ValueError`. A doc-type leaf's rules are a `sections` object next to its
 - Some rules are strict for a fast reading, where sections are often untitled: a research paper
   needs an abstract or related-work section, and a fact sheet a performance section. Such a
   document is never decided by the rules alone; it costs a document call.
-- The benchmark's accuracy and token numbers are pending:
+- With an embedding backend (UltraBERT), section tags are rarely confident enough for the rules,
+  so `sections_first` gives the same document type as `doc_first` at about twice the tokens; the
+  rules are meant for a capable LLM tagger. See the
   [Classification benchmark](../benchmarks/classification.md).

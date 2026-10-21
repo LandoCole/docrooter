@@ -381,16 +381,21 @@ def test_two_step_batched_sections():
 
 
 def test_batched_rule_gate_needs_two_supporting_sections():
-    one = Document.from_sections([{"title": "Opinion", "level": 1, "text": "The court holds."}])
+    one = Document.from_sections(
+        [
+            {"title": "Opinion", "level": 1, "text": "The court holds."},
+            {"title": "Miscellany", "level": 1, "text": "Assorted remarks."},
+        ]
+    )
     fake = FakeLLM(doc_type="legal.court_opinion")
     result = classify(one, backend=llm(fake))
     assert result.sections[0].confidence == 1.0
+    # one supporting section: too little to decide; low support offers every type
     assert result.decided_by == "model" and "low_support" in result.flags
-    siblings = [n.id for n in DOC_TYPES.children("legal")]
-    assert result.candidates[0] == "legal.court_opinion"
-    # legislation excludes law.opinion: a sibling the rules argue against is not offered
-    assert set(result.candidates) == set(siblings) - {"legal.legislation"}
+    assert result.candidates == ["legal.court_opinion"]
     (doc_call,) = fake.of("document")
+    system = doc_call["messages"][0]["content"]
+    assert all(re.search(rf"^\s*{leaf.id}: ", system, re.M) for leaf in DOC_TYPES.leaves())
     assert result.doc_type == "legal.court_opinion"
 
     two = Document.from_sections(
@@ -675,10 +680,10 @@ def court(*titles):
 
 
 def test_per_item_answers_with_logprobs_are_probabilities():
-    result = classify(court("Opinion"), backend=letter_llm(by_label(), logprobs=True),
+    result = classify(court("Syllabus", "Opinion"), backend=letter_llm(by_label(), logprobs=True),
                       calls="per_item")  # fmt: skip
-    (tag,) = result.sections
-    assert tag.confidence_source == "probability" and tag.confidence == pytest.approx(1.0)
+    for tag in result.sections:
+        assert tag.confidence_source == "probability" and tag.confidence == pytest.approx(1.0)
     assert result.decided_by == "rules" and result.doc_type == "legal.court_opinion"
 
 
@@ -688,8 +693,8 @@ def test_per_item_answers_without_logprobs_are_not_certainties():
     (tag,) = result.sections
     assert tag.label == "law.opinion"
     assert tag.confidence is None and tag.confidence_source == "text"
-    # one section with no probability: as with batched tags, too little for the rules alone
-    assert result.decided_by == "model" and "low_support" in result.flags
+    # one section with no probability: too little evidence for the rules at all
+    assert result.decided_by == "fallback" and "thin_evidence" in result.flags
     assert result.document_calls and result.doc_type == "legal.court_opinion"
     assert result.doc_type_confidence is None and result.doc_type_probs == {}
 
@@ -764,3 +769,50 @@ def test_real_document_calls_fit_a_small_cap():
              max_call_tokens=1500)  # fmt: skip
     documents = [b for b in per_item.bodies if "Stats:" in b["messages"][1]["content"]]
     assert documents and all(sent_tokens([b]) <= call_budget(1500) for b in documents)
+
+
+# --- N1/N2 with batched answers: valid answers count as confident tags ---------------------
+
+
+def filler_doc(titles, n_total):
+    sections = [{"title": t, "level": 1, "text": f"The {t.lower()} section."} for t in titles]
+    sections += [
+        {"title": f"Miscellany {i}", "level": 1, "text": "Assorted remarks."}
+        for i in range(n_total - len(titles))
+    ]
+    return Document.from_sections(sections, source="report.md")
+
+
+def known_only(n, view, attempt):
+    """Valid ids for the known titles; an id that is not an option for every other section."""
+    leaf = _by_title(view)
+    return leaf if leaf != "general.body" else "not.an.option"
+
+
+def known_group(n, view, attempt):
+    return known_only(n, view, attempt).split(".")[0]
+
+
+def test_batched_one_valid_tag_among_ten_is_thin_evidence():
+    fake = FakeLLM(doc_type="financial.annual_report", answer=known_only, group=known_group)
+    result = classify(filler_doc(["Notes to the financial statements"], 10), backend=llm(fake))
+    assert {"rules_unmet", "thin_evidence"} <= set(result.flags)
+    assert result.decided_by == "fallback" and result.candidates == []
+    (body,) = fake.of("document")
+    system = body["messages"][0]["content"]
+    assert all(re.search(rf"^\s*{leaf.id}: ", system, re.M) for leaf in DOC_TYPES.leaves())
+
+
+def test_batched_three_valid_tags_among_ten_narrow():
+    fake = FakeLLM(answer=known_only, group=known_group)
+    titles = ["Notes to the financial statements", "Management discussion", "Outlook"]
+    result = classify(filler_doc(titles, 10), backend=llm(fake))
+    assert "thin_evidence" not in result.flags and result.decided_by == "model"
+    assert set(result.candidates) == {"financial.annual_report", "financial.quarterly_report"}
+
+
+def test_per_item_text_answers_count_as_confident_tags():
+    one = classify(court("Opinion"), backend=letter_llm(by_label()), calls="per_item")
+    assert {"rules_unmet", "thin_evidence"} <= set(one.flags)
+    two = classify(court("Syllabus", "Opinion"), backend=letter_llm(by_label()), calls="per_item")
+    assert "thin_evidence" not in two.flags and two.decided_by == "rules"

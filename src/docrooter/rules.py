@@ -18,11 +18,14 @@ any of its leaves.
   ``decide_conf``.
 
 What a flow does with the result (asking a model among the candidates, adding near misses, or
-falling back to every type) belongs to the caller.
+falling back to every type) belongs to the caller. So does the evidence gate:
+:func:`docrooter.classify` lets the rules narrow or decide only when enough sections were tagged
+with confidence (:func:`evidence_needed`); on thinner evidence it offers every type.
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
@@ -58,6 +61,22 @@ class RuleMatch(BaseModel):
     barred: list[str] = Field(default_factory=list)
     waived: list[str] = Field(default_factory=list)
     excludes_waived: bool = False
+
+
+MIN_EVIDENCE = 2
+"""The fewest confidently tagged sections the rules may narrow or decide on."""
+MIN_EVIDENCE_SHARE = 0.2
+"""The least share of the tagged sections that must be tagged confidently for the rules."""
+
+
+def evidence_needed(
+    n_tagged: int, min_evidence: int = MIN_EVIDENCE, min_share: float = MIN_EVIDENCE_SHARE
+) -> int:
+    """The confidently tagged sections a document of ``n_tagged`` tagged sections needs before
+    the rules may narrow or decide its type: ``max(min_evidence, ceil(min_share * n_tagged))``.
+    A few confident tags among many sections (an ESG chapter in a bank's annual report) are
+    too little to narrow on: narrowing would exclude the true type."""
+    return max(min_evidence, math.ceil(round(min_share * n_tagged, 9)))
 
 
 def covers(rule_id: str, section_id: str) -> bool:
@@ -163,10 +182,13 @@ def unknown_section_ids(
 
 
 __all__ = [
+    "MIN_EVIDENCE",
+    "MIN_EVIDENCE_SHARE",
     "DocTypeRules",
     "RuleMatch",
     "covers",
     "doc_type_rules",
+    "evidence_needed",
     "match_rules",
     "unknown_section_ids",
 ]

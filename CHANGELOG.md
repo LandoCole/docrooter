@@ -11,7 +11,23 @@ tagged or published, and their entries are kept as history. The package version 
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- **`classify` narrows only on adequate section evidence.** In `sections_first` the doc-type
+  rules may narrow or decide only when at least `max(min_evidence, ceil(min_evidence_share ×
+  tagged sections))` sections were tagged with confidence (at least `rule_min_conf`; a valid
+  batched or letter answer counts). `min_evidence` (2) and `min_evidence_share` (0.2) are new
+  `classify` keywords, and `docrooter.rules.evidence_needed` computes the gate. With fewer, the
+  model chooses among every type (`decided_by="fallback"`, flags `rules_unmet` and the new
+  `thin_evidence`). A few confident tags among many sections narrowed the options to types that
+  excluded the true one.
+- **`low_support` widens to every doc type.** A lone undecided candidate or near miss, or a
+  candidate with too little support to decide on, is now offered with every type
+  (`decided_by="model"`, flag `low_support` kept; `candidates` keeps the rules' suggestion)
+  instead of with its doc-type siblings, which excluded the true type on sparse evidence.
+- **`classify` call budgets follow the backend's token ratio.** Every budget is divided by
+  `token_ratio()`, the exact prompt tokens the OpenAI-compatible backend has spent per estimated
+  token (1.0 to 3.0), recorded per call as `CallRecord.token_ratio`.
 
 ## [1.0.0] - 2026-10-20
 

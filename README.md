@@ -55,9 +55,11 @@ classifies sections against any taxonomy you supply, as it did before 1.0.
    with no document-level call (`decided_by="rules"`); with batched calls, or letter answers
    without logprobs, it needs two supporting sections. Several candidates go to the model,
    which chooses among those only (`"model"`). A lone undecided candidate is offered with its
-   near misses (and, when still alone, its doc-type siblings); with no candidate, near misses
-   are offered, and with nothing to offer the model chooses among every type (`"fallback"`,
-   flag `rules_unmet`).
+   near misses (and, when still alone, with every type, flag `low_support`); with no
+   candidate, near misses are offered, and with nothing to offer the model chooses among every
+   type (`"fallback"`, flag `rules_unmet`). The rules narrow or decide only when at least
+   `max(2, 20% of the tagged sections)` sections were tagged with confidence; otherwise every
+   type is offered (flags `rules_unmet`, `thin_evidence`).
 
 `flow="doc_first"` is the other order: the type first, from the document view, then the
 sections with that type's own section taxonomy.

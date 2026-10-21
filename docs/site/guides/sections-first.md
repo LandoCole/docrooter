@@ -31,7 +31,7 @@ print(f"tokens ({kind}): {result.tokens.prompt:,} prompt over {result.tokens.cal
 ```
 
 ```text
-doc type: research.research_paper (decided by fallback; flags: rules_unmet)
+doc type: research.research_paper (decided by fallback; flags: rules_unmet, thin_evidence)
   Sparse retrieval for long documents: disclosure.executive_compensation
   Abstract: general.summary
   Related work: research.related_work
@@ -41,8 +41,9 @@ doc type: research.research_paper (decided by fallback; flags: rules_unmet)
 tokens (estimated): 3,991 prompt over 7 calls
 ```
 
-The keyword backend's tags are weak and its confidences far below the rules' threshold, so no
-doc-type rule is met (`rules_unmet`) and the type is chosen among all of them. That is the
+The keyword backend's tags are weak and its confidences far below the rules' threshold, so too
+few sections are tagged with confidence for the rules to use (`thin_evidence`, `rules_unmet`)
+and the type is chosen among all of them. That is the
 honest result of a word-overlap baseline; it shows the API, the flags and the token accounting,
 not the accuracy. Its tokens are **estimated**: what the same views and options would cost an
 LLM, since the keyword backend makes no LLM call. With an LLM backend the tokens come from the
@@ -63,14 +64,23 @@ API's `usage` and are **exact**.
     - `typical`: ids that order the candidates (most matches first). They never gate.
     - `excludes`: ids that remove a candidate, unless that would leave none (then the candidates
       are kept, flagged `excludes_waived`, and never decided by the rules alone).
-3. **Decide.**
+3. **Check the evidence.** The rules may narrow or decide only when enough sections were
+   tagged with confidence: at least `max(min_evidence, ceil(min_evidence_share × tagged
+   sections))`, 2 and 20% by default (so 2 of 10 sections, 4 of 20). A tag counts when its
+   confidence is at least `rule_min_conf`; a batched or letter answer, which has no
+   probability, counts when it is a valid tag. With fewer, the rules are set aside and the
+   model chooses among every type (`decided_by="fallback"`, flags `rules_unmet` and
+   `thin_evidence`). A few confident tags among many sections, such as an ESG chapter in a
+   bank's annual report, would otherwise narrow the options to types that exclude the true one.
+4. **Decide.**
 
 | Rules give | What happens | `decided_by` | Flags |
 | --- | --- | --- | --- |
 | one candidate, decided (below) | the type, with no document-level call | `rules` | |
 | several candidates | the model chooses among the candidates only | `model` | |
-| one undecided candidate | the model chooses among it and the near misses (types missing exactly one required group); a type still alone is offered with its doc-type siblings, except those an `excludes` hit argues against | `model` | `near_miss`, `low_support` |
-| no candidate, some near misses | the model chooses among the near misses (a lone one with its siblings) | `model` | `near_miss` |
+| too few confidently tagged sections (step 3) | the model chooses among every type | `fallback` | `rules_unmet`, `thin_evidence` |
+| one undecided candidate | the model chooses among it and the near misses (types missing exactly one required group); a type still alone is too weakly supported to narrow on, so every type is offered | `model` | `near_miss`, `low_support` |
+| no candidate, some near misses | the model chooses among the near misses (a lone one: every type, `low_support`) | `model` | `near_miss` |
 | nothing to offer | the model chooses among every type | `fallback` | `rules_unmet` |
 | no level-1 or level-2 section | the document step of `doc_first`, at the same document level | `fallback` | `no_sections` |
 
@@ -80,15 +90,17 @@ confidences. With batched calls every valid tag has confidence 1.0, so that gate
 strong evidence from weak; nor can per-item answers from an endpoint that returns no logprobs,
 whose letter is read as the answer with no probability (the tag's `confidence` is `None`,
 `confidence_source="text"`). Then a lone candidate is decided only when at least two tagged
-sections support its required groups. With one, it takes the `low_support` path: it is offered
-to the model with its near misses and, when it is still alone, its doc-type siblings.
+sections support its required groups. With one, it takes the `low_support` path: every type is
+offered to the model, and `result.candidates` keeps the rules' weak suggestion. (Offering only
+the candidate's doc-type siblings excluded the true type when the evidence was sparse.)
 
 **A reply that names no option** is never read as the first option. A batched reply is asked
 again once; a per-item one is not. Either way the section gets the `other` leaf below the last
 step answered (or `general.other`) at confidence 0, the document gets no type, and the result
 is flagged `unparsed`.
 
-`result.candidates` lists the types offered, in order, and `result.document_calls` has one
+`result.candidates` lists the types the rules narrowed to, in order (empty when every type was
+offered for want of evidence), and `result.document_calls` has one
 record per document-level call (its level, tokens, whether its view was cut and how many types
 it offered); `result.section_calls` has one per sections-stage call.
 

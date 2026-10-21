@@ -365,7 +365,8 @@ def test_classify_sections_first_example_runs_without_a_model(capsys):
     assert [m[1] for m in ladder] == list(LEVELS)
     for low, high in zip(ladder, ladder[1:], strict=False):
         assert int(low[2]) <= int(high[2]) and int(low[3]) <= int(high[3])
-    assert lines[4] == "doc type: research.research_paper (decided by fallback; flags: rules_unmet)"
+    decided = "decided by fallback; flags: rules_unmet, thin_evidence"
+    assert lines[4] == f"doc type: research.research_paper ({decided})"
     tags = lines[5:-1]
     titles = ["Sparse retrieval for long documents", "Abstract", "Related work", "Method"]
     assert [tag.split(":")[0].strip() for tag in tags] == [*titles, "Results", "References"]

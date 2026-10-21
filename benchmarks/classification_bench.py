@@ -1038,6 +1038,11 @@ def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
         "terms of published terms, and `financial.financial_highlights` sends a non-financial "
         "report's highlights to `general.summary`), after the section gold was labelled."
         f"{_highlights_conflict(doc_gold)}",
+        "- **Rules N1/N2 were changed after viewing gold-split results; gold doc-type numbers "
+        "are development numbers; the held-out set is the clean measure.** N1: the rules narrow "
+        "or decide only when at least max(2, 20% of the tagged sections) sections were tagged "
+        "with confidence, otherwise every type is offered (`thin_evidence`). N2: a weakly "
+        "supported lone type (`low_support`) is offered with every type, not with its siblings.",
         f"- **Doc-type gold comes from the source**: the manifest's source-assigned type "
         f"(`benchmarks/classification/doc_type_gold.json`), with "
         f"{len(gold_data['corrections'])} correction(s).",

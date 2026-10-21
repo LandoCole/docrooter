@@ -179,36 +179,23 @@ def test_single_undecided_candidate_is_offered_with_its_near_misses():
     assert doc_call[1] == result.candidates  # offered in the candidates' order
 
 
-def test_lone_undecided_candidate_is_offered_with_its_siblings():
+def test_lone_near_miss_widens_to_every_type():
     doc = Document.from_sections(
-        [{"title": "Opinion", "level": 1, "text": "The court holds that the appeal fails."}]
-    )
-    backend = Scripted(by_title({"Opinion": ("law.opinion", 0.75)}))  # 0.5625: undecided
-    result = classify(doc, backend=backend)
-    assert result.decided_by == "model"
-    assert "low_support" in result.flags and "near_miss" not in result.flags
-    siblings = [n.id for n in builtin_taxonomy("doc_types").children("legal")]
-    assert result.candidates[0] == "legal.court_opinion"
-    # not legislation: its excludes name law.opinion, which the document has
-    assert set(result.candidates) == set(siblings) - {"legal.legislation"}
-    (doc_call,) = backend.of("document")
-    assert doc_call[1] == result.candidates
-
-
-def test_lone_near_miss_is_offered_with_its_siblings():
-    doc = Document.from_sections(
-        [{"title": "Abstract", "level": 1, "text": "We study retrieval for long documents."}]
+        [
+            {"title": "Abstract", "level": 1, "text": "We study retrieval for long documents."},
+            {"title": "Abstract", "level": 2, "text": "A second summary of the findings."},
+        ]
     )
     backend = Scripted(by_title({"Abstract": ("research.abstract", 0.95)}))
     result = classify(doc, backend=backend)
     assert {"near_miss", "low_support"} <= set(result.flags)
     assert result.decided_by == "model"
-    siblings = [n.id for n in builtin_taxonomy("doc_types").children("research")]
     assert result.candidates[0] == "research.research_paper"
-    assert set(result.candidates) == set(siblings)
+    (doc_call,) = backend.of("document")
+    assert set(doc_call[1]) == DOC_TYPE_LEAVES
 
 
-def test_lone_candidate_without_siblings_falls_back_to_all_types():
+def test_low_support_widens_a_custom_doc_type_taxonomy_too():
     doc_types = Taxonomy(
         [
             TaxonomyNode(id="a", label="A"),
@@ -227,10 +214,15 @@ def test_lone_candidate_without_siblings_falls_back_to_all_types():
             ),
         ]
     )
-    doc = Document.from_sections([{"title": "Summary", "level": 1, "text": "In short."}])
+    doc = Document.from_sections(
+        [
+            {"title": "Summary", "level": 1, "text": "In short."},
+            {"title": "Summary", "level": 2, "text": "In shorter."},
+        ]
+    )
     backend = Scripted(by_title({"Summary": ("general.summary", 0.75)}))
     result = classify(doc, backend=backend, doc_types=doc_types)
-    assert result.decided_by == "fallback" and "low_support" in result.flags
+    assert result.decided_by == "model" and "low_support" in result.flags
     assert "rules_unmet" not in result.flags
     assert result.candidates == ["a.memo"]
     (doc_call,) = backend.of("document")
@@ -585,3 +577,82 @@ def test_too_many_doc_types_for_per_item_calls_raise_up_front():
 
     with pytest.raises(ValueError, match="26"):
         classify(financial_doc(), backend=Lettered(), doc_types=many, calls="per_item")
+
+
+# --- N1: the rules need adequate section evidence; N2: low support widens to every type ----
+
+
+def with_filler(sections, n_total):
+    """``sections`` plus untitled-for-the-rules filler sections, ``n_total`` in all: the
+    scripted backend knows no filler title, so their tags are uniform (never confident)."""
+    filler = [
+        {"title": f"Miscellany {i}", "level": 1, "text": "Assorted remarks of no consequence."}
+        for i in range(n_total - len(sections))
+    ]
+    return Document.from_sections([*sections, *filler], source="report.md")
+
+
+NOTES = {"title": "Notes to the financial statements", "level": 1, "text": "Accounting policies."}
+MDA = {"title": "Management discussion", "level": 1, "text": "Revenue grew across segments."}
+THANKS = {"title": "Acknowledgements", "level": 1, "text": "We thank our auditors."}
+
+
+def test_one_confident_tag_among_ten_is_thin_evidence_and_offers_every_type():
+    backend = Scripted(document=lambda text: ("research.white_paper", 0.6))
+    result = classify(with_filler([NOTES], 10), backend=backend)
+    assert {"rules_unmet", "thin_evidence"} <= set(result.flags)
+    assert result.decided_by == "fallback" and result.candidates == []
+    (doc_call,) = backend.of("document")
+    assert set(doc_call[1]) == DOC_TYPE_LEAVES
+
+
+def test_three_confident_tags_among_ten_narrow():
+    backend = Scripted(document=lambda text: ("financial.quarterly_report", 0.8))
+    result = classify(with_filler([NOTES, MDA, THANKS], 10), backend=backend)
+    assert "thin_evidence" not in result.flags and "rules_unmet" not in result.flags
+    assert result.decided_by == "model"
+    (doc_call,) = backend.of("document")
+    assert set(doc_call[1]) == {"financial.annual_report", "financial.quarterly_report"}
+
+
+def test_the_evidence_needed_grows_with_the_sections_tagged():
+    # three confident tags among twenty: 20% of 20 is four, so too few
+    result = classify(with_filler([NOTES, MDA, THANKS], 20), backend=Scripted())
+    assert {"rules_unmet", "thin_evidence"} <= set(result.flags)
+    # the keywords move the gate
+    eased = classify(with_filler([NOTES, MDA, THANKS], 20), backend=Scripted(),
+                     min_evidence_share=0.1)  # fmt: skip
+    assert "thin_evidence" not in eased.flags and eased.decided_by == "model"
+    strict = classify(with_filler([NOTES, MDA, THANKS], 10), backend=Scripted(), min_evidence=4)
+    assert "thin_evidence" in strict.flags
+
+
+def test_thin_evidence_stops_the_rules_deciding_too():
+    one = Document.from_sections([{"title": "Opinion", "level": 1, "text": "The court holds."}])
+    backend = Scripted(by_title({"Opinion": ("law.opinion", 0.99)}))
+    result = classify(one, backend=backend)  # a lone confident tag: never enough to decide
+    assert result.decided_by == "fallback" and "thin_evidence" in result.flags
+    assert backend.of("document")
+
+
+def test_evidence_keywords_are_checked():
+    for kwargs in ({"min_evidence": -1}, {"min_evidence_share": 1.5}):
+        with pytest.raises(ValueError, match="min_evidence"):
+            classify(financial_doc(), backend=Scripted(), **kwargs)
+
+
+def test_low_support_offers_every_type():
+    doc = Document.from_sections(
+        [
+            {"title": "Opinion", "level": 1, "text": "The court holds that the appeal fails."},
+            {"title": "Acknowledgements", "level": 1, "text": "We thank counsel."},
+        ]
+    )
+    weak = {"Opinion": ("law.opinion", 0.75), "Acknowledgements": SECTIONS["Acknowledgements"]}
+    backend = Scripted(by_title(weak))  # 0.75**2 < decide_conf: a lone undecided candidate
+    result = classify(doc, backend=backend)
+    assert result.decided_by == "model"
+    assert "low_support" in result.flags and "thin_evidence" not in result.flags
+    assert result.candidates == ["legal.court_opinion"]  # the rules' weak suggestion
+    (doc_call,) = backend.of("document")
+    assert set(doc_call[1]) == DOC_TYPE_LEAVES  # every type, siblings or not

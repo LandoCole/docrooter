@@ -2,8 +2,9 @@
 
 Needs no models and no API key: the ``keyword`` backend only counts shared words, so it runs
 right after ``pip install docrooter`` and shows the API, the context ladder and the token
-accounting. Its tags are weak and its confidences low, so the doc-type rules are not met here
-and the document step chooses among every type (``rules_unmet``). Swap in
+accounting. Its tags are weak and its confidences low, so too few sections are tagged with
+confidence for the doc-type rules (``thin_evidence``) and the document step chooses among every
+type (``rules_unmet``). Swap in
 ``backend="openai:<model>"`` for a hosted or local LLM, whose tokens are then exact.
 """
 

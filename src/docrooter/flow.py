@@ -5,15 +5,21 @@ Two flows (spec G3):
 - **sections_first** (the default) tags the document's level-1 and level-2 sections against the
   shared section catalogue (``builtin_taxonomy("section_catalogue")``), group first, then leaf
   (``Greedy``). It matches the doc-type section rules (:func:`~docrooter.rules.match_rules`)
-  against the tags, then decides the type:
+  against the tags, then decides the type. The rules narrow or decide only on adequate
+  evidence: at least ``max(min_evidence, ceil(min_evidence_share * tagged sections))``
+  confidently tagged sections (2 and 20% by default; :func:`~docrooter.rules.evidence_needed`).
+  A tag is confident at ``rule_min_conf`` or more; a batched or text answer, which has no
+  probability, counts when it is a valid tag. On thinner evidence the rules are set aside: the
+  model chooses among every doc type, flagged ``rules_unmet`` and ``thin_evidence``. Otherwise:
 
   - **by rules**, with no document-level call, when a single candidate's supporting tags are all
     at least ``decide_conf``;
   - **by the model** among the candidates only, plus the near misses when there is no candidate
-    or a single undecided one (flagged ``near_miss``), plus, when one type is still alone, its
-    doc-type siblings that no ``excludes`` hit argues against (flagged ``low_support``);
-  - **by fallback** among every doc type when fewer than two types are left to offer; with none
-    at all it is flagged ``rules_unmet``.
+    or a single undecided one (flagged ``near_miss``);
+  - **by the model among every doc type** when one type is still alone, or a lone candidate's
+    support is too thin to decide on (flagged ``low_support``): offering only its siblings
+    excluded the true type when the evidence was sparse;
+  - **by fallback** among every doc type when nothing is left to offer (flagged ``rules_unmet``).
 
   When every candidate hit an ``excludes`` rule, the waived candidates are offered (flagged
   ``excludes_waived``). A document with no level-1 or level-2 section to tag runs the
@@ -73,11 +79,10 @@ confidence is ``None`` (``confidence_source="text"``); such a tag counts for the
 asked again by ``cascade``, and a document answer read this way has no confidence either. With
 batched calls, or when any supporting tag is a text answer, a lone candidate is decided by rules
 only when at least two tagged sections, in total, support its required groups. With fewer it
-takes the ``low_support`` path: the candidate, its near misses and, when it is still alone, its
-doc-type siblings are offered to the model. A per-item reply that names no option is never
-read as the first option: the section gets the ``other`` leaf below the last answered step
-(or ``general.other``) at confidence 0, the document no type, and the result is flagged
-``unparsed``.
+takes the ``low_support`` path: every doc type is offered to the model. A per-item reply
+that names no option is never read as the first option: the section gets the ``other`` leaf
+below the last answered step (or ``general.other``) at confidence 0, the document no type, and
+the result is flagged ``unparsed``.
 
 **Results log.** ``log=path`` appends one :class:`~docrooter.results_log.ResultsLog` row per
 backend decision (each section step and each document call), with the level, the view hash, the
@@ -155,9 +160,12 @@ from docrooter.ladder import (
 )
 from docrooter.results_log import ResultsLog, secrets_of, text_hash
 from docrooter.rules import (
+    MIN_EVIDENCE,
+    MIN_EVIDENCE_SHARE,
     DocTypeRules,
     covers,
     doc_type_rules,
+    evidence_needed,
     match_rules,
     unknown_section_ids,
 )
@@ -173,6 +181,7 @@ Flag = Literal[
     "rules_unmet",
     "near_miss",
     "low_support",
+    "thin_evidence",
     "excludes_waived",
     "truncated",
     "unparsed",
@@ -246,14 +255,17 @@ class Classification(BaseModel):
       read from the reply's letter, or rules decided on such tags) the confidence is ``None``
       and the probs are empty.
     - ``decided_by``: ``"rules"`` (no document-level call), ``"model"`` (the model chose among
-      the narrowed ``candidates``, or among every type in ``doc_first``) or ``"fallback"`` (the
-      model chose among every type: nothing was left to offer, a lone type had no siblings, or
-      there were no sections; or, for a document with no content, nothing could be sent).
-    - ``candidates``: the doc types offered, in order (most ``typical`` matches first): the
-      rules' candidates, near misses when they were offered, and a lone type's siblings
-      (``low_support``); empty in ``doc_first``.
+      the narrowed ``candidates``, among every type after ``low_support``, or among every type
+      in ``doc_first``) or ``"fallback"`` (the model chose among every type: nothing was left to
+      offer, the evidence was too thin for the rules, or there were no sections; or, for a
+      document with no content, nothing could be sent).
+    - ``candidates``: the doc types the rules narrowed to, in order (most ``typical`` matches
+      first): the rules' candidates and near misses when they were offered. With
+      ``low_support`` they are the rules' weak suggestion, offered with every other type; empty
+      in ``doc_first`` and on ``thin_evidence``.
     - ``flags``: ``no_sections``, ``rules_unmet``, ``near_miss``, ``low_support`` (a lone
-      undecided candidate or near miss, offered with its doc-type siblings), ``excludes_waived``
+      undecided candidate or near miss, or too little support to decide: every type offered),
+      ``thin_evidence`` (too few confidently tagged sections for the rules), ``excludes_waived``
       ``truncated`` (a section or document view was cut to its budget) and ``unparsed`` (an
       answer named no option: a batched one twice, or a per-item one; the item gets no type,
       or the ``other`` section leaf at confidence 0, never the first option).
@@ -323,6 +335,8 @@ def classify(
     catalogue: Taxonomy | None = None,
     calls: Calls | None = None,
     max_call_tokens: int = MAX_CALL_TOKENS,
+    min_evidence: int = MIN_EVIDENCE,
+    min_evidence_share: float = MIN_EVIDENCE_SHARE,
 ) -> Classification:
     """Classify a document's sections and type with the minimum context (see the module docs).
 
@@ -330,7 +344,10 @@ def classify(
     ``section_level`` and ``doc_level`` default to ``level``. At most ``max_sections`` sections
     are tagged: level 1 first, then level 2, each in reading order. ``rule_min_conf`` is the
     least confidence a tag needs to count for a rule, ``decide_conf`` the least every supporting
-    tag needs for the rules to decide alone. ``cascade`` and ``threshold`` control escalation
+    tag needs for the rules to decide alone. The rules narrow or decide only when at least
+    ``max(min_evidence, ceil(min_evidence_share * tagged sections))`` sections were tagged with
+    confidence (a valid batched or text answer counts); with fewer, every type is offered
+    (flags ``rules_unmet`` and ``thin_evidence``). ``cascade`` and ``threshold`` control escalation
     (per-item calls only). ``calls`` is ``"batched"`` (two-step sections), ``"batched_flat"``
     or ``"per_item"``; ``None`` batches when the backend can (see the module docs).
     ``max_call_tokens`` budgets every call's prompt, on estimated tokens: batched sections are
@@ -360,6 +377,11 @@ def classify(
     if calls is not None and calls not in CALLS:
         raise ValueError(f"unknown calls {calls!r}; use {', '.join(map(repr, CALLS))}")
     call_budget(max_call_tokens)  # ValueError below 1
+    if min_evidence < 0 or not 0.0 <= min_evidence_share <= 1.0:
+        raise ValueError(
+            f"min_evidence must be at least 0 and min_evidence_share within [0, 1], got "
+            f"{min_evidence} and {min_evidence_share}"
+        )
     doc_type_taxonomy = doc_types if doc_types is not None else builtin_taxonomy(DOC_TYPES)
     catalogue_taxonomy = catalogue if catalogue is not None else builtin_taxonomy(CATALOGUE)
     rules = doc_type_rules(doc_type_taxonomy)
@@ -412,6 +434,8 @@ def classify(
                 CATALOGUE if catalogue is None else CUSTOM_TAXONOMY,
                 rule_min_conf,
                 decide_conf,
+                min_evidence,
+                min_evidence_share,
             )
         if log is not None:
             run.write_log(log, inner)
@@ -703,6 +727,8 @@ class _Run:
         catalogue_name: str,
         rule_min_conf: float,
         decide_conf: float,
+        min_evidence: int,
+        min_evidence_share: float,
     ) -> Classification:
         selected = select_sections(self.doc, max_sections)
         if not selected:
@@ -721,12 +747,18 @@ class _Run:
             return Classifier(catalogue, self.metered, strategy=Greedy(), view=view, threshold=0.0)
 
         tags = self.tag(selected, section_level, tagger, catalogue, catalogue_name)
+        needed = evidence_needed(len(tags), min_evidence, min_evidence_share)
+        if sum(_confident(tag, rule_min_conf) for tag in tags) < needed:
+            # too few confident tags to narrow on: narrowing would exclude the true type
+            decision = self.decide_document(self.doc_types, doc_level)
+            flags: list[Flag] = ["rules_unmet", "thin_evidence"]
+            return self.result(decision, "fallback", [], flags, catalogue_name, tags, section_level)
         evidence: dict[str, float] = {}
         for tag in tags:
             if tag.label is not None:
                 evidence[tag.label] = max(evidence.get(tag.label, 0.0), tag.confidence)
         match = match_rules(rules, evidence, min_conf=rule_min_conf, decide_conf=decide_conf)
-        flags: list[Flag] = ["excludes_waived"] if match.excludes_waived else []
+        flags = ["excludes_waived"] if match.excludes_waived else []
         support = _supporting(rules[match.decided], tags, rule_min_conf) if match.decided else []
         # batched or letter answers carry no probability: count supporting sections instead
         hard = self.batched or any(t.source == "text" for t in support)
@@ -750,14 +782,15 @@ class _Run:
         if len(offered) <= 1 and match.near_misses:  # section 6.3: with its near misses
             offered += [t for t in match.near_misses if t not in offered]
             flags.append("near_miss")
-        if len(offered) == 1:
-            # a lone undecided candidate or near miss: offer it with its doc-type siblings,
-            # but not those the rules' excludes argue against
+        if len(offered) == 1:  # a lone undecided candidate or near miss
             low_support = True
-            siblings = _siblings(self.doc_types, offered[0])
-            offered += [t for t in siblings if t not in match.barred]
         if low_support:
+            # weak support: offer every type, since its siblings alone excluded the true type
             flags.append("low_support")
+            decision = self.decide_document(self.doc_types, doc_level)
+            return self.result(
+                decision, "model", offered, flags, catalogue_name, tags, section_level
+            )
         if len(offered) >= 2:
             decision = self.decide_document(_restricted(self.doc_types, offered), doc_level)
             decided_by: DecidedBy = "model"
@@ -1441,6 +1474,17 @@ def _per_item_overhead(classifier: Classifier) -> int:
     )
 
 
+def _confident(tag: _Tag, min_conf: float) -> bool:
+    """Whether ``tag`` counts as evidence for the rules' gate: a valid tag at ``min_conf`` or
+    more. A batched or text answer has no probability (its confidence is 1.0, or 0 when it
+    named no option), so a valid one counts."""
+    if tag.label is None or tag.unparsed:
+        return False
+    if tag.source == "probability":
+        return tag.confidence >= min_conf
+    return tag.confidence > 0
+
+
 def _supporting(rule: DocTypeRules, tags: Sequence[_Tag], min_conf: float) -> list[_Tag]:
     """The tagged sections that support any of ``rule``'s required groups."""
     ids = [rule_id for group in rule.requires for rule_id in group]
@@ -1466,15 +1510,6 @@ def _group_of(taxonomy: Taxonomy, label: str | None) -> str | None:
     if label is None or label not in taxonomy:
         return None
     return taxonomy.path(label)[0].id
-
-
-def _siblings(taxonomy: Taxonomy, leaf_id: str) -> list[str]:
-    """The other leaves under ``leaf_id``'s parent group, in taxonomy order; none for a
-    top-level leaf."""
-    parent = taxonomy.node(leaf_id).parent_id
-    if parent is None:
-        return []
-    return [n.id for n in taxonomy.children(parent) if n.id != leaf_id and not n.children]
 
 
 def _restricted(taxonomy: Taxonomy, leaf_ids: Sequence[str]) -> Taxonomy:

@@ -135,8 +135,7 @@ never fetches anything and the model name docrooter sends is the model that is l
 pip install mlx-lm
 hf download mlx-community/Qwen3-4B-Instruct-2507-4bit --revision 50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b
 MODEL=~/.cache/huggingface/hub/models--mlx-community--Qwen3-4B-Instruct-2507-4bit/snapshots/50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b
-mlx_lm.server --model "$MODEL" --port 18080 \
-  --decode-concurrency 1 --prompt-concurrency 1 --prompt-cache-size 2
+mlx_lm.server --model "$MODEL" --port 18080 --decode-concurrency 1 --prompt-concurrency 1 --prompt-cache-size 2
 ```
 
 (`hf download` prints the snapshot path; it differs when `HF_HOME` is set.) Then, in another

@@ -217,6 +217,15 @@ def test_exclusion_by_hash_url_and_title(tmp_path, monkeypatch):
 
     monkeypatch.setattr(builtins, "open", spy_open)
     monkeypatch.setattr(io, "open", spy_open)
+    # Python 3.10's pathlib opens through an accessor bound at import time, which the spies
+    # above do not reach; spy on Path.open as well so every version records the same opens.
+    real_path_open = Path.open
+
+    def spy_path_open(self, *args, **kwargs):
+        opened.append(str(self))
+        return real_path_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", spy_path_open)
 
     exclusions = fetch.Exclusions.from_manifests({"dev": dev, "heldout": heldout})
     # Only the three fields are kept.

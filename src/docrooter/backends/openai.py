@@ -98,6 +98,20 @@ def _first_env(*names: str) -> str | None:
     return next((os.environ[n] for n in names if os.environ.get(n)), None)
 
 
+def _env_object(name: str) -> dict[str, Any]:
+    """A JSON object from the environment variable ``name``, else ``{}``."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        raise BackendError(f"{name} must be a JSON object, got {raw[:80]!r}") from None
+    if not isinstance(value, dict):
+        raise BackendError(f"{name} must be a JSON object, got {raw[:80]!r}")
+    return value
+
+
 def _logprob_distribution(top_logprobs: Sequence[Any], n: int) -> np.ndarray | None:
     """Softmax over the option letters among a first token's ``top_logprobs``.
 
@@ -249,6 +263,12 @@ class OpenAIBackend:
     ``base_url`` and ``api_key`` default to ``DOCROOTER_LLM_BASE_URL`` / ``DOCROOTER_LLM_API_KEY``,
     then ``OPENAI_BASE_URL`` / ``OPENAI_API_KEY``. Without a ``base_url`` the OpenAI API is used
     and an API key is required; for other servers the key is optional. Needs the ``llm`` extra.
+
+    ``extra_body`` (default: the JSON object in ``DOCROOTER_LLM_EXTRA_BODY``) adds
+    provider-specific fields to every request, such as ``{"thinking": {"type": "disabled"}}``
+    for a Claude model that would otherwise spend completion tokens thinking; it never
+    replaces a field the request sets itself. A server that refuses ``response_format`` or
+    ``temperature`` is asked again without it.
     """
 
     max_candidates: int | None = len(LETTERS)
@@ -262,10 +282,14 @@ class OpenAIBackend:
         timeout: float | None = None,
         concurrency: int | None = None,
         revision: str | None = None,
+        extra_body: dict[str, Any] | None = None,
     ) -> None:
         if revision is not None:
             raise BackendError("the openai backend does not support model revisions")
         self.model_id = model
+        self.extra_body = dict(
+            extra_body if extra_body is not None else _env_object("DOCROOTER_LLM_EXTRA_BODY")
+        )
         self.name = f"openai:{model}"
         self.temperature = 1.0
         self.timeout = float(
@@ -295,6 +319,7 @@ class OpenAIBackend:
         self.on_call: Callable[[CallRecord], None] | None = None
         self.endpoint_host = urlsplit(self.base_url).hostname or ""
         self._json_mode = True  # off once the server refuses response_format
+        self._send_temperature = True  # off once the server refuses temperature
         self._exact_prompt = 0  # exact prompt tokens of the calls that reported usage
         self._estimated_prompt = 0  # the estimates of those same calls' messages
 
@@ -333,6 +358,27 @@ class OpenAIBackend:
         }
 
     async def _complete(self, client: Any, body: dict[str, Any]) -> dict[str, Any]:
+        """Send ``body`` and return the reply. A server that refuses ``temperature`` (an HTTP 400
+        naming it, as some hosted reasoning models do) is asked again without it, and, once that
+        works, never again with it; ``body`` is changed in place to match what was sent."""
+        for key, value in self.extra_body.items():
+            body.setdefault(key, value)
+        if not self._send_temperature:
+            body.pop("temperature", None)
+        try:
+            return await self._post(client, body)
+        except BackendError as exc:
+            message = str(exc)
+            if "temperature" not in body or "HTTP 400" not in message:
+                raise
+            if "temperature" not in message:
+                raise
+            del body["temperature"]
+            data = await self._post(client, body)
+            self._send_temperature = False  # the retry worked: never send it again
+            return data
+
+    async def _post(self, client: Any, body: dict[str, Any]) -> dict[str, Any]:
         httpx = require("httpx", "llm")
         try:
             response = await client.post("/chat/completions", json=body)

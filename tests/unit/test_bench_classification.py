@@ -592,6 +592,14 @@ def test_report_pending_and_tables(tmp_path):
     llm = bench.render_report([result("q", "doc_first", "full", 0.9, 9, spec="openai:~/m")])
     assert "a local server, not a hosted model" in llm and "`q`" in llm
     assert "mlx_lm.server" not in llm  # the server is not recorded, so it is not named
+    assert "also sent" not in llm
+    hosted = result("h", "doc_first", "full", 0.9, 9, spec="openai:claude-haiku-5-5")
+    hosted["backend"].update(
+        endpoint_host="api.anthropic.com", extra_body={"thinking": {"type": "disabled"}}
+    )
+    hosted_text = bench.render_report([hosted])
+    assert "the hosted endpoint `api.anthropic.com`" in hosted_text
+    assert 'also sent `{"thinking": {"type": "disabled"}}`' in hosted_text
     path = tmp_path / "results"
     path.mkdir()
     for k, r in enumerate(runs):

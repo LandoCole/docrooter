@@ -680,6 +680,7 @@ def run_configuration(
             "spec": spec,
             "label": label,
             "endpoint_host": getattr(backend, "endpoint_host", None) or None,
+            "extra_body": dict(getattr(backend, "extra_body", None) or {}) or None,
         },
         "config": config.as_dict(),
         "docs": docs,
@@ -941,9 +942,16 @@ def _llm_disclosure(results: Sequence[Mapping[str, Any]]) -> list[str]:
             if host is None or host in _LOCAL_HOSTS
             else f"the hosted endpoint `{host}`"
         )
+        extra = backend.get("extra_body")
+        sent = (
+            f" Every request also sent `{json.dumps(extra, sort_keys=True)}`"
+            " (`DOCROOTER_LLM_EXTRA_BODY`)."
+            if extra
+            else ""
+        )
         lines.append(
             f"- **LLM rows `{label}`** are `{_model_name(str(backend['spec']))}` through the "
-            f"OpenAI-compatible backend, on {where} (the same code path as a hosted model)."
+            f"OpenAI-compatible backend, on {where} (the same code path as a hosted model).{sent}"
         )
     return lines
 

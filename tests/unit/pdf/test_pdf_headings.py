@@ -334,7 +334,9 @@ def test_printed_toc_matching_scales_to_long_tocs():
     signals = DocSignals(body_size=10.0, median_gap=BODY_GAP, printed_toc=entries)
     start = time.perf_counter()
     find_headings(lines, signals, min_score=0.0)
-    assert time.perf_counter() - start < 2.0
+    # Generous: a shared CI runner is several times slower than a laptop; quadratic blow-up
+    # on 300 entries x 2,000 lines would still take far longer than this.
+    assert time.perf_counter() - start < 15.0
 
 
 def test_one_off_styles_do_not_consume_levels():

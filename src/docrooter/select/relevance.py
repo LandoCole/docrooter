@@ -191,9 +191,9 @@ class Combiner:
         self.feature_names = _check_feature_names(feature_names)
         self._columns = [FEATURE_NAMES.index(name) for name in self.feature_names]
         d = len(self.feature_names)
-        self.mean = np.zeros(d)
-        self.scale = np.ones(d)
-        self.coef = np.zeros(d)  # on the standardised features
+        self.mean: np.ndarray = np.zeros(d)
+        self.scale: np.ndarray = np.ones(d)
+        self.coef: np.ndarray = np.zeros(d)  # on the standardised features
         self.intercept = 0.0
         self.n_train = 0
         self.n_docs = 0

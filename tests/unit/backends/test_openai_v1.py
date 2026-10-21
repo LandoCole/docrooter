@@ -310,3 +310,21 @@ def test_on_call_says_how_each_answer_was_read():
     b.score(["first", "second", "third"], CANDIDATES)
     answers = {r["index"]: r["answer"] for r in records}
     assert answers == {0: "logprobs", 1: "letter", 2: "none"}
+
+
+def test_timeout_and_concurrency_from_env(monkeypatch):
+    """A local stand-in serving one request at a time needs a long timeout and no fan-out."""
+    from docrooter.backends.openai import OpenAIBackend
+
+    monkeypatch.setenv("DOCROOTER_LLM_TIMEOUT", "600")
+    monkeypatch.setenv("DOCROOTER_LLM_CONCURRENCY", "1")
+    backend = OpenAIBackend("m", base_url="http://127.0.0.1:1/v1")
+    assert backend.timeout == 600.0
+    assert backend.concurrency == 1
+    explicit = OpenAIBackend("m", base_url="http://127.0.0.1:1/v1", timeout=5, concurrency=3)
+    assert (explicit.timeout, explicit.concurrency) == (5.0, 3)
+    monkeypatch.setenv("DOCROOTER_LLM_CONCURRENCY", "zero")
+    import pytest
+
+    with pytest.raises(Exception, match="DOCROOTER_LLM_CONCURRENCY"):
+        OpenAIBackend("m", base_url="http://127.0.0.1:1/v1")

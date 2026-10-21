@@ -135,7 +135,8 @@ never fetches anything and the model name docrooter sends is the model that is l
 pip install mlx-lm
 hf download mlx-community/Qwen3-4B-Instruct-2507-4bit --revision 50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b
 MODEL=~/.cache/huggingface/hub/models--mlx-community--Qwen3-4B-Instruct-2507-4bit/snapshots/50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b
-mlx_lm.server --model "$MODEL" --port 18080
+mlx_lm.server --model "$MODEL" --port 18080 \
+  --decode-concurrency 1 --prompt-concurrency 1 --prompt-cache-size 2
 ```
 
 (`hf download` prints the snapshot path; it differs when `HF_HOME` is set.) Then, in another
@@ -143,6 +144,7 @@ shell with the same `MODEL`, point docrooter at it (it needs no key):
 
 ```bash
 export DOCROOTER_LLM_BASE_URL=http://127.0.0.1:18080/v1
+export DOCROOTER_LLM_CONCURRENCY=1 DOCROOTER_LLM_TIMEOUT=600
 docrooter classify report.pdf -b "openai:$MODEL" --log decisions.jsonl
 uv run python examples/openai_backend.py "$MODEL"
 ```
@@ -156,6 +158,13 @@ exact. Their logprob tokens are raw vocabulary entries such as `ĠB`, which docr
 server that returns neither still works: docrooter reads the letter from the reply and marks
 the token counts as estimated. The 4-bit model needs about 3 GB of memory; run one model
 process at a time on a small machine.
+
+On an 8 GB machine, serve one request at a time. With the server's default concurrency, a
+few `lead` or `full` prompts processed together exhausted GPU memory on an M1 (Metal
+"Insufficient Memory"), and queued requests timed out. The flags above, plus
+`DOCROOTER_LLM_CONCURRENCY=1` and a long `DOCROOTER_LLM_TIMEOUT` (seconds), keep one prompt in
+flight. Both variables set the OpenAI-compatible backend's defaults: `concurrency` (8) and
+`timeout` (60 s).
 
 ### The results log
 

@@ -74,6 +74,20 @@ def _letter_of(token: object) -> str:
     return str(token).translate(_SPACE_MARKERS).strip().strip("(.)")
 
 
+def _env_number(name: str, default: float) -> float:
+    """A positive number from the environment variable ``name``, else ``default``."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        raise BackendError(f"{name} must be a positive number, got {raw!r}") from None
+    if value <= 0:
+        raise BackendError(f"{name} must be a positive number, got {raw!r}")
+    return value
+
+
 def _first_env(*names: str) -> str | None:
     return next((os.environ[n] for n in names if os.environ.get(n)), None)
 
@@ -212,6 +226,10 @@ class OpenAIBackend:
       concurrently would replace each other's sink, so run them one at a time (or give each
       its own backend); within one caller, records need no usage deltas.
 
+    ``timeout`` (seconds, default 60) and ``concurrency`` (requests in flight, default 8)
+    default to ``DOCROOTER_LLM_TIMEOUT`` and ``DOCROOTER_LLM_CONCURRENCY``; a local server that
+    answers one request at a time wants a long timeout and a concurrency of 1.
+
     ``base_url`` and ``api_key`` default to ``DOCROOTER_LLM_BASE_URL`` / ``DOCROOTER_LLM_API_KEY``,
     then ``OPENAI_BASE_URL`` / ``OPENAI_API_KEY``. Without a ``base_url`` the OpenAI API is used
     and an API key is required; for other servers the key is optional. Needs the ``llm`` extra.
@@ -225,8 +243,8 @@ class OpenAIBackend:
         *,
         base_url: str | None = None,
         api_key: str | None = None,
-        timeout: float = 60,
-        concurrency: int = 8,
+        timeout: float | None = None,
+        concurrency: int | None = None,
         revision: str | None = None,
     ) -> None:
         if revision is not None:
@@ -234,8 +252,17 @@ class OpenAIBackend:
         self.model_id = model
         self.name = f"openai:{model}"
         self.temperature = 1.0
-        self.timeout = timeout
-        self.concurrency = max(1, concurrency)
+        self.timeout = float(
+            timeout if timeout is not None else _env_number("DOCROOTER_LLM_TIMEOUT", 60.0)
+        )
+        self.concurrency = max(
+            1,
+            int(
+                concurrency
+                if concurrency is not None
+                else _env_number("DOCROOTER_LLM_CONCURRENCY", 8)
+            ),
+        )
         self.base_url = (
             base_url or _first_env("DOCROOTER_LLM_BASE_URL", "OPENAI_BASE_URL") or DEFAULT_BASE_URL
         ).rstrip("/")

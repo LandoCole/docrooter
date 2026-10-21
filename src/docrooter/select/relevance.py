@@ -243,7 +243,7 @@ class Combiner:
         A = np.hstack([np.ones((Z.shape[0], 1)), Z])
         penalty = np.full(d + 1, self.l2)
         penalty[0] = 0.0
-        w = np.zeros(d + 1)
+        w: np.ndarray = np.zeros(d + 1)
 
         def objective(v: np.ndarray) -> float:
             z = A @ v

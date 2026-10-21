@@ -18,7 +18,13 @@ import numpy as np
 from docrooter._extras import require
 from docrooter.backends._async import run_sync
 from docrooter.backends._secrets import redact
-from docrooter.backends.base import Candidate, Scores, TokenUsage
+from docrooter.backends.base import (
+    TOKEN_RATIO_MIN,
+    Candidate,
+    Scores,
+    TokenUsage,
+    clamp_token_ratio,
+)
 from docrooter.backends.mlm_choice import LETTERS, build_choice_prompt
 from docrooter.errors import BackendError
 from docrooter.views import estimate_tokens
@@ -173,6 +179,11 @@ def _count(value: object) -> int | None:
     return None
 
 
+def _messages_estimate(body: dict[str, Any]) -> int:
+    """The estimated prompt tokens of the messages in ``body`` (no chat-template overhead)."""
+    return sum(estimate_tokens(m["content"]) for m in body["messages"])
+
+
 def _call_usage(body: dict[str, Any], data: dict[str, Any]) -> TokenUsage:
     """Tokens one call spent: the response's ``usage`` when complete, else an estimate.
 
@@ -187,8 +198,7 @@ def _call_usage(body: dict[str, Any], data: dict[str, Any]) -> TokenUsage:
         )
         if prompt is not None and completion is not None:
             return TokenUsage(prompt, completion, 1, True)
-    prompt_estimate = sum(estimate_tokens(m["content"]) for m in body["messages"])
-    return TokenUsage(prompt_estimate, estimate_tokens(_reply(data)[1]), 1, False)
+    return TokenUsage(_messages_estimate(body), estimate_tokens(_reply(data)[1]), 1, False)
 
 
 class OpenAIBackend:
@@ -225,6 +235,12 @@ class OpenAIBackend:
       and joins the records to its texts by ``index``. Two callers that share one backend
       concurrently would replace each other's sink, so run them one at a time (or give each
       its own backend); within one caller, records need no usage deltas.
+
+    **Token calibration.** :meth:`token_ratio` is the exact ``prompt_tokens`` of every call that
+    reported them over the estimate of the same messages, as a running, token-weighted mean
+    (the sum of exact tokens over the sum of estimates), clamped to [1.0, 3.0]; 1.0 until the
+    first exact call. :func:`docrooter.classify` divides its call budgets by it, since the
+    word-based estimate undercounts dense text (tables, numbers) for a real tokenizer.
 
     ``timeout`` (seconds, default 60) and ``concurrency`` (requests in flight, default 8)
     default to ``DOCROOTER_LLM_TIMEOUT`` and ``DOCROOTER_LLM_CONCURRENCY``; a local server that
@@ -279,10 +295,21 @@ class OpenAIBackend:
         self.on_call: Callable[[CallRecord], None] | None = None
         self.endpoint_host = urlsplit(self.base_url).hostname or ""
         self._json_mode = True  # off once the server refuses response_format
+        self._exact_prompt = 0  # exact prompt tokens of the calls that reported usage
+        self._estimated_prompt = 0  # the estimates of those same calls' messages
 
     def usage(self) -> TokenUsage:
         """Tokens spent by every call so far (cumulative); see :class:`TokenUsage`."""
         return self._usage
+
+    def token_ratio(self) -> float:
+        """Exact prompt tokens per estimated token over the calls that reported ``usage`` so
+        far, clamped to [1.0, 3.0]; 1.0 before the first such call."""
+        with self._usage_lock:
+            exact, estimated = self._exact_prompt, self._estimated_prompt
+        if not estimated:
+            return TOKEN_RATIO_MIN
+        return clamp_token_ratio(exact / estimated)
 
     def secret_values(self) -> tuple[str, ...]:
         """Values a log must scrub: this backend's API key, if it has one."""
@@ -335,8 +362,12 @@ class OpenAIBackend:
     ) -> None:
         """Add one reply's tokens to :meth:`usage` and hand its record to ``on_call``."""
         call = _call_usage(body, data)
+        estimate = _messages_estimate(body)
         with self._usage_lock:
             self._usage = self._usage + call
+            if call.exact and estimate > 0:
+                self._exact_prompt += call.prompt
+                self._estimated_prompt += estimate
         if self.on_call is not None:
             record: CallRecord = {
                 "index": index,

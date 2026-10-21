@@ -173,3 +173,79 @@ def test_a_cap_the_document_options_fill_raises():
         with pytest.raises(ValueError, match="document"):
             classify(long_doc(2, 50), backend=KeywordBackend(), flow="doc_first",
                      calls=calls, max_call_tokens=1200)  # fmt: skip
+
+
+# --- calibration: the budget scaled by the backend's exact/estimated token ratio ----------
+
+
+class Calibrated(KeywordBackend):
+    """A non-LLM backend that reports a learned token ratio, as an LLM backend would."""
+
+    def __init__(self, ratio):
+        super().__init__()
+        self.ratio = ratio
+
+    def token_ratio(self):
+        return self.ratio
+
+
+def test_calls_are_packed_to_the_budget_over_the_token_ratio():
+    plain = classify(long_doc(n_words=1400), backend=KeywordBackend(), level="full")
+    scaled = classify(long_doc(n_words=1400), backend=Calibrated(1.6), level="full")
+    assert all(c.token_ratio == 1.0 for c in plain.section_calls + plain.document_calls)
+    assert all(c.token_ratio == 1.6 for c in scaled.section_calls + scaled.document_calls)
+    budget = call_budget() / 1.6
+    assert all(c.prompt_tokens <= budget for c in scaled.section_calls)
+    assert max(c.prompt_tokens for c in scaled.section_calls) > 0.8 * budget  # about 1/1.6
+    assert len(scaled.section_calls) > len(plain.section_calls)
+    (doc_call,) = scaled.document_calls if scaled.document_calls else (None,)
+    if doc_call is not None:
+        assert doc_call.prompt_tokens <= budget
+
+
+def test_the_document_view_follows_the_token_ratio():
+    for calls in ("batched", "per_item"):
+        result = classify(
+            long_doc(40, 1400), backend=Calibrated(2.0), flow="doc_first", level="full",
+            calls=calls,
+        )  # fmt: skip
+        (call,) = result.document_calls
+        assert call.token_ratio == 2.0
+        assert call_budget() / 2.0 * 0.8 < call.prompt_tokens <= call_budget() / 2.0
+
+
+def test_the_token_ratio_is_clamped_when_budgeting():
+    result = classify(long_doc(40, 1400), backend=Calibrated(9.0), flow="doc_first",
+                      level="full")  # fmt: skip
+    (call,) = result.document_calls
+    assert call.token_ratio == 3.0 and call.prompt_tokens <= call_budget() / 3.0
+    low = classify(long_doc(2, 50), backend=Calibrated(0.2), flow="doc_first")
+    assert all(c.token_ratio == 1.0 for c in low.document_calls)
+
+
+def test_an_exact_call_calibrates_the_next_packing():
+    httpx = pytest.importorskip("httpx")
+    import json
+
+    from docrooter.backends.openai import OpenAIBackend
+
+    sent = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        estimate = sum(estimate_tokens(m["content"]) for m in body["messages"])
+        sent.append(estimate)
+        usage = {"prompt_tokens": round(1.6 * estimate), "completion_tokens": 1}
+        reply = {"choices": [{"message": {"role": "assistant", "content": "{}"}}], "usage": usage}
+        return httpx.Response(200, json=reply)
+
+    llm = OpenAIBackend("m", base_url="http://llm.test/v1", api_key="k")
+    llm._transport = httpx.MockTransport(handler)
+    llm.chat_json([{"role": "user", "content": words(500)}])  # the first exact call
+    assert llm.token_ratio() == pytest.approx(1.6, abs=0.01)
+    sent.clear()
+    result = classify(long_doc(n_words=1400), backend=llm, level="full", calls="batched")
+    calls = result.section_calls + result.document_calls
+    assert all(c.exact and c.token_ratio == pytest.approx(1.6, abs=0.01) for c in calls)
+    assert all(c.prompt_tokens <= FULL_CAP for c in calls)  # exact tokens within the cap
+    assert max(sent) <= call_budget() / 1.6 and max(sent) > 0.8 * call_budget() / 1.6

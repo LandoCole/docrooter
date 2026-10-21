@@ -455,6 +455,8 @@ def _call(record: Any) -> dict[str, Any]:
         "exact": bool(_get(record, "exact")),
         "truncated": bool(_get(record, "truncated")),
         "options_count": int(_get(record, "options_count") or 0),
+        # the backend's exact/estimated token ratio the call's budget was divided by
+        "token_ratio": float(_get(record, "token_ratio") or 1.0),
     }
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, NamedTuple, Protocol, runtime_checkable
@@ -137,6 +138,31 @@ def usage_of(backend: object) -> TokenUsage | None:
         return None
     result = usage()
     return result if isinstance(result, TokenUsage) else None
+
+
+TOKEN_RATIO_MIN = 1.0
+TOKEN_RATIO_MAX = 3.0
+"""The bounds of a backend's exact-to-estimated prompt token ratio (see :func:`token_ratio_of`)."""
+
+
+def clamp_token_ratio(ratio: float) -> float:
+    """``ratio`` within [:data:`TOKEN_RATIO_MIN`, :data:`TOKEN_RATIO_MAX`] (1.0 when not a
+    finite number)."""
+    if not isinstance(ratio, (int, float)) or not math.isfinite(ratio):
+        return TOKEN_RATIO_MIN
+    return min(TOKEN_RATIO_MAX, max(TOKEN_RATIO_MIN, float(ratio)))
+
+
+def token_ratio_of(backend: object) -> float:
+    """How many exact prompt tokens the backend has spent per estimated token
+    (:func:`~docrooter.views.estimate_tokens`), clamped to [1.0, 3.0]: the backend's
+    ``token_ratio()`` when it has one (the OpenAI-compatible backend learns it from its calls'
+    ``usage``), else 1.0 (a backend that is not an LLM has no exact tokens to calibrate on).
+    Call budgets are divided by it, so the calls stay within their cap in exact tokens."""
+    ratio = getattr(backend, "token_ratio", None)
+    if not callable(ratio):
+        return TOKEN_RATIO_MIN
+    return clamp_token_ratio(ratio())
 
 
 def close_backend(backend: object) -> None:

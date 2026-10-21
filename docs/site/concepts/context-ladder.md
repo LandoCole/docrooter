@@ -67,6 +67,13 @@ large for any call is cut head-first and sent alone (flag `truncated`), and the 
 every rung is cut to fit beside the document call's own instructions and options (flag
 `doc_truncated`). A cap the options alone fill raises `ValueError`.
 
+**The budgets learn the tokenizer.** Estimated tokens undercount tables and numbers, so every
+budget above is divided by the backend's `token_ratio()`: the exact prompt tokens it has spent
+per estimated token, learned from the `usage` of its earlier calls (1.0 until the first one, and
+for backends that are not LLMs; at most 3.0). After a call that measured 1.6 tokens per estimated
+token, the next calls are packed to 1/1.6 of the budget. Each `CallRecord` keeps the
+`token_ratio` it was budgeted with.
+
 ## Seeing the rungs
 
 [`examples/classify_sections_first.py`](../../../examples/classify_sections_first.py) renders

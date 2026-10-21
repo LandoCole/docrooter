@@ -328,3 +328,46 @@ def test_timeout_and_concurrency_from_env(monkeypatch):
 
     with pytest.raises(Exception, match="DOCROOTER_LLM_CONCURRENCY"):
         OpenAIBackend("m", base_url="http://127.0.0.1:1/v1")
+
+
+# --- token calibration: the exact/estimated prompt ratio ----------------------------------
+
+
+def scaled_usage(factor):
+    """A handler whose usage reports ``factor`` times the estimate of the messages sent."""
+
+    def handler(request):
+        body = json.loads(request.content)
+        estimate = sum(estimate_tokens(m["content"]) for m in body["messages"])
+        usage = {"prompt_tokens": round(factor * estimate), "completion_tokens": 1}
+        return httpx.Response(200, json=completion('{"1": "a"}', {"A": -0.1}, usage=usage))
+
+    return handler
+
+
+def test_token_ratio_defaults_to_one_until_an_exact_call():
+    from docrooter.backends.base import token_ratio_of
+
+    b = backend(lambda request: httpx.Response(200, json=completion("B")))
+    assert b.token_ratio() == 1.0
+    b.score(["some words to classify here"], CANDIDATES)  # no usage: estimated, not learned
+    assert b.token_ratio() == 1.0
+    assert token_ratio_of(KeywordBackend()) == 1.0  # not an LLM: nothing to calibrate
+    assert token_ratio_of(object()) == 1.0
+
+
+def test_token_ratio_learns_from_exact_calls():
+    b = backend(scaled_usage(1.6))
+    b.chat_json([{"role": "user", "content": " ".join(["figure"] * 400)}])
+    assert b.token_ratio() == pytest.approx(1.6, abs=0.01)
+    b.score(["word " * 300], CANDIDATES)
+    assert b.token_ratio() == pytest.approx(1.6, abs=0.02)
+
+
+def test_token_ratio_is_clamped():
+    high = backend(scaled_usage(5.0))
+    high.chat_json([{"role": "user", "content": "many numbers 1 2 3 4 5 6"}])
+    assert high.token_ratio() == 3.0
+    low = backend(scaled_usage(0.5))
+    low.chat_json([{"role": "user", "content": " ".join(["figure"] * 100)}])
+    assert low.token_ratio() == 1.0

@@ -122,6 +122,15 @@ of the prompt), and the counts are then marked as estimated, never as exact. Eac
 be reported as it happens, with its token counts and a hash of the exact prompt sent; the
 `classify` flow uses this to attribute tokens to each section and document.
 
+**Calibration.** The estimate undercounts dense text: against a real Qwen3-4B tokenizer, prompts
+full of tables and numbers took far more tokens than 1.3 per word. So the backend keeps a running
+ratio of the exact `prompt_tokens` to the estimate of the same messages, over every call that
+reported `usage` (weighted by tokens), and exposes it as `backend.token_ratio()`: 1.0 until the
+first exact call, and kept between 1.0 and 3.0. `classify` divides its call budgets by it, so
+the calls after the first fit `max_call_tokens` in exact tokens; the first call of a run may
+still overshoot. Backends that are not LLMs return 1.0, and each call record keeps the ratio it
+was budgeted with (`CallRecord.token_ratio`).
+
 ### A free local stand-in
 
 Hosted LLMs are what `docrooter.classify` is built for; a local model is a free stand-in for

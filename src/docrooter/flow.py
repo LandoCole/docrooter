@@ -47,6 +47,13 @@ options and the views) of at most ``max_call_tokens`` (16,000 by default, packed
 Per-item calls are bounded the same way, and the document view is budgeted to fit beside the
 document call's own instructions and options (flag ``truncated``, ``doc_truncated``). These bounds
 are on estimated tokens: the measured prompt is expected, not guaranteed, to stay within the cap.
+**Calibration.** Every budget (the packed calls, the per-item views and the document view) is
+divided by the backend's ``token_ratio()``, the exact prompt tokens it has spent per estimated
+token (:func:`~docrooter.backends.base.token_ratio_of`: 1.0 for a backend that is not an LLM and
+until an LLM's first call reports ``usage``, at most 3.0), read again before each batched call. The
+word-based estimate undercounts dense text (tables, numbers), so after the first exact call the
+next calls are packed to fit the cap in exact tokens; the first call of a run may still overshoot.
+Each :class:`CallRecord` keeps the ``token_ratio`` its call was budgeted with.
 The sections stage takes two steps: one call sorts every section into a catalogue group (the groups
 listed with a one-line gloss), then one call per group that received sections chooses among that
 group's leaves only. ``calls="batched_flat"`` lists every leaf in one call instead (kept for the
@@ -105,6 +112,7 @@ from docrooter.backends.base import (
     candidate_text,
     close_backend,
     to_probs,
+    token_ratio_of,
     usage_of,
 )
 from docrooter.batch import (
@@ -212,8 +220,10 @@ class SectionTag(BaseModel):
 class CallRecord(BaseModel):
     """One backend call (or, for a backend that cannot batch, one estimated call): the
     ``level`` of its views, the ``prompt_tokens`` and ``completion_tokens`` it spent (``exact``
-    when from the API's usage), whether a view it carried was ``truncated``, and how many
-    options it offered (``options_count``: doc types, groups or leaves)."""
+    when from the API's usage), whether a view it carried was ``truncated``, how many
+    options it offered (``options_count``: doc types, groups or leaves) and the
+    ``token_ratio`` its budget was divided by (the backend's exact-to-estimated prompt token
+    ratio when the call was packed or cut; 1.0 when uncalibrated)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -223,6 +233,7 @@ class CallRecord(BaseModel):
     exact: bool
     truncated: bool
     options_count: int
+    token_ratio: float = 1.0
 
 
 class Classification(BaseModel):
@@ -327,7 +338,9 @@ def classify(
     the rest covering the estimate's error), a view too large for any call is cut (flagged
     ``truncated``) and sent alone, per-item views are cut to fit too, and the document view of
     every level is cut to fit beside the document call's instructions and options as sent
-    (batched JSON or per-item letters; flag ``truncated`` and ``doc_truncated``). It raises
+    (batched JSON or per-item letters; flag ``truncated`` and ``doc_truncated``). Every budget is
+    divided by the backend's learned exact-to-estimated token ratio (``token_ratio()``, 1.0 to
+    3.0; see the module docs), recorded per call as ``CallRecord.token_ratio``. It raises
     ``ValueError`` when the options leave no room for a view. With per-item calls, more doc
     types than the backend's options per call (26 for the OpenAI-compatible backend) raise
     ``ValueError`` up front.
@@ -806,10 +819,14 @@ class _Run:
         stage.end(sections=len(tags))
         return [tags[s.id] for s in sections]
 
-    @property
-    def budget(self) -> int:
-        """The estimated prompt tokens one call is packed or cut to (:func:`call_budget`)."""
-        return call_budget(self.max_call_tokens)
+    def ratio(self) -> float:
+        """The backend's exact-to-estimated prompt token ratio now (:func:`token_ratio_of`)."""
+        return token_ratio_of(self.metered.inner)
+
+    def budget(self, ratio: float) -> int:
+        """The estimated prompt tokens one call is packed or cut to: :func:`call_budget`
+        divided by ``ratio``, so the exact prompt stays within it."""
+        return max(1, int(call_budget(self.max_call_tokens) / ratio))
 
     def _tag_once(
         self,
@@ -821,7 +838,8 @@ class _Run:
         view = section_view(level)
         classifier = tagger(view)
         texts, cut = self._render(sections, view, classifier._token_counter())
-        texts, cut = self._fit_per_item(texts, cut, classifier)
+        ratio = self.ratio()
+        texts, cut = self._fit_per_item(texts, cut, classifier, ratio)
         mark, before = len(self.metered.calls), self.metered.spent
         results = classifier.classify_texts(texts)
         owners = _owners(texts, self.metered.calls[mark:])
@@ -835,7 +853,7 @@ class _Run:
             if not self.batch_estimate:
                 self._add_split(call)
                 truncated = cut[index] if index is not None else False
-                record = _call_record(level, call.usage, truncated, len(call.options))
+                record = _call_record(level, call.usage, truncated, len(call.options), ratio)
                 self.section_calls.append(record)
             if index is not None:
                 spent[index] = spent.get(index, TokenUsage()) + call.usage
@@ -861,7 +879,7 @@ class _Run:
                 tag.confidence, tag.source = 1.0, "text"  # a bare letter: no probability
         if self.batch_estimate:
             labels = [tags[s.id].label for s in sections]
-            spent = self._batch_estimate(texts, labels, classifier.taxonomy, level, cut)
+            spent = self._batch_estimate(texts, labels, classifier.taxonomy, level, cut, ratio)
         for index, usage in spent.items():
             tag = tags[sections[index].id]
             tag.tokens = tag.tokens + usage
@@ -881,11 +899,11 @@ class _Run:
         return [rendered[s.id].text for s in sections], cut
 
     def _fit_per_item(
-        self, texts: list[str], cut: list[bool], classifier: Classifier
+        self, texts: list[str], cut: list[bool], classifier: Classifier, ratio: float
     ) -> tuple[list[str], list[bool]]:
         """``texts`` cut so that each per-item call, with the largest option list the
-        classifier can send, stays within :attr:`budget`."""
-        room = self.budget - _per_item_overhead(classifier)
+        classifier can send, stays within :meth:`budget` at ``ratio``."""
+        room = self.budget(ratio) - _per_item_overhead(classifier)
         if room < 1:
             raise ValueError(
                 f"max_call_tokens {self.max_call_tokens} leaves no room for a section view "
@@ -927,6 +945,7 @@ class _Run:
         taxonomy: Taxonomy,
         level: Level,
         cut: list[bool],
+        ratio: float = 1.0,
     ) -> dict[int, TokenUsage]:
         """Each section's share of the batched calls an LLM would have been sent for
         ``texts`` (with the answers ``labels``), packed as :meth:`_ask` packs them: its own
@@ -952,7 +971,7 @@ class _Run:
                 asks.append((members, leaves, len(leaf_ids), labels))
         for members, prompt_for, n_options, answers in asks:
             views = {str(i + 1): texts[i] for i in members}
-            for packed in pack(views, prompt_for, self.budget):
+            for packed in pack(views, prompt_for, self.budget(ratio)):
                 chunk = [int(n) - 1 for n in packed]
                 prompt = prompt_for(packed)
                 self._add_parts(prompt)
@@ -961,7 +980,7 @@ class _Run:
                 truncated = any(cut[i] or packed[str(i + 1)] != texts[i] for i in chunk)
                 self.truncated = self.truncated or truncated
                 self.section_usage = self.section_usage + call
-                self.section_calls.append(_call_record(level, call, truncated, n_options))
+                self.section_calls.append(_call_record(level, call, truncated, n_options, ratio))
                 # each section gets its own item; the rest of the call is shared
                 overhead = prompt.estimate() - sum(estimate_tokens(it) for it in prompt.items)
                 shares = _split(TokenUsage(overhead, completion, 1, False), len(chunk))
@@ -1039,8 +1058,10 @@ class _Run:
         to_group: Callable[[str], str | None] | None = None,
     ) -> dict[str, str | None]:
         """One batched step over ``views`` (by section number), packed into calls by
-        :func:`~docrooter.batch.pack` (at most 40 views, and :attr:`budget` estimated tokens,
-        each; a view too large for a call is cut and sent alone): each section's answer among
+        :func:`~docrooter.batch.pack` (at most 40 views, and :meth:`budget` estimated tokens,
+        each; a view too large for a call is cut and sent alone), packed again before each call
+        so that a token ratio learned from the last one budgets the next: each section's answer
+        among
         ``options``, ``None`` when it named none twice. ``to_group`` maps an answer that is not
         an option (a leaf id, in the groups step) to one. Each call's tokens are shared among
         its sections in ``spent``."""
@@ -1054,7 +1075,12 @@ class _Run:
             return found
 
         answers: dict[str, str | None] = dict.fromkeys(views)
-        for packed in pack(views, prompt_for, self.budget):
+        remaining = dict(views)
+        while remaining:
+            ratio = self.ratio()
+            packed = pack(remaining, prompt_for, self.budget(ratio))[0]
+            for n in packed:
+                del remaining[n]
             truncated = any(cut[n] or packed[n] != views[n] for n in packed)
             self.truncated = self.truncated or truncated
             pending = list(packed)
@@ -1066,7 +1092,9 @@ class _Run:
                     prompt = prompt.retry()
                 reply, usage, record = self._chat(prompt, options, len(pending))
                 self.section_usage = self.section_usage + usage
-                self.section_calls.append(_call_record(level, usage, truncated, len(options)))
+                self.section_calls.append(
+                    _call_record(level, usage, truncated, len(options), ratio)
+                )
                 for n in pending:
                     answers[n] = answer_of((reply or {}).get(n))
                 for n, share in zip(pending, _split(usage, len(pending)), strict=True):
@@ -1098,11 +1126,12 @@ class _Run:
         text = unparsed = False
         while current is not None:
             mark = len(self.metered.calls)
+            ratio = self.ratio()
             result = classify_document(
                 self.doc,
                 taxonomy,
                 backend=self.metered,
-                view=self._document_view(current, taxonomy),
+                view=self._document_view(current, taxonomy, ratio),
                 strategy=Flat(),
             )
             used = current
@@ -1141,6 +1170,7 @@ class _Run:
                         exact=attempt.exact,
                         truncated=result.truncated,
                         options_count=len(taxonomy.leaves()),
+                        token_ratio=ratio,
                     )
                 )
             self.truncated = self.truncated or result.truncated
@@ -1155,11 +1185,11 @@ class _Run:
         self.unparsed = self.unparsed or unparsed  # the deciding attempt's reply
         return _DocDecision(result, used, tokens, records, text=text and not unparsed)
 
-    def _document_view(self, level: Level, taxonomy: Taxonomy) -> DocumentView:
+    def _document_view(self, level: Level, taxonomy: Taxonomy, ratio: float) -> DocumentView:
         """The document view preset of ``level``, its budget cut so that the document call,
         with its instructions and options as they are sent (the batched JSON prompt, re-ask
-        included, or the per-item lettered one), stays within :attr:`budget`. ``ValueError``
-        when not even an empty view fits."""
+        included, or the per-item lettered one), stays within :meth:`budget` at ``ratio``.
+        ``ValueError`` when not even an empty view fits."""
         if self.batched or self.batch_estimate:
             overhead = document_prompt("", taxonomy).retry().estimate()
         else:
@@ -1169,7 +1199,7 @@ class _Run:
                 candidate_text(n, taxonomy=taxonomy, full_path=True) for n in taxonomy.leaves()
             ]
             overhead = messages_tokens(choice_messages("", options, DOC_INSTRUCTION))
-        room = self.budget - overhead
+        room = self.budget(ratio) - overhead
         if room < 1:
             raise ValueError(
                 f"max_call_tokens {self.max_call_tokens} leaves no room for the document view "
@@ -1191,7 +1221,8 @@ class _Run:
                 DocTypeResult(source=self.doc.source, best=empty), level, TokenUsage(), []
             )
         count = self.metered.tokenizer() or estimate_tokens
-        view = self._document_view(level, taxonomy).render(self.doc, count)
+        ratio = self.ratio()
+        view = self._document_view(level, taxonomy, ratio).render(self.doc, count)
         self.truncated = self.truncated or view.truncated
         leaf_ids = [leaf.id for leaf in taxonomy.leaves()]
         valid = {leaf_id.lower(): leaf_id for leaf_id in leaf_ids}
@@ -1213,6 +1244,7 @@ class _Run:
                     exact=usage.exact,
                     truncated=view.truncated,
                     options_count=len(leaf_ids),
+                    token_ratio=ratio,
                 )
             )
             if chosen is not None:
@@ -1375,7 +1407,9 @@ def _answer(call: _Call) -> str:
     return answer if isinstance(answer, str) else "probability"
 
 
-def _call_record(level: Level, usage: TokenUsage, truncated: bool, n_options: int) -> CallRecord:
+def _call_record(
+    level: Level, usage: TokenUsage, truncated: bool, n_options: int, ratio: float
+) -> CallRecord:
     return CallRecord(
         level=level,
         prompt_tokens=usage.prompt,
@@ -1383,6 +1417,7 @@ def _call_record(level: Level, usage: TokenUsage, truncated: bool, n_options: in
         exact=usage.exact,
         truncated=truncated,
         options_count=n_options,
+        token_ratio=ratio,
     )
 
 

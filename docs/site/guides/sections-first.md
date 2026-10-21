@@ -12,7 +12,9 @@ result = classify(doc, level="terms", backend="keyword")
 
 It returns a `Classification`: the type and how it was decided, the section tags, and every
 token spent. How much of each section and of the document the backend sees is set by the
-[context ladder](../concepts/context-ladder.md) (`level=`, `terms` by default).
+[context ladder](../concepts/context-ladder.md) (`level=`; by default the backend's measured
+level: `headings` for an LLM through the OpenAI-compatible backend, `lead` for UltraBERT,
+`terms` otherwise).
 
 ## A first run
 

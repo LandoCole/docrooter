@@ -64,8 +64,9 @@ classifies sections against any taxonomy you supply, as it did before 1.0.
 `flow="doc_first"` is the other order: the type first, from the document view, then the
 sections with that type's own section taxonomy.
 
-**The context ladder** (`level=`, `terms` by default; `section_level=` and `doc_level=` set the
-two steps apart). Each rung shows everything below it and adds one field:
+**The context ladder** (`level=`; by default the backend's measured level, `headings` for an LLM
+through the OpenAI-compatible backend, `lead` for UltraBERT, `terms` otherwise; `section_level=`
+and `doc_level=` set the two steps apart). Each rung shows everything below it and adds one field:
 
 | Level | A section shows | The document shows |
 | --- | --- | --- |
@@ -103,6 +104,12 @@ the committed results files.
 
 | Backend, calls, flow | Level | Doc-type accuracy | Prompt tokens per doc | Share of `full` |
 |---|---|---:|---:|---:|
+| Claude Haiku 5.5, batched, doc_first (gold, development) | `headings` | **96.5%** | 3,751 (exact) | 12.9% |
+| Claude Haiku 5.5, batched, doc_first (gold, development) | `terms` / `lead` | 96.5% / 95.6% | 4,608 / 7,046 (exact) | 15.9% / 24.3% |
+| Claude Haiku 5.5, batched, doc_first (gold, development) | `full` | 93.8% | 29,000 (exact) | 100% |
+| Claude Haiku 5.5, batched, sections_first (gold, development) | `headings` | 92.0% | 5,488 (exact) | 11.4% |
+| Claude Haiku 5.5, batched, doc_first (**held-out, clean**) | `headings` / `terms` | **87.5%** / 85.0% | 3,999 / 5,115 (exact) | — |
+| Claude Haiku 5.5, batched, sections_first (**held-out, clean**) | `headings` / `terms` | 82.5% / 80.0% | 6,216 / 8,465 (exact) | — |
 | UltraBERT, batched, doc_first (gold, development) | `headings` | 61.1% | 1,870 (est.) | 10.9% |
 | UltraBERT, batched, doc_first (gold, development) | `lead` | **81.4%** | 3,480 (est.) | 20.2% |
 | UltraBERT, batched, doc_first (gold, development) | `full` | 75.2% | 17,229 (est.) | 100% |
@@ -110,20 +117,31 @@ the committed results files.
 | Qwen3-4B, local server, batched, doc_first (gold) | `headings` / `terms` / `lead` | 71.7% / 75.2% / 78.8% | 2,453 / 3,139 / 5,011 (exact) | — |
 
 What it shows:
+- **A hosted LLM needs only the headings.** Claude Haiku 5.5 names the document type from the
+  title, counts and contents alone (`headings`) as well as from any richer rung: 96.5% on the
+  gold split at 13% of the `full` tokens, where `full` scored 93.8%. On the held-out set
+  `headings` (87.5%) beat `terms` (85.0%) at 22% fewer tokens. Every Haiku run together cost
+  $1.58.
 - **More context is not always better.** On UltraBERT, `lead` beats sending the whole document
-  (`full`) by about 6 points, at a fifth of the tokens. Batched calls cut the option overhead
-  roughly 4× against per-item calls.
-- **Sections first does not pay off with an embedding backend.** UltraBERT's section tags are
-  too unsure for the doc-type rules to fire, so `sections_first` falls back to the same answer
-  as `doc_first`, at about twice the tokens. It tags sections slightly better (leaf macro-F1
-  28.5 against 27.0). The rules are built for a capable LLM tagger; a hosted-model run is the
-  next measurement.
-- **Section tags are the weak spot.** Leaf macro-F1 sits between about 8 and 32 across backends, against
-  a 112-type catalogue.
+  (`full`) by about 6 points, at a fifth of the tokens; on Haiku, `full` is the worst rung.
+  Batched calls cut the option overhead roughly 4× against per-item calls.
+- **Sections first does not beat doc first on document type, even with an LLM tagger.** With
+  Haiku the rules fire (they decide 21–28% of documents alone), but `sections_first` scores 4.5
+  to 8 points below `doc_first` on the gold split and 5 points below on the held-out set, at 1.5
+  to 1.7× the tokens. With UltraBERT the tags are too unsure for the rules to fire at all, so the
+  two flows give the same answer.
+- **Sections first is how to get good section tags.** Haiku's section leaf macro-F1 is 55.7 to
+  58.9 in `sections_first` (47.3 at `full`) against 34 to 40 in `doc_first`, whose per-type
+  taxonomies reach only 61 of the 112 catalogue leaves. The keyword and UltraBERT backends stay
+  between about 8 and 29, against a 112-type catalogue.
 
 **Caveats:**
-- Token counts for keyword and UltraBERT are estimates of what an LLM would be sent. Only the
-  Qwen rows are exact.
+- Token counts for keyword and UltraBERT are estimates of what an LLM would be sent. The Haiku
+  and Qwen rows are exact (the API's `usage`).
+- Haiku ran with thinking disabled (`DOCROOTER_LLM_EXTRA_BODY='{"thinking": {"type":
+  "disabled"}}'`): with thinking on, it spent the small batched reply budget before answering.
+  One model was measured; the `headings` default for the OpenAI-compatible backend generalises
+  from it.
 - The local Qwen3-4B was run for three configurations only: it is too large for the 8 GB test
   machine at the `lead` and `full` levels of a full grid.
 - The 951 section labels were written by Claude annotators, evaluation only. They were all the
@@ -131,7 +149,9 @@ What it shows:
 - The doc-type rules were revised after looking at gold results, so the gold doc-type numbers
   are development numbers. The held-out run is the clean measure.
 
-The default level stays `terms` until a hosted LLM has been measured.
+The default level is now measured per backend (`docrooter.flow.default_level`): `headings` for
+the OpenAI-compatible backend and `lead` for UltraBERT, each the cheapest rung within 2 points of
+`full`. Other backends keep `terms`.
 
 ### Earlier results (TOC and document type, before v1)
 

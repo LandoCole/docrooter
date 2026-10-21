@@ -606,7 +606,7 @@ function renderFacts(run) {
     ["Profile", run.options?.profile],
     ["Engine", meta.engine ?? (run.kind === "pdf" ? null : "Markdown")],
     ["Model", run.options?.backend],
-    ["Flow", run.options?.flow ? `${run.options.flow.replace(/_/g, " ")}, ${run.options.level}` : null],
+    ["Flow", run.options?.flow ? `${run.options.flow.replace(/_/g, " ")}, ${run.options.level ?? "measured level"}` : null],
     ["Calls", run.doc_type?.calls ? run.doc_type.calls.replace(/_/g, " ") : null],
     ["Tokens", run.doc_type?.tokens ? tokenText(run.doc_type.tokens) : null],
     ["Wall time", secs(run.seconds)],

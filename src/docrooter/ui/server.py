@@ -31,10 +31,11 @@ selection that needs a model (the selector's embedder, the tagger) runs on the w
 between runs, so one model is loaded at a time.
 
 A run with a ``flow`` (``sections_first`` or ``doc_first``) and a ``level`` (a rung of
-:mod:`docrooter.ladder`, ``terms`` by default) runs :func:`docrooter.classify` instead of the
-classic document type and section labels. Its document type then also carries ``decided_by``,
-the ``candidates``, the ``flags``, the ``levels`` and the ``tokens`` (with ``exact``), and its
-section labels are the tags, with the level each one used.
+:mod:`docrooter.ladder`; by default the backend's measured level) runs
+:func:`docrooter.classify` instead of the classic document type and section labels. Its
+document type then also carries ``decided_by``, the ``candidates``, the ``flags``, the
+``levels`` and the ``tokens`` (with ``exact``), and its section labels are the tags, with the
+level each one used.
 """
 
 from __future__ import annotations
@@ -1354,11 +1355,11 @@ def _options(form: Any, allowed: list[str], default_backend: str, kind: str) -> 
     }
     flow = str(form.get("flow") or "")
     if flow:  # a v1 flow; without one, the classic type and section labels
-        level = str(form.get("level") or "terms")
+        level = str(form.get("level") or "") or None  # None: the backend's measured default
         calls = str(form.get("calls") or "") or None
         if flow not in FLOWS:
             raise HTTPException(400, f"Unknown flow {flow!r}; use one of {', '.join(FLOWS)}.")
-        if level not in LEVELS:
+        if level is not None and level not in LEVELS:
             raise HTTPException(400, f"Unknown level {level!r}; use one of {', '.join(LEVELS)}.")
         if calls is not None and calls not in CALLS:
             raise HTTPException(400, f"Unknown calls {calls!r}; use one of {', '.join(CALLS)}.")

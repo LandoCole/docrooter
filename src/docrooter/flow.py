@@ -29,7 +29,10 @@ Two flows (spec G3):
   does).
 
 **Levels.** ``level`` (a rung of :mod:`docrooter.ladder`) sets both the section and the document
-view; ``section_level`` and ``doc_level`` override one each. With ``cascade=True``, every section
+view; ``section_level`` and ``doc_level`` override one each. Left out, it is the backend's measured
+default (:func:`default_level`): the cheapest rung within 2 points of ``full`` in the
+classification benchmark, ``headings`` for the OpenAI-compatible backend (measured on Claude
+Haiku 5.5) and ``lead`` for UltraBERT, else ``terms``. With ``cascade=True``, every section
 tag or document decision whose confidence is below ``threshold`` is asked again one rung up,
 until ``full``; only those items are asked again, every attempt's tokens count, and the last
 attempt's answer stands, even when an earlier rung's was more confident. A section with no
@@ -190,6 +193,16 @@ Step = Literal["group", "leaf", "batch", "batch_group", "batch_leaf", "document"
 Calls = Literal["batched", "batched_flat", "per_item"]
 ConfidenceSource = Literal["probability", "batched", "text"]
 CALLS: tuple[str, ...] = ("batched", "batched_flat", "per_item")
+MEASURED_LEVELS: dict[str, Level] = {
+    "openai": "headings",
+    "embedding:dmis-lab/UltraBERT-Embed-150M": "lead",
+}
+"""The default level per backend: the cheapest rung within 2 points of ``full`` in
+``docs/benchmarks-classification.md`` (batched, both flows, both ladders). ``openai`` covers every
+model of the OpenAI-compatible backend, measured on ``claude-haiku-5-5``. The keyword backend is
+left out: its pick (``headings``) was 17.7 points below its ``lead``, since its ``full`` is weak."""
+FALLBACK_LEVEL: Level = "terms"
+"""The default level of a backend the benchmark has not measured."""
 BATCHED_SUPPORT = 2
 """Tagged sections a lone candidate's required groups need, with batched calls, for the rules
 to decide it alone."""
@@ -321,7 +334,7 @@ def classify(
     source_or_doc: Document | str | os.PathLike[str],
     *,
     flow: Flow = "sections_first",
-    level: Level = "terms",
+    level: Level | None = None,
     section_level: Level | None = None,
     doc_level: Level | None = None,
     backend: str | Backend = DEFAULT_BACKEND,
@@ -341,7 +354,8 @@ def classify(
     """Classify a document's sections and type with the minimum context (see the module docs).
 
     ``source_or_doc`` is a :class:`Document` or anything :func:`~docrooter.load` reads.
-    ``section_level`` and ``doc_level`` default to ``level``. At most ``max_sections`` sections
+    ``level`` defaults to the backend's measured :func:`default_level`; ``section_level`` and
+    ``doc_level`` default to ``level``. At most ``max_sections`` sections
     are tagged: level 1 first, then level 2, each in reading order. ``rule_min_conf`` is the
     least confidence a tag needs to count for a rule, ``decide_conf`` the least every supporting
     tag needs for the rules to decide alone. The rules narrow or decide only when at least
@@ -369,9 +383,9 @@ def classify(
     """
     if flow not in FLOWS:
         raise ValueError(f"unknown flow {flow!r}; valid flows: {', '.join(FLOWS)}")
-    levels = {"section": section_level or level, "document": doc_level or level}
-    for name in (level, *levels.values()):
-        check_level_and_view(name, None)
+    for name in (level, section_level, doc_level):
+        if name is not None:
+            check_level_and_view(name, None)
     if max_sections < 0:
         raise ValueError(f"max_sections must be at least 0, got {max_sections}")
     if calls is not None and calls not in CALLS:
@@ -393,6 +407,8 @@ def classify(
 
     inner = _resolved(backend)
     try:
+        level = level or default_level(backend if isinstance(backend, str) else inner)
+        levels = {"section": section_level or level, "document": doc_level or level}
         can_batch = callable(getattr(inner, "chat_json", None))
         if cascade and (calls in ("batched", "batched_flat") or (calls is None and can_batch)):
             raise ValueError(
@@ -1529,6 +1545,15 @@ def _load(source: str | os.PathLike[str]) -> Document:
     return load(source)
 
 
+def default_level(backend: str | Backend) -> Level:
+    """The default level for ``backend`` (a spec string or a backend, by its ``name``): its
+    entry in :data:`MEASURED_LEVELS`, by full name, then by engine (the part before ``:``),
+    else :data:`FALLBACK_LEVEL`."""
+    name = backend if isinstance(backend, str) else str(getattr(backend, "name", ""))
+    engine = name.partition(":")[0]
+    return MEASURED_LEVELS.get(name) or MEASURED_LEVELS.get(engine) or FALLBACK_LEVEL
+
+
 def _resolved(backend: str | Backend) -> Backend:
     if not isinstance(backend, str):
         return backend
@@ -1540,12 +1565,15 @@ def _resolved(backend: str | Backend) -> Backend:
 __all__ = [
     "CALLS",
     "CATALOGUE",
+    "FALLBACK_LEVEL",
+    "MEASURED_LEVELS",
     "FLOWS",
     "CallRecord",
     "LEVELS",
     "Classification",
     "SectionTag",
     "classify",
+    "default_level",
     "options_block",
     "select_sections",
 ]

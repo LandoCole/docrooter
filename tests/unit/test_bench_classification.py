@@ -665,3 +665,44 @@ def test_disclosure_names_the_gold_sections_the_highlights_change_affects():
     assert "3 government-report gold sections" in text
     for ref in ("`gao-gao-05-251#s2`", "`gao-gao-06-681t#s2`", "`gao-gao-05-572t#s1`"):
         assert ref in text, ref
+
+
+def test_flow_comparison_says_whether_sections_first_wins_on_doc_type():
+    def run(label, flow, level, acc, tokens, spec="openai:m", docs="gold"):
+        return {
+            "backend": {"label": label, "spec": spec},
+            "config": {
+                "flow": flow,
+                "section_level": level,
+                "doc_level": level,
+                "calls": "batched",
+            },
+            "docs": docs,
+            "metrics": {"doc_type": {"accuracy": acc}, "prompt_tokens_mean": tokens},
+        }
+
+    runs = [
+        run("llm", "doc_first", "headings", 0.965, 3751),
+        run("llm", "sections_first", "headings", 0.920, 5488),
+        run("llm", "doc_first", "terms", 0.90, 4000),
+        run("llm", "sections_first", "terms", 0.92, 6000),
+        run("llm", "doc_first", "lead", 0.9, 5000),  # no sections_first pair: left out
+        run("emb", "doc_first", "lead", 0.814, 3480, spec="ultrabert"),
+        run("emb", "sections_first", "lead", 0.814, 6510, spec="ultrabert"),
+    ]
+    lines = bench.flow_comparison(runs)
+    text = "\n".join(lines)
+    assert "| llm | batched | headings | 96.5 | 92.0 | -4.5 | 1.46× |" in text
+    assert "| llm | batched | terms | 90.0 | 92.0 | +2.0 | 1.50× |" in text
+    assert "| llm | batched | lead |" not in text
+    assert "**llm** (LLM tagger): sections_first beats doc_first on document type at 1 of 2" in text
+    assert "**emb**: sections_first beats doc_first on document type at 0 of 1" in text
+    assert "on the gold split (+0.0 points)" in text  # one value, not a range
+    held = [
+        run("llm", "doc_first", "headings", 0.875, 4000, docs="heldout"),
+        run("llm", "sections_first", "headings", 0.825, 6200, docs="heldout"),
+    ]
+    assert "at 0 of 1 level(s) on the held-out set (-5.0 points)" in "\n".join(
+        bench.flow_comparison(runs + held)
+    )
+    assert bench.flow_comparison(runs[:1]) == []

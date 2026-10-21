@@ -162,7 +162,10 @@ def classify(
     ] = None,
     level: Annotated[
         str | None,
-        typer.Option(help="Context level for both steps: headings, terms (default), lead or full."),
+        typer.Option(
+            help="Context level for both steps: headings, terms, lead or full (default: the "
+            "backend's measured level)."
+        ),
     ] = None,
     section_level: Annotated[
         str | None, typer.Option(help="Context level of the section tags (default: --level).")
@@ -284,7 +287,7 @@ def _classify_flow(
             f"unknown flow {flow!r}; use {' or '.join(FLOWS)}", param_hint="--flow"
         )
     levels: dict[str, Any] = {
-        "level": _check_level(level, "--level") or "terms",
+        "level": _check_level(level, "--level"),
         "section_level": _check_level(section_level, "--section-level"),
         "doc_level": _check_level(doc_level, "--doc-level"),
     }

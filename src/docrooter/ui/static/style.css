@@ -357,6 +357,22 @@ button:disabled { opacity: .5; cursor: default; }
 }
 .stage-detail:empty { display: none; }
 
+/* "Prepare document": its steps open under the row, one line each. */
+.prep { grid-column: 2 / 4; font: 11px/24px var(--mono); letter-spacing: .02em; color: var(--graphite); }
+.prep summary { cursor: pointer; width: max-content; }
+.prep summary:hover { color: var(--ink); }
+.prep-steps { list-style: none; margin: 4px 0 0; padding: 0; }
+.prep-step {
+  display: grid;
+  grid-template-columns: 14ch minmax(0, 1fr) var(--dur-w);
+  column-gap: var(--gap);
+  box-shadow: inset 0 0.5px 0 0 var(--rule);
+}
+.prep-name { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prep-detail { display: flex; flex-wrap: wrap; gap: 0 12px; min-width: 0; }
+.prep-step .stage-dur { font-size: 11px; }
+.prep-step.is-running .prep-name::after { content: " …"; }
+
 .fam-doc { --fam: var(--ink); --fam-soft: var(--panel); }
 .fam-model { --fam: var(--hatch); --fam-soft: var(--panel); }
 .fam-model .stage-bar { outline: 1px solid var(--graphite); outline-offset: -0.5px; }

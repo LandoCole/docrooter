@@ -4,6 +4,7 @@
 const $ = (id) => document.getElementById(id);
 
 const STAGES = {
+  prepare: { name: "Prepare document", fam: "doc" },
   upload: { name: "Upload", fam: "io" },
   extract: { name: "Read pages", fam: "doc" },
   signals: { name: "Page signals", fam: "doc" },
@@ -20,6 +21,9 @@ const STAGES = {
   normalize: { name: "Label sections", fam: "model" },
   tag: { name: "Tag elements", fam: "model" },
 };
+// Reading and structuring the file takes milliseconds per stage, so these share one "Prepare
+// document" row; its steps, each with its own time and counts, open under it.
+const PREP_STAGES = new Set(["upload", "route", "extract", "signals", "headings", "assemble", "ocr", "layout", "elements", "summarize"]);
 const FLAG_NAMES = {
   level_from_bookmark: "level from bookmark",
   low_heading_confidence: "low confidence",
@@ -55,6 +59,7 @@ const state = {
   source: null, // EventSource of the live run
   rows: [], // every stage row, in order
   latest: new Map(), // stage name -> its latest row (engine "both" reads pages twice)
+  prep: null, // the "Prepare document" row, whose steps are the PREP_STAGES
   t0: null, // performance.now() seconds at pipeline t = 0
   endT: null, // set when the run is over
   frame: 0,
@@ -323,6 +328,7 @@ function resetRun(title) {
   setBusy(false); // a run left behind keeps going on the server; new uploads queue after it
   stopSelect();
   $("stages").replaceChildren();
+  state.prep = null;
   $("axis").replaceChildren();
   $("timeline-empty").hidden = false;
   $("clock").textContent = "0.00";
@@ -371,6 +377,61 @@ function endRow(row, event) {
   row.el.classList.remove("is-running");
   if (event.data?.aborted) row.el.classList.add("is-aborted");
   describe(row, event);
+  if (row.group) refreshPrep();
+}
+
+// The "Prepare document" row, made by its first step: one bar from the first step's start to the
+// last one's end, a summary of what was read, and the steps in a list that opens under it.
+function prepRow(event) {
+  if (state.prep) return state.prep;
+  const row = addRow({ ...event, stage: "prepare", data: {} });
+  row.subs = [];
+  row.list = h("ol", { class: "prep-steps" });
+  row.el.append(h("details", { class: "prep" }, h("summary", {}, "Steps"), row.list));
+  state.prep = row;
+  return row;
+}
+
+function addStep(event) {
+  const group = prepRow(event);
+  const name = stageMeta(event).name;
+  const dur = h("span", { class: "stage-dur" });
+  const detail = h("span", { class: "prep-detail" });
+  const el = h("li", { class: "prep-step is-running" }, h("span", { class: "prep-name" }, name), detail, dur);
+  const sub = { stage: event.stage, start: event.t, end: null, el, dur, detail, data: event.data, group };
+  group.subs.push(sub);
+  group.list.append(el);
+  state.latest.set(event.stage, sub);
+  describe(sub, event);
+  refreshPrep();
+  return sub;
+}
+
+// The row runs while any step does; a step that starts after the others ended reopens it.
+function refreshPrep() {
+  const row = state.prep;
+  if (!row) return;
+  const open = row.subs.some((s) => s.end === null);
+  row.end = open ? null : Math.max(...row.subs.map((s) => s.end));
+  row.el.classList.toggle("is-running", open);
+  describe(row, { status: open ? "progress" : "end", data: {} });
+}
+
+// What the steps found, for the row's own detail line.
+function prepSummary(row) {
+  const last = (stage) => [...(row.subs ?? [])].reverse().find((s) => s.stage === stage)?.data ?? {};
+  const upload = last("upload");
+  const extract = last("extract");
+  const ocr = last("ocr");
+  const parts = [];
+  if (upload.filename) parts.push(upload.filename);
+  if (extract.engine) parts.push(extract.engine);
+  if (extract.pages !== undefined) parts.push(`${num(extract.pages)} pages`);
+  if (ocr.pages || ocr.regions) parts.push(`OCR: ${num(ocr.pages ?? 0)} pages, ${num(ocr.regions ?? 0)} regions`);
+  if (last("assemble").sections !== undefined) parts.push(`${num(last("assemble").sections)} sections`);
+  if (last("elements").elements !== undefined) parts.push(`${num(last("elements").elements)} elements`);
+  if (upload.queued_s > 0.05) parts.push(`waited ${secs(upload.queued_s)} in the queue`);
+  return parts;
 }
 
 // The details shown under a stage's bar, from its latest event.
@@ -380,6 +441,9 @@ function describe(row, event) {
   const parts = [];
   const status = event.status;
   switch (row.stage) {
+    case "prepare":
+      parts.push(...prepSummary(row));
+      break;
     case "upload":
       parts.push(`${d.filename ?? ""} ${d.bytes !== undefined ? bytes(d.bytes) : ""}`.trim());
       if (status === "end" && d.queued_s > 0.05) parts.push(`waited ${secs(d.queued_s)} in the queue`);
@@ -495,6 +559,7 @@ function draw() {
     row.bar.style.setProperty("left", `${(row.start / span) * 100}%`);
     row.bar.style.setProperty("width", `${(Math.max(end - row.start, 0) / span) * 100}%`);
     row.dur.textContent = secs(Math.max(end - row.start, 0));
+    for (const sub of row.subs ?? []) sub.dur.textContent = secs(Math.max((sub.end ?? t) - sub.start, 0));
   }
   const axis = $("axis");
   const step = niceStep(span, Math.max(2, Math.floor(axis.clientWidth / 72)));
@@ -520,10 +585,12 @@ function handle(event) {
   }
   const row = state.latest.get(event.stage);
   if (event.status === "start") {
-    addRow(event);
+    if (PREP_STAGES.has(event.stage)) addStep(event);
+    else addRow(event);
     setStatus(`${stageMeta(event).name}…`);
   } else if (event.status === "progress" && row) {
     describe(row, event);
+    if (row.group) refreshPrep();
   } else if (event.status === "end" && event.stage === "job") {
     finishRun(event);
   } else if (event.status === "end" && event.stage === "done") {
@@ -531,6 +598,7 @@ function handle(event) {
   } else if (event.status === "end" && row && row.end === null) {
     endRow(row, event);
   } else if (event.status === "error") {
+    for (const sub of state.prep?.subs ?? []) if (sub.end === null) endRow(sub, { ...event, data: { aborted: true } });
     for (const open of state.rows) if (open.end === null) endRow(open, { ...event, data: { aborted: true } });
     errorRow(event);
   }

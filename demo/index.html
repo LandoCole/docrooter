@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>docrooter · Landon Thornton</title>
-<meta name="description" content="docrooter sends a hosted LLM the least it needs to classify a document and its sections. Pick a rung of the context ladder and see the answer, the tokens and the cost, measured with Claude Haiku 5.5.">
+<title>doc-rooter · Landon Thornton</title>
+<meta name="description" content="doc-rooter sends a hosted LLM the least it needs to classify a document and its sections. Pick a rung of the context ladder and see the answer, the tokens and the cost, measured with Claude Haiku 5.5.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -208,13 +208,13 @@ tr.pick td:first-child{font-style:italic}
   <section class="sec first" aria-labelledby="ttl">
     <p class="label">Interactive tool</p>
     <div class="body">
-      <h1 id="ttl">docrooter</h1>
+      <h1 id="ttl">doc-rooter</h1>
       <p class="lead">How little does a model need to read to know what a document is? Climb the ladder and watch the answer, the tokens and the cost.</p>
       <p class="meta"><span>Claude Haiku 5.5</span><span>4-rung context ladder</span><span>Exact token accounting</span><span>Open source, MIT</span></p>
     </div>
   </section>
 
-  <section class="tool" aria-label="docrooter">
+  <section class="tool" aria-label="doc-rooter">
     <aside class="controls" aria-label="Choose a document">
       <div class="group">
         <p class="label"><label for="sample">A sample</label></p>
@@ -233,7 +233,7 @@ tr.pick td:first-child{font-style:italic}
       <div class="group">
         <p class="label">Your document</p>
         <label class="btn file" id="fileBtn">Choose a file<input type="file" id="file" accept=".pdf,.md,.txt,application/pdf,text/markdown,text/plain"></label>
-        <p class="hint">A PDF (up to 4 MB, 30 pages read), Markdown or text file, or drop one on the figure. docrooter runs on the server at the rung you pick; the file isn't kept.</p>
+        <p class="hint">A PDF (up to 4 MB, 30 pages read), Markdown or text file, or drop one on the figure. doc-rooter runs on the server at the rung you pick; the file isn't kept.</p>
       </div>
       <div class="group">
         <p class="label">What's sent</p>
@@ -255,7 +255,7 @@ tr.pick td:first-child{font-style:italic}
         <pre class="view" id="view" hidden></pre>
       </div>
       <figcaption>
-        <span>Fig. 1 · docrooter with Claude Haiku 5.5</span>
+        <span>Fig. 1 · doc-rooter with Claude Haiku 5.5</span>
         <span class="key"><span><i class="sw on"></i>Rung sent</span><span><i class="sw off"></i>Other rungs</span><span>✓ ✗ against the source</span></span>
       </figcaption>
     </figure>
@@ -298,7 +298,7 @@ tr.pick td:first-child{font-style:italic}
   <section class="sec" aria-labelledby="l-how">
     <h2 class="label" id="l-how">How it works</h2>
     <div class="body">
-      <p><b>A context ladder.</b> docrooter reads a PDF or Markdown file into a section tree, then renders it at four rungs, each adding one field: the headings (title, page and section counts, the contents), then key terms, then the opening sentences, then the whole text, budgeted to a 16,000-token prompt. You choose the rung; the benchmark measures what each one buys.</p>
+      <p><b>A context ladder.</b> doc-rooter reads a PDF or Markdown file into a section tree, then renders it at four rungs, each adding one field: the headings (title, page and section counts, the contents), then key terms, then the opening sentences, then the whole text, budgeted to a 16,000-token prompt. You choose the rung; the benchmark measures what each one buys.</p>
       <p><b>Two flows.</b> Doc first names the type from the document view, then tags the sections with that type's own labels. Sections first tags the level-1 and level-2 sections against a shared catalogue of 112 section types, and lets rules (a balance sheet means a financial report, an opinion and a holding mean a court opinion) narrow or decide the type, asking the model only when they can't.</p>
       <p><b>Every token counted.</b> Calls are batched, so each option list is sent once per stage, not once per section. Every call reports its exact prompt and completion tokens, and every section tag carries its share.</p>
     </div>
@@ -307,7 +307,8 @@ tr.pick td:first-child{font-style:italic}
   <section class="sec" aria-labelledby="l-why">
     <h2 class="label" id="l-why">Why</h2>
     <div class="body">
-      <p>Sending a hosted LLM the whole document is the easy default, and it's expensive at volume: a 200-page filing is 100,000 tokens before the model reads a word of the question. I built docrooter to find the least a model needs to see. The answer surprised me. For the document's type, the title and the contents were as good as anything richer, and better than the full text, at about an eighth of the tokens. More context gave the model more to be distracted by.</p>
+      <p>Sending a hosted LLM the whole document is the easy default, and it's expensive at volume: a 200-page filing is 100,000 tokens before the model reads a word of the question. I built doc-rooter to find the least a model needs to see. The answer surprised me. For the document's type, the title and the contents were as good as anything richer, and better than the full text, at about an eighth of the tokens. More context gave the model more to be distracted by.</p>
+      <p>doc-rooter is the next step after my <a href="https://landonthornton.com/classifier/">document classifier</a>, which names a financial document's type from a short overview in one question to Jev. doc-rooter takes the same idea further as a standalone package: it reads a PDF into its section tree, tags the sections as well as the document, lets the sections decide the type, works with any model you plug in, and measures what each extra piece of context buys.</p>
     </div>
   </section>
 
@@ -544,7 +545,7 @@ async function runLive(file) {
   $('docline').innerHTML = `<b>${esc(file.name)}</b> · ${fmt(file.size / 1024)} KB`;
   $('verdict').textContent = 'Reading…';
   $('verdict').className = 'verdict weighing';
-  $('sub').textContent = `docrooter is reading it and asking Claude Haiku 5.5 at the ${RUNG[level].replace('+ ', '').toLowerCase()} rung.`;
+  $('sub').textContent = `doc-rooter is reading it and asking Claude Haiku 5.5 at the ${RUNG[level].replace('+ ', '').toLowerCase()} rung.`;
   const t0 = performance.now();
   try {
     const q = new URLSearchParams({ flow, level, name: file.name });

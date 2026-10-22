@@ -1,251 +1,445 @@
 {
  "rows": [
   {
+   "backend": "jev",
+   "docs": "gold",
+   "flow": "doc_first",
+   "level": "full",
+   "calls": "per_item",
+   "doc_acc": 0.9734513274336283,
+   "leaf": {
+    "precision": 0.6309963099630996,
+    "recall": 0.6714659685863874,
+    "micro_f1": 0.6506024096385542,
+    "macro_f1": 0.6487724527715257
+   },
+   "prompt_tokens": 321287.1339285714,
+   "exact": true,
+   "documents": 113,
+   "decided_by_rules": 0.0
+  },
+  {
+   "backend": "jev",
+   "docs": "gold",
+   "flow": "doc_first",
+   "level": "headings",
+   "calls": "per_item",
+   "doc_acc": 0.9823008849557522,
+   "leaf": {
+    "precision": 0.6330275229357798,
+    "recall": 0.5418848167539267,
+    "micro_f1": 0.5839210155148096,
+    "macro_f1": 0.56132015749352
+   },
+   "prompt_tokens": 215552.84955752213,
+   "exact": true,
+   "documents": 113,
+   "decided_by_rules": 0.0
+  },
+  {
+   "backend": "jev",
+   "docs": "gold",
+   "flow": "doc_first",
+   "level": "lead",
+   "calls": "per_item",
+   "doc_acc": 0.9823008849557522,
+   "leaf": {
+    "precision": 0.6422764227642277,
+    "recall": 0.6721204188481675,
+    "micro_f1": 0.6568596098496962,
+    "macro_f1": 0.6561281972380981
+   },
+   "prompt_tokens": 258845.09734513273,
+   "exact": true,
+   "documents": 113,
+   "decided_by_rules": 0.0
+  },
+  {
+   "backend": "jev",
+   "docs": "gold",
+   "flow": "doc_first",
+   "level": "terms",
+   "calls": "per_item",
+   "doc_acc": 0.9911504424778761,
+   "leaf": {
+    "precision": 0.6245869134170522,
+    "recall": 0.618455497382199,
+    "micro_f1": 0.6215060835251562,
+    "macro_f1": 0.6004150386739078
+   },
+   "prompt_tokens": 230194.65486725664,
+   "exact": true,
+   "documents": 113,
+   "decided_by_rules": 0.0
+  },
+  {
+   "backend": "jev",
+   "docs": "heldout",
+   "flow": "doc_first",
+   "level": "headings",
+   "calls": "per_item",
+   "doc_acc": 0.95,
+   "leaf": null,
+   "prompt_tokens": 282892.875,
+   "exact": true,
+   "documents": 40,
+   "decided_by_rules": 0.0
+  },
+  {
+   "backend": "jev",
+   "docs": "heldout",
+   "flow": "doc_first",
+   "level": "lead",
+   "calls": "per_item",
+   "doc_acc": 0.95,
+   "leaf": null,
+   "prompt_tokens": 333076.225,
+   "exact": true,
+   "documents": 40,
+   "decided_by_rules": 0.0
+  },
+  {
+   "backend": "jev",
+   "docs": "heldout",
+   "flow": "doc_first",
+   "level": "terms",
+   "calls": "per_item",
+   "doc_acc": 0.95,
+   "leaf": null,
+   "prompt_tokens": 302327.825,
+   "exact": true,
+   "documents": 40,
+   "decided_by_rules": 0.0
+  },
+  {
+   "backend": "jev",
+   "docs": "heldout",
+   "flow": "sections_first",
+   "level": "headings",
+   "calls": "per_item",
+   "doc_acc": 0.825,
+   "leaf": null,
+   "prompt_tokens": 281282.575,
+   "exact": true,
+   "documents": 40,
+   "decided_by_rules": 0.4
+  },
+  {
+   "backend": "jev",
+   "docs": "heldout",
+   "flow": "sections_first",
+   "level": "lead",
+   "calls": "per_item",
+   "doc_acc": 0.875,
+   "leaf": null,
+   "prompt_tokens": 331755.325,
+   "exact": true,
+   "documents": 40,
+   "decided_by_rules": 0.475
+  },
+  {
+   "backend": "jev",
+   "docs": "heldout",
+   "flow": "sections_first",
+   "level": "terms",
+   "calls": "per_item",
+   "doc_acc": 0.9,
+   "leaf": null,
+   "prompt_tokens": 300857.925,
+   "exact": true,
+   "documents": 40,
+   "decided_by_rules": 0.425
+  },
+  {
    "backend": "haiku-5.5",
    "docs": "gold",
    "flow": "doc_first",
    "level": "full",
+   "calls": "batched",
    "doc_acc": 0.9469026548672567,
-   "leaf_f1": 0.3161671477681026,
+   "leaf": null,
    "prompt_tokens": 23502.796460176993,
    "exact": true,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.0
   },
   {
    "backend": "haiku-5.5",
    "docs": "gold",
    "flow": "doc_first",
    "level": "headings",
+   "calls": "batched",
    "doc_acc": 0.9823008849557522,
-   "leaf_f1": 0.35639507601099085,
+   "leaf": null,
    "prompt_tokens": 3628.734513274336,
    "exact": true,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.0
   },
   {
    "backend": "haiku-5.5",
    "docs": "gold",
    "flow": "doc_first",
    "level": "lead",
+   "calls": "batched",
    "doc_acc": 0.9646017699115044,
-   "leaf_f1": 0.3374557779993125,
+   "leaf": null,
    "prompt_tokens": 6574.357142857143,
    "exact": true,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.0
   },
   {
    "backend": "haiku-5.5",
    "docs": "gold",
    "flow": "doc_first",
    "level": "terms",
+   "calls": "batched",
    "doc_acc": 0.9911504424778761,
-   "leaf_f1": 0.36616673601733585,
+   "leaf": null,
    "prompt_tokens": 4267.274336283186,
    "exact": true,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.0
   },
   {
    "backend": "haiku-5.5",
    "docs": "gold",
    "flow": "sections_first",
    "level": "full",
+   "calls": "batched",
    "doc_acc": 0.8495575221238938,
-   "leaf_f1": 0.4250939348952245,
+   "leaf": null,
    "prompt_tokens": 34939.74336283186,
    "exact": true,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.36283185840707965
   },
   {
    "backend": "haiku-5.5",
    "docs": "gold",
    "flow": "sections_first",
    "level": "headings",
+   "calls": "batched",
    "doc_acc": 0.9292035398230089,
-   "leaf_f1": 0.5640952302999747,
+   "leaf": null,
    "prompt_tokens": 5333.884955752213,
    "exact": true,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.2743362831858407
   },
   {
    "backend": "haiku-5.5",
    "docs": "gold",
    "flow": "sections_first",
    "level": "lead",
+   "calls": "batched",
    "doc_acc": 0.8672566371681416,
-   "leaf_f1": 0.4676224872690946,
+   "leaf": null,
    "prompt_tokens": 11317.58407079646,
    "exact": true,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.3274336283185841
   },
   {
    "backend": "haiku-5.5",
    "docs": "gold",
    "flow": "sections_first",
    "level": "terms",
+   "calls": "batched",
    "doc_acc": 0.9292035398230089,
-   "leaf_f1": 0.5525708704240451,
+   "leaf": null,
    "prompt_tokens": 6655.451327433629,
    "exact": true,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.34513274336283184
   },
   {
    "backend": "haiku-5.5",
    "docs": "heldout",
    "flow": "doc_first",
    "level": "headings",
+   "calls": "batched",
    "doc_acc": 0.925,
-   "leaf_f1": null,
+   "leaf": null,
    "prompt_tokens": 3694.15,
    "exact": true,
-   "documents": 40
+   "documents": 40,
+   "decided_by_rules": 0.0
   },
   {
    "backend": "haiku-5.5",
    "docs": "heldout",
    "flow": "doc_first",
    "level": "terms",
+   "calls": "batched",
    "doc_acc": 0.875,
-   "leaf_f1": null,
+   "leaf": null,
    "prompt_tokens": 4584.575,
    "exact": true,
-   "documents": 40
+   "documents": 40,
+   "decided_by_rules": 0.0
   },
   {
    "backend": "haiku-5.5",
    "docs": "heldout",
    "flow": "sections_first",
    "level": "headings",
+   "calls": "batched",
    "doc_acc": 0.825,
-   "leaf_f1": null,
+   "leaf": null,
    "prompt_tokens": 5592.475,
    "exact": true,
-   "documents": 40
+   "documents": 40,
+   "decided_by_rules": 0.4
   },
   {
    "backend": "haiku-5.5",
    "docs": "heldout",
    "flow": "sections_first",
    "level": "terms",
+   "calls": "batched",
    "doc_acc": 0.825,
-   "leaf_f1": null,
+   "leaf": null,
    "prompt_tokens": 7416.175,
    "exact": true,
-   "documents": 40
+   "documents": 40,
+   "decided_by_rules": 0.375
   },
   {
    "backend": "ultrabert",
    "docs": "gold",
    "flow": "doc_first",
    "level": "full",
+   "calls": "batched",
    "doc_acc": 0.7699115044247787,
-   "leaf_f1": 0.239388734838493,
+   "leaf": null,
    "prompt_tokens": 13767.442477876106,
    "exact": false,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.0
   },
   {
    "backend": "ultrabert",
    "docs": "gold",
    "flow": "doc_first",
    "level": "headings",
+   "calls": "batched",
    "doc_acc": 0.6371681415929203,
-   "leaf_f1": 0.2561034227911661,
+   "leaf": null,
    "prompt_tokens": 1822.513274336283,
    "exact": false,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.0
   },
   {
    "backend": "ultrabert",
    "docs": "gold",
    "flow": "doc_first",
    "level": "lead",
+   "calls": "batched",
    "doc_acc": 0.7522123893805309,
-   "leaf_f1": 0.2516779353365045,
+   "leaf": null,
    "prompt_tokens": 3110.7433628318586,
    "exact": false,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.0
   },
   {
    "backend": "ultrabert",
    "docs": "gold",
    "flow": "doc_first",
    "level": "terms",
+   "calls": "batched",
    "doc_acc": 0.6637168141592921,
-   "leaf_f1": 0.236981488261084,
+   "leaf": null,
    "prompt_tokens": 2128.929203539823,
    "exact": false,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.0
   },
   {
    "backend": "ultrabert",
    "docs": "gold",
    "flow": "sections_first",
    "level": "full",
+   "calls": "batched",
    "doc_acc": 0.7699115044247787,
-   "leaf_f1": 0.2808477853136371,
+   "leaf": null,
    "prompt_tokens": 19952.203539823007,
    "exact": false,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.008849557522123894
   },
   {
    "backend": "ultrabert",
    "docs": "gold",
    "flow": "sections_first",
    "level": "headings",
+   "calls": "batched",
    "doc_acc": 0.6371681415929203,
-   "leaf_f1": 0.21254640613079692,
+   "leaf": null,
    "prompt_tokens": 3032.8407079646017,
    "exact": false,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.02654867256637168
   },
   {
    "backend": "ultrabert",
    "docs": "gold",
    "flow": "sections_first",
    "level": "lead",
+   "calls": "batched",
    "doc_acc": 0.7522123893805309,
-   "leaf_f1": 0.2982239755401232,
+   "leaf": null,
    "prompt_tokens": 5692.185840707964,
    "exact": false,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.0
   },
   {
    "backend": "ultrabert",
    "docs": "gold",
    "flow": "sections_first",
    "level": "terms",
+   "calls": "batched",
    "doc_acc": 0.6637168141592921,
-   "leaf_f1": 0.25177032156003126,
+   "leaf": null,
    "prompt_tokens": 3843.1150442477874,
    "exact": false,
-   "documents": 113
+   "documents": 113,
+   "decided_by_rules": 0.008849557522123894
   },
   {
    "backend": "ultrabert",
    "docs": "heldout",
    "flow": "doc_first",
    "level": "lead",
+   "calls": "batched",
    "doc_acc": 0.825,
-   "leaf_f1": null,
+   "leaf": null,
    "prompt_tokens": 3351.0,
    "exact": false,
-   "documents": 40
+   "documents": 40,
+   "decided_by_rules": 0.0
   },
   {
    "backend": "ultrabert",
    "docs": "heldout",
    "flow": "sections_first",
    "level": "lead",
+   "calls": "batched",
    "doc_acc": 0.825,
-   "leaf_f1": null,
+   "leaf": null,
    "prompt_tokens": 6598.4,
    "exact": false,
-   "documents": 40
+   "documents": 40,
+   "decided_by_rules": 0.0
   }
  ],
  "price": {
-  "prompt": 1e-07,
-  "completion": 5e-07
+  "prompt": 4.2e-08,
+  "completion": 0.0
  },
- "model": "claude-haiku-5-5"
+ "model": "jev-1.13.0"
 }

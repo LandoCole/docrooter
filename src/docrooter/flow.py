@@ -35,8 +35,8 @@ Two flows (spec G3):
 **Levels.** ``level`` (a rung of :mod:`docrooter.ladder`) sets both the section and the document
 view; ``section_level`` and ``doc_level`` override one each. Left out, it is the backend's measured
 default (:func:`default_level`): the cheapest rung within 2 points of ``full`` in the
-classification benchmark, ``headings`` for the OpenAI-compatible backend (measured on Claude
-Haiku 5.5) and the keyword backend, and ``lead`` for UltraBERT, else ``terms``. With
+classification benchmark, ``headings`` for Jev, the OpenAI-compatible backend (measured on
+Claude Haiku 5.5) and the keyword backend, and ``lead`` for UltraBERT, else ``terms``. With
 ``cascade=True``, every section tag or document decision whose confidence is below ``threshold``
 is asked again one rung up,
 until ``full``; only those items are asked again, every attempt's tokens count, and the last
@@ -197,13 +197,15 @@ Calls = Literal["batched", "batched_flat", "per_item"]
 ConfidenceSource = Literal["probability", "batched", "text"]
 CALLS: tuple[str, ...] = ("batched", "batched_flat", "per_item")
 MEASURED_LEVELS: dict[str, Level] = {
+    "jev": "headings",
     "openai": "headings",
     "embedding:dmis-lab/UltraBERT-Embed-150M": "lead",
     "keyword": "headings",
 }
 """The default level per backend: the cheapest rung within 2 points of ``full`` in
 ``docs/benchmarks-classification.md`` (batched, both flows, document ladder), read with the
-PyMuPDF4LLM reader. ``openai`` covers every model of the OpenAI-compatible backend, measured on
+PyMuPDF4LLM reader. ``jev`` was measured per item on ``jev-1.13.0`` (doc_first, every heading
+tagged); ``openai`` covers every model of the OpenAI-compatible backend, measured on
 ``claude-haiku-5-5``."""
 FALLBACK_LEVEL: Level = "terms"
 """The default level of a backend the benchmark has not measured."""

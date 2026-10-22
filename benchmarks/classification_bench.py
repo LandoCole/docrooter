@@ -1186,12 +1186,13 @@ def _main_table(
     runs: Sequence[Mapping[str, Any]], all_runs: Sequence[Mapping[str, Any]]
 ) -> list[str]:
     lines = [
-        "| Backend | Calls | Flow | Level | Doc acc | Doc macro-F1 | Sec leaf macro-F1 "
-        "| Sec leaf micro-F1 | Sec group macro-F1 | Sec group micro-F1 "
+        "| Backend | Calls | Flow | Level | Doc acc | Doc macro-F1 | Sec leaf precision "
+        "| Sec leaf recall | Sec leaf macro-F1 "
+        "| Sec leaf micro-F1 | Sec group macro-F1 | Sec group micro-F1 | `none` kept "
         "| Sections scored / excl. / untagged | Prompt tokens/doc | Token share vs full "
         "| Est. split options / content / instr. | Decided by rules | Any view truncated "
         "| Tokens | Wall s/doc | Errors |",
-        "|---|---|---|---|" + "---:|" * 6 + "---|---:|---:|---|---:|---:|---|---:|---:|",
+        "|---|---|---|---|" + "---:|" * 9 + "---|---:|---:|---|---:|---:|---|---:|---:|",
     ]
     for r in runs:
         label, _, calls, flow, level, _ = _key(r)
@@ -1201,10 +1202,13 @@ def _main_table(
             f"| {label} | {calls} | {flow} | {level} "
             f"| {_pct(_metric(r, 'doc_type', 'accuracy'))} "
             f"| {_pct(_metric(r, 'doc_type', 'macro_f1'))} "
+            f"| {_pct(_metric(r, 'sections', 'leaf', 'precision'))} "
+            f"| {_pct(_metric(r, 'sections', 'leaf', 'recall'))} "
             f"| {_pct(_metric(r, 'sections', 'leaf', 'macro_f1'))} "
             f"| {_pct(_metric(r, 'sections', 'leaf', 'micro_f1'))} "
             f"| {_pct(_metric(r, 'sections', 'group', 'macro_f1'))} "
             f"| {_pct(_metric(r, 'sections', 'group', 'micro_f1'))} "
+            f"| {_pct(_metric(r, 'sections', 'none', 'agreement'))} "
             f"| {_section_counts(r)} "
             f"| {_tokens(_metric(r, 'prompt_tokens_mean'))} | {_pct(share)} | {_split(r)} "
             f"| {_pct(_metric(r, 'decided_by_rules'))} | {_pct(_metric(r, 'truncated_share'))} "
@@ -1424,8 +1428,9 @@ def render_report(results: Sequence[Mapping[str, Any]]) -> str:
         lines += _main_table(main, gold) if main else ["No main-grid runs."]
         lines += [
             "",
-            "Doc acc is doc-type accuracy; Sec are the section-tag F1 scores at catalogue leaf "
-            "and group. Percentages, except counts, tokens and seconds.",
+            "Doc acc is doc-type accuracy; Sec are the section-tag scores at catalogue leaf and "
+            "group, with `none` an abstention; `none` kept is the share of gold `none` headings "
+            "left untagged. Percentages, except counts, tokens and seconds.",
             "",
             "## Cheapest level within 2 points of full",
             "",

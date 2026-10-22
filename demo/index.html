@@ -249,8 +249,8 @@ tr.pick td:first-child{font-style:italic}
       <div class="group">
         <p class="label" id="flowLabel">Approach</p>
         <div class="choice" role="group" aria-labelledby="flowLabel">
-          <button type="button" id="flowSec" aria-pressed="true"><b>Tag, then decide</b><span>Tag every section first. Rules over the tags decide the type when they can; Jev chooses only among what's left.</span></button>
-          <button type="button" id="flowDoc" aria-pressed="false"><b>Read, then tag</b><span>Jev reads the document once and names its type, then tags every section.</span></button>
+          <button type="button" id="flowDoc" aria-pressed="true"><b>Read, then tag</b><span>Jev reads the document once and names its type, then tags every section.</span></button>
+          <button type="button" id="flowSec" aria-pressed="false"><b>Tag, then decide</b><span>Tag every section first. Rules over the tags decide the type when they can; Jev chooses only among what's left.</span></button>
         </div>
       </div>
       <div class="group">
@@ -309,14 +309,14 @@ tr.pick td:first-child{font-style:italic}
       <div class="tablebox">
         <table class="b" id="bench">
           <caption id="benchCap">Loading the benchmark…</caption>
-          <thead><tr><th scope="col">Rung</th><th scope="col">Tag, then decide</th><th scope="col">Read, then tag</th><th scope="col">Tag precision</th><th scope="col">Tag recall</th><th scope="col">Tokens / doc</th></tr></thead>
+          <thead><tr><th scope="col">Rung</th><th scope="col">Read, then tag</th><th scope="col">Tag precision</th><th scope="col">Tag recall</th><th scope="col">Tokens / doc</th><th scope="col">Cost / doc</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
       <div class="tablebox">
         <table class="b" id="held">
           <caption>Held-out: 40 documents no rule or prompt was tuned on, scored once</caption>
-          <thead><tr><th scope="col">Rung</th><th scope="col">Tag, then decide</th><th scope="col">Read, then tag</th><th scope="col">Tokens / doc</th><th scope="col">Documents</th></tr></thead>
+          <thead><tr><th scope="col">Rung</th><th scope="col">Read, then tag</th><th scope="col">Tag, then decide</th><th scope="col">Tokens / doc</th><th scope="col">Documents</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -324,7 +324,7 @@ tr.pick td:first-child{font-style:italic}
         <svg id="chartSvg" role="img" aria-label="Document-type accuracy against prompt tokens per document, for each rung"></svg>
         <figcaption>Fig. 2 · Document-type accuracy against prompt tokens per document (log scale), gold split. Left to right: headings, key terms, leads, full text.</figcaption>
       </figure>
-      <p class="note" id="benchNote">Jev's tokens are exact, from the API. Jev answers one question per call with a probability for every option, so each section costs a call or two; its input tokens are cheap ($0.042 per million) and its output is free.</p>
+      <p class="note" id="benchNote">Jev's tokens are exact, from the API. Jev answers one question per call with a probability for every option, so each heading costs a call or two, each carrying its own option list: a 400-heading annual report is about 250,000 input tokens, a cent at Jev's $0.042 per million (output is free). On held-out documents, tagging first and letting the rules decide named the type less often (82.5–90%) than reading the document first, so the demo opens on <i>Read, then tag</i>. Tags are capped at 400 headings per document, and 11% of the labelled headings, mostly the notes of the longest annual reports, fall past it.</p>
       <p class="note"><b>A note on the numbers.</b> The 113 gold documents span 8 types (annual reports, fact sheets, prospectuses, government reports, contracts, court opinions, research papers, standards). The doc-type rules were revised after looking at them, so treat the gold columns as development numbers; the held-out set is the clean measure. The section labels (2,194 headings, every depth) were written by Claude annotators for evaluation only; a third are <i>none</i>, a heading with nothing to normalise.</p>
     </div>
   </section>
@@ -369,7 +369,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 let labels = {};
 let samples = [];
 let current = null;               // the sample or live result on show
-let flow = 'sections_first';
+let flow = 'doc_first';
 let level = 'headings';
 let filter = 'all';
 let promptOpen = false;
@@ -567,7 +567,7 @@ function showStats(run, full) {
   const sc = run.score;
   $('sTags').textContent = sc ? `${sc.right} / ${sc.gold}` : `${Object.values(run.tags).filter(x => x[0] && x[0] !== 'none').length}`;
   $('sTagsS').textContent = sc ? `right; ${sc.precision != null ? pct(sc.precision) : '–'} of the tags given` : 'sections tagged (no labels to check)';
-  $('sent').innerHTML = `<b>${fmt(t.prompt)}</b> input tokens in <b>${fmt(t.calls)}</b> questions to Jev at the <b>${RUNG[level].replace('+ ', '').toLowerCase()}</b> rung: <b>${fmt(t.sections)}</b> for the sections, <b>${fmt(t.document)}</b> for the type.`;
+  $('sent').innerHTML = `<b>${fmt(t.prompt)}</b> input tokens in <b>${fmt(t.calls)}</b> questions to Jev at the <b>${RUNG[level].replace('+ ', '').toLowerCase()}</b> rung: <b>${fmt(t.sections ?? 0)}</b> for the sections, <b>${fmt(t.document ?? 0)}</b> for the type.`;
 }
 
 // ---------- samples ----------
@@ -658,40 +658,39 @@ async function loadBench() {
   const get = (backend, docs, f, lv) => rows.find(r => r.backend === backend && r.docs === docs && r.flow === f && r.level === lv);
   const body = $('bench').tBodies[0];
   for (const lv of LEVELS) {
-    const s = get('jev', 'gold', 'sections_first', lv), d = get('jev', 'gold', 'doc_first', lv);
-    if (!s && !d) continue;
+    const d = get('jev', 'gold', 'doc_first', lv);
+    if (!d) continue;
     const tr = document.createElement('tr');
     if (lv === 'headings') tr.className = 'pick';
-    const leaf = s?.leaf || {};
-    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${s ? pct(s.doc_acc) : '–'}</td><td>${d ? pct(d.doc_acc) : '–'}</td><td>${leaf.precision != null ? pct(leaf.precision) : '–'}</td><td>${leaf.recall != null ? pct(leaf.recall) : '–'}</td><td>${fmt((s || d).prompt_tokens)}</td>`;
+    const leaf = d.leaf || {};
+    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${pct(d.doc_acc)}</td><td>${leaf.precision != null ? pct(leaf.precision) : '–'}</td><td>${leaf.recall != null ? pct(leaf.recall) : '–'}</td><td>${fmt(d.prompt_tokens)}</td><td>${usd(d.prompt_tokens * PRICE)}</td>`;
     body.append(tr);
   }
-  $('benchCap').textContent = 'Jev on 113 public documents (gold split): document-type accuracy for each approach, and section tags at every depth (tag, then decide).';
+  $('benchCap').textContent = 'Jev on 113 public documents (gold split): document-type accuracy, and section tags on 2,194 labelled headings at every depth.';
   const held = $('held').tBodies[0];
   for (const lv of LEVELS) {
     const s = get('jev', 'heldout', 'sections_first', lv), d = get('jev', 'heldout', 'doc_first', lv);
     if (!s && !d) continue;
     const tr = document.createElement('tr');
     if (lv === 'headings') tr.className = 'pick';
-    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${s ? pct(s.doc_acc) : '–'}</td><td>${d ? pct(d.doc_acc) : '–'}</td><td>${fmt((s || d).prompt_tokens)}</td><td>${(s || d).documents}</td>`;
+    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${d ? pct(d.doc_acc) : '–'}</td><td>${s ? pct(s.doc_acc) : '–'}</td><td>${fmt((d || s).prompt_tokens)}</td><td>${(d || s).documents}</td>`;
     held.append(tr);
   }
-  for (const [backend, name, lv] of [['haiku-5.5', 'Claude Haiku 5.5, headings', 'headings'], ['ultrabert', 'UltraBERT, + leads', 'lead']]) {
+  for (const [backend, name, lv] of [['haiku-5.5', 'Claude Haiku 5.5, headings (v1: levels 1–2, batched)', 'headings'], ['ultrabert', 'UltraBERT, + leads (v1)', 'lead']]) {
     const d = get(backend, 'heldout', 'doc_first', lv);
     if (!d) continue;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${name}</td><td>–</td><td>${pct(d.doc_acc)}</td><td>${d.exact ? '' : '~'}${fmt(d.prompt_tokens)}</td><td>${d.documents}</td>`;
+    tr.innerHTML = `<td>${name}</td><td>${pct(d.doc_acc)}</td><td>–</td><td>${d.exact ? '' : '~'}${fmt(d.prompt_tokens)}</td><td>${d.documents}</td>`;
     held.append(tr);
   }
-  const head = get('jev', 'gold', 'sections_first', 'headings'), full = get('jev', 'gold', 'sections_first', 'full');
-  if (head && full) $('takeaway').textContent = `From the headings alone, Jev named the type ${pct(head.doc_acc)} of the time and tagged sections at ${pct(head.leaf?.precision ?? 0)} precision, for ${pct(head.prompt_tokens / full.prompt_tokens)} of the full text's tokens.`;
+  const head = get('jev', 'gold', 'doc_first', 'headings'), lead = get('jev', 'gold', 'doc_first', 'lead'), heldHead = get('jev', 'heldout', 'doc_first', 'headings');
+  if (head && lead && heldHead) $('takeaway').textContent = `From the headings alone, Jev named the type ${pct(head.doc_acc)} of the time (${pct(heldHead.doc_acc)} on held-out documents). The section tags gain most from the opening sentences: ${pct(head.leaf.recall)} to ${pct(lead.leaf.recall)} of labelled headings tagged right.`;
   drawChart(get);
 }
 
 function drawChart(get) {
   const series = [
-    { name: 'Jev, tag then decide', cls: 'a', pts: LEVELS.map(lv => get('jev', 'gold', 'sections_first', lv)) },
-    { name: 'Jev, read then tag', cls: 'b', pts: LEVELS.map(lv => get('jev', 'gold', 'doc_first', lv)) },
+    { name: 'Jev, read then tag', cls: 'a', pts: LEVELS.map(lv => get('jev', 'gold', 'doc_first', lv)) },
     { name: 'Claude Haiku 5.5', cls: 'c', pts: LEVELS.map(lv => get('haiku-5.5', 'gold', 'doc_first', lv)) },
   ].map(s => ({ ...s, pts: s.pts.filter(Boolean) })).filter(s => s.pts.length);
   if (!series.length) return;

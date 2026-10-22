@@ -105,59 +105,59 @@ gold split and once on the frozen 40-document held-out set. Every number below i
 [docs/benchmarks-classification.md](docs/benchmarks-classification.md), which is generated from
 the committed results files.
 
-PDFs were read with the PyMuPDF4LLM reader (since 2026-10-21; the runs with the removed
-heuristic reader are kept in `benchmarks/results/2026-10-20/`).
+PDFs were read with the PyMuPDF4LLM reader. Section tags use catalogue v2 (every heading, `none`
+for a heading with nothing to normalise) and are scored on 2,194 labelled headings at every
+depth, `none` counting as an abstention.
 
-| Backend, calls, flow | Level | Doc-type accuracy | Prompt tokens per doc | Share of `full` |
-|---|---|---:|---:|---:|
-| Claude Haiku 5.5, batched, doc_first (gold, development) | `headings` | **98.2%** | 3,629 (exact) | 15.4% |
-| Claude Haiku 5.5, batched, doc_first (gold, development) | `terms` / `lead` | 99.1% / 96.5% | 4,267 / 6,574 (exact) | 18.2% / 27.9% |
-| Claude Haiku 5.5, batched, doc_first (gold, development) | `full` | 94.7% | 23,503 (exact) | 100% |
-| Claude Haiku 5.5, batched, sections_first (gold, development) | `headings` | 92.9% | 5,334 (exact) | 15.3% |
-| Claude Haiku 5.5, batched, doc_first (**held-out, clean**) | `headings` / `terms` | **92.5%** / 87.5% | 3,694 / 4,585 (exact) | — |
-| Claude Haiku 5.5, batched, sections_first (**held-out, clean**) | `headings` / `terms` | 82.5% / 82.5% | 5,592 / 7,416 (exact) | — |
-| UltraBERT, batched, doc_first (gold, development) | `headings` / `lead` | 63.7% / **75.2%** | 1,823 / 3,111 (est.) | 13.2% / 22.6% |
-| UltraBERT, batched, doc_first (gold, development) | `full` | 77.0% | 13,767 (est.) | 100% |
-| UltraBERT, batched, doc_first (**held-out, clean**) | `lead` | **82.5%** | 3,351 (est.) | — |
+| Jev (`jev-1.13.0`), per item, doc_first | Level | Doc-type accuracy | Tag precision | Tag recall | Prompt tokens per doc | Cost per doc |
+|---|---|---:|---:|---:|---:|---:|
+| Gold (development) | `headings` | **98.2%** | 63.3% | 54.2% | 215,553 | $0.009 |
+| Gold (development) | `terms` | 99.1% | 62.5% | 61.8% | 230,195 | $0.010 |
+| Gold (development) | `lead` | 98.2% | 64.2% | **67.2%** | 258,845 | $0.011 |
+| Gold (development) | `full` | 97.3% | 63.1% | 67.1% | 321,287 | $0.013 |
+| Held-out (**clean**) | `headings` / `terms` / `lead` | **95.0%** / 95.0% / 95.0% | — | — | 282,893 / 302,328 / 333,076 | $0.012–0.014 |
+| Held-out (**clean**), sections_first | `headings` / `terms` / `lead` | 82.5% / 90.0% / 87.5% | — | — | 281,283 / 300,858 / 331,755 | — |
 
 What it shows:
-- **A hosted LLM needs only the headings.** Claude Haiku 5.5 names the document type from the
-  title, counts and contents alone (`headings`) as well as from any richer rung: 98.2% on the
-  gold split at 15% of the `full` tokens, where `full` scored 94.7%. On the held-out set
-  `headings` (92.5%) beat `terms` (87.5%) at 19% fewer tokens.
-- **More context is not always better.** On Haiku, `full` is its worst rung on the gold split in
-  both flows. On UltraBERT, `lead` is within 2 points of `full` at a fifth of the tokens.
-  Batched calls cut the option overhead roughly 4× against per-item calls.
-- **Sections first does not beat doc first on document type, even with an LLM tagger.** With
-  Haiku the rules fire, but `sections_first` scores 5 to 10 points below `doc_first` on both the
-  gold split and the held-out set, at 1.5 to 1.7× the tokens. With UltraBERT the tags are too
-  unsure for the rules to fire at all, so the two flows give the same answer.
-- **Sections first is how to get good section tags.** Haiku's section leaf macro-F1 is 55 to 56
-  at `headings` and `terms` in `sections_first` against 34 to 37 in `doc_first`, whose per-type
-  taxonomies reach only 61 of the 112 catalogue leaves.
-- **The reader matters.** Moving from the heuristic reader to PyMuPDF4LLM raised Haiku's
-  held-out accuracy at `headings` from 87.5% to 92.5% (2 of 40 documents), at slightly fewer
-  tokens, although its tables of contents score lower against PDF bookmarks (held-out F1 at
-  depth ≤ 2: 0.534 against the heuristic's 0.576) and it reads about 13 times slower; see the
-  [PDF benchmarks](docs/benchmarks-pdf.md). Every Haiku run so far cost about $2.90 in total.
+- **The headings are enough for the type.** Jev names the document type from the title, counts
+  and contents alone as well as from any richer rung: 98.2% on the gold split, 95.0% on the
+  held-out set, where every rung scored the same.
+- **The section tags want the opening sentences.** Recall rises from 54% at `headings` to 67%
+  at `lead`; `full` adds nothing. Precision stays near 63% at every rung, and more text makes
+  the model tag more generic headings: the share of `none` headings left untagged falls from
+  65% at `headings` to 43% at `full`.
+- **Where the tags miss.** By document type, 93% of the labelled headings of prospectuses are
+  tagged right at `lead`, 83% of research papers and court opinions, 78–79% of contracts,
+  government reports and standards, and 50% of annual reports. Annual reports have more than
+  400 headings, and the deepest (mostly the notes) fall past the cap: 11% of all labelled
+  headings were never tagged. Most wrong tags are generic headings given a domain tag (a GAO
+  report's own structure tagged `government.other` or `government.highlights`).
+- **Sections first does not beat doc first on document type.** On the held-out set
+  `sections_first` scored 82.5–90% against `doc_first`'s 95%, at the same tokens: both flows
+  tag every heading, and only how the type is decided differs. (The `sections_first` gold grid
+  was not run: the TypeSafe credits ran out.)
+- **Jev's tokens are mostly option lists.** Jev answers one question per call with a
+  probability for every option, so each heading costs a call or two, each carrying its options:
+  about 95,000 of the 215,553 tokens at `headings` are option lists. At $0.042 per million input
+  tokens (output is free) a 400-heading annual report still costs about a cent.
+
+Earlier runs (catalogue v1, levels 1 and 2 tagged, batched calls) are kept in
+`benchmarks/results/2026-10-21/`: Claude Haiku 5.5 named the type from the headings 98.2% of the
+time on the gold split and 92.5% on the held-out set at about 3,700 prompt tokens, and UltraBERT
+82.5% held-out at `lead` (estimated tokens). Those section scores are not comparable: they used
+the v1 tags and gold.
 
 **Caveats:**
-- Token counts for keyword and UltraBERT are estimates of what an LLM would be sent. The Haiku
-  rows are exact (the API's `usage`).
-- Section tags are scored on 612 of the 951 gold sections: the gold was labelled on the old
-  reader's sections, and the rest have no section with the same title in the new reading.
-- Haiku ran with thinking disabled (`DOCROOTER_LLM_EXTRA_BODY='{"thinking": {"type":
-  "disabled"}}'`): with thinking on, it spent the small batched reply budget before answering.
-  One model was measured; the `headings` default for the OpenAI-compatible backend generalises
-  from it.
-- The 951 section labels were written by Claude annotators, evaluation only. They were all the
-  same underlying model, so κ (0.923) measures consistency, not correctness.
+- The 2,194 section labels were written by Claude annotators, evaluation only. They were all
+  the same underlying model, so κ (0.914) measures consistency, not correctness.
 - The doc-type rules were revised after looking at gold results, so the gold doc-type numbers
   are development numbers. The held-out run is the clean measure.
+- Jev's tokens are exact (from the API). One full `doc_first` gold run failed one document
+  (the TypeSafe credits ran out at the end).
 
-The default level is measured per backend (`docrooter.flow.default_level`): `headings` for the
-OpenAI-compatible and keyword backends and `lead` for UltraBERT, each the cheapest rung within 2
-points of `full`. Other backends keep `terms`.
+The default level is measured per backend (`docrooter.flow.default_level`): `headings` for Jev,
+the OpenAI-compatible and keyword backends and `lead` for UltraBERT, each the cheapest rung within
+2 points of `full` on document type. Other backends keep `terms`.
 
 ### Earlier results (TOC and document type, before v1)
 

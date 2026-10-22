@@ -670,6 +670,7 @@ def test_default_level_is_measured_per_backend():
     from docrooter.flow import FALLBACK_LEVEL, default_level
 
     assert default_level("openai:claude-haiku-5-5") == "headings"
+    assert default_level("jev") == default_level("jev:jev-1.13.0") == "headings"
     assert default_level("openai:any-model") == "headings"  # one hosted LLM measured
     assert default_level("embedding:dmis-lab/UltraBERT-Embed-150M") == "lead"
     assert default_level("embedding:some/other-model") == FALLBACK_LEVEL == "terms"

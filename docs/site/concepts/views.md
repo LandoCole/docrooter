@@ -17,15 +17,15 @@ for section_id, rendered in view.render_all(doc, [s.id for s in doc.leaves()]).i
 ```
 
 ```text
-[s1.1] 28 tokens, truncated=False
-Path: Annual report > Income taxes
+[s1.1] 24 tokens, truncated=False
+Path: Annual report
 Title: Income taxes
 Lead: The effective tax rate was 21.4 percent. Deferred tax assets rose.
 ```
 
 | Field | Renders |
 | --- | --- |
-| `path` | The titles from the top of the tree down to this section |
+| `path` | The titles of the section's ancestors, from the top of the tree (with `title` in the view; without it, the section's own title too). When the budget is tight the outermost ancestors go first, marked `…`, so the title always fits |
 | `title` | The section title |
 | `keyphrases` | Up to `keyphrases` (8) distinctive phrases of the section, scored against the rest of the document |
 | `lead` | The first `lead_sentences` (3) sentences |

@@ -40,7 +40,7 @@ doc type: research.research_paper (decided by fallback; flags: rules_unmet, thin
   Method: esg.other
   Results: research.results
   References: standard.normative_references
-tokens (estimated): 3,491 prompt over 6 calls
+tokens (estimated): 3,446 prompt over 6 calls
 ```
 
 The keyword backend's tags are weak and its confidences far below the rules' threshold, so too

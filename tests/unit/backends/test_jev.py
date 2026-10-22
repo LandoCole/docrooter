@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from docrooter.backends.base import Candidate
+from docrooter.backends.base import Candidate, TokenUsage
 from docrooter.backends.jev import JevBackend
 from docrooter.backends.registry import resolve_backend
 from docrooter.errors import BackendError
@@ -22,8 +22,9 @@ CANDIDATES = [
 class FakeSDK(types.ModuleType):
     """Records what the backend sends and answers from ``choice_probs`` / ``noul_values``."""
 
-    def __init__(self, choice_probs=None, noul_values=None):
+    def __init__(self, choice_probs=None, noul_values=None, input_tokens=None):
         super().__init__("typesafe_sdk")
+        self.input_tokens = input_tokens
         self.calls = []
         self.client_kwargs = []
         self.choice_probs = choice_probs
@@ -67,7 +68,8 @@ class FakeSDK(types.ModuleType):
                     for qid in questions
                     if isinstance(questions[qid], Noul) and qid in sdk.noul_values
                 }
-                return SimpleNamespace(choices=choices, nouls=nouls)
+                usage = SimpleNamespace(input_tokens=sdk.input_tokens, output_tokens=2)
+                return SimpleNamespace(choices=choices, nouls=nouls, usage=usage)
 
         self.Choice, self.Noul, self.AsyncTypeSafeClient = Choice, Noul, AsyncTypeSafeClient
 
@@ -115,6 +117,21 @@ def test_jev_rows_follow_text_order(install):
     install(choice_probs=lambda state: {"c0": 1.0} if state["section"] != "b" else {"c1": 1.0})
     scores = JevBackend(concurrency=2).score(["a", "b", "c", "b"], CANDIDATES)
     assert scores.values.argmax(axis=1).tolist() == [0, 1, 0, 1]
+
+
+def test_jev_usage_is_what_the_api_reported(install):
+    install(choice_probs={"c0": 1.0}, input_tokens=120)
+    backend = JevBackend()
+    assert backend.usage() == TokenUsage()
+    backend.score(["a", "b", "c"], CANDIDATES)
+    assert backend.usage() == TokenUsage(360, 6, 3)
+
+
+def test_jev_usage_without_counts_is_estimated(install):
+    install(choice_probs={"c0": 1.0})  # the API reported no input tokens
+    backend = JevBackend()
+    backend.score(["a", "b"], CANDIDATES)
+    assert not backend.usage().exact and backend.usage().calls == 2
 
 
 def test_jev_semaphore_limits_concurrency(install):

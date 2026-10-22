@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>docrooter · Landon Thornton</title>
+<meta name="description" content="docrooter sends a hosted LLM the least it needs to classify a document and its sections. Pick a rung of the context ladder and see the answer, the tokens and the cost, measured with Claude Haiku 5.5.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+/* Layout: a project sheet from landonthornton.com. The controls in a left rail, docrooter's run as a drafted figure, then the benchmark and notes in the site's label/body columns on the 24px dot grid. */
+:root{
+  /* Flexoki (stephango.com/flexoki), neutrals only, as on landonthornton.com */
+  --paper:#FFFCF0;
+  --ink:#100F0F;
+  --graphite:#6F6E69;
+  --rule:rgba(16,15,15,.16);
+  --dot:rgba(16,15,15,.16);
+  --panel:#E6E4D9;
+  --wash:rgba(255,252,240,.94);
+  --serif:"Michelangelus","EB Garamond","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --gutter:max(16px, env(safe-area-inset-left, 0px), calc((100vw - 1040px) / 2 + 16px));
+  --gutter-r:max(16px, env(safe-area-inset-right, 0px), calc((100vw - 1040px) / 2 + 16px));
+  --line-top:0 -0.5px 0 0 var(--rule), inset 0 0.5px 0 0 var(--rule), 0 -1.75px 0 0 var(--paper), inset 0 1.75px 0 0 var(--paper);
+  --line-box-gap:0 0 0 1.75px var(--paper), inset 0 0 0 1.75px var(--paper);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--paper:#100F0F;--ink:#CECDC3;--graphite:#878580;--rule:rgba(206,205,195,.16);--dot:rgba(206,205,195,.12);--panel:#282726;--wash:rgba(16,15,15,.94);color-scheme:dark}
+}
+:root[data-theme="dark"]{--paper:#100F0F;--ink:#CECDC3;--graphite:#878580;--rule:rgba(206,205,195,.16);--dot:rgba(206,205,195,.12);--panel:#282726;--wash:rgba(16,15,15,.94);color-scheme:dark}
+
+body{
+  background-color:var(--paper);
+  background-image:radial-gradient(circle at 12px 12px, var(--dot) 1.15px, transparent 1.65px);
+  background-size:24px 24px;
+  background-position:calc(var(--gutter) - 12px) -12px;
+  color:var(--ink);
+  font-family:var(--serif);
+  font-size:19px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--ink);text-decoration-thickness:1px;text-underline-offset:4px}
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;min-height:48px;
+  padding-left:var(--gutter);padding-right:var(--gutter-r);background:var(--wash);box-shadow:0 0.5px 0 0 var(--rule);
+  font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+.topbar span:last-child{color:var(--graphite)}
+.topbar .home{color:inherit;text-decoration:none}
+.topbar .home:hover{text-decoration:underline}
+
+.wrap{padding-left:var(--gutter);padding-right:var(--gutter-r);padding-bottom:48px}
+.sec{display:grid;grid-template-columns:168px minmax(0,672px);gap:0 48px;padding-block:48px;box-shadow:var(--line-top)}
+.sec.first{box-shadow:none}
+.label{font-family:var(--mono);font-weight:400;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--graphite);margin:0;line-height:24px}
+.body{min-width:0}
+.body > p{margin:0 0 24px;line-height:24px;max-width:62ch;text-wrap:pretty}
+.body > p:last-child{margin-bottom:0}
+h1{font-weight:400;font-size:clamp(44px,6vw,64px);line-height:72px;letter-spacing:-.015em;margin:0 0 24px;text-wrap:balance}
+.body > p.lead{font-style:italic;font-size:clamp(22px,2.4vw,26px);color:var(--graphite);line-height:48px;margin-bottom:24px;text-wrap:balance}
+.meta{display:flex;flex-wrap:wrap;gap:0 24px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--graphite)}
+.body > p.meta{line-height:24px}
+
+/* ---------- the tool ---------- */
+.tool{display:grid;grid-template-columns:216px minmax(0,1fr);gap:24px 48px;padding-block:48px;box-shadow:var(--line-top)}
+.controls{display:grid;align-content:start;gap:24px;min-width:0}
+.group{display:grid;gap:0;min-width:0}
+.hint{margin:12px 0 0;font-style:italic;font-size:15px;line-height:24px;color:var(--graphite)}
+.btn{box-sizing:border-box;display:grid;place-items:center;height:48px;width:100%;padding:0;background:var(--paper);border:0;outline:1px solid var(--ink);outline-offset:-0.5px;box-shadow:var(--line-box-gap);color:var(--ink);font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+.btn:hover{background:var(--ink);color:var(--paper)}
+.btn:focus-within{outline-width:2px}
+.btn.quiet{outline-color:var(--rule)}
+.btn.quiet:hover{outline-color:var(--ink)}
+.btn[aria-disabled="true"]{opacity:.5;pointer-events:none}
+.file input{position:absolute;width:1px;height:1px;opacity:0}
+select{box-sizing:border-box;width:100%;height:48px;padding:0 12px;border:0;border-radius:0;outline:1px solid var(--ink);outline-offset:-0.5px;box-shadow:var(--line-box-gap);background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:12px;cursor:pointer}
+.group .btn + .btn, .group select + .btn{margin-top:12px}
+.seg{display:grid;grid-template-columns:1fr 1fr;outline:1px solid var(--ink);outline-offset:-0.5px;box-shadow:var(--line-box-gap)}
+.seg button{height:48px;border:0;background:var(--paper);color:var(--graphite);font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;padding:0 6px}
+.seg button + button{box-shadow:inset 0.5px 0 0 var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.readout{margin:12px 0 0;padding-top:12px;box-shadow:inset 0 0.5px 0 0 var(--rule);font-family:var(--mono);font-size:11px;line-height:24px;color:var(--graphite)}
+.readout b{font-weight:500;color:var(--ink)}
+
+.fig{margin:0;min-width:0;display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+.stage{position:relative;width:round(down, 100%, 24px);box-sizing:border-box;padding:24px;background:var(--paper);outline:1px solid var(--rule);outline-offset:-0.5px;box-shadow:var(--line-box-gap)}
+.stage.drag{outline:2px dashed var(--ink)}
+.docline{margin:0;font-family:var(--mono);font-size:11px;line-height:24px;letter-spacing:.06em;color:var(--graphite);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.docline b{font-weight:500;color:var(--ink)}
+.verdict{margin:24px 0 0;min-height:48px;font-size:clamp(28px,4vw,36px);line-height:48px;font-weight:400;letter-spacing:-.01em;overflow-wrap:anywhere}
+.verdict.weighing{color:var(--graphite)}
+.sub{margin:0;font-family:var(--mono);font-size:12px;line-height:24px;color:var(--graphite);font-variant-numeric:tabular-nums}
+.sub b{font-weight:500;color:var(--ink)}
+.h4{margin:24px 0 0;font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite);line-height:24px}
+
+/* the ladder: one row per rung, prompt tokens as a bar, the answer at that rung */
+.ladder{list-style:none;margin:0;padding:0}
+.rung{display:grid;grid-template-columns:96px minmax(0,1fr) 72px 24px;gap:0 12px;align-items:center;height:48px;box-shadow:inset 0 -0.5px 0 0 var(--rule);cursor:pointer}
+.rung:first-child{box-shadow:inset 0 0.5px 0 0 var(--rule), inset 0 -0.5px 0 0 var(--rule)}
+.rung .nm{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--graphite)}
+.rung .track{height:12px;position:relative}
+.rung .bar{position:absolute;inset:0 auto 0 0;background:var(--graphite);opacity:.35;min-width:1px;transition:width .25s ease}
+.rung .tk{font-family:var(--mono);font-size:12px;text-align:right;font-variant-numeric:tabular-nums;color:var(--graphite)}
+.rung .mk{font-family:var(--mono);font-size:13px;text-align:center}
+.rung .mk.no{color:var(--graphite)}
+.rung[aria-checked="true"] .nm, .rung[aria-checked="true"] .tk{color:var(--ink);font-weight:500}
+.rung[aria-checked="true"] .bar{background:var(--ink);opacity:1}
+.rung:hover .bar{opacity:.6}
+.rung[aria-checked="true"]:hover .bar{opacity:1}
+.rung:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+
+/* section tags */
+.tags{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);gap:0;margin:0}
+.tags dt{font-size:17px;line-height:24px;padding-block:6px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:inset 0 -0.5px 0 0 var(--rule)}
+.tags dt.l2{padding-left:24px;color:var(--graphite)}
+.tags dd{margin:0;padding-block:6px;padding-left:24px;font-family:var(--mono);font-size:11px;line-height:24px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:inset 0 -0.5px 0 0 var(--rule)}
+.tags dd .miss{color:var(--graphite);text-decoration:line-through;text-decoration-thickness:1px}
+.tags dd .gold{color:var(--graphite)}
+.more{margin:12px 0 0;font-family:var(--mono);font-size:11px;line-height:24px;color:var(--graphite)}
+
+/* what the model saw */
+.view{margin:0;max-height:240px;overflow:auto;padding:12px;background:var(--panel);font-family:var(--mono);font-size:11.5px;line-height:18px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink)}
+.empty{margin:24px 0 0;font-style:italic;color:var(--graphite);line-height:24px}
+.fig figcaption{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:0 24px;font-family:var(--mono);font-size:11px;line-height:48px;letter-spacing:.04em;color:var(--graphite)}
+.key{display:flex;flex-wrap:wrap;gap:0 18px}
+.key span{display:inline-flex;align-items:center;gap:8px}
+.sw{display:inline-block;width:18px;height:12px;outline:1px solid var(--ink);outline-offset:-0.5px}
+.sw.on{background:var(--ink)}
+.sw.off{background:var(--graphite);opacity:.35;outline-color:transparent}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0;width:round(down, 100%, 24px);outline:1px solid var(--rule);outline-offset:-0.5px;box-shadow:var(--line-box-gap)}
+.stat{padding:12px;min-width:0;display:grid;align-content:start}
+.stat + .stat{box-shadow:inset 0.5px 0 0 var(--rule)}
+.stat dt{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite);line-height:24px}
+.stat dd{margin:0}
+.stat .v{font-size:28px;line-height:48px;font-variant-numeric:tabular-nums lining-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat .v.word{font-size:19px}
+.stat .s{font-family:var(--mono);font-size:11px;line-height:24px;color:var(--graphite)}
+.tool .stats{grid-column:2}
+
+/* ---------- benchmark ---------- */
+.tablebox{overflow-x:auto;width:round(down, 100%, 24px)}
+table{width:100%;min-width:560px;border-collapse:collapse;font-variant-numeric:tabular-nums}
+caption{text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--graphite);line-height:24px;padding-bottom:12px}
+th,td{padding:0 0 0 12px;line-height:48px;text-align:right;box-shadow:inset 0 -0.5px 0 0 var(--rule);white-space:nowrap}
+th:first-child,td:first-child{text-align:left;padding-left:0}
+thead th{font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite);line-height:24px;padding-bottom:12px;vertical-align:bottom}
+td{font-family:var(--mono);font-size:13px}
+td:first-child{font-family:var(--serif);font-size:18px}
+tr.pick td{font-weight:500}
+tr.pick td:first-child{font-style:italic}
+.tablebox + .tablebox{margin-top:48px}
+.chart{margin:48px 0 0;width:round(down, 100%, 24px)}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart .ax{stroke:var(--ink);stroke-width:1}
+.chart .gr{stroke:var(--rule);stroke-width:1}
+.chart .t{font-family:var(--mono);font-size:10px;fill:var(--graphite)}
+.chart .n{font-family:var(--serif);font-size:15px;fill:var(--ink);paint-order:stroke;stroke:var(--paper);stroke-width:4px;stroke-linejoin:round}
+.chart .ln{fill:none;stroke:var(--ink);stroke-width:1.2}
+.chart .ln.b{stroke-dasharray:4 4}
+.chart .ln.c{stroke:var(--graphite)}
+.chart .pt{fill:var(--paper);stroke:var(--ink);stroke-width:1.2}
+.chart .pt.a{fill:var(--ink)}
+.chart .pt.c{stroke:var(--graphite)}
+.chart figcaption{font-family:var(--mono);font-size:11px;line-height:24px;padding-block:12px;letter-spacing:.04em;color:var(--graphite)}
+.note{margin:24px 0 0;line-height:24px;font-size:17px;color:var(--graphite);max-width:62ch}
+
+.foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0 24px;padding-block:24px;line-height:24px;box-shadow:var(--line-top);font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--graphite)}
+.foot a{color:inherit}
+
+@media (max-width:960px){
+  .tool{grid-template-columns:minmax(0,1fr)}
+  .controls{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 48px}
+  .tool .stats{grid-column:auto}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stat:nth-child(3){box-shadow:inset 0 0.5px 0 0 var(--rule)}
+  .stat:nth-child(4){box-shadow:inset 0.5px 0 0 var(--rule), inset 0 0.5px 0 0 var(--rule)}
+}
+@media (max-width:760px){
+  .sec{grid-template-columns:minmax(0,1fr)}
+  .sec > .label{margin-bottom:24px}
+}
+@media (max-width:520px){
+  .controls{grid-template-columns:minmax(0,1fr)}
+  .stats{grid-template-columns:minmax(0,1fr)}
+  .stat + .stat, .stat:nth-child(4){box-shadow:inset 0 0.5px 0 0 var(--rule)}
+  .stage{padding:12px}
+  .rung{grid-template-columns:72px minmax(0,1fr) 60px 18px;gap:0 8px}
+  .tags{grid-template-columns:minmax(0,1fr)}
+  .tags dt{box-shadow:none;padding-bottom:0}
+  .tags dd{text-align:left;padding-top:0;padding-left:0}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a href="https://landonthornton.com/" class="home">Landon Thornton</a>
+  <span>Work · Document AI</span>
+</header>
+
+<main class="wrap">
+  <section class="sec first" aria-labelledby="ttl">
+    <p class="label">Interactive tool</p>
+    <div class="body">
+      <h1 id="ttl">docrooter</h1>
+      <p class="lead">How little does a model need to read to know what a document is? Climb the ladder and watch the answer, the tokens and the cost.</p>
+      <p class="meta"><span>Claude Haiku 5.5</span><span>4-rung context ladder</span><span>Exact token accounting</span><span>Open source, MIT</span></p>
+    </div>
+  </section>
+
+  <section class="tool" aria-label="docrooter">
+    <aside class="controls" aria-label="Choose a document">
+      <div class="group">
+        <p class="label"><label for="sample">A sample</label></p>
+        <select id="sample"><option value="">Loading samples…</option></select>
+        <button type="button" class="btn quiet" id="random">Random sample</button>
+        <p class="hint">Public-domain and openly licensed documents from the benchmark. Their runs are the benchmark's own, so they load instantly.</p>
+      </div>
+      <div class="group">
+        <p class="label" id="flowLabel">Flow</p>
+        <div class="seg" role="group" aria-labelledby="flowLabel">
+          <button type="button" id="flowDoc" aria-pressed="true">Doc first</button>
+          <button type="button" id="flowSec" aria-pressed="false">Sections first</button>
+        </div>
+        <p class="hint" id="flowHint">Name the type from the document view, then tag the sections.</p>
+      </div>
+      <div class="group">
+        <p class="label">Your document</p>
+        <label class="btn file" id="fileBtn">Choose a file<input type="file" id="file" accept=".pdf,.md,.txt,application/pdf,text/markdown,text/plain"></label>
+        <p class="hint">A PDF (up to 4 MB, 60 pages read), Markdown or text file, or drop one on the figure. docrooter runs on the server at the rung you pick; the file isn't kept.</p>
+      </div>
+      <div class="group">
+        <p class="label">What's sent</p>
+        <p class="readout" id="sent">Nothing yet.</p>
+      </div>
+    </aside>
+
+    <figure class="fig">
+      <div class="stage" id="stage">
+        <p class="docline" id="docline">No document yet</p>
+        <p class="verdict" id="verdict" aria-live="polite">Choose a document</p>
+        <p class="sub" id="sub">Pick a sample, or choose a file of your own.</p>
+        <p class="h4" id="ladderLabel">Context ladder · prompt tokens and the answer at each rung</p>
+        <ol class="ladder" id="ladder" role="radiogroup" aria-labelledby="ladderLabel"></ol>
+        <p class="h4" id="tagsLabel" hidden>Section tags</p>
+        <dl class="tags" id="tags" aria-labelledby="tagsLabel" hidden></dl>
+        <p class="more" id="tagsMore" hidden></p>
+        <p class="h4" id="viewLabel" hidden>What the model saw for the type</p>
+        <pre class="view" id="view" hidden></pre>
+      </div>
+      <figcaption>
+        <span>Fig. 1 · docrooter with Claude Haiku 5.5</span>
+        <span class="key"><span><i class="sw on"></i>Rung sent</span><span><i class="sw off"></i>Other rungs</span><span>✓ ✗ against the source</span></span>
+      </figcaption>
+    </figure>
+
+    <dl class="stats" id="stats">
+      <div class="stat"><dt>Prompt tokens</dt><dd><div class="v" id="sTok">–</div><div class="s" id="sTokS">exact, from the API</div></dd></div>
+      <div class="stat"><dt>Share of full</dt><dd><div class="v" id="sShare">–</div><div class="s" id="sShareS">of sending the whole text</div></dd></div>
+      <div class="stat"><dt>Cost</dt><dd><div class="v" id="sCost">–</div><div class="s" id="sCostS">at Haiku 5.5 list price</div></dd></div>
+      <div class="stat"><dt>Decided by</dt><dd><div class="v word" id="sBy">–</div><div class="s" id="sByS">rules or the model</div></dd></div>
+    </dl>
+  </section>
+
+  <section class="sec" aria-labelledby="l-bench">
+    <h2 class="label" id="l-bench">Benchmark</h2>
+    <div class="body">
+      <p class="lead" id="takeaway">The headings alone were enough.</p>
+      <div class="tablebox">
+        <table id="bench">
+          <caption id="benchCap">Loading the benchmark…</caption>
+          <thead><tr><th scope="col">Rung</th><th scope="col">Doc first</th><th scope="col">Sections first</th><th scope="col">Tokens / doc</th><th scope="col">Section tags F1</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="tablebox">
+        <table id="held">
+          <caption>Held-out: 40 documents no rule or prompt was tuned on, scored once</caption>
+          <thead><tr><th scope="col">Rung</th><th scope="col">Doc first</th><th scope="col">Sections first</th><th scope="col">Tokens / doc</th><th scope="col">Documents</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <figure class="chart" id="chart" hidden>
+        <svg id="chartSvg" role="img" aria-label="Document-type accuracy against prompt tokens per document, for each rung"></svg>
+        <figcaption>Fig. 2 · Accuracy against prompt tokens per document (log scale), gold split. Left to right: headings, key terms, leads, full text.</figcaption>
+      </figure>
+      <p class="note">Haiku's tokens are exact, from the API's usage. UltraBERT, a local embedding model, makes no LLM call, so its tokens estimate what the same views would cost an LLM. Haiku ran with thinking off and batched calls: one call for the type, a few for the sections, each option listed once.</p>
+      <p class="note"><b>A note on the numbers.</b> The 113 gold documents span 8 types (annual reports, fact sheets, prospectuses, government reports, contracts, court opinions, research papers, standards), and the doc-type rules were revised once after looking at them, so treat the gold column as development numbers. The held-out set is the clean measure. The section labels were written by Claude annotators for evaluation only.</p>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="l-how">
+    <h2 class="label" id="l-how">How it works</h2>
+    <div class="body">
+      <p><b>A context ladder.</b> docrooter reads a PDF or Markdown file into a section tree, then renders it at four rungs, each adding one field: the headings (title, page and section counts, the contents), then key terms, then the opening sentences, then the whole text, budgeted to a 16,000-token prompt. You choose the rung; the benchmark measures what each one buys.</p>
+      <p><b>Two flows.</b> Doc first names the type from the document view, then tags the sections with that type's own labels. Sections first tags the level-1 and level-2 sections against a shared catalogue of 112 section types, and lets rules (a balance sheet means a financial report, an opinion and a holding mean a court opinion) narrow or decide the type, asking the model only when they can't.</p>
+      <p><b>Every token counted.</b> Calls are batched, so each option list is sent once per stage, not once per section. Every call reports its exact prompt and completion tokens, and every section tag carries its share.</p>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="l-why">
+    <h2 class="label" id="l-why">Why</h2>
+    <div class="body">
+      <p>Sending a hosted LLM the whole document is the easy default, and it's expensive at volume: a 200-page filing is 100,000 tokens before the model reads a word of the question. I built docrooter to find the least a model needs to see. The answer surprised me. For the document's type, the title and the contents were as good as anything richer, and better than the full text, at about an eighth of the tokens. More context gave the model more to be distracted by.</p>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>Code: <a href="https://github.com/LandoCole/docrooter">github.com/LandoCole/docrooter</a> · MIT</span>
+    <span>Classification by Claude Haiku 5.5 from <a href="https://www.anthropic.com">Anthropic</a></span>
+  </footer>
+</main>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const LEVELS = ['headings', 'terms', 'lead', 'full'];
+const RUNG = { headings: 'Headings', terms: '+ Key terms', lead: '+ Leads', full: 'Full text' };
+const PRICE = { prompt: 0.10e-6, completion: 0.50e-6 };
+const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const fmt = (n, d = 0) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = x => `${fmt(100 * x, 1)}%`;
+const usd = x => x < 0.01 ? `$${x.toFixed(4)}` : `$${x.toFixed(3)}`;
+const estTokens = chars => Math.round(chars / 4);
+
+let labels = {};
+let samples = [];
+let current = null;          // the sample or live result on show
+let flow = 'doc_first';
+let level = 'headings';
+let busy = false;
+
+const label = id => id ? (labels[id] || id.split('.').pop().replace(/_/g, ' ')) : 'no answer';
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+// ---------- the ladder ----------
+for (const lv of LEVELS) {
+  const li = document.createElement('li');
+  li.className = 'rung';
+  li.tabIndex = -1;
+  li.setAttribute('role', 'radio');
+  li.dataset.level = lv;
+  li.innerHTML = `<span class="nm">${RUNG[lv]}</span><span class="track"><span class="bar"></span></span><span class="tk">–</span><span class="mk"></span>`;
+  li.addEventListener('click', () => pick(lv));
+  li.addEventListener('keydown', e => {
+    const i = LEVELS.indexOf(level);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); pick(LEVELS[Math.min(3, i + 1)], true); }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); pick(LEVELS[Math.max(0, i - 1)], true); }
+  });
+  $('ladder').append(li);
+}
+
+function pick(lv, focus = false) {
+  if (busy) return;
+  level = lv;
+  if (current?.live && !current.runs[`${flow}/${lv}`] && current.file) return runLive(current.file);
+  render();
+  if (focus) $('ladder').querySelector(`[data-level="${lv}"]`).focus();
+}
+
+function setFlow(f) {
+  if (busy) return;
+  flow = f;
+  $('flowDoc').setAttribute('aria-pressed', f === 'doc_first');
+  $('flowSec').setAttribute('aria-pressed', f === 'sections_first');
+  $('flowHint').textContent = f === 'doc_first'
+    ? 'Name the type from the document view, then tag the sections.'
+    : 'Tag the sections first; rules over the tags narrow or decide the type.';
+  if (current?.live && !current.runs[`${flow}/${level}`] && current.file) return runLive(current.file);
+  render();
+}
+$('flowDoc').addEventListener('click', () => setFlow('doc_first'));
+$('flowSec').addEventListener('click', () => setFlow('sections_first'));
+
+// ---------- rendering ----------
+function render() {
+  const s = current;
+  const rungs = [...$('ladder').children];
+  for (const li of rungs) {
+    const on = li.dataset.level === level;
+    li.setAttribute('aria-checked', on);
+    li.tabIndex = on ? 0 : -1;
+  }
+  if (!s) return;
+  const run = s.runs[`${flow}/${level}`];
+  const full = s.runs[`${flow}/full`];
+
+  // ladder rows: exact tokens where the rung was run; elsewhere an estimate, a run rung's
+  // overhead (instructions, options, sections) plus that rung's view
+  const sizes = LEVELS.map(lv => s.runs[`${flow}/${lv}`]?.tokens.prompt ?? null);
+  const ran = LEVELS.find(lv => s.runs[`${flow}/${lv}`] && s.views[lv]);
+  const overhead = ran ? Math.max(0, s.runs[`${flow}/${ran}`].tokens.prompt - estTokens(s.views[ran].chars)) : 0;
+  const guess = lv => overhead + estTokens(s.views[lv]?.chars ?? 0);
+  const max = Math.max(...LEVELS.map((lv, i) => sizes[i] ?? guess(lv)), 1);
+  rungs.forEach((li, i) => {
+    const lv = LEVELS[i];
+    const r = s.runs[`${flow}/${lv}`];
+    const size = sizes[i] ?? guess(lv);
+    li.querySelector('.bar').style.width = `${Math.max(0.5, 100 * size / max)}%`;
+    li.querySelector('.tk').textContent = sizes[i] != null ? fmt(sizes[i]) : (s.views[lv] ? `~${fmt(size)}` : '–');
+    const mk = li.querySelector('.mk');
+    if (r && s.gold) { mk.textContent = r.correct ? '✓' : '✗'; mk.className = `mk ${r.correct ? '' : 'no'}`; mk.title = label(r.pred); }
+    else { mk.textContent = r ? '•' : ''; mk.className = 'mk'; mk.title = r ? label(r.pred) : 'not run'; }
+  });
+
+  const pages = s.pages ? `${s.pages} pages` : '';
+  $('docline').innerHTML = `<b>${esc(s.title)}</b>${pages ? ` · ${pages}` : ''}${s.publisher ? ` · ${esc(s.publisher)}` : ''}`;
+  $('docline').title = s.attribution || s.title;
+
+  if (!run) {
+    $('verdict').textContent = 'Not run at this rung';
+    $('verdict').className = 'verdict weighing';
+    $('sub').textContent = s.live ? 'Choose the rung again to run it.' : '';
+    showStats(null, null);
+  } else {
+    $('verdict').textContent = cap(label(run.pred));
+    $('verdict').className = 'verdict';
+    const how = run.decided_by === 'rules' ? 'decided by the section rules, no type call'
+      : run.decided_by === 'fallback' ? 'the model chose; the rules had too little to go on'
+      : run.candidates?.length > 1 ? `the model chose among ${run.candidates.length} the rules left`
+      : 'the model chose among every type';
+    const check = s.gold ? (run.correct ? ` · <b>matches the source</b>` : ` · the source says <b>${esc(label(s.gold))}</b>`) : '';
+    $('sub').innerHTML = `${how}${check}`;
+    showStats(run, full);
+  }
+  renderTags(s, run);
+  const v = s.views[level];
+  $('viewLabel').hidden = $('view').hidden = !v;
+  if (v) {
+    $('viewLabel').textContent = `What the model saw for the type · ${RUNG[level].replace('+ ', '')}${v.chars > v.text.length ? ` · first ${fmt(v.text.length)} of ${fmt(v.chars)} characters` : ''}`;
+    $('view').textContent = v.text;
+  }
+}
+
+function renderTags(s, run) {
+  const tags = $('tags');
+  tags.replaceChildren();
+  // a sample's run holds tags for the sections the annotators labelled; a live run, for all
+  const rows = (s.sections || []).filter(sec => !s.gold || run?.tags?.[sec.id]);
+  const show = run && rows.length;
+  $('tagsLabel').hidden = tags.hidden = !show;
+  $('tagsMore').hidden = true;
+  if (!show) return;
+  let right = 0, scored = 0;
+  for (const sec of rows) {
+    const t = run.tags?.[sec.id];
+    const dt = document.createElement('dt');
+    dt.textContent = sec.title || '(untitled)';
+    dt.title = sec.title;
+    if (sec.level > 1) dt.className = 'l2';
+    const dd = document.createElement('dd');
+    if (!t || !t.pred) dd.innerHTML = '<span class="gold">not tagged</span>';
+    else if (t.gold && t.gold !== t.pred) dd.innerHTML = `<span class="miss">${esc(label(t.pred))}</span> <span class="gold">${esc(label(t.gold))}</span>`;
+    else dd.textContent = label(t.pred);
+    if (t?.gold) { scored++; if (t.gold === t.pred) right++; }
+    tags.append(dt, dd);
+  }
+  $('tagsLabel').textContent = scored ? `Section tags · ${right} of ${scored} match the annotators` : 'Section tags';
+  const extra = (s.sections_total || rows.length) - rows.length;
+  if (extra > 0) {
+    $('tagsMore').hidden = false;
+    $('tagsMore').textContent = s.gold
+      ? `Showing the ${rows.length} sections the annotators labelled, of ${s.sections_total} tagged.`
+      : `+ ${extra} more sections tagged`;
+  }
+}
+
+function showStats(run, full) {
+  if (!run) {
+    for (const id of ['sTok', 'sShare', 'sCost', 'sBy']) $(id).textContent = '–';
+    $('sent').textContent = 'Nothing yet.';
+    return;
+  }
+  const t = run.tokens;
+  $('sTok').textContent = fmt(t.prompt);
+  $('sTokS').textContent = `${t.exact ? 'exact' : 'estimated'}, over ${t.calls} call${t.calls === 1 ? '' : 's'}`;
+  $('sShare').textContent = full ? pct(t.prompt / full.tokens.prompt) : '–';
+  $('sShareS').textContent = full ? `of ${fmt(full.tokens.prompt)} at full text` : 'run full text to compare';
+  const c = run.cost_usd ?? (t.prompt * PRICE.prompt + t.completion * PRICE.completion);
+  $('sCost').textContent = usd(c);
+  $('sCostS').textContent = `≈ $${fmt(c * 1000, 2)} per 1,000 docs`;
+  $('sBy').textContent = run.decided_by === 'rules' ? 'Section rules' : run.decided_by === 'fallback' ? 'Model (fallback)' : 'Model';
+  $('sByS').textContent = run.flags?.length ? run.flags.join(', ').replace(/_/g, ' ') : 'no flags';
+  $('sent').innerHTML = `<b>${fmt(t.prompt)}</b> prompt and <b>${fmt(t.completion)}</b> completion tokens in <b>${t.calls}</b> call${t.calls === 1 ? '' : 's'} at the <b>${RUNG[level].replace('+ ', '').toLowerCase()}</b> rung.`;
+}
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ---------- samples ----------
+fetch('data/index.json').then(r => r.json()).then(data => {
+  labels = data.labels;
+  samples = data.samples;
+  const sel = $('sample');
+  sel.replaceChildren(new Option('Choose a sample…', ''));
+  const groups = new Map();
+  for (const s of samples) {
+    if (!groups.has(s.gold)) groups.set(s.gold, []);
+    groups.get(s.gold).push(s);
+  }
+  for (const [type, list] of groups) {
+    const og = document.createElement('optgroup');
+    og.label = cap(label(type));
+    for (const s of list) og.append(new Option(s.title.length > 60 ? s.title.slice(0, 58) + '…' : s.title, s.id));
+    sel.append(og);
+  }
+  const first = new URLSearchParams(location.search).get('sample') || samples[0]?.id;
+  if (first) { sel.value = first; loadSample(first); }
+  loadBench();
+}).catch(() => { $('sample').replaceChildren(new Option('Samples unavailable', '')); $('sample').disabled = true; });
+
+async function loadSample(id) {
+  if (!id || busy) return;
+  const s = await (await fetch(`data/${id}.json`)).json();
+  current = s;
+  render();
+}
+$('sample').addEventListener('change', e => loadSample(e.target.value));
+$('random').addEventListener('click', () => {
+  const others = samples.filter(s => s.id !== current?.id);
+  const s = others[Math.floor(Math.random() * others.length)];
+  if (s) { $('sample').value = s.id; loadSample(s.id); }
+});
+
+// ---------- your own document ----------
+$('file').addEventListener('change', e => { const f = e.target.files[0]; if (f) runLive(f); e.target.value = ''; });
+const stage = $('stage');
+stage.addEventListener('dragover', e => { e.preventDefault(); stage.classList.add('drag'); });
+stage.addEventListener('dragleave', () => stage.classList.remove('drag'));
+stage.addEventListener('drop', e => { e.preventDefault(); stage.classList.remove('drag'); const f = e.dataTransfer.files[0]; if (f) runLive(f); });
+
+async function runLive(file) {
+  if (busy) return;
+  if (file.size > MAX_FILE_BYTES) { fail(`${file.name} is ${fmt(file.size / 1048576, 1)} MB; the live demo takes files up to 4 MB.`); return; }
+  if (!/\.(pdf|md|markdown|txt)$/i.test(file.name)) { fail('Choose a PDF, Markdown or text file.'); return; }
+  busy = true;
+  $('fileBtn').setAttribute('aria-disabled', 'true');
+  $('sample').value = '';
+  const keep = current?.live && current.file === file ? current : null;
+  $('docline').innerHTML = `<b>${esc(file.name)}</b> · ${fmt(file.size / 1024)} KB`;
+  $('verdict').textContent = 'Reading…';
+  $('verdict').className = 'verdict weighing';
+  $('sub').textContent = `docrooter is reading it and asking Claude Haiku 5.5 at the ${RUNG[level].replace('+ ', '').toLowerCase()} rung.`;
+  const t0 = performance.now();
+  try {
+    const q = new URLSearchParams({ flow, level, name: file.name });
+    const res = await fetch(`/api/docrooter_demo?${q}`, { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+    const data = await res.json().catch(() => ({ error: `The server answered ${res.status}.` }));
+    if (!res.ok || data.error) throw new Error(data.error || `The server answered ${res.status}.`);
+    Object.assign(labels, data.labels || {});
+    const result = keep || { ...data, live: true, file, runs: {} };
+    Object.assign(result.runs, data.runs);
+    result.views = data.views;
+    current = result;
+    busy = false;
+    render();
+    $('sub').innerHTML += ` · ${fmt((performance.now() - t0) / 1000, 1)} s`;
+  } catch (err) {
+    busy = false;
+    fail(err.message);
+  } finally {
+    busy = false;
+    $('fileBtn').removeAttribute('aria-disabled');
+  }
+}
+
+function fail(msg) {
+  current = null;
+  for (const li of $('ladder').children) {
+    li.querySelector('.bar').style.width = '0';
+    li.querySelector('.tk').textContent = '–';
+    li.querySelector('.mk').textContent = '';
+  }
+  $('tagsLabel').hidden = $('tags').hidden = $('tagsMore').hidden = true;
+  $('viewLabel').hidden = $('view').hidden = true;
+  showStats(null, null);
+  $('verdict').textContent = 'Couldn’t classify that';
+  $('verdict').className = 'verdict weighing';
+  $('sub').textContent = msg;
+}
+
+// ---------- benchmark ----------
+async function loadBench() {
+  let data;
+  try { data = await (await fetch('data/bench.json')).json(); } catch { $('benchCap').textContent = 'Benchmark unavailable.'; return; }
+  const rows = data.rows;
+  const get = (backend, docs, f, lv) => rows.find(r => r.backend === backend && r.docs === docs && r.flow === f && r.level === lv);
+  const body = $('bench').tBodies[0];
+  for (const lv of LEVELS) {
+    const d = get('haiku-5.5', 'gold', 'doc_first', lv), s = get('haiku-5.5', 'gold', 'sections_first', lv);
+    if (!d) continue;
+    const tr = document.createElement('tr');
+    if (lv === 'headings') tr.className = 'pick';
+    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${pct(d.doc_acc)}</td><td>${s ? pct(s.doc_acc) : '–'}</td><td>${fmt(d.prompt_tokens)}</td><td>${s?.leaf_f1 != null ? fmt(100 * s.leaf_f1, 1) : '–'}</td>`;
+    body.append(tr);
+  }
+  $('benchCap').textContent = `Claude Haiku 5.5 on 113 public documents (gold split). Document-type accuracy per flow; tokens are doc first's.`;
+  const held = $('held').tBodies[0];
+  for (const lv of LEVELS) {
+    const d = get('haiku-5.5', 'heldout', 'doc_first', lv), s = get('haiku-5.5', 'heldout', 'sections_first', lv);
+    if (!d) continue;
+    const tr = document.createElement('tr');
+    if (lv === 'headings') tr.className = 'pick';
+    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${pct(d.doc_acc)}</td><td>${s ? pct(s.doc_acc) : '–'}</td><td>${fmt(d.prompt_tokens)}</td><td>${d.documents}</td>`;
+    held.append(tr);
+  }
+  const ub = get('ultrabert', 'heldout', 'doc_first', 'lead');
+  if (ub) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>UltraBERT, + leads</td><td>${pct(ub.doc_acc)}</td><td>–</td><td>~${fmt(ub.prompt_tokens)}</td><td>${ub.documents}</td>`;
+    held.append(tr);
+  }
+  drawChart(get);
+}
+
+function drawChart(get) {
+  const series = [
+    { name: 'Haiku, doc first', cls: 'a', pts: LEVELS.map(lv => get('haiku-5.5', 'gold', 'doc_first', lv)) },
+    { name: 'Haiku, sections first', cls: 'b', pts: LEVELS.map(lv => get('haiku-5.5', 'gold', 'sections_first', lv)) },
+    { name: 'UltraBERT (est. tokens)', cls: 'c', pts: LEVELS.map(lv => get('ultrabert', 'gold', 'doc_first', lv)) },
+  ].map(s => ({ ...s, pts: s.pts.filter(Boolean) })).filter(s => s.pts.length);
+  if (!series.length) return;
+  const W = 640, H = 336, L = 48, R = 168, T = 12, B = 48;
+  const all = series.flatMap(s => s.pts);
+  const x0 = Math.log10(1000), x1 = Math.log10(Math.max(...all.map(p => p.prompt_tokens)) * 1.15);
+  const y0 = 0.5, y1 = 1;
+  const X = v => L + (Math.log10(v) - x0) / (x1 - x0) * (W - L - R);
+  const Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  let svg = '';
+  for (const v of [0.5, 0.6, 0.7, 0.8, 0.9, 1]) svg += `<line class="gr" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="t" x="${L - 8}" y="${Y(v) + 3}" text-anchor="end">${v * 100}%</text>`;
+  for (const v of [1000, 2000, 5000, 10000, 20000, 50000]) if (Math.log10(v) <= x1) svg += `<line class="gr" x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H - B}"/><text class="t" x="${X(v)}" y="${H - B + 18}" text-anchor="middle">${v >= 1000 ? v / 1000 + 'k' : v}</text>`;
+  svg += `<line class="ax" x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}"/><line class="ax" x1="${L}" x2="${L}" y1="${T}" y2="${H - B}"/>`;
+  svg += `<text class="t" x="${(L + W - R) / 2}" y="${H - 8}" text-anchor="middle">prompt tokens per document</text>`;
+  for (const s of series) {
+    svg += `<polyline class="ln ${s.cls}" points="${s.pts.map(p => `${X(p.prompt_tokens)},${Y(p.doc_acc)}`).join(' ')}"/>`;
+    for (const p of s.pts) svg += `<circle class="pt ${s.cls}" cx="${X(p.prompt_tokens)}" cy="${Y(p.doc_acc)}" r="4"><title>${s.name}, ${RUNG[p.level]}: ${pct(p.doc_acc)} at ${fmt(p.prompt_tokens)} tokens</title></circle>`;
+    const last = s.pts[s.pts.length - 1];
+    svg += `<text class="n" x="${X(last.prompt_tokens) + 10}" y="${Y(last.doc_acc) + 5}">${s.name}</text>`;
+  }
+  $('chartSvg').setAttribute('viewBox', `0 0 ${W} ${H}`);
+  $('chartSvg').innerHTML = svg;
+  $('chart').hidden = false;
+}
+
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,216 @@
+{
+ "id": "uscourts-ca9-25-5220-0",
+ "title": "WHITFIELD V. MULLIN",
+ "publisher": "United States Court of Appeals for the Ninth Circuit",
+ "pages": 19,
+ "url": "https://www.govinfo.gov/content/pkg/USCOURTS-ca9-25-5220/pdf/USCOURTS-ca9-25-5220-0.pdf",
+ "attribution": "U.S. federal court opinion, a work of the U.S. government.",
+ "gold": "legal.court_opinion",
+ "views": {
+  "headings": {
+   "text": "Title: FILED\nStats: 19 pages, 1 section\nContents: 1 FILED",
+   "chars": 57,
+   "truncated": false
+  },
+  "terms": {
+   "text": "Title: FILED\nStats: 19 pages, 1 section\nKey phrases: winter, district court, merits, preliminary injunctions, likelihood, 555 u s, success, hardships tips sharply, supreme court authority, plaintiff, favor, likely\nContents: 1 FILED",
+   "chars": 231,
+   "truncated": false
+  },
+  "lead": {
+   "text": "Title: FILED\nStats: 19 pages, 1 section\nKey phrases: winter, district court, merits, preliminary injunctions, likelihood, 555 u s, success, hardships tips sharply, supreme court authority, plaintiff, favor, likely\nLead: FILED FOR PUBLICATION OCT 16 2026 UNITED STATES COURT OF APPEALS MOLLY C. DWYER, CLERK U.S. COURT OF APPEALS FOR THE NINTH CIRCUIT DARYL WHITFIELD, No. 25-5220 Plaintiff - Appellant, v. D.C. No. 2:25-cv-04499-HDV-PD Central District of California, Los Angeles ORDER MARKWAYNE MULLIN, in his official capacity as Secretary of the Department of Homeland Security, Defendant - Appellee. Before: M. Margaret McKeown, N. Randy Smith, and Holly A. Thomas, Circuit Judges. Dissent by Judge Bress; Dissent by Judge VanDyke. Judge H.A. Thomas voted to deny the petition for rehearing en banc, and Judges McKeown and N.R. Smith have so recommended. The full court was advised of the petition for rehearing en banc. A judge requested a vote on whether to\nContents: 1 FILED",
+   "chars": 981,
+   "truncated": false
+  },
+  "full": {
+   "text": "Title: FILED\nStats: 19 pages, 1 section\nKey phrases: winter, district court, merits, preliminary injunctions, likelihood, 555 u s, success, hardships tips sharply, supreme court authority, plaintiff, favor, likely\nContents: 1 FILED\nText: FILED FOR PUBLICATION OCT 16 2026 UNITED STATES COURT OF APPEALS MOLLY C. DWYER, CLERK U.S. COURT OF APPEALS FOR THE NINTH CIRCUIT DARYL WHITFIELD, No. 25-5220 Plaintiff - Appellant, v. D.C. No. 2:25-cv-04499-HDV-PD Central District of California, Los Angeles ORDER MARKWAYNE MULLIN, in his official capacity as Secretary of the Department of Homeland Security, Defendant - Appellee. Before: M. Margaret McKeown, N. Randy Smith, and Holly A. Thomas, Circuit Judges. Dissent by Judge Bress; Dissent by Judge VanDyke. Judge H.A. Thomas voted to deny the petition for rehearing en banc, and Judges McKeown and N.R. Smith have so recommended. The full court was advised of the petition for rehearing en banc. A judge requested a vote on whether to rehear the matter en banc. The matter failed to receive a majority of the votes of the non-recused active judges in favor of en banc consideration. See Fed. R. App. P. 40. The petition for rehearing en banc is DENIED. FILED OCT 16 2026 Whitfield v. Mullin, 25-5220 MOLLY C. DWYER, CLERK U.S. COURT OF APPEALS BRESS, Circuit Judge, joined by CALLAHAN, BENNETT, R. NELSON, BADE, COLLINS, LEE, BUMATAY, VANDYKE, and TUNG, Circuit Judges, dissenting from the denial of rehearing en banc: Under Supreme Court precedent, “[a] plaintiff seeking a preliminary injunction must establish [1] that he is likely to succeed on the merits, [2] that he is likely to suffer irreparable harm in the absence of preliminary relief, [3] that the balance of equities tips in his favor, and [4] that an injunction is in the public interest.” Winter v. Nat. Res. Def. Council, Inc., 555 U.S. 7, 20 (2008). But Ninth Circuit precedent permits plaintiffs to obtain preliminary injunctions through an alternative showing, known as the “sliding scale test,” “which allows a strong showing on the balance of the hardships to compensate for a lesser showing of likelihood of success.” Where Do We Go Berkeley v. Cal. Dep’t of Transp., 32 F.4th 852, 859 (9th Cir. 2022) (citing All. for the Wild Rockies v. Cottrell, 632 F.3d 1127, 1134–35 (9th Cir. 2011)). Under that alternative test, “when plaintiffs establish that the balance of hardships tips …",
+   "chars": 27767,
+   "truncated": false
+  }
+ },
+ "sections": [
+  {
+   "id": "s1",
+   "title": "FILED",
+   "level": 1
+  }
+ ],
+ "sections_total": 1,
+ "runs": {
+  "doc_first/headings": {
+   "pred": "legal.court_opinion",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [
+    "unparsed"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 4844,
+    "completion": 188,
+    "calls": 4,
+    "exact": true
+   },
+   "cost_usd": 0.000578,
+   "tags": {
+    "s1": {
+     "pred": null,
+     "gold": "law.separate_opinion"
+    }
+   }
+  },
+  "doc_first/terms": {
+   "pred": "legal.court_opinion",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 2517,
+    "completion": 33,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000268,
+   "tags": {
+    "s1": {
+     "pred": "general.front_matter",
+     "gold": "law.separate_opinion"
+    }
+   }
+  },
+  "doc_first/lead": {
+   "pred": "legal.court_opinion",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 2928,
+    "completion": 33,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000309,
+   "tags": {
+    "s1": {
+     "pred": "general.front_matter",
+     "gold": "law.separate_opinion"
+    }
+   }
+  },
+  "doc_first/full": {
+   "pred": "legal.court_opinion",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 15951,
+    "completion": 68,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.001629,
+   "tags": {
+    "s1": {
+     "pred": "general.front_matter",
+     "gold": "law.separate_opinion"
+    }
+   }
+  },
+  "sections_first/headings": {
+   "pred": "legal.court_opinion",
+   "correct": true,
+   "decided_by": "fallback",
+   "flags": [
+    "rules_unmet",
+    "thin_evidence",
+    "unparsed"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 5436,
+    "completion": 188,
+    "calls": 4,
+    "exact": true
+   },
+   "cost_usd": 0.000638,
+   "tags": {
+    "s1": {
+     "pred": "general.other",
+     "gold": "law.separate_opinion"
+    }
+   }
+  },
+  "sections_first/terms": {
+   "pred": "legal.court_opinion",
+   "correct": true,
+   "decided_by": "fallback",
+   "flags": [
+    "rules_unmet",
+    "thin_evidence"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 3724,
+    "completion": 43,
+    "calls": 3,
+    "exact": true
+   },
+   "cost_usd": 0.000394,
+   "tags": {
+    "s1": {
+     "pred": "law.caption",
+     "gold": "law.separate_opinion"
+    }
+   }
+  },
+  "sections_first/lead": {
+   "pred": "legal.court_opinion",
+   "correct": true,
+   "decided_by": "fallback",
+   "flags": [
+    "rules_unmet",
+    "thin_evidence"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 4187,
+    "completion": 43,
+    "calls": 3,
+    "exact": true
+   },
+   "cost_usd": 0.00044,
+   "tags": {
+    "s1": {
+     "pred": "law.caption",
+     "gold": "law.separate_opinion"
+    }
+   }
+  },
+  "sections_first/full": {
+   "pred": "legal.court_opinion",
+   "correct": true,
+   "decided_by": "fallback",
+   "flags": [
+    "rules_unmet",
+    "thin_evidence"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 20716,
+    "completion": 53,
+    "calls": 3,
+    "exact": true
+   },
+   "cost_usd": 0.002098,
+   "tags": {
+    "s1": {
+     "pred": "general.front_matter",
+     "gold": "law.separate_opinion"
+    }
+   }
+  }
+ }
+}

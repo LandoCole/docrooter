@@ -879,9 +879,7 @@ def reading_key() -> str:
     return f"pymupdf4llm-{version('pymupdf4llm')}-{hashlib.sha256(source).hexdigest()[:12]}"
 
 
-def _loader(
-    path: Path, *, cache: bool = True, readings: Path | None = READINGS
-) -> Callable[[], Any]:
+def _loader(path: Path, *, cache: bool = True, readings: Path | None = None) -> Callable[[], Any]:
     """Reads the document on first use and keeps it (one reading per process), or, without
     ``cache``, reads it again on every use (less memory, one reading per configuration). With
     ``readings``, a reading is also saved there (under :func:`reading_key`) and reused by later

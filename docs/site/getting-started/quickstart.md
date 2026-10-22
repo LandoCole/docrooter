@@ -7,8 +7,7 @@ downloaded; the last step swaps in a real model.
 ## 1. Install
 
 ```bash
-pip install 'docrooter[pdf]'       # PyMuPDF engine (AGPL-3.0)
-# or: pip install 'docrooter[pdf-mit]'   # pdfplumber engine (MIT)
+pip install 'docrooter[pdf]'       # PyMuPDF4LLM (AGPL-3.0)
 ```
 
 Any text-based PDF works: an annual report, a paper, a contract, a manual. Scanned PDFs

@@ -37,8 +37,8 @@ with pipeline_run(show):
 
 | Stage | Reported by | `data` includes |
 | --- | --- | --- |
-| `extract` | PDF loading; progress every 10 pages | `engine`; `page` and `pages` on progress; `lines` and `pages` at the end |
-| `signals` | PDF loading | `bookmarks`, `printed_toc_entries` |
+| `extract` | PDF loading (element mode: progress every 10 pages) | `engine`; `pages` at the end (element mode also `page` on progress and `lines`) |
+| `signals` | element mode | `bookmarks`, `printed_toc_entries` |
 | `headings` | PDF loading | `headings`, the count per `levels` |
 | `assemble` | `load` (PDF and Markdown) | `sections` |
 | `view` | document-type classification | `tokens` |

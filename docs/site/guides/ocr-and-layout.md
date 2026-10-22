@@ -19,7 +19,7 @@ explains when a page is sent to OCR.
 pip install 'docrooter[pdf,ocr]'               # PyMuPDF + RapidOCR
 pip install 'docrooter[pdf,ocr-mac]'           # PyMuPDF + Apple Vision (macOS)
 pip install 'docrooter[pdf,layout]'            # PyMuPDF + the heron layout model
-pip install 'docrooter[pdf-mit,ocr,layout]'    # the permissive (no AGPL) PDF stack
+pip install 'docrooter[pdf-mit,ocr,layout]'    # element mode without AGPL (no section-tree reader)
 ```
 
 Pages are rendered for OCR and for the layout model with PyMuPDF when it is installed, and with

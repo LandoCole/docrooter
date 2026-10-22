@@ -9,7 +9,7 @@ and level. Errors reply ``{"error": "..."}``.
 It runs as a Vercel Python function (the ``handler`` class) and under ``demo/serve.py`` locally.
 The Anthropic key comes from ``ANTHROPIC_API_KEY`` in the environment and is never logged or
 returned. Each visitor is limited in memory (per instance) to 10 runs a minute and 100 a day, a
-PDF is read to at most 60 pages, and document text is never logged or kept.
+PDF is read to at most 30 pages, and document text is never logged or kept.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ MODEL = "claude-haiku-5-5"
 BASE_URL = "https://api.anthropic.com/v1"
 PRICE = {"prompt": 0.10e-6, "completion": 0.50e-6}  # US$ per token, list price
 MAX_BYTES = 4 * 1024 * 1024
-MAX_PAGES = 60
+MAX_PAGES = 30  # the layout model reads about 0.3 to 0.4 s per page
 SECTIONS_SHOWN = 24
 VIEW_PREVIEW_CHARS = 2400
 FLOWS = ("doc_first", "sections_first")

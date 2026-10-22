@@ -21,12 +21,26 @@ tagged or published, and their entries are kept as history. The package version 
   OpenAI-compatible endpoint, on the full main grid (exact tokens) and once on the held-out set.
   The report gains a generated "Sections first against doc first" section.
 
+### Removed
+
+- **docrooter's heuristic PDF heading detector.** The section tree of a PDF (`load`,
+  `load_pdf`, the CLI, the playground and the `fast` profile) is now read with PyMuPDF4LLM: its
+  layout model finds the headings and their levels, page headers and footers are left out, and
+  docrooter only cleans the titles, repairs level jumps and applies the PDF's bookmarks. Gone
+  with it: the weighted heading scorer and the line analysis behind the section tree, the
+  `engine="both"` merge, the `pdfplumber` engine outside element mode, and the
+  `min_heading_score` and `use_printed_toc` options outside element mode. `engine` takes
+  `auto`, `pymupdf` or `pymupdf4llm` (all the same reader); `ocr="auto"` lets PyMuPDF4LLM OCR
+  pages without text. Element mode (`elements=True`) keeps its native line reader, with
+  `pdfplumber` as its MIT option. Reading PDFs now always needs the AGPL `pdf` extra.
+
 ### Changed
 
 - **The default `level` is measured per backend.** `classify(level=None)` (now the default), the
   CLI and the UI use `docrooter.flow.default_level`: the cheapest rung within 2 points of `full`
   in the benchmark. That is `headings` for the OpenAI-compatible backend (measured on Claude Haiku
-  5.5) and `lead` for UltraBERT, the default backend; any other backend keeps `terms`. Pass
+  5.5) and the keyword backend, and `lead` for UltraBERT, the default backend; any other backend
+  keeps `terms`. Pass
   `level="terms"` for the old behaviour.
 - **A refused `temperature` is dropped.** A server that answers HTTP 400 naming `temperature`
   (Claude Haiku 5.5 does) is asked again without it, and never sent it again, as

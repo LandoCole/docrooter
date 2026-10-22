@@ -263,7 +263,7 @@ def test_playground_flow_without_level_uses_the_measured_default(client):
     detail = client.get(f"/api/runs/{run_id}").json()
     assert detail["status"] == "done", detail["error"]
     assert detail["options"]["level"] is None
-    assert detail["doc_type"]["levels"]["section"] == "terms"  # keyword: not measured
+    assert detail["doc_type"]["levels"]["section"] == "headings"  # keyword: measured
     page = client.get("/").text
     assert '<option value="" selected>Measured default</option>' in page
 

@@ -1,7 +1,7 @@
 """Build the demo's sample runs and benchmark summary from the committed benchmark results.
 
 No model is called: every sample run is the Claude Haiku 5.5 benchmark result for that document
-(``benchmarks/results/2026-10-20/classification/haiku-5.5__gold__*.json``), joined to the
+(``benchmarks/results/2026-10-21/classification/haiku-5.5__gold__*.json``), joined to the
 document's own section titles and the view text each rung of the ladder sends. Only documents
 whose licence allows redistribution are used (GAO reports, CC-BY-4.0 arXiv papers and CUAD
 contracts, US federal court opinions, RFCs). The PDFs must be in the benchmark cache.
@@ -24,7 +24,7 @@ from docrooter.flow import select_sections  # noqa: E402
 from docrooter.ladder import LEVELS, document_view  # noqa: E402
 from docrooter.taxonomies import builtin_taxonomy  # noqa: E402
 
-RESULTS = ROOT / "benchmarks" / "results" / "2026-10-20" / "classification"
+RESULTS = ROOT / "benchmarks" / "results" / "2026-10-21" / "classification"
 MANIFEST = ROOT / "benchmarks" / "training_corpus" / "manifest.jsonl"
 OUT = ROOT / "demo" / "data"
 LABEL = "haiku-5.5"
@@ -39,7 +39,7 @@ SAMPLES = [
     "arxiv-2501_07309",
     "rfc-8962",
     "uscourts-ca9-25-5220-0",
-    "cuad-innoviva_inc_08_07_2014-ex-10_1-collaboration_agreement",
+    "cuad-vapotherm_inc_-_manufacturing_and_supply_agreement",
     "gao-gao-06-946",
     "arxiv-2404_01334",
 ]
@@ -103,9 +103,10 @@ def build_sample(doc_id: str, meta: dict, runs: dict) -> dict:
     for (flow, level), by_doc in runs.items():
         r = by_doc[doc_id]
         sample["gold"] = r["gold"]
-        tags = {
-            t["section_id"]: {"pred": t.get("pred"), "gold": t.get("gold")}
+        tags = {  # keyed by this reading's section id (a title match keeps it in matched_id)
+            t.get("matched_id") or t["section_id"]: {"pred": t.get("pred"), "gold": t.get("gold")}
             for t in r.get("sections", [])
+            if t.get("status") == "ok"
         }
         sample["runs"][f"{flow}/{level}"] = {
             "pred": r["pred"],

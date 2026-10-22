@@ -11,7 +11,9 @@ cost.
   court opinions, RFCs).
 - `api/docrooter_demo.py` is the live upload: a Vercel Python function that runs docrooter on the
   uploaded file with Claude Haiku 5.5 (`ANTHROPIC_API_KEY` from the environment), limited per
-  visitor to 10 runs a minute and 100 a day.
+  visitor to 10 runs a minute and 100 a day, PDFs read to 30 pages. It needs
+  `docrooter[llm,pdf]` with PyMuPDF and PyMuPDF4LLM pinned to 1.28.2: about 233 MB installed,
+  close to Vercel's 250 MB function limit (PyMuPDF4LLM brings onnxruntime and its layout model).
 
 Run it locally (live uploads need `ANTHROPIC_API_KEY`; the samples work without it):
 

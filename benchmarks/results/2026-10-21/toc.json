@@ -1,0 +1,2799 @@
+{
+  "env": {
+    "python": "3.12.13",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 8,
+    "loadavg": [
+      5.34814453125,
+      4.45068359375,
+      3.4091796875
+    ],
+    "versions": {
+      "pymupdf": "1.28.2",
+      "pdfplumber": "0.11.10",
+      "pymupdf4llm": "1.28.2",
+      "docrooter": "0.2.0"
+    }
+  },
+  "min_bookmarks": 5,
+  "match": {
+    "ratio": 0.85,
+    "page_tol": 1
+  },
+  "engines": {
+    "pymupdf (removed heuristic)": {
+      "engine": "pymupdf (removed heuristic)",
+      "n_docs": 24,
+      "doc_ids": [
+        "doc_001",
+        "doc_003",
+        "doc_004",
+        "doc_005",
+        "doc_009",
+        "doc_010",
+        "doc_027",
+        "doc_029",
+        "doc_030",
+        "doc_031",
+        "doc_032",
+        "doc_033",
+        "doc_034",
+        "doc_038",
+        "doc_039",
+        "doc_040",
+        "doc_041",
+        "doc_042",
+        "doc_045",
+        "doc_046",
+        "doc_048",
+        "doc_049",
+        "doc_050",
+        "doc_051"
+      ],
+      "all": {
+        "n_docs": 24,
+        "n_pred": 3080,
+        "n_gold": 1872,
+        "n_match": 1695,
+        "p": 0.5503246753246753,
+        "r": 0.905448717948718,
+        "f1": 0.6845718901453959,
+        "level_acc": 0.5958702064896755,
+        "macro_f1": 0.6339718033148637,
+        "seconds_per_doc": 1.1595833333333334
+      },
+      "depth2": {
+        "n_docs": 24,
+        "n_pred": 1119,
+        "n_gold": 895,
+        "n_match": 708,
+        "p": 0.6327077747989276,
+        "r": 0.7910614525139665,
+        "f1": 0.7030784508440915,
+        "level_acc": 0.769774011299435,
+        "macro_f1": 0.5914963152786307,
+        "seconds_per_doc": 1.1595833333333334
+      },
+      "docs": [
+        {
+          "id": "doc_001",
+          "title": "Berkshire Hathaway Inc. 2023 Annual Report",
+          "pages": 152,
+          "seconds": 2.315,
+          "all": {
+            "p": 0.20689655172413793,
+            "r": 0.2857142857142857,
+            "f1": 0.24000000000000002,
+            "level_acc": 0.0,
+            "n_pred": 29,
+            "n_gold": 21,
+            "n_match": 6,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.034482758620689655,
+            "r": 0.1111111111111111,
+            "f1": 0.05263157894736842,
+            "level_acc": 0.0,
+            "n_pred": 29,
+            "n_gold": 9,
+            "n_match": 1,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_003",
+          "title": "Amazon.com, Inc. 2023 Annual Report",
+          "pages": 92,
+          "seconds": 1.129,
+          "all": {
+            "p": 0.6896551724137931,
+            "r": 0.6666666666666666,
+            "f1": 0.6779661016949153,
+            "level_acc": 0.0,
+            "n_pred": 29,
+            "n_gold": 30,
+            "n_match": 20,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.6896551724137931,
+            "r": 0.6666666666666666,
+            "f1": 0.6779661016949153,
+            "level_acc": 0.0,
+            "n_pred": 29,
+            "n_gold": 30,
+            "n_match": 20,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_004",
+          "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended June 30, 2024",
+          "pages": 56,
+          "seconds": 0.701,
+          "all": {
+            "p": 0.625,
+            "r": 0.45454545454545453,
+            "f1": 0.5263157894736842,
+            "level_acc": 0.0,
+            "n_pred": 16,
+            "n_gold": 22,
+            "n_match": 10,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.7142857142857143,
+            "r": 0.45454545454545453,
+            "f1": 0.5555555555555556,
+            "level_acc": 0.0,
+            "n_pred": 14,
+            "n_gold": 22,
+            "n_match": 10,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_005",
+          "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended September 30, 2023",
+          "pages": 59,
+          "seconds": 0.751,
+          "all": {
+            "p": 0.625,
+            "r": 0.45454545454545453,
+            "f1": 0.5263157894736842,
+            "level_acc": 0.0,
+            "n_pred": 16,
+            "n_gold": 22,
+            "n_match": 10,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.7142857142857143,
+            "r": 0.45454545454545453,
+            "f1": 0.5555555555555556,
+            "level_acc": 0.0,
+            "n_pred": 14,
+            "n_gold": 22,
+            "n_match": 10,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_009",
+          "title": "Amazon.com Announces Second Quarter Results (Aug 1, 2024)",
+          "pages": 12,
+          "seconds": 0.129,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 18,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 18,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_010",
+          "title": "Amazon.com Announces Third Quarter Results (Oct 31, 2024)",
+          "pages": 12,
+          "seconds": 0.132,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 18,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 18,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_027",
+          "title": "Attention Is All You Need",
+          "pages": 15,
+          "seconds": 0.184,
+          "all": {
+            "p": 0.8461538461538461,
+            "r": 1.0,
+            "f1": 0.9166666666666666,
+            "level_acc": 1.0,
+            "n_pred": 26,
+            "n_gold": 22,
+            "n_match": 22,
+            "n_level_ok": 22
+          },
+          "depth2": {
+            "p": 0.8260869565217391,
+            "r": 1.0,
+            "f1": 0.9047619047619047,
+            "level_acc": 1.0,
+            "n_pred": 23,
+            "n_gold": 19,
+            "n_match": 19,
+            "n_level_ok": 19
+          }
+        },
+        {
+          "id": "doc_029",
+          "title": "Language Models are Few-Shot Learners",
+          "pages": 75,
+          "seconds": 0.866,
+          "all": {
+            "p": 0.5614035087719298,
+            "r": 1.0,
+            "f1": 0.7191011235955056,
+            "level_acc": 1.0,
+            "n_pred": 57,
+            "n_gold": 32,
+            "n_match": 32,
+            "n_level_ok": 32
+          },
+          "depth2": {
+            "p": 0.8421052631578947,
+            "r": 1.0,
+            "f1": 0.9142857142857143,
+            "level_acc": 1.0,
+            "n_pred": 38,
+            "n_gold": 32,
+            "n_match": 32,
+            "n_level_ok": 32
+          }
+        },
+        {
+          "id": "doc_030",
+          "title": "On the Opportunities and Risks of Foundation Models",
+          "pages": 214,
+          "seconds": 2.929,
+          "all": {
+            "p": 0.8444444444444444,
+            "r": 0.9743589743589743,
+            "f1": 0.9047619047619048,
+            "level_acc": 1.0,
+            "n_pred": 45,
+            "n_gold": 39,
+            "n_match": 38,
+            "n_level_ok": 38
+          },
+          "depth2": {
+            "p": 0.95,
+            "r": 0.9743589743589743,
+            "f1": 0.9620253164556962,
+            "level_acc": 1.0,
+            "n_pred": 40,
+            "n_gold": 39,
+            "n_match": 38,
+            "n_level_ok": 38
+          }
+        },
+        {
+          "id": "doc_031",
+          "title": "RFC 9110: HTTP Semantics",
+          "pages": 194,
+          "seconds": 1.7,
+          "all": {
+            "p": 0.7536585365853659,
+            "r": 0.9935691318327974,
+            "f1": 0.8571428571428571,
+            "level_acc": 0.0,
+            "n_pred": 410,
+            "n_gold": 311,
+            "n_match": 309,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.17721518987341772,
+            "r": 0.9333333333333333,
+            "f1": 0.2978723404255319,
+            "level_acc": 0.0,
+            "n_pred": 158,
+            "n_gold": 30,
+            "n_match": 28,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_032",
+          "title": "RFC 9000: QUIC: A UDP-Based Multiplexed and Secure Transport",
+          "pages": 151,
+          "seconds": 1.289,
+          "all": {
+            "p": 0.9519650655021834,
+            "r": 0.9954337899543378,
+            "f1": 0.9732142857142857,
+            "level_acc": 0.0045871559633027525,
+            "n_pred": 229,
+            "n_gold": 219,
+            "n_match": 218,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.24822695035460993,
+            "r": 0.9722222222222222,
+            "f1": 0.3954802259887006,
+            "level_acc": 0.02857142857142857,
+            "n_pred": 141,
+            "n_gold": 36,
+            "n_match": 35,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_033",
+          "title": "RFC 9239: Updates to ECMAScript Media Types",
+          "pages": 13,
+          "seconds": 0.113,
+          "all": {
+            "p": 0.9629629629629629,
+            "r": 0.9629629629629629,
+            "f1": 0.9629629629629629,
+            "level_acc": 0.038461538461538464,
+            "n_pred": 27,
+            "n_gold": 27,
+            "n_match": 26,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.64,
+            "r": 0.9411764705882353,
+            "f1": 0.7619047619047621,
+            "level_acc": 0.0625,
+            "n_pred": 25,
+            "n_gold": 17,
+            "n_match": 16,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_034",
+          "title": "RFC 9457: Problem Details for HTTP APIs",
+          "pages": 16,
+          "seconds": 0.117,
+          "all": {
+            "p": 0.967741935483871,
+            "r": 0.967741935483871,
+            "f1": 0.967741935483871,
+            "level_acc": 0.03333333333333333,
+            "n_pred": 31,
+            "n_gold": 31,
+            "n_match": 30,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.72,
+            "r": 0.9473684210526315,
+            "f1": 0.8181818181818181,
+            "level_acc": 0.05555555555555555,
+            "n_pred": 25,
+            "n_gold": 19,
+            "n_match": 18,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_038",
+          "title": "Bash Reference Manual, Edition 5.3",
+          "pages": 214,
+          "seconds": 2.152,
+          "all": {
+            "p": 0.9,
+            "r": 0.9440559440559441,
+            "f1": 0.9215017064846417,
+            "level_acc": 1.0,
+            "n_pred": 150,
+            "n_gold": 143,
+            "n_match": 135,
+            "n_level_ok": 135
+          },
+          "depth2": {
+            "p": 0.8157894736842105,
+            "r": 0.8857142857142857,
+            "f1": 0.8493150684931505,
+            "level_acc": 1.0,
+            "n_pred": 76,
+            "n_gold": 70,
+            "n_match": 62,
+            "n_level_ok": 62
+          }
+        },
+        {
+          "id": "doc_039",
+          "title": "GNU Coreutils manual",
+          "pages": 326,
+          "seconds": 3.241,
+          "all": {
+            "p": 0.9565217391304348,
+            "r": 0.9962264150943396,
+            "f1": 0.9759704251386322,
+            "level_acc": 0.9810606060606061,
+            "n_pred": 276,
+            "n_gold": 265,
+            "n_match": 264,
+            "n_level_ok": 259
+          },
+          "depth2": {
+            "p": 0.9468085106382979,
+            "r": 0.994413407821229,
+            "f1": 0.9700272479564034,
+            "level_acc": 1.0,
+            "n_pred": 188,
+            "n_gold": 179,
+            "n_match": 178,
+            "n_level_ok": 178
+          }
+        },
+        {
+          "id": "doc_040",
+          "title": "Getting Started with Raspberry Pi Pico-series",
+          "pages": 36,
+          "seconds": 0.281,
+          "all": {
+            "p": 0.9102564102564102,
+            "r": 0.9466666666666667,
+            "f1": 0.9281045751633987,
+            "level_acc": 0.9859154929577465,
+            "n_pred": 78,
+            "n_gold": 75,
+            "n_match": 71,
+            "n_level_ok": 70
+          },
+          "depth2": {
+            "p": 0.9016393442622951,
+            "r": 1.0,
+            "f1": 0.9482758620689655,
+            "level_acc": 1.0,
+            "n_pred": 61,
+            "n_gold": 55,
+            "n_match": 55,
+            "n_level_ok": 55
+          }
+        },
+        {
+          "id": "doc_041",
+          "title": "NE555 / SA555 / SE555 Precision Timers datasheet",
+          "pages": 39,
+          "seconds": 0.313,
+          "all": {
+            "p": 0.4878048780487805,
+            "r": 0.8163265306122449,
+            "f1": 0.6106870229007634,
+            "level_acc": 0.975,
+            "n_pred": 82,
+            "n_gold": 49,
+            "n_match": 40,
+            "n_level_ok": 39
+          },
+          "depth2": {
+            "p": 0.4444444444444444,
+            "r": 0.6666666666666666,
+            "f1": 0.5333333333333333,
+            "level_acc": 1.0,
+            "n_pred": 45,
+            "n_gold": 30,
+            "n_match": 20,
+            "n_level_ok": 20
+          }
+        },
+        {
+          "id": "doc_042",
+          "title": "RP2040 Datasheet",
+          "pages": 642,
+          "seconds": 5.16,
+          "all": {
+            "p": 0.28167877320419693,
+            "r": 0.9943019943019943,
+            "f1": 0.4389937106918239,
+            "level_acc": 0.9369627507163324,
+            "n_pred": 1239,
+            "n_gold": 351,
+            "n_match": 349,
+            "n_level_ok": 327
+          },
+          "depth2": {
+            "p": 0.9693877551020408,
+            "r": 0.9895833333333334,
+            "f1": 0.9793814432989691,
+            "level_acc": 0.7684210526315789,
+            "n_pred": 98,
+            "n_gold": 96,
+            "n_match": 95,
+            "n_level_ok": 73
+          }
+        },
+        {
+          "id": "doc_045",
+          "title": "Monetary Policy Report, July 5, 2024",
+          "pages": 79,
+          "seconds": 0.766,
+          "all": {
+            "p": 0.6666666666666666,
+            "r": 0.6086956521739131,
+            "f1": 0.6363636363636365,
+            "level_acc": 0.5714285714285714,
+            "n_pred": 21,
+            "n_gold": 23,
+            "n_match": 14,
+            "n_level_ok": 8
+          },
+          "depth2": {
+            "p": 0.6153846153846154,
+            "r": 0.34782608695652173,
+            "f1": 0.4444444444444444,
+            "level_acc": 1.0,
+            "n_pred": 13,
+            "n_gold": 23,
+            "n_match": 8,
+            "n_level_ok": 8
+          }
+        },
+        {
+          "id": "doc_046",
+          "title": "Financial Stability Report, April 2024",
+          "pages": 69,
+          "seconds": 0.507,
+          "all": {
+            "p": 0.9285714285714286,
+            "r": 1.0,
+            "f1": 0.962962962962963,
+            "level_acc": 1.0,
+            "n_pred": 14,
+            "n_gold": 13,
+            "n_match": 13,
+            "n_level_ok": 13
+          },
+          "depth2": {
+            "p": 0.9285714285714286,
+            "r": 1.0,
+            "f1": 0.962962962962963,
+            "level_acc": 1.0,
+            "n_pred": 14,
+            "n_gold": 13,
+            "n_match": 13,
+            "n_level_ok": 13
+          }
+        },
+        {
+          "id": "doc_048",
+          "title": "Google Environmental Report 2024",
+          "pages": 86,
+          "seconds": 2.317,
+          "all": {
+            "p": 0.22613065326633167,
+            "r": 0.8181818181818182,
+            "f1": 0.3543307086614173,
+            "level_acc": 0.7555555555555555,
+            "n_pred": 199,
+            "n_gold": 55,
+            "n_match": 45,
+            "n_level_ok": 34
+          },
+          "depth2": {
+            "p": 0.625,
+            "r": 0.46875,
+            "f1": 0.5357142857142857,
+            "level_acc": 0.9333333333333333,
+            "n_pred": 24,
+            "n_gold": 32,
+            "n_match": 15,
+            "n_level_ok": 14
+          }
+        },
+        {
+          "id": "doc_049",
+          "title": "NVIDIA Sustainability Report, Fiscal Year 2024",
+          "pages": 41,
+          "seconds": 0.445,
+          "all": {
+            "p": 0.35,
+            "r": 0.9333333333333333,
+            "f1": 0.5090909090909091,
+            "level_acc": 1.0,
+            "n_pred": 80,
+            "n_gold": 30,
+            "n_match": 28,
+            "n_level_ok": 28
+          },
+          "depth2": {
+            "p": 0.6086956521739131,
+            "r": 0.9333333333333333,
+            "f1": 0.7368421052631579,
+            "level_acc": 1.0,
+            "n_pred": 46,
+            "n_gold": 30,
+            "n_match": 28,
+            "n_level_ok": 28
+          }
+        },
+        {
+          "id": "doc_050",
+          "title": "Tesla Q2 2024 Update (investor slide deck)",
+          "pages": 29,
+          "seconds": 0.187,
+          "all": {
+            "p": 1.0,
+            "r": 0.034482758620689655,
+            "f1": 0.06666666666666667,
+            "level_acc": 1.0,
+            "n_pred": 1,
+            "n_gold": 29,
+            "n_match": 1,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 1.0,
+            "r": 0.034482758620689655,
+            "f1": 0.06666666666666667,
+            "level_acc": 1.0,
+            "n_pred": 1,
+            "n_gold": 29,
+            "n_match": 1,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_051",
+          "title": "NVIDIA Investor Presentation Q2 FY25 (September 3, 2024)",
+          "pages": 27,
+          "seconds": 0.106,
+          "all": {
+            "p": 0.56,
+            "r": 0.5185185185185185,
+            "f1": 0.5384615384615384,
+            "level_acc": 0.07142857142857142,
+            "n_pred": 25,
+            "n_gold": 27,
+            "n_match": 14,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.35294117647058826,
+            "r": 0.2222222222222222,
+            "f1": 0.27272727272727276,
+            "level_acc": 0.16666666666666666,
+            "n_pred": 17,
+            "n_gold": 27,
+            "n_match": 6,
+            "n_level_ok": 1
+          }
+        }
+      ],
+      "note": null,
+      "date": "2026-10-16",
+      "commit": "70a9a0f",
+      "loadavg_start": [
+        3.19873046875,
+        2.431640625,
+        2.3720703125
+      ],
+      "loadavg_end": [
+        3.06884765625,
+        2.46923828125,
+        2.38671875
+      ]
+    },
+    "pdfplumber (removed heuristic)": {
+      "engine": "pdfplumber (removed heuristic)",
+      "n_docs": 24,
+      "doc_ids": [
+        "doc_001",
+        "doc_003",
+        "doc_004",
+        "doc_005",
+        "doc_009",
+        "doc_010",
+        "doc_027",
+        "doc_029",
+        "doc_030",
+        "doc_031",
+        "doc_032",
+        "doc_033",
+        "doc_034",
+        "doc_038",
+        "doc_039",
+        "doc_040",
+        "doc_041",
+        "doc_042",
+        "doc_045",
+        "doc_046",
+        "doc_048",
+        "doc_049",
+        "doc_050",
+        "doc_051"
+      ],
+      "all": {
+        "n_docs": 24,
+        "n_pred": 2925,
+        "n_gold": 1872,
+        "n_match": 1684,
+        "p": 0.5757264957264957,
+        "r": 0.8995726495726496,
+        "f1": 0.7021054825932874,
+        "level_acc": 0.6057007125890737,
+        "macro_f1": 0.6420857195220397,
+        "seconds_per_doc": 6.728666666666666
+      },
+      "depth2": {
+        "n_docs": 24,
+        "n_pred": 1088,
+        "n_gold": 895,
+        "n_match": 705,
+        "p": 0.6479779411764706,
+        "r": 0.7877094972067039,
+        "f1": 0.7110438729198185,
+        "level_acc": 0.7957446808510639,
+        "macro_f1": 0.599050377940583,
+        "seconds_per_doc": 6.728666666666666
+      },
+      "docs": [
+        {
+          "id": "doc_001",
+          "title": "Berkshire Hathaway Inc. 2023 Annual Report",
+          "pages": 152,
+          "seconds": 15.588,
+          "all": {
+            "p": 0.2222222222222222,
+            "r": 0.09523809523809523,
+            "f1": 0.13333333333333333,
+            "level_acc": 0.0,
+            "n_pred": 9,
+            "n_gold": 21,
+            "n_match": 2,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.3333333333333333,
+            "r": 0.1111111111111111,
+            "f1": 0.16666666666666666,
+            "level_acc": 0.0,
+            "n_pred": 3,
+            "n_gold": 9,
+            "n_match": 1,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_003",
+          "title": "Amazon.com, Inc. 2023 Annual Report",
+          "pages": 92,
+          "seconds": 6.149,
+          "all": {
+            "p": 0.7142857142857143,
+            "r": 0.6666666666666666,
+            "f1": 0.689655172413793,
+            "level_acc": 0.0,
+            "n_pred": 28,
+            "n_gold": 30,
+            "n_match": 20,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.7142857142857143,
+            "r": 0.6666666666666666,
+            "f1": 0.689655172413793,
+            "level_acc": 0.0,
+            "n_pred": 28,
+            "n_gold": 30,
+            "n_match": 20,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_004",
+          "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended June 30, 2024",
+          "pages": 56,
+          "seconds": 5.301,
+          "all": {
+            "p": 0.7857142857142857,
+            "r": 0.5,
+            "f1": 0.6111111111111112,
+            "level_acc": 0.9090909090909091,
+            "n_pred": 14,
+            "n_gold": 22,
+            "n_match": 11,
+            "n_level_ok": 10
+          },
+          "depth2": {
+            "p": 0.7857142857142857,
+            "r": 0.5,
+            "f1": 0.6111111111111112,
+            "level_acc": 0.9090909090909091,
+            "n_pred": 14,
+            "n_gold": 22,
+            "n_match": 11,
+            "n_level_ok": 10
+          }
+        },
+        {
+          "id": "doc_005",
+          "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended September 30, 2023",
+          "pages": 59,
+          "seconds": 6.019,
+          "all": {
+            "p": 0.7857142857142857,
+            "r": 0.5,
+            "f1": 0.6111111111111112,
+            "level_acc": 0.9090909090909091,
+            "n_pred": 14,
+            "n_gold": 22,
+            "n_match": 11,
+            "n_level_ok": 10
+          },
+          "depth2": {
+            "p": 0.7857142857142857,
+            "r": 0.5,
+            "f1": 0.6111111111111112,
+            "level_acc": 0.9090909090909091,
+            "n_pred": 14,
+            "n_gold": 22,
+            "n_match": 11,
+            "n_level_ok": 10
+          }
+        },
+        {
+          "id": "doc_009",
+          "title": "Amazon.com Announces Second Quarter Results (Aug 1, 2024)",
+          "pages": 12,
+          "seconds": 0.73,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 18,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 18,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_010",
+          "title": "Amazon.com Announces Third Quarter Results (Oct 31, 2024)",
+          "pages": 12,
+          "seconds": 0.746,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 18,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 18,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_027",
+          "title": "Attention Is All You Need",
+          "pages": 15,
+          "seconds": 1.243,
+          "all": {
+            "p": 0.8148148148148148,
+            "r": 1.0,
+            "f1": 0.8979591836734693,
+            "level_acc": 1.0,
+            "n_pred": 27,
+            "n_gold": 22,
+            "n_match": 22,
+            "n_level_ok": 22
+          },
+          "depth2": {
+            "p": 0.7916666666666666,
+            "r": 1.0,
+            "f1": 0.8837209302325582,
+            "level_acc": 1.0,
+            "n_pred": 24,
+            "n_gold": 19,
+            "n_match": 19,
+            "n_level_ok": 19
+          }
+        },
+        {
+          "id": "doc_029",
+          "title": "Language Models are Few-Shot Learners",
+          "pages": 75,
+          "seconds": 3.246,
+          "all": {
+            "p": 0.64,
+            "r": 1.0,
+            "f1": 0.7804878048780487,
+            "level_acc": 1.0,
+            "n_pred": 50,
+            "n_gold": 32,
+            "n_match": 32,
+            "n_level_ok": 32
+          },
+          "depth2": {
+            "p": 0.9696969696969697,
+            "r": 1.0,
+            "f1": 0.9846153846153847,
+            "level_acc": 1.0,
+            "n_pred": 33,
+            "n_gold": 32,
+            "n_match": 32,
+            "n_level_ok": 32
+          }
+        },
+        {
+          "id": "doc_030",
+          "title": "On the Opportunities and Risks of Foundation Models",
+          "pages": 214,
+          "seconds": 12.106,
+          "all": {
+            "p": 0.72,
+            "r": 0.9230769230769231,
+            "f1": 0.8089887640449438,
+            "level_acc": 1.0,
+            "n_pred": 50,
+            "n_gold": 39,
+            "n_match": 36,
+            "n_level_ok": 36
+          },
+          "depth2": {
+            "p": 0.9473684210526315,
+            "r": 0.9230769230769231,
+            "f1": 0.935064935064935,
+            "level_acc": 1.0,
+            "n_pred": 38,
+            "n_gold": 39,
+            "n_match": 36,
+            "n_level_ok": 36
+          }
+        },
+        {
+          "id": "doc_031",
+          "title": "RFC 9110: HTTP Semantics",
+          "pages": 194,
+          "seconds": 8.785,
+          "all": {
+            "p": 0.9840764331210191,
+            "r": 0.9935691318327974,
+            "f1": 0.9887999999999999,
+            "level_acc": 0.0,
+            "n_pred": 314,
+            "n_gold": 311,
+            "n_match": 309,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.1794871794871795,
+            "r": 0.9333333333333333,
+            "f1": 0.3010752688172043,
+            "level_acc": 0.0,
+            "n_pred": 156,
+            "n_gold": 30,
+            "n_match": 28,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_032",
+          "title": "RFC 9000: QUIC: A UDP-Based Multiplexed and Secure Transport",
+          "pages": 151,
+          "seconds": 5.746,
+          "all": {
+            "p": 0.9775784753363229,
+            "r": 0.9954337899543378,
+            "f1": 0.9864253393665159,
+            "level_acc": 0.0045871559633027525,
+            "n_pred": 223,
+            "n_gold": 219,
+            "n_match": 218,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.24647887323943662,
+            "r": 0.9722222222222222,
+            "f1": 0.3932584269662921,
+            "level_acc": 0.02857142857142857,
+            "n_pred": 142,
+            "n_gold": 36,
+            "n_match": 35,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_033",
+          "title": "RFC 9239: Updates to ECMAScript Media Types",
+          "pages": 13,
+          "seconds": 0.577,
+          "all": {
+            "p": 0.9629629629629629,
+            "r": 0.9629629629629629,
+            "f1": 0.9629629629629629,
+            "level_acc": 0.038461538461538464,
+            "n_pred": 27,
+            "n_gold": 27,
+            "n_match": 26,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.64,
+            "r": 0.9411764705882353,
+            "f1": 0.7619047619047621,
+            "level_acc": 0.0625,
+            "n_pred": 25,
+            "n_gold": 17,
+            "n_match": 16,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_034",
+          "title": "RFC 9457: Problem Details for HTTP APIs",
+          "pages": 16,
+          "seconds": 0.519,
+          "all": {
+            "p": 1.0,
+            "r": 0.967741935483871,
+            "f1": 0.9836065573770492,
+            "level_acc": 0.03333333333333333,
+            "n_pred": 30,
+            "n_gold": 31,
+            "n_match": 30,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.75,
+            "r": 0.9473684210526315,
+            "f1": 0.8372093023255814,
+            "level_acc": 0.05555555555555555,
+            "n_pred": 24,
+            "n_gold": 19,
+            "n_match": 18,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_038",
+          "title": "Bash Reference Manual, Edition 5.3",
+          "pages": 214,
+          "seconds": 7.609,
+          "all": {
+            "p": 0.9121621621621622,
+            "r": 0.9440559440559441,
+            "f1": 0.9278350515463918,
+            "level_acc": 1.0,
+            "n_pred": 148,
+            "n_gold": 143,
+            "n_match": 135,
+            "n_level_ok": 135
+          },
+          "depth2": {
+            "p": 0.8378378378378378,
+            "r": 0.8857142857142857,
+            "f1": 0.8611111111111112,
+            "level_acc": 1.0,
+            "n_pred": 74,
+            "n_gold": 70,
+            "n_match": 62,
+            "n_level_ok": 62
+          }
+        },
+        {
+          "id": "doc_039",
+          "title": "GNU Coreutils manual",
+          "pages": 326,
+          "seconds": 10.935,
+          "all": {
+            "p": 0.9527272727272728,
+            "r": 0.9886792452830189,
+            "f1": 0.9703703703703703,
+            "level_acc": 0.9809160305343512,
+            "n_pred": 275,
+            "n_gold": 265,
+            "n_match": 262,
+            "n_level_ok": 257
+          },
+          "depth2": {
+            "p": 0.9518716577540107,
+            "r": 0.994413407821229,
+            "f1": 0.9726775956284153,
+            "level_acc": 1.0,
+            "n_pred": 187,
+            "n_gold": 179,
+            "n_match": 178,
+            "n_level_ok": 178
+          }
+        },
+        {
+          "id": "doc_040",
+          "title": "Getting Started with Raspberry Pi Pico-series",
+          "pages": 36,
+          "seconds": 2.69,
+          "all": {
+            "p": 0.85,
+            "r": 0.9066666666666666,
+            "f1": 0.8774193548387097,
+            "level_acc": 0.9852941176470589,
+            "n_pred": 80,
+            "n_gold": 75,
+            "n_match": 68,
+            "n_level_ok": 67
+          },
+          "depth2": {
+            "p": 0.8688524590163934,
+            "r": 0.9636363636363636,
+            "f1": 0.9137931034482758,
+            "level_acc": 1.0,
+            "n_pred": 61,
+            "n_gold": 55,
+            "n_match": 53,
+            "n_level_ok": 53
+          }
+        },
+        {
+          "id": "doc_041",
+          "title": "NE555 / SA555 / SE555 Precision Timers datasheet",
+          "pages": 39,
+          "seconds": 5.058,
+          "all": {
+            "p": 0.5194805194805194,
+            "r": 0.8163265306122449,
+            "f1": 0.6349206349206349,
+            "level_acc": 0.975,
+            "n_pred": 77,
+            "n_gold": 49,
+            "n_match": 40,
+            "n_level_ok": 39
+          },
+          "depth2": {
+            "p": 0.43478260869565216,
+            "r": 0.6666666666666666,
+            "f1": 0.5263157894736841,
+            "level_acc": 1.0,
+            "n_pred": 46,
+            "n_gold": 30,
+            "n_match": 20,
+            "n_level_ok": 20
+          }
+        },
+        {
+          "id": "doc_042",
+          "title": "RP2040 Datasheet",
+          "pages": 642,
+          "seconds": 41.236,
+          "all": {
+            "p": 0.2785315243415802,
+            "r": 0.9943019943019943,
+            "f1": 0.43516209476309226,
+            "level_acc": 0.9283667621776505,
+            "n_pred": 1253,
+            "n_gold": 351,
+            "n_match": 349,
+            "n_level_ok": 324
+          },
+          "depth2": {
+            "p": 0.8796296296296297,
+            "r": 0.9895833333333334,
+            "f1": 0.9313725490196079,
+            "level_acc": 0.7684210526315789,
+            "n_pred": 108,
+            "n_gold": 96,
+            "n_match": 95,
+            "n_level_ok": 73
+          }
+        },
+        {
+          "id": "doc_045",
+          "title": "Monetary Policy Report, July 5, 2024",
+          "pages": 79,
+          "seconds": 5.223,
+          "all": {
+            "p": 0.7368421052631579,
+            "r": 0.6086956521739131,
+            "f1": 0.6666666666666666,
+            "level_acc": 0.5,
+            "n_pred": 19,
+            "n_gold": 23,
+            "n_match": 14,
+            "n_level_ok": 7
+          },
+          "depth2": {
+            "p": 0.6363636363636364,
+            "r": 0.30434782608695654,
+            "f1": 0.411764705882353,
+            "level_acc": 1.0,
+            "n_pred": 11,
+            "n_gold": 23,
+            "n_match": 7,
+            "n_level_ok": 7
+          }
+        },
+        {
+          "id": "doc_046",
+          "title": "Financial Stability Report, April 2024",
+          "pages": 69,
+          "seconds": 3.625,
+          "all": {
+            "p": 0.9285714285714286,
+            "r": 1.0,
+            "f1": 0.962962962962963,
+            "level_acc": 1.0,
+            "n_pred": 14,
+            "n_gold": 13,
+            "n_match": 13,
+            "n_level_ok": 13
+          },
+          "depth2": {
+            "p": 0.9285714285714286,
+            "r": 1.0,
+            "f1": 0.962962962962963,
+            "level_acc": 1.0,
+            "n_pred": 14,
+            "n_gold": 13,
+            "n_match": 13,
+            "n_level_ok": 13
+          }
+        },
+        {
+          "id": "doc_048",
+          "title": "Google Environmental Report 2024",
+          "pages": 86,
+          "seconds": 11.835,
+          "all": {
+            "p": 0.24858757062146894,
+            "r": 0.8,
+            "f1": 0.37931034482758624,
+            "level_acc": 0.7727272727272727,
+            "n_pred": 177,
+            "n_gold": 55,
+            "n_match": 44,
+            "n_level_ok": 34
+          },
+          "depth2": {
+            "p": 0.6086956521739131,
+            "r": 0.4375,
+            "f1": 0.5090909090909091,
+            "level_acc": 1.0,
+            "n_pred": 23,
+            "n_gold": 32,
+            "n_match": 14,
+            "n_level_ok": 14
+          }
+        },
+        {
+          "id": "doc_049",
+          "title": "NVIDIA Sustainability Report, Fiscal Year 2024",
+          "pages": 41,
+          "seconds": 4.034,
+          "all": {
+            "p": 0.43283582089552236,
+            "r": 0.9666666666666667,
+            "f1": 0.5979381443298969,
+            "level_acc": 1.0,
+            "n_pred": 67,
+            "n_gold": 30,
+            "n_match": 29,
+            "n_level_ok": 29
+          },
+          "depth2": {
+            "p": 0.6444444444444445,
+            "r": 0.9666666666666667,
+            "f1": 0.7733333333333334,
+            "level_acc": 1.0,
+            "n_pred": 45,
+            "n_gold": 30,
+            "n_match": 29,
+            "n_level_ok": 29
+          }
+        },
+        {
+          "id": "doc_050",
+          "title": "Tesla Q2 2024 Update (investor slide deck)",
+          "pages": 29,
+          "seconds": 1.77,
+          "all": {
+            "p": 1.0,
+            "r": 0.034482758620689655,
+            "f1": 0.06666666666666667,
+            "level_acc": 1.0,
+            "n_pred": 1,
+            "n_gold": 29,
+            "n_match": 1,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 1.0,
+            "r": 0.034482758620689655,
+            "f1": 0.06666666666666667,
+            "level_acc": 1.0,
+            "n_pred": 1,
+            "n_gold": 29,
+            "n_match": 1,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_051",
+          "title": "NVIDIA Investor Presentation Q2 FY25 (September 3, 2024)",
+          "pages": 27,
+          "seconds": 0.718,
+          "all": {
+            "p": 0.42857142857142855,
+            "r": 0.4444444444444444,
+            "f1": 0.43636363636363634,
+            "level_acc": 0.08333333333333333,
+            "n_pred": 28,
+            "n_gold": 27,
+            "n_match": 12,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.35294117647058826,
+            "r": 0.2222222222222222,
+            "f1": 0.27272727272727276,
+            "level_acc": 0.16666666666666666,
+            "n_pred": 17,
+            "n_gold": 27,
+            "n_match": 6,
+            "n_level_ok": 1
+          }
+        }
+      ],
+      "note": null,
+      "date": "2026-10-16",
+      "commit": "70a9a0f",
+      "loadavg_start": [
+        3.06884765625,
+        2.46923828125,
+        2.38671875
+      ],
+      "loadavg_end": [
+        4.01025390625,
+        3.060546875,
+        2.6318359375
+      ]
+    },
+    "both (removed heuristic)": {
+      "engine": "both (removed heuristic)",
+      "n_docs": 24,
+      "doc_ids": [
+        "doc_001",
+        "doc_003",
+        "doc_004",
+        "doc_005",
+        "doc_009",
+        "doc_010",
+        "doc_027",
+        "doc_029",
+        "doc_030",
+        "doc_031",
+        "doc_032",
+        "doc_033",
+        "doc_034",
+        "doc_038",
+        "doc_039",
+        "doc_040",
+        "doc_041",
+        "doc_042",
+        "doc_045",
+        "doc_046",
+        "doc_048",
+        "doc_049",
+        "doc_050",
+        "doc_051"
+      ],
+      "all": {
+        "n_docs": 24,
+        "n_pred": 2828,
+        "n_gold": 1872,
+        "n_match": 1684,
+        "p": 0.5954738330975955,
+        "r": 0.8995726495726496,
+        "f1": 0.7165957446808511,
+        "level_acc": 0.5967933491686461,
+        "macro_f1": 0.6561918215178327,
+        "seconds_per_doc": 8.150208333333333
+      },
+      "depth2": {
+        "n_docs": 24,
+        "n_pred": 1070,
+        "n_gold": 895,
+        "n_match": 703,
+        "p": 0.6570093457943925,
+        "r": 0.7854748603351955,
+        "f1": 0.7155216284987277,
+        "level_acc": 0.7695590327169275,
+        "macro_f1": 0.6041992499644224,
+        "seconds_per_doc": 8.150208333333333
+      },
+      "docs": [
+        {
+          "id": "doc_001",
+          "title": "Berkshire Hathaway Inc. 2023 Annual Report",
+          "pages": 152,
+          "seconds": 18.647,
+          "all": {
+            "p": 0.36363636363636365,
+            "r": 0.19047619047619047,
+            "f1": 0.25,
+            "level_acc": 0.0,
+            "n_pred": 11,
+            "n_gold": 21,
+            "n_match": 4,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.09090909090909091,
+            "r": 0.1111111111111111,
+            "f1": 0.09999999999999999,
+            "level_acc": 0.0,
+            "n_pred": 11,
+            "n_gold": 9,
+            "n_match": 1,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_003",
+          "title": "Amazon.com, Inc. 2023 Annual Report",
+          "pages": 92,
+          "seconds": 7.457,
+          "all": {
+            "p": 0.7142857142857143,
+            "r": 0.6666666666666666,
+            "f1": 0.689655172413793,
+            "level_acc": 0.0,
+            "n_pred": 28,
+            "n_gold": 30,
+            "n_match": 20,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.7142857142857143,
+            "r": 0.6666666666666666,
+            "f1": 0.689655172413793,
+            "level_acc": 0.0,
+            "n_pred": 28,
+            "n_gold": 30,
+            "n_match": 20,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_004",
+          "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended June 30, 2024",
+          "pages": 56,
+          "seconds": 6.242,
+          "all": {
+            "p": 0.7692307692307693,
+            "r": 0.45454545454545453,
+            "f1": 0.5714285714285714,
+            "level_acc": 0.0,
+            "n_pred": 13,
+            "n_gold": 22,
+            "n_match": 10,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.9090909090909091,
+            "r": 0.45454545454545453,
+            "f1": 0.6060606060606061,
+            "level_acc": 0.0,
+            "n_pred": 11,
+            "n_gold": 22,
+            "n_match": 10,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_005",
+          "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended September 30, 2023",
+          "pages": 59,
+          "seconds": 6.685,
+          "all": {
+            "p": 0.7692307692307693,
+            "r": 0.45454545454545453,
+            "f1": 0.5714285714285714,
+            "level_acc": 0.0,
+            "n_pred": 13,
+            "n_gold": 22,
+            "n_match": 10,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.9090909090909091,
+            "r": 0.45454545454545453,
+            "f1": 0.6060606060606061,
+            "level_acc": 0.0,
+            "n_pred": 11,
+            "n_gold": 22,
+            "n_match": 10,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_009",
+          "title": "Amazon.com Announces Second Quarter Results (Aug 1, 2024)",
+          "pages": 12,
+          "seconds": 0.829,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 18,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 18,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_010",
+          "title": "Amazon.com Announces Third Quarter Results (Oct 31, 2024)",
+          "pages": 12,
+          "seconds": 0.881,
+          "all": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 18,
+            "n_match": 0,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 0,
+            "n_gold": 18,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_027",
+          "title": "Attention Is All You Need",
+          "pages": 15,
+          "seconds": 1.389,
+          "all": {
+            "p": 0.9565217391304348,
+            "r": 1.0,
+            "f1": 0.9777777777777777,
+            "level_acc": 1.0,
+            "n_pred": 23,
+            "n_gold": 22,
+            "n_match": 22,
+            "n_level_ok": 22
+          },
+          "depth2": {
+            "p": 0.95,
+            "r": 1.0,
+            "f1": 0.9743589743589743,
+            "level_acc": 1.0,
+            "n_pred": 20,
+            "n_gold": 19,
+            "n_match": 19,
+            "n_level_ok": 19
+          }
+        },
+        {
+          "id": "doc_029",
+          "title": "Language Models are Few-Shot Learners",
+          "pages": 75,
+          "seconds": 4.215,
+          "all": {
+            "p": 0.64,
+            "r": 1.0,
+            "f1": 0.7804878048780487,
+            "level_acc": 1.0,
+            "n_pred": 50,
+            "n_gold": 32,
+            "n_match": 32,
+            "n_level_ok": 32
+          },
+          "depth2": {
+            "p": 0.9696969696969697,
+            "r": 1.0,
+            "f1": 0.9846153846153847,
+            "level_acc": 1.0,
+            "n_pred": 33,
+            "n_gold": 32,
+            "n_match": 32,
+            "n_level_ok": 32
+          }
+        },
+        {
+          "id": "doc_030",
+          "title": "On the Opportunities and Risks of Foundation Models",
+          "pages": 214,
+          "seconds": 15.461,
+          "all": {
+            "p": 0.8372093023255814,
+            "r": 0.9230769230769231,
+            "f1": 0.878048780487805,
+            "level_acc": 1.0,
+            "n_pred": 43,
+            "n_gold": 39,
+            "n_match": 36,
+            "n_level_ok": 36
+          },
+          "depth2": {
+            "p": 0.9473684210526315,
+            "r": 0.9230769230769231,
+            "f1": 0.935064935064935,
+            "level_acc": 1.0,
+            "n_pred": 38,
+            "n_gold": 39,
+            "n_match": 36,
+            "n_level_ok": 36
+          }
+        },
+        {
+          "id": "doc_031",
+          "title": "RFC 9110: HTTP Semantics",
+          "pages": 194,
+          "seconds": 10.969,
+          "all": {
+            "p": 0.9840764331210191,
+            "r": 0.9935691318327974,
+            "f1": 0.9887999999999999,
+            "level_acc": 0.0,
+            "n_pred": 314,
+            "n_gold": 311,
+            "n_match": 309,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.1794871794871795,
+            "r": 0.9333333333333333,
+            "f1": 0.3010752688172043,
+            "level_acc": 0.0,
+            "n_pred": 156,
+            "n_gold": 30,
+            "n_match": 28,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_032",
+          "title": "RFC 9000: QUIC: A UDP-Based Multiplexed and Secure Transport",
+          "pages": 151,
+          "seconds": 7.295,
+          "all": {
+            "p": 0.990909090909091,
+            "r": 0.9954337899543378,
+            "f1": 0.9931662870159453,
+            "level_acc": 0.0045871559633027525,
+            "n_pred": 220,
+            "n_gold": 219,
+            "n_match": 218,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.24822695035460993,
+            "r": 0.9722222222222222,
+            "f1": 0.3954802259887006,
+            "level_acc": 0.02857142857142857,
+            "n_pred": 141,
+            "n_gold": 36,
+            "n_match": 35,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_033",
+          "title": "RFC 9239: Updates to ECMAScript Media Types",
+          "pages": 13,
+          "seconds": 0.697,
+          "all": {
+            "p": 0.9629629629629629,
+            "r": 0.9629629629629629,
+            "f1": 0.9629629629629629,
+            "level_acc": 0.038461538461538464,
+            "n_pred": 27,
+            "n_gold": 27,
+            "n_match": 26,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.64,
+            "r": 0.9411764705882353,
+            "f1": 0.7619047619047621,
+            "level_acc": 0.0625,
+            "n_pred": 25,
+            "n_gold": 17,
+            "n_match": 16,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_034",
+          "title": "RFC 9457: Problem Details for HTTP APIs",
+          "pages": 16,
+          "seconds": 0.645,
+          "all": {
+            "p": 1.0,
+            "r": 0.967741935483871,
+            "f1": 0.9836065573770492,
+            "level_acc": 0.03333333333333333,
+            "n_pred": 30,
+            "n_gold": 31,
+            "n_match": 30,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.75,
+            "r": 0.9473684210526315,
+            "f1": 0.8372093023255814,
+            "level_acc": 0.05555555555555555,
+            "n_pred": 24,
+            "n_gold": 19,
+            "n_match": 18,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_038",
+          "title": "Bash Reference Manual, Edition 5.3",
+          "pages": 214,
+          "seconds": 9.955,
+          "all": {
+            "p": 0.9121621621621622,
+            "r": 0.9440559440559441,
+            "f1": 0.9278350515463918,
+            "level_acc": 1.0,
+            "n_pred": 148,
+            "n_gold": 143,
+            "n_match": 135,
+            "n_level_ok": 135
+          },
+          "depth2": {
+            "p": 0.8378378378378378,
+            "r": 0.8857142857142857,
+            "f1": 0.8611111111111112,
+            "level_acc": 1.0,
+            "n_pred": 74,
+            "n_gold": 70,
+            "n_match": 62,
+            "n_level_ok": 62
+          }
+        },
+        {
+          "id": "doc_039",
+          "title": "GNU Coreutils manual",
+          "pages": 326,
+          "seconds": 14.564,
+          "all": {
+            "p": 0.96,
+            "r": 0.9962264150943396,
+            "f1": 0.9777777777777777,
+            "level_acc": 0.9810606060606061,
+            "n_pred": 275,
+            "n_gold": 265,
+            "n_match": 264,
+            "n_level_ok": 259
+          },
+          "depth2": {
+            "p": 0.9518716577540107,
+            "r": 0.994413407821229,
+            "f1": 0.9726775956284153,
+            "level_acc": 1.0,
+            "n_pred": 187,
+            "n_gold": 179,
+            "n_match": 178,
+            "n_level_ok": 178
+          }
+        },
+        {
+          "id": "doc_040",
+          "title": "Getting Started with Raspberry Pi Pico-series",
+          "pages": 36,
+          "seconds": 2.955,
+          "all": {
+            "p": 0.9078947368421053,
+            "r": 0.92,
+            "f1": 0.913907284768212,
+            "level_acc": 0.9855072463768116,
+            "n_pred": 76,
+            "n_gold": 75,
+            "n_match": 69,
+            "n_level_ok": 68
+          },
+          "depth2": {
+            "p": 0.9,
+            "r": 0.9818181818181818,
+            "f1": 0.9391304347826087,
+            "level_acc": 1.0,
+            "n_pred": 60,
+            "n_gold": 55,
+            "n_match": 54,
+            "n_level_ok": 54
+          }
+        },
+        {
+          "id": "doc_041",
+          "title": "NE555 / SA555 / SE555 Precision Timers datasheet",
+          "pages": 39,
+          "seconds": 5.387,
+          "all": {
+            "p": 0.5194805194805194,
+            "r": 0.8163265306122449,
+            "f1": 0.6349206349206349,
+            "level_acc": 0.975,
+            "n_pred": 77,
+            "n_gold": 49,
+            "n_match": 40,
+            "n_level_ok": 39
+          },
+          "depth2": {
+            "p": 0.45454545454545453,
+            "r": 0.6666666666666666,
+            "f1": 0.5405405405405405,
+            "level_acc": 1.0,
+            "n_pred": 44,
+            "n_gold": 30,
+            "n_match": 20,
+            "n_level_ok": 20
+          }
+        },
+        {
+          "id": "doc_042",
+          "title": "RP2040 Datasheet",
+          "pages": 642,
+          "seconds": 49.603,
+          "all": {
+            "p": 0.28213419563459985,
+            "r": 0.9943019943019943,
+            "f1": 0.43954659949622166,
+            "level_acc": 0.9369627507163324,
+            "n_pred": 1237,
+            "n_gold": 351,
+            "n_match": 349,
+            "n_level_ok": 327
+          },
+          "depth2": {
+            "p": 0.9693877551020408,
+            "r": 0.9895833333333334,
+            "f1": 0.9793814432989691,
+            "level_acc": 0.7684210526315789,
+            "n_pred": 98,
+            "n_gold": 96,
+            "n_match": 95,
+            "n_level_ok": 73
+          }
+        },
+        {
+          "id": "doc_045",
+          "title": "Monetary Policy Report, July 5, 2024",
+          "pages": 79,
+          "seconds": 5.907,
+          "all": {
+            "p": 0.6842105263157895,
+            "r": 0.5652173913043478,
+            "f1": 0.6190476190476191,
+            "level_acc": 0.6153846153846154,
+            "n_pred": 19,
+            "n_gold": 23,
+            "n_match": 13,
+            "n_level_ok": 8
+          },
+          "depth2": {
+            "p": 0.6153846153846154,
+            "r": 0.34782608695652173,
+            "f1": 0.4444444444444444,
+            "level_acc": 1.0,
+            "n_pred": 13,
+            "n_gold": 23,
+            "n_match": 8,
+            "n_level_ok": 8
+          }
+        },
+        {
+          "id": "doc_046",
+          "title": "Financial Stability Report, April 2024",
+          "pages": 69,
+          "seconds": 4.177,
+          "all": {
+            "p": 0.9285714285714286,
+            "r": 1.0,
+            "f1": 0.962962962962963,
+            "level_acc": 1.0,
+            "n_pred": 14,
+            "n_gold": 13,
+            "n_match": 13,
+            "n_level_ok": 13
+          },
+          "depth2": {
+            "p": 0.9285714285714286,
+            "r": 1.0,
+            "f1": 0.962962962962963,
+            "level_acc": 1.0,
+            "n_pred": 14,
+            "n_gold": 13,
+            "n_match": 13,
+            "n_level_ok": 13
+          }
+        },
+        {
+          "id": "doc_048",
+          "title": "Google Environmental Report 2024",
+          "pages": 86,
+          "seconds": 14.327,
+          "all": {
+            "p": 0.3548387096774194,
+            "r": 0.8,
+            "f1": 0.4916201117318436,
+            "level_acc": 0.7727272727272727,
+            "n_pred": 124,
+            "n_gold": 55,
+            "n_match": 44,
+            "n_level_ok": 34
+          },
+          "depth2": {
+            "p": 0.6086956521739131,
+            "r": 0.4375,
+            "f1": 0.5090909090909091,
+            "level_acc": 1.0,
+            "n_pred": 23,
+            "n_gold": 32,
+            "n_match": 14,
+            "n_level_ok": 14
+          }
+        },
+        {
+          "id": "doc_049",
+          "title": "NVIDIA Sustainability Report, Fiscal Year 2024",
+          "pages": 41,
+          "seconds": 4.517,
+          "all": {
+            "p": 0.43548387096774194,
+            "r": 0.9,
+            "f1": 0.5869565217391305,
+            "level_acc": 1.0,
+            "n_pred": 62,
+            "n_gold": 30,
+            "n_match": 27,
+            "n_level_ok": 27
+          },
+          "depth2": {
+            "p": 0.6585365853658537,
+            "r": 0.9,
+            "f1": 0.7605633802816902,
+            "level_acc": 1.0,
+            "n_pred": 41,
+            "n_gold": 30,
+            "n_match": 27,
+            "n_level_ok": 27
+          }
+        },
+        {
+          "id": "doc_050",
+          "title": "Tesla Q2 2024 Update (investor slide deck)",
+          "pages": 29,
+          "seconds": 1.98,
+          "all": {
+            "p": 1.0,
+            "r": 0.034482758620689655,
+            "f1": 0.06666666666666667,
+            "level_acc": 1.0,
+            "n_pred": 1,
+            "n_gold": 29,
+            "n_match": 1,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 1.0,
+            "r": 0.034482758620689655,
+            "f1": 0.06666666666666667,
+            "level_acc": 1.0,
+            "n_pred": 1,
+            "n_gold": 29,
+            "n_match": 1,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_051",
+          "title": "NVIDIA Investor Presentation Q2 FY25 (September 3, 2024)",
+          "pages": 27,
+          "seconds": 0.821,
+          "all": {
+            "p": 0.5217391304347826,
+            "r": 0.4444444444444444,
+            "f1": 0.48,
+            "level_acc": 0.08333333333333333,
+            "n_pred": 23,
+            "n_gold": 27,
+            "n_match": 12,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.35294117647058826,
+            "r": 0.2222222222222222,
+            "f1": 0.27272727272727276,
+            "level_acc": 0.16666666666666666,
+            "n_pred": 17,
+            "n_gold": 27,
+            "n_match": 6,
+            "n_level_ok": 1
+          }
+        }
+      ],
+      "note": null,
+      "date": "2026-10-16",
+      "commit": "70a9a0f",
+      "loadavg_start": [
+        4.01025390625,
+        3.060546875,
+        2.6318359375
+      ],
+      "loadavg_end": [
+        3.67333984375,
+        3.8427734375,
+        3.099609375
+      ]
+    },
+    "pymupdf4llm": {
+      "engine": "pymupdf4llm",
+      "n_docs": 24,
+      "doc_ids": [
+        "doc_001",
+        "doc_003",
+        "doc_004",
+        "doc_005",
+        "doc_009",
+        "doc_010",
+        "doc_027",
+        "doc_029",
+        "doc_030",
+        "doc_031",
+        "doc_032",
+        "doc_033",
+        "doc_034",
+        "doc_038",
+        "doc_039",
+        "doc_040",
+        "doc_041",
+        "doc_042",
+        "doc_045",
+        "doc_046",
+        "doc_048",
+        "doc_049",
+        "doc_050",
+        "doc_051"
+      ],
+      "all": {
+        "n_docs": 24,
+        "n_pred": 5766,
+        "n_gold": 1872,
+        "n_match": 1753,
+        "p": 0.30402358654179673,
+        "r": 0.9364316239316239,
+        "f1": 0.4590206860434668,
+        "level_acc": 0.22418710781517398,
+        "macro_f1": 0.47398571080946234,
+        "seconds_per_doc": 17.807458333333333
+      },
+      "depth2": {
+        "n_docs": 24,
+        "n_pred": 1171,
+        "n_gold": 895,
+        "n_match": 449,
+        "p": 0.38343296327924853,
+        "r": 0.5016759776536313,
+        "f1": 0.43465634075508225,
+        "level_acc": 0.6481069042316259,
+        "macro_f1": 0.40897654644308196,
+        "seconds_per_doc": 17.807458333333333
+      },
+      "docs": [
+        {
+          "id": "doc_001",
+          "title": "Berkshire Hathaway Inc. 2023 Annual Report",
+          "pages": 152,
+          "seconds": 30.99,
+          "all": {
+            "p": 0.020454545454545454,
+            "r": 0.42857142857142855,
+            "f1": 0.039045553145336226,
+            "level_acc": 0.0,
+            "n_pred": 440,
+            "n_gold": 21,
+            "n_match": 9,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.1,
+            "r": 0.1111111111111111,
+            "f1": 0.10526315789473685,
+            "level_acc": 0.0,
+            "n_pred": 10,
+            "n_gold": 9,
+            "n_match": 1,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_003",
+          "title": "Amazon.com, Inc. 2023 Annual Report",
+          "pages": 92,
+          "seconds": 14.676,
+          "all": {
+            "p": 0.1,
+            "r": 0.6666666666666666,
+            "f1": 0.1739130434782609,
+            "level_acc": 0.0,
+            "n_pred": 200,
+            "n_gold": 30,
+            "n_match": 20,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.0,
+            "r": 0.0,
+            "f1": 0.0,
+            "level_acc": null,
+            "n_pred": 4,
+            "n_gold": 30,
+            "n_match": 0,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_004",
+          "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended June 30, 2024",
+          "pages": 56,
+          "seconds": 11.837,
+          "all": {
+            "p": 0.11764705882352941,
+            "r": 0.9090909090909091,
+            "f1": 0.20833333333333334,
+            "level_acc": 0.05,
+            "n_pred": 170,
+            "n_gold": 22,
+            "n_match": 20,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.11764705882352941,
+            "r": 0.9090909090909091,
+            "f1": 0.20833333333333334,
+            "level_acc": 0.05,
+            "n_pred": 170,
+            "n_gold": 22,
+            "n_match": 20,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_005",
+          "title": "Berkshire Hathaway Inc. Form 10-Q for the quarter ended September 30, 2023",
+          "pages": 59,
+          "seconds": 13.253,
+          "all": {
+            "p": 0.12209302325581395,
+            "r": 0.9545454545454546,
+            "f1": 0.21649484536082475,
+            "level_acc": 0.047619047619047616,
+            "n_pred": 172,
+            "n_gold": 22,
+            "n_match": 21,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.12209302325581395,
+            "r": 0.9545454545454546,
+            "f1": 0.21649484536082475,
+            "level_acc": 0.047619047619047616,
+            "n_pred": 172,
+            "n_gold": 22,
+            "n_match": 21,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_009",
+          "title": "Amazon.com Announces Second Quarter Results (Aug 1, 2024)",
+          "pages": 12,
+          "seconds": 2.391,
+          "all": {
+            "p": 0.08333333333333333,
+            "r": 0.1111111111111111,
+            "f1": 0.09523809523809525,
+            "level_acc": 0.5,
+            "n_pred": 24,
+            "n_gold": 18,
+            "n_match": 2,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.08333333333333333,
+            "r": 0.1111111111111111,
+            "f1": 0.09523809523809525,
+            "level_acc": 0.5,
+            "n_pred": 24,
+            "n_gold": 18,
+            "n_match": 2,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_010",
+          "title": "Amazon.com Announces Third Quarter Results (Oct 31, 2024)",
+          "pages": 12,
+          "seconds": 1.972,
+          "all": {
+            "p": 0.07692307692307693,
+            "r": 0.1111111111111111,
+            "f1": 0.09090909090909093,
+            "level_acc": 0.5,
+            "n_pred": 26,
+            "n_gold": 18,
+            "n_match": 2,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.07692307692307693,
+            "r": 0.1111111111111111,
+            "f1": 0.09090909090909093,
+            "level_acc": 0.5,
+            "n_pred": 26,
+            "n_gold": 18,
+            "n_match": 2,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_027",
+          "title": "Attention Is All You Need",
+          "pages": 15,
+          "seconds": 2.376,
+          "all": {
+            "p": 0.88,
+            "r": 1.0,
+            "f1": 0.9361702127659575,
+            "level_acc": 1.0,
+            "n_pred": 25,
+            "n_gold": 22,
+            "n_match": 22,
+            "n_level_ok": 22
+          },
+          "depth2": {
+            "p": 0.8636363636363636,
+            "r": 1.0,
+            "f1": 0.9268292682926829,
+            "level_acc": 1.0,
+            "n_pred": 22,
+            "n_gold": 19,
+            "n_match": 19,
+            "n_level_ok": 19
+          }
+        },
+        {
+          "id": "doc_029",
+          "title": "Language Models are Few-Shot Learners",
+          "pages": 75,
+          "seconds": 18.488,
+          "all": {
+            "p": 0.5079365079365079,
+            "r": 1.0,
+            "f1": 0.6736842105263158,
+            "level_acc": 1.0,
+            "n_pred": 63,
+            "n_gold": 32,
+            "n_match": 32,
+            "n_level_ok": 32
+          },
+          "depth2": {
+            "p": 0.6956521739130435,
+            "r": 1.0,
+            "f1": 0.8205128205128205,
+            "level_acc": 1.0,
+            "n_pred": 46,
+            "n_gold": 32,
+            "n_match": 32,
+            "n_level_ok": 32
+          }
+        },
+        {
+          "id": "doc_030",
+          "title": "On the Opportunities and Risks of Foundation Models",
+          "pages": 214,
+          "seconds": 34.061,
+          "all": {
+            "p": 0.2727272727272727,
+            "r": 1.0,
+            "f1": 0.42857142857142855,
+            "level_acc": 0.9230769230769231,
+            "n_pred": 143,
+            "n_gold": 39,
+            "n_match": 39,
+            "n_level_ok": 36
+          },
+          "depth2": {
+            "p": 0.8125,
+            "r": 1.0,
+            "f1": 0.896551724137931,
+            "level_acc": 0.9230769230769231,
+            "n_pred": 48,
+            "n_gold": 39,
+            "n_match": 39,
+            "n_level_ok": 36
+          }
+        },
+        {
+          "id": "doc_031",
+          "title": "RFC 9110: HTTP Semantics",
+          "pages": 194,
+          "seconds": 19.673,
+          "all": {
+            "p": 0.9655172413793104,
+            "r": 0.9903536977491961,
+            "f1": 0.9777777777777777,
+            "level_acc": 0.05844155844155844,
+            "n_pred": 319,
+            "n_gold": 311,
+            "n_match": 308,
+            "n_level_ok": 18
+          },
+          "depth2": {
+            "p": 0.1917808219178082,
+            "r": 0.9333333333333333,
+            "f1": 0.3181818181818181,
+            "level_acc": 0.32142857142857145,
+            "n_pred": 146,
+            "n_gold": 30,
+            "n_match": 28,
+            "n_level_ok": 9
+          }
+        },
+        {
+          "id": "doc_032",
+          "title": "RFC 9000: QUIC: A UDP-Based Multiplexed and Secure Transport",
+          "pages": 151,
+          "seconds": 15.322,
+          "all": {
+            "p": 0.9601769911504425,
+            "r": 0.9908675799086758,
+            "f1": 0.9752808988764046,
+            "level_acc": 0.059907834101382486,
+            "n_pred": 226,
+            "n_gold": 219,
+            "n_match": 217,
+            "n_level_ok": 13
+          },
+          "depth2": {
+            "p": 0.24489795918367346,
+            "r": 1.0,
+            "f1": 0.39344262295081966,
+            "level_acc": 0.3611111111111111,
+            "n_pred": 147,
+            "n_gold": 36,
+            "n_match": 36,
+            "n_level_ok": 13
+          }
+        },
+        {
+          "id": "doc_033",
+          "title": "RFC 9239: Updates to ECMAScript Media Types",
+          "pages": 13,
+          "seconds": 1.415,
+          "all": {
+            "p": 0.8387096774193549,
+            "r": 0.9629629629629629,
+            "f1": 0.896551724137931,
+            "level_acc": 0.34615384615384615,
+            "n_pred": 31,
+            "n_gold": 27,
+            "n_match": 26,
+            "n_level_ok": 9
+          },
+          "depth2": {
+            "p": 0.6666666666666666,
+            "r": 0.9411764705882353,
+            "f1": 0.7804878048780487,
+            "level_acc": 0.5625,
+            "n_pred": 24,
+            "n_gold": 17,
+            "n_match": 16,
+            "n_level_ok": 9
+          }
+        },
+        {
+          "id": "doc_034",
+          "title": "RFC 9457: Problem Details for HTTP APIs",
+          "pages": 16,
+          "seconds": 1.49,
+          "all": {
+            "p": 0.9090909090909091,
+            "r": 0.967741935483871,
+            "f1": 0.9374999999999999,
+            "level_acc": 0.36666666666666664,
+            "n_pred": 33,
+            "n_gold": 31,
+            "n_match": 30,
+            "n_level_ok": 11
+          },
+          "depth2": {
+            "p": 0.75,
+            "r": 0.9473684210526315,
+            "f1": 0.8372093023255814,
+            "level_acc": 0.6111111111111112,
+            "n_pred": 24,
+            "n_gold": 19,
+            "n_match": 18,
+            "n_level_ok": 11
+          }
+        },
+        {
+          "id": "doc_038",
+          "title": "Bash Reference Manual, Edition 5.3",
+          "pages": 214,
+          "seconds": 24.511,
+          "all": {
+            "p": 0.25,
+            "r": 0.972027972027972,
+            "f1": 0.39771101573676676,
+            "level_acc": 0.06474820143884892,
+            "n_pred": 556,
+            "n_gold": 143,
+            "n_match": 139,
+            "n_level_ok": 9
+          },
+          "depth2": {
+            "p": 0.6875,
+            "r": 0.15714285714285714,
+            "f1": 0.2558139534883721,
+            "level_acc": 0.0,
+            "n_pred": 16,
+            "n_gold": 70,
+            "n_match": 11,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_039",
+          "title": "GNU Coreutils manual",
+          "pages": 326,
+          "seconds": 38.478,
+          "all": {
+            "p": 0.47387387387387386,
+            "r": 0.9924528301886792,
+            "f1": 0.6414634146341462,
+            "level_acc": 0.034220532319391636,
+            "n_pred": 555,
+            "n_gold": 265,
+            "n_match": 263,
+            "n_level_ok": 9
+          },
+          "depth2": {
+            "p": 0.9166666666666666,
+            "r": 0.18435754189944134,
+            "f1": 0.30697674418604654,
+            "level_acc": 0.0,
+            "n_pred": 36,
+            "n_gold": 179,
+            "n_match": 33,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_040",
+          "title": "Getting Started with Raspberry Pi Pico-series",
+          "pages": 36,
+          "seconds": 6.797,
+          "all": {
+            "p": 0.6637168141592921,
+            "r": 1.0,
+            "f1": 0.797872340425532,
+            "level_acc": 0.30666666666666664,
+            "n_pred": 113,
+            "n_gold": 75,
+            "n_match": 75,
+            "n_level_ok": 23
+          },
+          "depth2": {
+            "p": 0.7083333333333334,
+            "r": 0.3090909090909091,
+            "f1": 0.43037974683544294,
+            "level_acc": 1.0,
+            "n_pred": 24,
+            "n_gold": 55,
+            "n_match": 17,
+            "n_level_ok": 17
+          }
+        },
+        {
+          "id": "doc_041",
+          "title": "NE555 / SA555 / SE555 Precision Timers datasheet",
+          "pages": 39,
+          "seconds": 6.675,
+          "all": {
+            "p": 0.7903225806451613,
+            "r": 1.0,
+            "f1": 0.8828828828828829,
+            "level_acc": 0.9795918367346939,
+            "n_pred": 62,
+            "n_gold": 49,
+            "n_match": 49,
+            "n_level_ok": 48
+          },
+          "depth2": {
+            "p": 0.7894736842105263,
+            "r": 1.0,
+            "f1": 0.8823529411764706,
+            "level_acc": 0.9666666666666667,
+            "n_pred": 38,
+            "n_gold": 30,
+            "n_match": 30,
+            "n_level_ok": 29
+          }
+        },
+        {
+          "id": "doc_042",
+          "title": "RP2040 Datasheet",
+          "pages": 642,
+          "seconds": 113.376,
+          "all": {
+            "p": 0.19199122325836535,
+            "r": 0.9971509971509972,
+            "f1": 0.32198712051517947,
+            "level_acc": 0.40285714285714286,
+            "n_pred": 1823,
+            "n_gold": 351,
+            "n_match": 350,
+            "n_level_ok": 141
+          },
+          "depth2": {
+            "p": 1.0,
+            "r": 0.9895833333333334,
+            "f1": 0.9947643979057591,
+            "level_acc": 0.9894736842105263,
+            "n_pred": 95,
+            "n_gold": 96,
+            "n_match": 95,
+            "n_level_ok": 94
+          }
+        },
+        {
+          "id": "doc_045",
+          "title": "Monetary Policy Report, July 5, 2024",
+          "pages": 79,
+          "seconds": 11.933,
+          "all": {
+            "p": 0.17543859649122806,
+            "r": 0.8695652173913043,
+            "f1": 0.291970802919708,
+            "level_acc": 0.0,
+            "n_pred": 114,
+            "n_gold": 23,
+            "n_match": 20,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.625,
+            "r": 0.21739130434782608,
+            "f1": 0.3225806451612903,
+            "level_acc": 0.0,
+            "n_pred": 8,
+            "n_gold": 23,
+            "n_match": 5,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_046",
+          "title": "Financial Stability Report, April 2024",
+          "pages": 69,
+          "seconds": 8.392,
+          "all": {
+            "p": 0.19402985074626866,
+            "r": 1.0,
+            "f1": 0.325,
+            "level_acc": 1.0,
+            "n_pred": 67,
+            "n_gold": 13,
+            "n_match": 13,
+            "n_level_ok": 13
+          },
+          "depth2": {
+            "p": 0.2549019607843137,
+            "r": 1.0,
+            "f1": 0.40625,
+            "level_acc": 1.0,
+            "n_pred": 51,
+            "n_gold": 13,
+            "n_match": 13,
+            "n_level_ok": 13
+          }
+        },
+        {
+          "id": "doc_048",
+          "title": "Google Environmental Report 2024",
+          "pages": 86,
+          "seconds": 23.338,
+          "all": {
+            "p": 0.12776412776412777,
+            "r": 0.9454545454545454,
+            "f1": 0.22510822510822512,
+            "level_acc": 0.0,
+            "n_pred": 407,
+            "n_gold": 55,
+            "n_match": 52,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.7142857142857143,
+            "r": 0.15625,
+            "f1": 0.25641025641025644,
+            "level_acc": 0.0,
+            "n_pred": 7,
+            "n_gold": 32,
+            "n_match": 5,
+            "n_level_ok": 0
+          }
+        },
+        {
+          "id": "doc_049",
+          "title": "NVIDIA Sustainability Report, Fiscal Year 2024",
+          "pages": 41,
+          "seconds": 6.343,
+          "all": {
+            "p": 0.2564102564102564,
+            "r": 1.0,
+            "f1": 0.4081632653061224,
+            "level_acc": 0.13333333333333333,
+            "n_pred": 117,
+            "n_gold": 30,
+            "n_match": 30,
+            "n_level_ok": 4
+          },
+          "depth2": {
+            "p": 0.16,
+            "r": 0.13333333333333333,
+            "f1": 0.14545454545454545,
+            "level_acc": 1.0,
+            "n_pred": 25,
+            "n_gold": 30,
+            "n_match": 4,
+            "n_level_ok": 4
+          }
+        },
+        {
+          "id": "doc_050",
+          "title": "Tesla Q2 2024 Update (investor slide deck)",
+          "pages": 29,
+          "seconds": 4.212,
+          "all": {
+            "p": 0.023255813953488372,
+            "r": 0.034482758620689655,
+            "f1": 0.027777777777777776,
+            "level_acc": 1.0,
+            "n_pred": 43,
+            "n_gold": 29,
+            "n_match": 1,
+            "n_level_ok": 1
+          },
+          "depth2": {
+            "p": 0.3333333333333333,
+            "r": 0.034482758620689655,
+            "f1": 0.0625,
+            "level_acc": 1.0,
+            "n_pred": 3,
+            "n_gold": 29,
+            "n_match": 1,
+            "n_level_ok": 1
+          }
+        },
+        {
+          "id": "doc_051",
+          "title": "NVIDIA Investor Presentation Q2 FY25 (September 3, 2024)",
+          "pages": 27,
+          "seconds": 15.38,
+          "all": {
+            "p": 0.35135135135135137,
+            "r": 0.48148148148148145,
+            "f1": 0.40625,
+            "level_acc": 0.0,
+            "n_pred": 37,
+            "n_gold": 27,
+            "n_match": 13,
+            "n_level_ok": 0
+          },
+          "depth2": {
+            "p": 0.2,
+            "r": 0.037037037037037035,
+            "f1": 0.0625,
+            "level_acc": 0.0,
+            "n_pred": 5,
+            "n_gold": 27,
+            "n_match": 1,
+            "n_level_ok": 0
+          }
+        }
+      ],
+      "note": null,
+      "date": "2026-10-21",
+      "commit": "f8a525e",
+      "loadavg_start": [
+        5.34814453125,
+        4.45068359375,
+        3.4091796875
+      ],
+      "loadavg_end": [
+        4.56640625,
+        5.216796875,
+        4.25244140625
+      ]
+    }
+  },
+  "corpus": "benchmarks/corpus"
+}

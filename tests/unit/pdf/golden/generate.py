@@ -1,45 +1,21 @@
-"""Build the fast-path golden PDFs and record ``load_pdf`` output for them.
+"""Build the golden PDFs the element-mode and rooter tests read (only when missing, so a rerun
+keeps the committed inputs)::
 
-The goldens pin the v0.3 fast path (``load_pdf()`` with default arguments), so the JSON must be
-written by the v0.3 code (``feat/v0.3`` at 28fbf9d), never by the code under test::
+    PYTHONPATH=src .venv/bin/python tests/unit/pdf/golden/generate.py
 
-    git worktree add <scratch>/wt-v03 28fbf9d
-    PYTHONPATH=<scratch>/wt-v03/src .venv/bin/python tests/unit/pdf/golden/generate.py
-    git worktree remove <scratch>/wt-v03
-
-The PDFs are built only when missing, so a rerun keeps the committed inputs.
+They once also pinned v0.3's heuristic fast path as JSON; that path is gone (the section tree is
+read with PyMuPDF4LLM), and so are those goldens.
 """
 
 from __future__ import annotations
 
-import json
-import sys
 from pathlib import Path
 from typing import Any
 
 HERE = Path(__file__).resolve().parent
-ENGINES = (None, "pdfplumber")  # None: load_pdf's default ("auto", which is pymupdf)
 NAMES = ("single_column", "two_column", "tables", "scanned", "garbled", "bookmarks")
 
 BODY = "This sentence is ordinary body text that stays small and keeps the body size at eleven."
-
-
-def normalise(doc: Any, name: str) -> dict[str, Any]:
-    """The document's JSON with the run-dependent values fixed: ``source`` becomes the file
-    name and every timing becomes 0.0 (the keys are kept)."""
-    data: dict[str, Any] = json.loads(doc.model_dump_json())
-    data["source"] = name
-    timings = data.get("meta", {}).get("timings")
-    if isinstance(timings, dict):
-        data["meta"]["timings"] = {key: 0.0 for key in timings}
-    return data
-
-
-def golden_name(name: str, engine: str | None) -> str:
-    return f"{name}.json" if engine is None else f"{name}.{engine}.json"
-
-
-# --- PDF builders ----------------------------------------------------------------------------
 
 
 def _paragraph(page: Any, y: float, text: str, *, x: float = 72, n: int = 4) -> float:
@@ -196,16 +172,8 @@ def build_pdfs(directory: Path = HERE) -> list[Path]:
 
 
 def main() -> None:
-    from docrooter.pdf.load import load_pdf
-
-    print(f"docrooter from {sys.modules['docrooter'].__file__}", file=sys.stderr)
     for path in build_pdfs():
-        for engine in ENGINES:
-            doc = load_pdf(path) if engine is None else load_pdf(path, engine=engine)
-            data = normalise(doc, path.name)
-            out = HERE / golden_name(path.stem, engine)
-            out.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-            print(f"wrote {out.name}", file=sys.stderr)
+        print(path)
 
 
 if __name__ == "__main__":

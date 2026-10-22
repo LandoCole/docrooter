@@ -126,9 +126,9 @@ def test_doc_types_example_runs(capsys, monkeypatch):
     assert "\n".join(lines[1:]) in readme  # the README shows this output
 
 
-def test_doc_types_example_loads_a_pdf_with_pdfplumber(capsys, monkeypatch, tmp_path):
+def test_doc_types_example_loads_a_pdf(capsys, monkeypatch, tmp_path):
     pymupdf = pytest.importorskip("pymupdf")
-    pytest.importorskip("pdfplumber")
+    pytest.importorskip("pymupdf4llm")
     pdf = pymupdf.open()
     page = pdf.new_page(width=612, height=792)
     page.insert_text((72, 90), "Abstract", fontsize=22, fontname="hebo")

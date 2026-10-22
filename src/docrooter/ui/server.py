@@ -325,8 +325,10 @@ PROFILE_INFO: tuple[ProfileInfo, ...] = (
         "layout",
     ),
 )
-# PDF engines that have no element mode: only the fast profile can use them.
-_FAST_ONLY_ENGINES = frozenset({"both", "pymupdf4llm"})
+# PDF engines that have no element mode: only the fast profile can use them, and the one
+# that only has element mode.
+_FAST_ONLY_ENGINES = frozenset({"pymupdf4llm"})
+_ELEMENT_ONLY_ENGINES = frozenset({"pdfplumber"})
 
 
 class EnginePool:
@@ -1331,6 +1333,12 @@ def _check_profile(profile: str, engine: str, kind: str) -> None:
             400,
             f"The {engine} PDF engine builds no elements; use it with the fast profile, or "
             "choose auto, pymupdf or pdfplumber.",
+        )
+    if profile == "fast" and kind == "pdf" and engine in _ELEMENT_ONLY_ENGINES:
+        raise HTTPException(
+            400,
+            f"The {engine} PDF engine only reads elements; use it with the balanced or "
+            "accurate profile, or choose auto for the fast profile.",
         )
 
 

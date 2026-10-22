@@ -8,7 +8,7 @@ benchmark code has uncommitted changes), then runs the existing harnesses on
 ``benchmarks/heldout/`` one after another, each in its own process so only one model process
 exists at a time:
 
-1. ``benchmarks.toc --corpus heldout`` with the pymupdf, pdfplumber and both engines (no models),
+1. ``benchmarks.toc --corpus heldout`` with the pymupdf4llm reader (no docrooter models),
    on the held-out PDFs with at least 5 bookmarks;
 2. ``benchmarks.pdf_bench --corpus heldout`` with :data:`PDF_SYSTEMS` on all 40 PDFs: the
    dev-benchmark systems plus the two "trained on dev, tested on held-out" systems that replace
@@ -42,7 +42,7 @@ RESULTS_ROOT = Path(__file__).parent / "results"
 HELDOUT_DOCS = ROOT / "docs" / "benchmarks-heldout.md"
 PDF_DOCS = ROOT / "docs" / "benchmarks-pdf.md"
 
-TOC_ENGINES = ("pymupdf", "pdfplumber", "both")
+TOC_ENGINES = ("pymupdf4llm",)
 PDF_SYSTEMS = (
     "jev-view",
     "jev-chunks",

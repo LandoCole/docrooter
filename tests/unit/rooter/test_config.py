@@ -102,7 +102,7 @@ def test_unknown_key_is_error(tmp_path):
         {"ocr_dpi": 601},
         {"tables": "text"},
         {"summaries": "abstractive"},
-        {"text": "pymupdf4llm"},
+        {"text": "both"},  # the two-engine merge is gone
         {"ocr": ""},
     ],
 )

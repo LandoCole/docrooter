@@ -128,7 +128,6 @@ def test_events_stream_in_order_and_end_with_the_job_sentinel(client):
     assert starts == [
         "upload",
         "extract",
-        "signals",
         "headings",
         "assemble",
         "view",
@@ -422,9 +421,10 @@ def test_pdfs_are_read_with_a_page_cap(client, monkeypatch, profile):
 
     monkeypatch.setattr(server, "load", spy)
     monkeypatch.setattr(rooter_process, "load", spy)  # the other profiles load through the rooter
-    run(client, engine="pdfplumber", profile=profile)
+    engine = "pymupdf" if profile == "fast" else "pdfplumber"
+    run(client, engine=engine, profile=profile)
     assert seen["max_pages"] == server.MAX_PAGES == 2000
-    assert seen["engine"] == "pdfplumber"
+    assert seen["engine"] == engine
 
 
 # --- backends -----------------------------------------------------------------------------
@@ -1134,11 +1134,14 @@ def test_server_rejects_unknown_profile_400(client):
 
 
 def test_server_engines_without_element_mode_need_the_fast_profile(client):
-    for engine in ("both", "pymupdf4llm"):
-        response = post(client, engine=engine, profile="balanced")
-        assert response.status_code == 400 and "fast" in response.json()["detail"]
-    assert post(client, engine="both", profile="fast").status_code == 202
-    assert post(client, "paper.md", MARKDOWN, engine="both", profile="balanced").status_code == 202
+    response = post(client, engine="pymupdf4llm", profile="balanced")
+    assert response.status_code == 400 and "fast" in response.json()["detail"]
+    assert post(client, engine="pymupdf4llm", profile="fast").status_code == 202
+    response = post(client, engine="pdfplumber", profile="fast")
+    assert response.status_code == 400 and "balanced" in response.json()["detail"]
+    assert (
+        post(client, "paper.md", MARKDOWN, engine="pdfplumber", profile="fast").status_code == 202
+    )
 
 
 def test_backends_listing_has_profiles(client):

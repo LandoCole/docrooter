@@ -623,7 +623,7 @@ def no_loading(monkeypatch):
         (dict(embeddings="bogus:x"), BackendError, "unknown backend kind 'bogus'"),
         (dict(layout="heronn"), DocrooterError, "unknown layout engine 'heronn'"),
         (dict(ocr="nope"), DocrooterError, "unknown OCR engine 'nope'"),
-        (dict(text="both"), DocrooterError, "text='both' has no element mode"),
+        (dict(text="pymupdf4llm"), DocrooterError, "text='pymupdf4llm' has no element mode"),
     ],
 )
 def test_bad_specs_and_names_fail_before_any_document_is_read(no_loading, overrides, error,
@@ -649,7 +649,7 @@ def test_good_specs_still_resolve(tmp_path, registries):
     analysis = process(MARKDOWN, doc_type="mine:any", sections="none", layout="fake", ocr="none",
                        text="pymupdf", escalate="none")  # fmt: skip
     assert analysis.config.layout == "fake" and analysis.doc_type is not None
-    assert process(MARKDOWN, profile="fast", text="both", doc_type="none", sections="none")
+    assert process(MARKDOWN, profile="fast", text="pymupdf4llm", doc_type="none", sections="none")
 
 
 def test_process_many_rejects_a_single_source(tmp_path):

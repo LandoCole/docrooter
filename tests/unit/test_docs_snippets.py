@@ -283,9 +283,9 @@ def _tiny_pdf(tmp_path: Path) -> Path:
 
 def test_pdf_quickstart_example(capsys, monkeypatch):
     """Without a path the example writes its sample PDF; the quickstart page shows the output."""
-    pytest.importorskip("pymupdf")
+    pytest.importorskip("pymupdf4llm")
     lines = _run("pdf_quickstart.py", capsys, monkeypatch)
-    assert lines[0] == "pymupdf: 3 pages, 7 headings"
+    assert lines[0] == "pymupdf4llm: 3 pages, 7 headings"
     assert lines[5] == "  Liquidity and Capital Resources  (p. 2)"
     assert "\n".join(lines) in _page("getting-started/quickstart.md")
 
@@ -293,14 +293,14 @@ def test_pdf_quickstart_example(capsys, monkeypatch):
 def test_pdf_quickstart_example_on_a_given_pdf(capsys, monkeypatch, tmp_path):
     path = _tiny_pdf(tmp_path)
     lines = _run("pdf_quickstart.py", capsys, monkeypatch, str(path))
-    assert lines[0] == "pymupdf: 2 pages, 2 headings"
+    assert lines[0] == "pymupdf4llm: 2 pages, 2 headings"
     assert lines[1:3] == ["Abstract  (p. 1)", "Results  (p. 2)"]
     assert lines[3].startswith("type: ")
 
 
 def test_toc_example_on_a_pdf(capsys, monkeypatch, tmp_path):
     path = _tiny_pdf(tmp_path)
-    pytest.importorskip("pdfplumber")
+    pytest.importorskip("pymupdf4llm")
     lines = _run("toc.py", capsys, monkeypatch, str(path))
     assert lines[1].startswith("Abstract [level 1, p. 1")
     assert any("headings without bookmarks" in line for line in lines)

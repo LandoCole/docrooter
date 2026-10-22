@@ -47,12 +47,9 @@ def main(path: str | None) -> None:
     print({key: doc.meta[key] for key in ("engine", "n_pages", "timings", "warnings")})
 
     if path.endswith(".pdf"):
-        # The same PDF without bookmark help, with the MIT engine, reading at most 50 pages.
-        plain = load_pdf(path, engine="pdfplumber", use_bookmarks=False, max_pages=50)
+        # The same PDF without bookmark help, reading at most 50 pages.
+        plain = load_pdf(path, use_bookmarks=False, max_pages=50)
         print(len(plain.toc()), "headings without bookmarks;", plain.meta["warnings"])
-        # A stricter heading threshold keeps fewer, more certain headings (default 0.55).
-        strict = load(path, min_heading_score=0.7)
-        print(len(strict.toc()), "headings at min_heading_score=0.7")
 
 
 # A document can also be built from headings you already have (e.g. from another parser).

@@ -116,8 +116,6 @@ def test_load_pdf_stage_order_and_data(pdf_path):
     assert [(e.stage, e.status) for e in rec.events] == [
         ("extract", "start"),
         ("extract", "end"),
-        ("signals", "start"),
-        ("signals", "end"),
         ("headings", "start"),
         ("headings", "end"),
         ("assemble", "start"),
@@ -126,11 +124,11 @@ def test_load_pdf_stage_order_and_data(pdf_path):
     ]
     assert_well_formed(rec)
     ends = {e.stage: e.data for e in rec.events if e.status == "end"}
-    assert ends["extract"]["pages"] == 3 and ends["extract"]["lines"] > 0
+    assert ends["extract"] == {"pages": 3}
     assert ends["headings"]["headings"] == 3
     assert ends["headings"]["levels"] == {"1": 3}
     assert ends["assemble"] == {"sections": len(doc.sections)}
-    assert rec.events[0].data == {"engine": "pymupdf"}
+    assert rec.events[0].data == {"engine": "pymupdf4llm"}
 
 
 def test_t_starts_near_zero_and_grows(pdf_path):
@@ -138,50 +136,6 @@ def test_t_starts_near_zero_and_grows(pdf_path):
     load_pdf(pdf_path, on_event=rec)
     assert 0 <= rec.events[0].t < 1
     assert rec.events[-1].t > rec.events[0].t
-
-
-def test_extract_progress_every_ten_pages(tmp_path):
-    path = _pdf(tmp_path, pages=25, name="long.pdf")
-    rec = Recorder()
-    load_pdf(path, engine="pymupdf", on_event=rec)
-    progress = [e for e in rec.events if e.status == "progress"]
-    assert [e.data for e in progress] == [{"pages": 25, "page": 10}, {"pages": 25, "page": 20}]
-    assert {e.stage for e in progress} == {"extract"}
-    kinds = [(e.stage, e.status) for e in rec.events[:4]]
-    assert kinds == [
-        ("extract", "start"),
-        ("extract", "progress"),
-        ("extract", "progress"),
-        ("extract", "end"),
-    ]
-    assert_well_formed(rec)
-
-
-def test_extract_progress_counts_pages_read_with_max_pages(tmp_path):
-    path = _pdf(tmp_path, pages=25, name="long.pdf")
-    rec = Recorder()
-    load_pdf(path, engine="pymupdf", max_pages=12, on_event=rec)
-    progress = [e.data for e in rec.events if e.status == "progress"]
-    assert progress == [{"pages": 12, "page": 10}]
-
-
-def test_pdfplumber_engine_reports_progress_too(tmp_path):
-    pytest.importorskip("pdfplumber")
-    path = _pdf(tmp_path, pages=11, name="plumb.pdf")
-    rec = Recorder()
-    load_pdf(path, engine="pdfplumber", on_event=rec)
-    assert [e.data for e in rec.events if e.status == "progress"] == [{"pages": 11, "page": 10}]
-    assert_well_formed(rec)
-
-
-def test_both_engines_report_each_engine_then_the_merge(pdf_path):
-    pytest.importorskip("pdfplumber")
-    rec = Recorder()
-    load_pdf(pdf_path, engine="both", on_event=rec)
-    assert_well_formed(rec)
-    engines = [e.data.get("engine") for e in rec.events if e.status == "start"]
-    assert engines == ["pymupdf"] * 3 + ["pdfplumber"] * 3 + ["both", None]
-    assert rec.stages("start")[6] == "headings"
 
 
 def test_markdown_load_emits_assemble_and_done():
@@ -198,7 +152,7 @@ def test_markdown_load_emits_assemble_and_done():
 def test_load_passes_on_event_to_load_pdf(pdf_path):
     rec = Recorder()
     docrooter.load(pdf_path, engine="pymupdf", on_event=rec)
-    assert rec.stages("start")[:4] == ["extract", "signals", "headings", "assemble"]
+    assert rec.stages("start")[:3] == ["extract", "headings", "assemble"]
     assert_well_formed(rec)
 
 
@@ -260,7 +214,6 @@ def test_shared_run_has_one_clock_and_one_done(pdf_path):
     assert_well_formed(rec)
     assert rec.stages("start") == [
         "extract",
-        "signals",
         "headings",
         "assemble",  # fmt: skip
         "view",
@@ -356,11 +309,11 @@ def test_sink_failing_late_keeps_earlier_events(pdf_path):
 
     def sink(event: Event) -> None:
         seen.append(f"{event.stage}:{event.status}")
-        if event.stage == "signals":
+        if event.stage == "headings":
             raise RuntimeError("boom")
 
     load_pdf(pdf_path, engine="pymupdf", on_event=sink)
-    assert seen == ["extract:start", "extract:end", "signals:start"]
+    assert seen == ["extract:start", "extract:end", "headings:start"]
 
 
 # --- no sink --------------------------------------------------------------------------------
@@ -435,7 +388,6 @@ def test_bound_method_sink_joins_the_enclosing_run(pdf_path):
     assert_well_formed(rec)  # exactly one done, every start ended
     assert rec.stages("start") == [
         "extract",
-        "signals",
         "headings",
         "assemble",  # fmt: skip
         "view",
@@ -503,7 +455,7 @@ def test_asyncio_to_thread_carries_the_run(pdf_path):
             await asyncio.to_thread(load_pdf, pdf_path, engine="pymupdf")
 
     asyncio.run(main())
-    assert rec.stages("start") == ["extract", "signals", "headings", "assemble"]
+    assert rec.stages("start") == ["extract", "headings", "assemble"]
     assert_well_formed(rec)
 
 

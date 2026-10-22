@@ -281,24 +281,43 @@ def score_sections(
     """One record per gold section of ``doc``: ``section_id``, ``gold``, ``pred`` (a catalogue
     id or ``None``) and ``status``. A gold section whose id is not in this reading is
     ``absent``, one whose title's SHA-1 differs is ``title_mismatch``; both are excluded from
-    scoring. ``raw`` keeps a predicted label that is not itself the catalogue id, and
-    ``unmapped`` marks one with no catalogue id. ``section_taxonomy`` is the taxonomy the tags'
+    scoring. Another reader numbers sections differently, so such a gold section is first
+    matched by title: to the first section with the same title SHA-1, in reading order, that
+    no other gold section holds by id or has already taken (``matched_id``). ``raw`` keeps a
+    predicted label that is not itself the catalogue id, and ``unmapped`` marks one with no
+    catalogue id. ``section_taxonomy`` is the taxonomy the tags'
     labels belong to (see :func:`catalogue_label`). ``doc`` is ``None`` for a document that
     failed to read: its gold sections are scored as untagged misses."""
     predicted = {str(tag.id): tag.label for tag in tags}
+    by_title: dict[str, list[str]] = {}
+    used: set[str] = set()
+    if doc is not None:
+        ordered = (  # reading order; a stand-in with only ``sections`` keeps its own order
+            [(s.id, s) for s in doc.walk()] if hasattr(doc, "walk") else doc.sections.items()
+        )
+        for sid, section in ordered:
+            by_title.setdefault(section_sample.title_sha1(section.title), []).append(sid)
+        for row in gold_rows:  # a gold section held by its own id keeps it
+            held = doc.sections.get(row["section_id"])
+            if held is not None and section_sample.title_sha1(held.title) == row["title_sha1"]:
+                used.add(row["section_id"])
     records: list[dict[str, Any]] = []
     for row in gold_rows:
         section_id = row["section_id"]
         section = doc.sections.get(section_id) if doc is not None else None
+        matched = None
         if doc is None:  # the document failed to read: every gold section is a miss
             status = "ok"
-        elif section is None:
-            status = "absent"
-        elif section_sample.title_sha1(section.title) != row["title_sha1"]:
-            status = "title_mismatch"
-        else:
+        elif section is not None and section_sample.title_sha1(section.title) == row["title_sha1"]:
             status = "ok"
-        raw = predicted.get(section_id)
+        else:
+            matched = next((i for i in by_title.get(row["title_sha1"], []) if i not in used), None)
+            if matched is not None:
+                used.add(matched)
+                status = "ok"
+            else:
+                status = "absent" if section is None else "title_mismatch"
+        raw = predicted.get(matched or section_id)
         label = catalogue_label(raw, section_taxonomy=section_taxonomy)
         record: dict[str, Any] = {
             "section_id": section_id,
@@ -306,6 +325,8 @@ def score_sections(
             "pred": label,
             "status": status,
         }
+        if matched is not None:
+            record["matched_id"] = matched
         if raw is not None and raw != label:
             record["raw"] = raw
         if raw is not None and label is None:

@@ -1,32 +1,43 @@
-"""PDF loading. :func:`load_pdf` is the native engine (:mod:`docrooter.pdf.load`); this module
-also holds the v0.1 PyMuPDF4LLM Markdown path (``engine="pymupdf4llm"``)."""
+"""PDF loading: the section tree from PyMuPDF4LLM's Markdown (:func:`load_pdf_markdown`), the
+default reading of :func:`~docrooter.pdf.load.load_pdf`."""
 
 from __future__ import annotations
 
-import os
+import contextlib
+import io
 import re
+import time
 from bisect import bisect_right
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from docrooter import events
 from docrooter._extras import require
 from docrooter.document.build import build_document
-from docrooter.document.headings import repair_levels, validate_headings
+from docrooter.document.headings import repair_levels
 from docrooter.document.markdown import extract_headings
 from docrooter.document.models import Document, RawHeading
-from docrooter.pdf.load import load_pdf
+from docrooter.errors import DocrooterError
+from docrooter.pdf.load import _LETTER_SPACED, _metadata_title, load_pdf
 
-__all__ = ["apply_bookmarks", "load_pdf"]
+__all__ = ["apply_bookmarks", "load_pdf", "load_pdf_markdown"]
 
 _BOOKMARK_FLAG = "level_from_bookmark"
 _NON_WORD = re.compile(r"[\W_]+")
 # Bold/italic markers PyMuPDF4LLM wraps around heading text ("# **Title**").
 _EMPHASIS = re.compile(r"\*{1,3}|(?<!\w)_{1,3}|_{1,3}(?!\w)")
+# HTML it uses for underline and highlight ("<u>Highlights</u>", "<mark>...</mark>").
+_HTML_TAG = re.compile(r"</?[a-zA-Z][^>]*>")
+# A list bullet left at the start of a heading ("• Summary of 2021").
+_BULLET = re.compile(r"^[\u2022\u25aa\u25cf\u2013\u2014\-\s]+")
+_HAS_WORD = re.compile(r"[^\W_]")
 
 
 def _clean_title(title: str) -> str:
-    return " ".join(_EMPHASIS.sub("", title).split()) or title.strip()
+    """A heading's text without Markdown emphasis, HTML tags or a leading bullet."""
+    text = _BULLET.sub("", _HTML_TAG.sub("", _EMPHASIS.sub("", title)))
+    return " ".join(text.split()) or " ".join(title.split())
 
 
 def _normalise(title: str) -> str:
@@ -86,56 +97,105 @@ def _join_chunks(chunks: Sequence[dict[str, Any]]) -> tuple[str, list[int], list
     return "".join(parts), starts, pages
 
 
-def _load_pdf_pymupdf4llm(
-    path: str | os.PathLike[str],
+def load_pdf_markdown(
+    path: Path,
     *,
-    min_heading_score: float = 0.5,
+    use_bookmarks: bool = True,
     repair: bool = True,
     max_pages: int | None = None,
+    ocr: bool = False,
 ) -> Document:
-    """Load a PDF through PyMuPDF4LLM Markdown (the v0.1 path). Requires the ``pdf`` extra.
+    """The section tree of a PDF from PyMuPDF4LLM's Markdown. Requires the ``pdf`` extra.
 
-    The Markdown comes from ``pymupdf4llm.to_markdown(path, page_chunks=True)`` and each
-    heading records the page it appears on (1-based). When the PDF has bookmarks, headings whose
-    title matches a bookmark take its level and the ``level_from_bookmark`` flag; headings
-    without a match keep their (repaired) level. PyMuPDF is AGPL-3.0 licensed.
+    ``pymupdf4llm.to_markdown(path, page_chunks=True, header=False, footer=False)`` reads the
+    pages with its layout model (page headers and footers left out; OCR only with ``ocr``).
+    Its Markdown headings and their levels are the sections, each with the page it starts on
+    (1-based). Titles lose Markdown emphasis, HTML tags and leading bullets; a heading with no
+    letter or digit left is dropped (its text stays with the section before). ``repair`` fixes
+    level jumps (:func:`~docrooter.document.headings.repair_levels`), and with ``use_bookmarks``
+    a heading that matches a PDF bookmark takes the bookmark's level (:func:`apply_bookmarks`).
+    The title is the first level-1 heading, else the PDF's metadata title, else the file name.
+    PyMuPDF and PyMuPDF4LLM are AGPL-3.0 licensed.
     """
     pymupdf4llm = require("pymupdf4llm", "pdf")
     pymupdf = require("pymupdf", "pdf")
-    path = Path(path)
+    timings: dict[str, float] = {}
 
-    with pymupdf.open(str(path)) as pdf:
-        n_pages = pdf.page_count
-        toc = pdf.get_toc()
-    truncated = max_pages is not None and max_pages < n_pages
-    if truncated:
-        pages = list(range(max_pages))  # type: ignore[arg-type]
-        chunks = pymupdf4llm.to_markdown(str(path), page_chunks=True, pages=pages)
-        toc = [entry for entry in toc if entry[2] <= max_pages]
-    else:
-        chunks = pymupdf4llm.to_markdown(str(path), page_chunks=True)
+    clock = time.perf_counter()
+    stage = events.start("extract", engine="pymupdf4llm")
+    try:
+        with pymupdf.open(str(path)) as pdf:
+            if pdf.needs_pass:
+                raise DocrooterError(f"cannot open PDF {path}: file is encrypted")
+            n_pages = pdf.page_count
+            toc = pdf.get_toc() if use_bookmarks else []
+    except DocrooterError:
+        raise
+    except Exception as exc:
+        raise DocrooterError(f"cannot open PDF {path}: {exc}") from None
+    n_read = n_pages if max_pages is None else min(max_pages, n_pages)
+    options: dict[str, Any] = {
+        "page_chunks": True,
+        "header": False,
+        "footer": False,
+        "use_ocr": ocr,
+        "show_progress": False,
+    }
+    if n_read < n_pages:
+        options["pages"] = list(range(n_read))
+        toc = [entry for entry in toc if entry[2] <= n_read]
+    with contextlib.redirect_stdout(io.StringIO()):  # it prints parser and OCR messages
+        chunks = pymupdf4llm.to_markdown(str(path), **options) if n_read else []
     markdown, starts, pages = _join_chunks(chunks)
+    timings["extract"] = time.perf_counter() - clock
+    stage.end(pages=n_read)
 
-    raw = []
+    clock = time.perf_counter()
+    stage = events.start("headings", engine="pymupdf4llm")
+    raw: list[RawHeading] = []
     for heading in extract_headings(markdown):
         page = pages[bisect_right(starts, heading.line) - 1] if starts else None
-        update: dict[str, Any] = {"page": page}
-        if heading.level > 0:
-            update["title"] = _clean_title(heading.title)
-        raw.append(heading.model_copy(update=update))
-
-    raw = validate_headings(raw, min_score=min_heading_score)
+        if heading.level == 0:
+            raw.append(heading.model_copy(update={"page": page}))
+            continue
+        clean = _clean_title(heading.title)
+        if not _HAS_WORD.search(clean):  # an emptied heading: its text joins the one before
+            if raw:
+                joined = "\n".join(t for t in (raw[-1].text, heading.text) if t)
+                raw[-1] = raw[-1].model_copy(update={"text": joined})
+            continue
+        raw.append(heading.model_copy(update={"title": clean, "page": page}))
     if repair:
         raw = repair_levels(raw)
-
     if toc:
         raw = apply_bookmarks(raw, toc)
+    if not raw:
+        raw = [RawHeading(title="Preamble", level=0, text="", line=0, page=1 if n_pages else None)]
+    if stage.active:
+        levels: dict[str, int] = {}
+        for heading in raw:
+            if heading.level:
+                levels[str(heading.level)] = levels.get(str(heading.level), 0) + 1
+        stage.end(headings=sum(levels.values()), levels=dict(sorted(levels.items())))
+    timings["headings"] = time.perf_counter() - clock
 
-    title = next((h.title for h in raw if h.level == 1), path.stem)
-    doc = build_document(raw, source=str(path), title=title)
+    clock = time.perf_counter()
+    stage = events.start("assemble")
+    title: str | None = next(
+        (h.title for h in raw if h.level == 1 and not _LETTER_SPACED.search(h.title)), None
+    ) or _metadata_title(path)
+    doc = build_document(raw, source=str(path), title=title or path.stem)
+    timings["assemble"] = time.perf_counter() - clock
+    stage.end(sections=len(doc.sections))
+
+    warnings = [] if markdown.strip() else ["no_text_layer"]
+    if n_read < n_pages:
+        warnings.append("truncated_pages")
     doc.meta = {
         "engine": "pymupdf4llm",
         "n_pages": n_pages,
-        "warnings": ["truncated_pages"] if truncated else [],
+        "timings": {key: round(value, 4) for key, value in timings.items()},
+        "bookmarks": len(toc),
+        "warnings": warnings,
     }
     return doc

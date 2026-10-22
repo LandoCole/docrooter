@@ -164,6 +164,7 @@ def test_section_f1_leaf_and_group():
     ]
     records = bench.score_sections(doc, gold, tags, section_taxonomy="section_catalogue")
     assert [r["status"] for r in records] == ["ok", "ok", "ok", "title_mismatch", "absent"]
+    assert "matched_id" not in records[3]  # no other section has the gold title
     assert records[2]["pred"] is None
     m = bench.section_metrics(records)
     assert m["n"] == 3 and m["excluded"] == 2 and m["missing"] == 1
@@ -176,6 +177,41 @@ def test_section_f1_leaf_and_group():
     # Group macro: financial F=1, research F=0.
     assert m["group"]["macro_f1"] == pytest.approx(0.5)
     assert bench.group_of("financial.balance_sheet") == "financial"
+
+
+def test_gold_sections_fall_back_to_a_title_match_in_reading_order():
+    """Another reader numbers sections differently: a gold section whose id is gone or holds
+    another title is matched to the first unused section with its title, in reading order."""
+    doc = _doc(s1="Overview", s2="Balance sheet", s3="Notes", s4="Notes")
+    gold = [
+        _gold_row("d", "s7", "Balance sheet", "financial.balance_sheet"),  # id moved to s2
+        _gold_row("d", "s1", "Overview", "general.summary"),  # same id and title
+        _gold_row(
+            "d", "s2", "Notes", "financial.notes_to_financial_statements"
+        ),  # s2 holds another title now
+        _gold_row(
+            "d", "s5", "Notes", "financial.notes_to_financial_statements"
+        ),  # the second "Notes"
+        _gold_row("d", "s6", "Notes", "financial.notes_to_financial_statements"),  # no third one
+    ]
+    tags = [
+        _tag("s2", "financial.balance_sheet"),
+        _tag("s3", "financial.notes_to_financial_statements"),
+    ]
+    records = bench.score_sections(doc, gold, tags, section_taxonomy="section_catalogue")
+    assert [(r["status"], r.get("matched_id")) for r in records] == [
+        ("ok", "s2"),
+        ("ok", None),
+        ("ok", "s3"),
+        ("ok", "s4"),
+        ("absent", None),
+    ]
+    assert [r["pred"] for r in records[:4]] == [
+        "financial.balance_sheet",
+        None,
+        "financial.notes_to_financial_statements",
+        None,
+    ]
 
 
 def test_doc_first_section_labels_map_to_catalogue():

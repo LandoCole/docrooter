@@ -203,8 +203,8 @@ with the same extras until docrooter is on PyPI.
 | --- | --- | --- |
 | *(none)* | `pydantic`, `numpy`, `typer`, `rich` | Markdown/text loading, taxonomies, the `keyword` backend, the CLI |
 | `models` | `torch`, `transformers>=5`, `sentence-transformers>=6`, `scikit-learn`, `joblib`, `datasets` | `embedding`, `nli`, `mlm-choice` and `trained` backends; `docrooter train`; `docrooter models` |
-| `pdf` | `pymupdf4llm` (which installs PyMuPDF) | Loading `.pdf` files with PyMuPDF, the default engine (AGPL; see the licence note below) |
-| `pdf-mit` | `pdfplumber` | Loading `.pdf` files with the MIT-licensed pdfplumber engine |
+| `pdf` | `pymupdf4llm` (which installs PyMuPDF and its layout model) | Loading `.pdf` files: the section tree from PyMuPDF4LLM (AGPL; see the licence note below) |
+| `pdf-mit` | `pdfplumber` | Element mode's MIT-licensed line reader (`load(path, elements=True, engine="pdfplumber")`) |
 | `llm` | `httpx` | The `openai` backend (any OpenAI-compatible server) |
 | `jev` | `typesafe-sdk` | The `jev` backend (TypeSafe Jev) |
 | `ui` | `fastapi`, `uvicorn`, `python-multipart` | `docrooter serve`, the local [playground](#playground) |
@@ -219,13 +219,14 @@ Python 3.10 or newer. Asking for something an extra provides without installing 
 the exact command to run, in the GitHub form, e.g.
 `pip install "docrooter[models] @ git+https://github.com/LandoCole/docrooter"`.
 
-**PDF engines and the AGPL.** The default PDF engine is PyMuPDF, which is licensed under the
-AGPL-3.0, unlike docrooter itself (Apache-2.0). It comes with the `[pdf]` extra (and so with
-`[all]`) and is imported only when a `.pdf` file is loaded. Read the AGPL terms before you
-distribute software or run a network service that includes it. For a permissive stack, install
-`[pdf-mit]` instead: it adds `pdfplumber` (MIT), which `load(path)` uses automatically when
-PyMuPDF is not installed, or explicitly with `engine="pdfplumber"`. The `pymupdf4llm` engine is
-the legacy v0.1 Markdown path, kept for comparison (`engine="pymupdf4llm"`, AGPL).
+**PDFs and the AGPL.** PDFs are read with PyMuPDF4LLM, which, like PyMuPDF and its layout
+model, is licensed under the AGPL-3.0 (or a commercial licence from Artifex), unlike docrooter
+itself (Apache-2.0). It comes with the `[pdf]` extra (and so with `[all]`) and is imported only
+when a `.pdf` file is loaded; Markdown and text need nothing. Read the AGPL terms before you
+distribute software or run a network service that includes it. docrooter no longer has its own
+heading detector for PDFs: PyMuPDF4LLM's layout model finds the headings and their levels, and
+docrooter only cleans the titles, repairs level jumps and applies the PDF's bookmarks. The MIT
+`[pdf-mit]` extra (pdfplumber) now serves element mode only.
 
 **`trust_remote_code` and UltraBERT.** The default model, `dmis-lab/UltraBERT-Embed-150M`
 (and `UltraBERT-380M`, used by `mlm-choice`), ships its own modelling code, which
@@ -351,7 +352,7 @@ the `keyword` backend; it lives in [`examples/doc_types.py`](examples/doc_types.
 ```python
 from docrooter import DocumentView, builtin_taxonomy, classify_document, load, normalize_sections
 
-doc = load(path, engine="pdfplumber") if path else load(MARKDOWN)
+doc = load(path) if path else load(MARKDOWN)
 doc_types = builtin_taxonomy("doc_types")
 view = DocumentView(fields=("title", "toc", "lead"), max_tokens=512)
 result = classify_document(doc, doc_types, backend="keyword", view=view)
@@ -370,10 +371,11 @@ Results: results
 References: references
 ```
 
-- **PDF engines.** `load(path, engine=...)` (or `load_pdf`) reads PDFs natively, without OCR:
-  `"auto"` (the default: PyMuPDF if installed, else pdfplumber), `"pymupdf"` (extra `pdf`),
-  `"pdfplumber"` (extra `pdf-mit`), `"both"` (PyMuPDF headings that pdfplumber agrees with) or
-  `"pymupdf4llm"` (the legacy v0.1 path). `doc.meta` records the engine, page count and timings.
+- **Reading PDFs.** `load(path)` (or `load_pdf`) builds the section tree from PyMuPDF4LLM's
+  Markdown: its layout model finds the headings and their levels, page headers and footers are
+  left out, and `ocr="auto"` lets it OCR pages without text. `doc.meta` records the engine
+  (`pymupdf4llm`), page count, bookmarks and timings. `elements=True` reads native lines instead
+  (`engine="pymupdf"` or `"pdfplumber"`) and types every block; see element mode below.
 - **`classify_document`** uses `Flat()` and threshold 0 by default, so a document with text always
   gets a label; gate on `result.confidence`. For many documents, build one classifier and call
   `Classifier(taxonomy, backend).classify_documents(docs, threshold=0.0)`, which gives the same
@@ -945,4 +947,5 @@ memory-budget and benchmark rules and the pull request checklist. See also the
 ## Licence
 
 Apache-2.0 for docrooter. See [LICENSE](LICENSE). The optional `[pdf]` extra pulls in the
-AGPL-3.0 PyMuPDF, as noted above; `[pdf-mit]` (pdfplumber) is MIT.
+AGPL-3.0 PyMuPDF4LLM and PyMuPDF, as noted above; `[pdf-mit]` (pdfplumber, element mode only) is
+MIT.

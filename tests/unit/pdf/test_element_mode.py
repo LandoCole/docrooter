@@ -209,8 +209,6 @@ def test_figure_label_text_is_section_text(tmp_path):
 
 def test_two_column_toc_order_fixed():
     path = GOLDEN / "two_column.pdf"
-    fast = [e.title for e in load_pdf(path).toc()]
-    assert "1.1 Column Topic 1.1 2.1 Column Topic 2.1" in fast  # rows across columns, merged
     doc = load_pdf(path, elements=True)
     assert [e.title for e in doc.toc()] == [
         "A Study of Two Columns", "1.1 Column Topic 1.1", "1.2 Column Topic 1.2",
@@ -495,11 +493,11 @@ def test_pages_subset_still_finds_contents_labelled_past_the_pages_read(tmp_path
 def test_arguments_are_checked():
     path = GOLDEN / "single_column.pdf"
     with pytest.raises(TypeError, match="only valid with elements=True"):
-        load_pdf(path, ocr="auto")
+        load_pdf(path, ocr="tesseract")
     with pytest.raises(TypeError):
         load_pdf(path, ocr_dpi=300)
     with pytest.raises(DocrooterError, match="no element mode"):
-        load_pdf(path, elements=True, engine="both")
+        load_pdf(path, elements=True, engine="pymupdf4llm")
     with pytest.raises(DocrooterError, match="unknown layout engine"):
         load_pdf(path, elements=True, layout="no-such-engine")
     with pytest.raises(TypeError, match="only valid with elements=True"):

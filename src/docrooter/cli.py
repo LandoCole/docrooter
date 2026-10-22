@@ -101,7 +101,7 @@ def toc(
     engine: Annotated[
         str,
         typer.Option(
-            help="PDF engine: auto, pymupdf, pdfplumber, both or pymupdf4llm (ignored otherwise)."
+            help="PDF engine: auto, pymupdf or pymupdf4llm (all PyMuPDF4LLM; ignored otherwise)."
         ),
     ] = "auto",
 ) -> None:
@@ -870,7 +870,7 @@ def doctype(
         str, typer.Option(help="What is classified: view, sections or hybrid.")
     ] = "view",
     engine: Annotated[
-        str, typer.Option(help="PDF engine: auto, pymupdf, pdfplumber, both or pymupdf4llm.")
+        str, typer.Option(help="PDF engine: auto, pymupdf or pymupdf4llm (all PyMuPDF4LLM).")
     ] = "auto",
     keep: Annotated[
         list[str] | None,

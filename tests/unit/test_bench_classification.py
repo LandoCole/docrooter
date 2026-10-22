@@ -742,3 +742,22 @@ def test_flow_comparison_says_whether_sections_first_wins_on_doc_type():
         bench.flow_comparison(runs + held)
     )
     assert bench.flow_comparison(runs[:1]) == []
+
+
+def test_readings_are_saved_once_and_reused(tmp_path, monkeypatch):
+    from docrooter import load
+
+    calls = []
+
+    def read(path):
+        calls.append(path)
+        return load("# Title\n\nBody.\n\n## Part\n\nMore.\n")
+
+    monkeypatch.setattr(bench.section_sample, "read_document", read)
+    monkeypatch.setattr(bench, "reading_key", lambda: "reader-1")
+    first = bench._loader(tmp_path / "doc_a.pdf", readings=tmp_path / "readings")()
+    again = bench._loader(tmp_path / "doc_a.pdf", readings=tmp_path / "readings")()
+    assert len(calls) == 1 and (tmp_path / "readings" / "reader-1" / "doc_a.json").is_file()
+    assert again.model_dump() == first.model_dump()  # the Document round-trips through JSON
+    bench._loader(tmp_path / "doc_a.pdf")()  # no readings dir: always read
+    assert len(calls) == 2

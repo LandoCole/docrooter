@@ -53,6 +53,10 @@ tagged or published, and their entries are kept as history. The package version 
 - **`classify` tags every heading at any depth**, level 1 first, then level 2 and so on, up to
   `max_sections=400` (was 40 sections at levels 1 and 2). The PyMuPDF4LLM reader often nests a
   balance sheet or the notes at level 3 to 6, where they were never tagged.
+- **Headings past the cap inherit.** A section past `max_sections` takes its nearest tagged
+  ancestor's domain tag and confidence (`confidence_source="inherited"`, no tokens): the notes
+  under a tagged "Notes to the financial statements" are notes. Inherited tags are never
+  evidence for the doc-type rules.
 - **`doc_first` tags against the section catalogue**, as `sections_first` does: the two flows
   tag sections alike and differ only in how the type is decided.
 - **A section view's path holds the section's ancestors** when the view also has a title line

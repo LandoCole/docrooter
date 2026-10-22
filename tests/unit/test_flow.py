@@ -684,3 +684,40 @@ def test_default_level_is_measured_per_backend():
     assert result.levels == {"section": "terms", "document": None}
     result = classify(financial_doc(EXEC_COMP), backend=Scripted(name="openai:m"), level="lead")
     assert result.levels == {"section": "lead", "document": None}  # an explicit level wins
+
+
+def test_sections_past_the_cap_inherit_their_nearest_tagged_ancestors_tag():
+    doc = Document.from_sections(
+        [
+            {"title": "Notes to the financial statements", "level": 1, "text": "Policies."},
+            {"title": "12 Leases", "level": 2, "text": "Leases."},
+            {"title": "12.1 Right-of-use assets", "level": 3, "text": "Assets."},
+            {"title": "Introduction", "level": 1, "text": "Hello."},
+            {"title": "Scope", "level": 2, "text": "Scope."},
+        ]
+    )
+    table = {
+        "Notes to the financial statements": ("financial.notes_to_financial_statements", 0.9),
+        "Introduction": ("none", 0.9),
+    }
+    for flow in ("sections_first", "doc_first"):
+        backend = Scripted(by_title(table), document=lambda text: ("financial.annual_report", 0.9))
+        result = classify(doc, flow=flow, backend=backend, max_sections=2)
+        asked = [t.title for t in result.sections if t.confidence_source != "inherited"]
+        assert asked == ["Notes to the financial statements", "Introduction"]
+        inherited = {t.title: t for t in result.sections if t.confidence_source == "inherited"}
+        assert set(inherited) == {"12 Leases", "12.1 Right-of-use assets"}  # not under none
+        assert all(t.label == "financial.notes_to_financial_statements" for t in inherited.values())
+        notes = next(t for t in result.sections if t.title.startswith("Notes"))
+        assert all(t.confidence == notes.confidence for t in inherited.values())
+        assert all(t.tokens.prompt == 0 for t in inherited.values())
+        assert len(backend.of("section")) == 3  # the two asked only: notes 2 steps, none 1
+
+
+def test_inherited_tags_are_no_evidence_for_the_rules():
+    sections = [{"title": "Opinion", "level": 1, "text": "The court holds."}]
+    sections += [{"title": f"Part {i}", "level": 2, "text": "More."} for i in range(5)]
+    backend = Scripted(by_title({"Opinion": ("law.opinion", 0.99)}))
+    result = classify(Document.from_sections(sections), backend=backend, max_sections=1)
+    assert sum(t.confidence_source == "inherited" for t in result.sections) == 5
+    assert "thin_evidence" in result.flags  # one asked tag, however many inherit it

@@ -194,7 +194,7 @@ Flag = Literal[
 ]
 Step = Literal["group", "leaf", "batch", "batch_group", "batch_leaf", "document"]
 Calls = Literal["batched", "batched_flat", "per_item"]
-ConfidenceSource = Literal["probability", "batched", "text"]
+ConfidenceSource = Literal["probability", "batched", "text", "inherited"]
 CALLS: tuple[str, ...] = ("batched", "batched_flat", "per_item")
 MEASURED_LEVELS: dict[str, Level] = {
     "jev": "headings",
@@ -233,7 +233,9 @@ class SectionTag(BaseModel):
     probability of a per-item answer (``"probability"``); 1.0 for a valid batched answer and 0
     for an unparsed one (``"batched"``); or, for a per-item answer read from the reply's letter
     because the endpoint returned no logprobs (``"text"``), ``None``, since a bare letter is no
-    probability, and 0 for a reply that named no option."""
+    probability, and 0 for a reply that named no option. A section past ``max_sections`` that
+    was not asked about takes its nearest tagged ancestor's domain tag and confidence
+    (``"inherited"``, no tokens); it is never evidence for the doc-type rules."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -779,8 +781,9 @@ class _Run:
         def tagger(view: SectionView) -> Classifier:
             return Classifier(catalogue, self.metered, strategy=Greedy(), view=view, threshold=0.0)
 
-        tags = self.tag(selected, section_level, tagger, catalogue, catalogue_name)
-        domain = [tag for tag in tags if tag.label != NO_TAG]
+        asked = self.tag(selected, section_level, tagger, catalogue, catalogue_name)
+        domain = [tag for tag in asked if tag.label != NO_TAG]  # inherited tags are no evidence
+        tags = asked + _inherited(self.doc, asked)
         needed = evidence_needed(len(domain), min_evidence, min_evidence_share)
         if sum(_confident(tag, rule_min_conf) for tag in domain) < needed:
             # too few confident tags to narrow on: narrowing would exclude the true type
@@ -793,7 +796,7 @@ class _Run:
                 evidence[tag.label] = max(evidence.get(tag.label, 0.0), tag.confidence)
         match = match_rules(rules, evidence, min_conf=rule_min_conf, decide_conf=decide_conf)
         flags = ["excludes_waived"] if match.excludes_waived else []
-        support = _supporting(rules[match.decided], tags, rule_min_conf) if match.decided else []
+        support = _supporting(rules[match.decided], asked, rule_min_conf) if match.decided else []
         # batched or letter answers carry no probability: count supporting sections instead
         hard = self.batched or any(t.source == "text" for t in support)
         weak = match.decided is not None and hard and len(support) < BATCHED_SUPPORT
@@ -852,6 +855,7 @@ class _Run:
 
         selected = select_sections(self.doc, max_sections)
         tags = self.tag(selected, section_level, tagger, catalogue, catalogue_name)
+        tags = tags + _inherited(self.doc, tags)
         name = catalogue_name
         decided_by: DecidedBy = "model" if decision.calls else "fallback"  # nothing was sent
         return self.result(decision, decided_by, [], [], name, tags, section_level)
@@ -1529,6 +1533,28 @@ def _supporting(rule: DocTypeRules, tags: Sequence[_Tag], min_conf: float) -> li
         and tag.confidence >= min_conf
         and any(covers(rule_id, tag.label) for rule_id in ids)
     ]
+
+
+def _inherited(doc: Document, tags: Sequence[_Tag]) -> list[_Tag]:
+    """Tags for the sections past ``max_sections``, in reading order: each takes the domain tag
+    of its nearest tagged ancestor ("12 Leases" under a tagged "Notes to the financial
+    statements"), at that ancestor's confidence, with no tokens. A section whose nearest tagged
+    ancestor is ``none``, untagged, or missing stays untagged."""
+    tagged = {t.section.id: t for t in tags}
+    out: list[_Tag] = []
+    for section in doc.walk():
+        if section.id in tagged or section.level < 1:
+            continue
+        if not (section.title.strip() or section.text.strip()):
+            continue
+        parent = section.parent_id
+        while parent is not None and parent not in tagged:
+            parent = doc.sections[parent].parent_id
+        source = tagged.get(parent) if parent is not None else None
+        if source is None or source.label in (None, NO_TAG) or source.unparsed:
+            continue
+        out.append(_Tag(section, source.label, source.confidence, source.level, source="inherited"))
+    return out
 
 
 def _unparsed_label(taxonomy: Taxonomy, parent: str | None) -> str | None:

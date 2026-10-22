@@ -1,6 +1,7 @@
 """Build the demo's samples and benchmark summary.
 
-Each sample is classified live with Jev (``TYPESAFE_API_KEY``), both flows at all four rungs,
+Each sample is classified live with Jev (``TYPESAFE_API_KEY``), read then tag (``doc_first``)
+at all four rungs,
 through the same code as the live upload (``demo/api/docrooter_demo.py``: :func:`describe` and
 :func:`run`), so a sample shows exactly what the model saw and answered. Two kinds of sample:
 
@@ -87,7 +88,7 @@ def section_gold(doc, doc_id: str, rows: dict[str, list[dict]]) -> dict[str, str
 
 def build(doc, meta: dict, gold: str, gold_tags: dict[str, str], backend) -> dict:
     sample = {**demo.describe(doc, gold_tags), **meta, "gold": gold, "runs": {}}
-    for flow in demo.FLOWS:
+    for flow in ("doc_first",):  # read, then tag: the only approach the demo shows
         for level in demo.LEVELS:
             sample["runs"][f"{flow}/{level}"] = demo.run(doc, flow, level, backend, gold, gold_tags)
     return sample
@@ -101,6 +102,8 @@ def bench_summary() -> dict:
             data = json.loads(path.read_text())
             c, m = data["config"], data["metrics"]
             if c["section_level"] != c["doc_level"] or data["backend"]["label"] not in wanted:
+                continue
+            if c["flow"] != "doc_first":  # read, then tag only
                 continue
             if (data.get("settings") or {}).get("limit"):  # a smoke run
                 continue

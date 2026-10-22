@@ -1098,7 +1098,9 @@ def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
     without = summary["documents_without_sections"]
     gold_rows = [row for rows in load_section_gold().values() for row in rows]
     none_share = sum(row["label"] == NO_TAG for row in gold_rows) / max(len(gold_rows), 1)
-    return [
+    # the rules and sections_first notes only when a sections_first run is reported
+    rules = any(_key(r)[3] == "sections_first" for r in results) or not results
+    gold_note = [
         f"- **Section gold is Claude-annotated, for evaluation only.** "
         f"{agreement['sections']} sections of the {len(gold_data['documents'])} documents, at "
         f"every heading depth (up to {summary['max_per_doc']} per document, a third reserved "
@@ -1108,6 +1110,8 @@ def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
         f"{agreement['leaf']['kappa']:.3f} at leaf and {agreement['group']['kappa']:.3f} at group, "
         f"{agreement['adjudicated']} disagreements adjudicated. The annotators were all Claude "
         f"(the same underlying model), so κ measures consistency, not correctness.",
+    ]
+    rule_notes = [
         "- **Doc-type rules were revised once after a reviewer checked them against the section "
         "gold. Gold-split doc-type numbers are therefore development numbers; the held-out run "
         "is the clean measure.** The revision was made from the doc-type definitions (an "
@@ -1121,6 +1125,20 @@ def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
         "or decide only when at least max(2, 20% of the tagged sections) sections were tagged "
         "with confidence, otherwise every type is offered (`thin_evidence`). N2: a weakly "
         "supported lone type (`low_support`) is offered with every type, not with its siblings.",
+    ]
+    notes = [
+        *gold_note,
+        *(
+            rule_notes
+            if rules
+            else [
+                "- **Gold-split doc-type numbers are development numbers; the held-out run is "
+                "the clean measure.** The type definitions and the section catalogue were "
+                "refined after looking at gold results; catalogue v2 (2026-10-22) replaced the "
+                "generic `general` tags with `none` and added a `government` group, and the "
+                "section gold was labelled afresh against it."
+            ]
+        ),
         f"- **Doc-type gold comes from the source**: the manifest's source-assigned type "
         f"(`benchmarks/classification/doc_type_gold.json`), with "
         f"{len(gold_data['corrections'])} correction(s).",
@@ -1149,23 +1167,36 @@ def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
         f"the share whose deciding document view was cut, and the share with any view (section "
         f"or document) cut.",
         f"- **Every heading is tagged**, at any depth, up to {MAX_SECTIONS} per document (level "
-        f"1 first, then level 2 and so on, in reading order). A gold section past the cap is "
-        f"untagged and counts as a miss: the Sections column gives scored / excluded (reading "
-        f"mismatch) / untagged.",
+        f"1 first, then level 2 and so on, in reading order). A section past the cap takes its "
+        f"nearest tagged ancestor's tag, with no call (since 2026-10-22); one with no tagged "
+        f"domain ancestor is untagged and counts as a miss: the Sections column gives scored / "
+        f"excluded (reading mismatch) / untagged.",
         "- **Section scores treat `none` as an abstention.** Precision is the share of domain "
         "tags given that were right (a domain tag on a gold `none` section is wrong); recall is "
         "the share of gold domain sections tagged right; macro-F1 averages the domain leaves "
         "in the gold. How often a gold `none` section was left `none` is reported apart.",
         f"- **{len(without)} document(s) have no titled sections** in the reading (profile "
-        f"`fast`), so they hold no section gold; `sections_first` falls back to `doc_first` "
-        f"for them (flag `no_sections`).",
-        "- **Both flows tag sections against the same catalogue**: they differ only in how the "
-        "type is decided (read the document, then tag; or tag the sections, then decide).",
+        f"`fast`), so they hold no section gold"
+        + (
+            "; `sections_first` falls back to `doc_first` for them (flag `no_sections`)."
+            if rules
+            else "."
+        ),
+        *(
+            [
+                "- **Both flows tag sections against the same catalogue**: they differ only in "
+                "how the type is decided (read the document, then tag; or tag the sections, "
+                "then decide)."
+            ]
+            if rules
+            else []
+        ),
         "- **Token share** is a run's prompt tokens over those of the same backend, calls and "
         "flow's `full`/`full` run, summed over the same documents.",
         "- **Failed documents** (the Errors column) count as wrong in accuracy and carry no "
         "tokens, so they are left out of the token means.",
     ]
+    return notes
 
 
 def _split(result: Mapping[str, Any]) -> str:

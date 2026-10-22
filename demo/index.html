@@ -78,13 +78,6 @@ h1{font-weight:400;font-size:clamp(44px,6vw,64px);line-height:72px;letter-spacin
 .btn[aria-disabled="true"]{opacity:.5;pointer-events:none}
 .file input{position:absolute;width:1px;height:1px;opacity:0}
 select{box-sizing:border-box;width:100%;height:48px;padding:0 12px;border:0;border-radius:0;outline:1px solid var(--ink);outline-offset:-0.5px;box-shadow:var(--line-box-gap);background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:12px;cursor:pointer}
-/* the two approaches: stacked choices, each with its own one-line account */
-.choice{display:grid;gap:0;outline:1px solid var(--ink);outline-offset:-0.5px;box-shadow:var(--line-box-gap)}
-.choice button{display:grid;gap:4px;text-align:left;padding:12px;border:0;background:var(--paper);color:var(--graphite);cursor:pointer;font:inherit}
-.choice button + button{box-shadow:inset 0 0.5px 0 0 var(--ink)}
-.choice button b{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
-.choice button span{font-style:italic;font-size:15px;line-height:20px}
-.choice button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .readout{margin:0;padding-top:12px;box-shadow:inset 0 0.5px 0 0 var(--rule);font-family:var(--mono);font-size:11px;line-height:24px;color:var(--graphite)}
 .readout b{font-weight:500;color:var(--ink)}
 
@@ -235,7 +228,7 @@ tr.pick td:first-child{font-style:italic}
   </section>
 
   <section class="tool" aria-label="doc-rooter">
-    <aside class="controls" aria-label="Choose a document and an approach">
+    <aside class="controls" aria-label="Choose a document">
       <div class="group">
         <p class="label"><label for="sample">A sample</label></p>
         <select id="sample"><option value="">Loading samples…</option></select>
@@ -245,13 +238,6 @@ tr.pick td:first-child{font-style:italic}
         <p class="label">Your document</p>
         <label class="btn file" id="fileBtn">Choose a file<input type="file" id="file" accept=".pdf,.md,.txt,application/pdf,text/markdown,text/plain"></label>
         <p class="hint">A PDF (up to 4 MB, 30 pages read), Markdown or text file, or drop one on the figure. It's read on the server and classified at all four rungs; the file isn't kept.</p>
-      </div>
-      <div class="group">
-        <p class="label" id="flowLabel">Approach</p>
-        <div class="choice" role="group" aria-labelledby="flowLabel">
-          <button type="button" id="flowDoc" aria-pressed="true"><b>Read, then tag</b><span>Jev reads the document once and names its type, then tags every section.</span></button>
-          <button type="button" id="flowSec" aria-pressed="false"><b>Tag, then decide</b><span>Tag every section first. Rules over the tags decide the type when they can; Jev chooses only among what's left.</span></button>
-        </div>
       </div>
       <div class="group">
         <p class="label">What's sent</p>
@@ -309,14 +295,14 @@ tr.pick td:first-child{font-style:italic}
       <div class="tablebox">
         <table class="b" id="bench">
           <caption id="benchCap">Loading the benchmark…</caption>
-          <thead><tr><th scope="col">Rung</th><th scope="col">Read, then tag</th><th scope="col">Tag precision</th><th scope="col">Tag recall</th><th scope="col">Tokens / doc</th><th scope="col">Cost / doc</th></tr></thead>
+          <thead><tr><th scope="col">Rung</th><th scope="col">Doc type</th><th scope="col">Tag precision</th><th scope="col">Tag recall</th><th scope="col">Tokens / doc</th><th scope="col">Cost / doc</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
       <div class="tablebox">
         <table class="b" id="held">
           <caption>Held-out: 40 documents no rule or prompt was tuned on, scored once</caption>
-          <thead><tr><th scope="col">Rung</th><th scope="col">Read, then tag</th><th scope="col">Tag, then decide</th><th scope="col">Tokens / doc</th><th scope="col">Documents</th></tr></thead>
+          <thead><tr><th scope="col">Rung</th><th scope="col">Doc type</th><th scope="col">Tokens / doc</th><th scope="col">Cost / doc</th><th scope="col">Documents</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -324,8 +310,8 @@ tr.pick td:first-child{font-style:italic}
         <svg id="chartSvg" role="img" aria-label="Document-type accuracy against prompt tokens per document, for each rung"></svg>
         <figcaption>Fig. 2 · Document-type accuracy against prompt tokens per document (log scale), gold split. Left to right: headings, key terms, leads, full text.</figcaption>
       </figure>
-      <p class="note" id="benchNote">Jev's tokens are exact, from the API. Jev answers one question per call with a probability for every option, so each heading costs a call or two, each carrying its own option list: a 400-heading annual report is about 250,000 input tokens, a cent at Jev's $0.042 per million (output is free). On held-out documents, tagging first and letting the rules decide named the type less often (82.5–90%) than reading the document first, so the demo opens on <i>Read, then tag</i>. Tags are capped at 400 headings per document, and 11% of the labelled headings, mostly the notes of the longest annual reports, fall past it.</p>
-      <p class="note"><b>A note on the numbers.</b> The 113 gold documents span 8 types (annual reports, fact sheets, prospectuses, government reports, contracts, court opinions, research papers, standards). The doc-type rules were revised after looking at them, so treat the gold columns as development numbers; the held-out set is the clean measure. The section labels (2,194 headings, every depth) were written by Claude annotators for evaluation only; a third are <i>none</i>, a heading with nothing to normalise.</p>
+      <p class="note" id="benchNote">Jev's tokens are exact, from the API. Jev answers one question per call with a probability for every option, so each heading costs a call or two, each carrying its own option list: a 400-heading annual report is about 250,000 input tokens, a cent at Jev's $0.042 per million (output is free). Up to 400 headings per document are asked about; deeper ones in the longest annual reports inherit their parent's tag.</p>
+      <p class="note"><b>A note on the numbers.</b> The 113 gold documents span 8 types (annual reports, fact sheets, prospectuses, government reports, contracts, court opinions, research papers, standards). The type definitions and section tags were refined after looking at them, so treat the gold columns as development numbers; the held-out set is the clean measure. The section labels (2,194 headings, every depth) were written by Claude annotators for evaluation only; a third are <i>none</i>, a heading with nothing to normalise.</p>
     </div>
   </section>
 
@@ -334,7 +320,7 @@ tr.pick td:first-child{font-style:italic}
     <div class="body">
       <p><b>A context ladder.</b> doc-rooter reads a PDF or Markdown file into its section tree, then renders it at four rungs, each adding one thing: the headings (title, counts, the contents), then key terms, then the opening sentences, then the whole text, within a 16,000-token prompt. Every section gets its own view at the same rung: its path, its title and, higher up, its key terms and lead.</p>
       <p><b>Section tags that mean something.</b> A tag normalises what a heading means, so the same kind of section can be found across documents however each one words it: "Statement of financial position" and "Consolidated balance sheets" are both a balance sheet; "Audit opinion" and "Report of independent registered public accounting firm" are both the auditor's report. A heading with nothing to normalise (an introduction, a summary, Part II) is tagged <i>none</i>. Every heading is tagged, at any depth, so the statements nested under Item 8 are found too.</p>
-      <p><b>Two approaches.</b> <i>Tag, then decide</i> tags the sections first; rules over the tags (a balance sheet plus management's discussion means a financial report) decide the type when they can, and Jev chooses only among the types left. <i>Read, then tag</i> lets Jev read the document view and name the type first, then tags the sections the same way.</p>
+      <p><b>Read, then tag.</b> Jev reads the document view at the chosen rung and names the type, then tags every section from that section's own view. A heading past the 400th takes the tag of its nearest tagged parent, so the notes of a long annual report are still notes.</p>
       <p><b>A decision model.</b> Jev answers each question with a probability for every option instead of generating text, so the answer is always one of the options, the confidence is usable, and every call's tokens are exact.</p>
     </div>
   </section>
@@ -357,7 +343,6 @@ tr.pick td:first-child{font-style:italic}
 const $ = id => document.getElementById(id);
 const LEVELS = ['headings', 'terms', 'lead', 'full'];
 const RUNG = { headings: 'Headings', terms: '+ Key terms', lead: '+ Leads', full: 'Full text' };
-const FLOW = { sections_first: 'Tag, then decide', doc_first: 'Read, then tag' };
 const PRICE = 0.042e-6;           // Jev, US$ per input token; output is free
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const PROMPT_CHARS = 2400;        // the document view shown before "Show all"
@@ -369,7 +354,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 let labels = {};
 let samples = [];
 let current = null;               // the sample or live result on show
-let flow = 'doc_first';
+const flow = 'doc_first';          // read, then tag
 let level = 'headings';
 let filter = 'all';
 let promptOpen = false;
@@ -380,17 +365,6 @@ const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const runOf = (s, f, lv) => s?.runs?.[`${f}/${lv}`];
 
 // ---------- controls ----------
-function setFlow(f) {
-  if (busy) return;
-  flow = f;
-  $('flowDoc').setAttribute('aria-pressed', f === 'doc_first');
-  $('flowSec').setAttribute('aria-pressed', f === 'sections_first');
-  if (current?.live && !runOf(current, flow, level) && current.file) return runLive(current.file);
-  render();
-}
-$('flowDoc').addEventListener('click', () => setFlow('doc_first'));
-$('flowSec').addEventListener('click', () => setFlow('sections_first'));
-
 function pick(lv, focus = false) {
   level = lv;
   render();
@@ -415,18 +389,15 @@ function render() {
   $('docline').innerHTML = `<b>${esc(s.title)}</b>${pages ? ` · ${pages}` : ''}${s.publisher ? ` · ${esc(s.publisher)}` : ''} · ${fmt(s.sections_total)} sections`;
   $('docline').title = s.attribution || s.title;
   if (!run) {
-    $('verdict').textContent = 'Not run with this approach';
+    $('verdict').textContent = 'Not run';
     $('verdict').className = 'verdict weighing';
-    $('sub').textContent = s.live ? 'Choose the approach again to run it.' : '';
+    $('sub').textContent = '';
     $('probsLabel').hidden = $('probs').hidden = true;
     showStats(null, null);
   } else {
     $('verdict').textContent = cap(label(run.pred));
     $('verdict').className = 'verdict';
-    const how = run.decided_by === 'rules' ? 'decided by the section rules, with no type question'
-      : run.decided_by === 'fallback' && flow === 'sections_first' ? 'Jev chose among every type: the tags were too few for the rules'
-      : run.candidates?.length > 1 ? `Jev chose among the ${run.candidates.length} types the rules left`
-      : 'Jev chose among every type';
+    const how = run.decided_by === 'fallback' ? 'nothing to send: no text' : 'Jev chose among every type';
     const check = s.gold ? (run.correct ? ' · <b>✓ matches the source</b>' : ` · ✗ the source says <b>${esc(label(s.gold))}</b>`) : '';
     $('sub').innerHTML = `${how}${check}`;
     renderProbs(s, run);
@@ -467,9 +438,7 @@ function renderProbs(s, run) {
   const show = probs.length > 0;
   $('probsLabel').hidden = ol.hidden = !show;
   if (!show) return;
-  $('probsLabel').innerHTML = run.candidates?.length > 1 && run.decided_by === 'model'
-    ? `Jev's answer · probability of each of the ${run.candidates.length} types the rules left`
-    : "Jev's answer · probability of each type, the most likely first";
+  $('probsLabel').textContent = "Jev's answer · probability of each type, the most likely first";
   probs.forEach(([id, p], i) => {
     const li = document.createElement('li');
     if (i === 0) li.className = 'top';
@@ -481,11 +450,9 @@ function renderProbs(s, run) {
 // The document view, exactly as sent for the type question, its field labels picked out.
 function renderPrompt(s) {
   const v = s?.views?.[level];
-  const run = runOf(s, flow, level);
   $('sawLabel').hidden = $('saw').hidden = !v;
   if (!v) return;
-  const asked = !run || run.decided_by !== 'rules';
-  $('sawLabel').innerHTML = `What Jev saw for the type · <b>${RUNG[level].replace('+ ', '')}</b>${asked ? '' : ' · not sent: the rules decided'}${v.chars > 0 ? ` · ${fmt(v.chars)} characters` : ''}`;
+  $('sawLabel').innerHTML = `What Jev saw for the type · <b>${RUNG[level].replace('+ ', '')}</b>${v.chars > 0 ? ` · ${fmt(v.chars)} characters` : ''}`;
   let html = '', used = 0;
   for (const [name, text] of v.fields) {
     let body = text;
@@ -500,7 +467,6 @@ function renderPrompt(s) {
   const long = v.fields.reduce((n, [, t]) => n + t.length, 0) > PROMPT_CHARS;
   $('expand').hidden = !long;
   $('expand').textContent = promptOpen ? 'Show less' : 'Show all';
-  $('saw').style.opacity = asked ? 1 : 0.55;
 }
 
 // Every section's own view at this rung (what was sent beyond its path and title), with the
@@ -616,7 +582,7 @@ async function runLive(file) {
   $('docline').innerHTML = `<b>${esc(file.name)}</b> · ${fmt(file.size / 1024)} KB`;
   $('verdict').textContent = 'Reading…';
   $('verdict').className = 'verdict weighing';
-  $('sub').textContent = `doc-rooter is reading it and asking Jev at all four rungs (${FLOW[flow].toLowerCase()}).`;
+  $('sub').textContent = 'doc-rooter is reading it and asking Jev at all four rungs.';
   const t0 = performance.now();
   try {
     const q = new URLSearchParams({ flow, name: file.name });
@@ -669,18 +635,18 @@ async function loadBench() {
   $('benchCap').textContent = 'Jev on 113 public documents (gold split): document-type accuracy, and section tags on 2,194 labelled headings at every depth.';
   const held = $('held').tBodies[0];
   for (const lv of LEVELS) {
-    const s = get('jev', 'heldout', 'sections_first', lv), d = get('jev', 'heldout', 'doc_first', lv);
-    if (!s && !d) continue;
+    const d = get('jev', 'heldout', 'doc_first', lv);
+    if (!d) continue;
     const tr = document.createElement('tr');
     if (lv === 'headings') tr.className = 'pick';
-    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${d ? pct(d.doc_acc) : '–'}</td><td>${s ? pct(s.doc_acc) : '–'}</td><td>${fmt((d || s).prompt_tokens)}</td><td>${(d || s).documents}</td>`;
+    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${pct(d.doc_acc)}</td><td>${fmt(d.prompt_tokens)}</td><td>${usd(d.prompt_tokens * PRICE)}</td><td>${d.documents}</td>`;
     held.append(tr);
   }
   for (const [backend, name, lv] of [['haiku-5.5', 'Claude Haiku 5.5, headings (v1: levels 1–2, batched)', 'headings'], ['ultrabert', 'UltraBERT, + leads (v1)', 'lead']]) {
     const d = get(backend, 'heldout', 'doc_first', lv);
     if (!d) continue;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${name}</td><td>${pct(d.doc_acc)}</td><td>–</td><td>${d.exact ? '' : '~'}${fmt(d.prompt_tokens)}</td><td>${d.documents}</td>`;
+    tr.innerHTML = `<td>${name}</td><td>${pct(d.doc_acc)}</td><td>${d.exact ? '' : '~'}${fmt(d.prompt_tokens)}</td><td>–</td><td>${d.documents}</td>`;
     held.append(tr);
   }
   const head = get('jev', 'gold', 'doc_first', 'headings'), lead = get('jev', 'gold', 'doc_first', 'lead'), heldHead = get('jev', 'heldout', 'doc_first', 'headings');
@@ -690,7 +656,7 @@ async function loadBench() {
 
 function drawChart(get) {
   const series = [
-    { name: 'Jev, read then tag', cls: 'a', pts: LEVELS.map(lv => get('jev', 'gold', 'doc_first', lv)) },
+    { name: 'Jev', cls: 'a', pts: LEVELS.map(lv => get('jev', 'gold', 'doc_first', lv)) },
     { name: 'Claude Haiku 5.5', cls: 'c', pts: LEVELS.map(lv => get('haiku-5.5', 'gold', 'doc_first', lv)) },
   ].map(s => ({ ...s, pts: s.pts.filter(Boolean) })).filter(s => s.pts.length);
   if (!series.length) return;

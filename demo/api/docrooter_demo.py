@@ -1,11 +1,11 @@
 """The live demo's server function: classify one upload with doc-rooter and Jev.
 
-``POST /api/docrooter_demo?flow=<flow>&name=<file name>`` (flow ``doc_first`` or
-``sections_first``), with the file as the raw request body (a PDF, Markdown or plain text, at
-most 4 MB). doc-rooter reads the file and classifies it at all four rungs of the context ladder
-with Jev, TypeSafe's decision model. The reply is JSON in the shape of the demo's samples (see
-:func:`describe`): what the model saw at each rung, the sections, and one run per rung for the
-requested flow. Errors reply ``{"error": "..."}``.
+``POST /api/docrooter_demo?name=<file name>``, with the file as the raw request body (a PDF,
+Markdown or plain text, at most 4 MB). doc-rooter reads the file and classifies it at all four
+rungs of the context ladder with Jev, TypeSafe's decision model: Jev reads the document view and
+names its type, then tags every section (``doc_first``). The reply is JSON in the shape of the
+demo's samples (see :func:`describe`): what the model saw at each rung, the sections, and one run
+per rung. Errors reply ``{"error": "..."}``.
 
 It runs as a Vercel Python function (the ``handler`` class) and under ``demo/serve.py`` locally;
 ``demo/build_samples.py`` uses :func:`describe` and :func:`run` for the samples. The TypeSafe key
@@ -36,7 +36,7 @@ SECTIONS_SHOWN = 200
 SECTION_VIEW_CHARS = 600  # a section's own view, as sent (the full rung's is cut for display)
 DOC_VIEW_CHARS = 20000
 TOP_TYPES = 6
-FLOWS = ("doc_first", "sections_first")
+FLOWS = ("doc_first",)  # read, then tag: the demo shows no section rules
 LEVELS = ("headings", "terms", "lead", "full")
 PER_MINUTE, PER_DAY = 10, 100
 NO_TAG = "none"
@@ -231,7 +231,7 @@ def classify_bytes(data: bytes, name: str, flow: str) -> dict:
 class handler(BaseHTTPRequestHandler):  # noqa: N801 - Vercel looks for this name
     def do_POST(self) -> None:  # noqa: N802
         query = parse_qs(urlsplit(self.path).query)
-        flow = (query.get("flow") or ["sections_first"])[0]
+        flow = (query.get("flow") or ["doc_first"])[0]
         name = (query.get("name") or ["upload"])[0][:200]
         if flow not in FLOWS:
             return self._reply(400, {"error": "Unknown flow."})

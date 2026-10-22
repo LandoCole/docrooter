@@ -8,12 +8,12 @@
    "calls": "per_item",
    "doc_acc": 0.9734513274336283,
    "leaf": {
-    "precision": 0.6309963099630996,
-    "recall": 0.6714659685863874,
-    "micro_f1": 0.6506024096385542,
-    "macro_f1": 0.6487724527715257
+    "precision": 0.6223776223776224,
+    "recall": 0.7571989528795812,
+    "micro_f1": 0.6832004723944494,
+    "macro_f1": 0.6542966713101183
    },
-   "prompt_tokens": 321287.1339285714,
+   "prompt_tokens": 321367.58035714284,
    "exact": true,
    "documents": 113,
    "decided_by_rules": 0.0
@@ -26,12 +26,12 @@
    "calls": "per_item",
    "doc_acc": 0.9823008849557522,
    "leaf": {
-    "precision": 0.6330275229357798,
-    "recall": 0.5418848167539267,
-    "micro_f1": 0.5839210155148096,
-    "macro_f1": 0.56132015749352
+    "precision": 0.6145287958115183,
+    "recall": 0.6145287958115183,
+    "micro_f1": 0.6145287958115183,
+    "macro_f1": 0.5639717906253632
    },
-   "prompt_tokens": 215552.84955752213,
+   "prompt_tokens": 215638.72566371682,
    "exact": true,
    "documents": 113,
    "decided_by_rules": 0.0
@@ -44,12 +44,12 @@
    "calls": "per_item",
    "doc_acc": 0.9823008849557522,
    "leaf": {
-    "precision": 0.6422764227642277,
-    "recall": 0.6721204188481675,
-    "micro_f1": 0.6568596098496962,
-    "macro_f1": 0.6561281972380981
+    "precision": 0.6322722283205269,
+    "recall": 0.7539267015706806,
+    "micro_f1": 0.6877611940298507,
+    "macro_f1": 0.658820949474533
    },
-   "prompt_tokens": 258845.09734513273,
+   "prompt_tokens": 258743.8761061947,
    "exact": true,
    "documents": 113,
    "decided_by_rules": 0.0
@@ -62,12 +62,12 @@
    "calls": "per_item",
    "doc_acc": 0.9911504424778761,
    "leaf": {
-    "precision": 0.6245869134170522,
-    "recall": 0.618455497382199,
-    "micro_f1": 0.6215060835251562,
-    "macro_f1": 0.6004150386739078
+    "precision": 0.6154734411085451,
+    "recall": 0.6976439790575916,
+    "micro_f1": 0.6539877300613497,
+    "macro_f1": 0.6097116844305246
    },
-   "prompt_tokens": 230194.65486725664,
+   "prompt_tokens": 230252.32743362832,
    "exact": true,
    "documents": 113,
    "decided_by_rules": 0.0
@@ -110,45 +110,6 @@
    "exact": true,
    "documents": 40,
    "decided_by_rules": 0.0
-  },
-  {
-   "backend": "jev",
-   "docs": "heldout",
-   "flow": "sections_first",
-   "level": "headings",
-   "calls": "per_item",
-   "doc_acc": 0.825,
-   "leaf": null,
-   "prompt_tokens": 281282.575,
-   "exact": true,
-   "documents": 40,
-   "decided_by_rules": 0.4
-  },
-  {
-   "backend": "jev",
-   "docs": "heldout",
-   "flow": "sections_first",
-   "level": "lead",
-   "calls": "per_item",
-   "doc_acc": 0.875,
-   "leaf": null,
-   "prompt_tokens": 331755.325,
-   "exact": true,
-   "documents": 40,
-   "decided_by_rules": 0.475
-  },
-  {
-   "backend": "jev",
-   "docs": "heldout",
-   "flow": "sections_first",
-   "level": "terms",
-   "calls": "per_item",
-   "doc_acc": 0.9,
-   "leaf": null,
-   "prompt_tokens": 300857.925,
-   "exact": true,
-   "documents": 40,
-   "decided_by_rules": 0.425
   },
   {
    "backend": "haiku-5.5",
@@ -204,58 +165,6 @@
   },
   {
    "backend": "haiku-5.5",
-   "docs": "gold",
-   "flow": "sections_first",
-   "level": "full",
-   "calls": "batched",
-   "doc_acc": 0.8495575221238938,
-   "leaf": null,
-   "prompt_tokens": 34939.74336283186,
-   "exact": true,
-   "documents": 113,
-   "decided_by_rules": 0.36283185840707965
-  },
-  {
-   "backend": "haiku-5.5",
-   "docs": "gold",
-   "flow": "sections_first",
-   "level": "headings",
-   "calls": "batched",
-   "doc_acc": 0.9292035398230089,
-   "leaf": null,
-   "prompt_tokens": 5333.884955752213,
-   "exact": true,
-   "documents": 113,
-   "decided_by_rules": 0.2743362831858407
-  },
-  {
-   "backend": "haiku-5.5",
-   "docs": "gold",
-   "flow": "sections_first",
-   "level": "lead",
-   "calls": "batched",
-   "doc_acc": 0.8672566371681416,
-   "leaf": null,
-   "prompt_tokens": 11317.58407079646,
-   "exact": true,
-   "documents": 113,
-   "decided_by_rules": 0.3274336283185841
-  },
-  {
-   "backend": "haiku-5.5",
-   "docs": "gold",
-   "flow": "sections_first",
-   "level": "terms",
-   "calls": "batched",
-   "doc_acc": 0.9292035398230089,
-   "leaf": null,
-   "prompt_tokens": 6655.451327433629,
-   "exact": true,
-   "documents": 113,
-   "decided_by_rules": 0.34513274336283184
-  },
-  {
-   "backend": "haiku-5.5",
    "docs": "heldout",
    "flow": "doc_first",
    "level": "headings",
@@ -279,32 +188,6 @@
    "exact": true,
    "documents": 40,
    "decided_by_rules": 0.0
-  },
-  {
-   "backend": "haiku-5.5",
-   "docs": "heldout",
-   "flow": "sections_first",
-   "level": "headings",
-   "calls": "batched",
-   "doc_acc": 0.825,
-   "leaf": null,
-   "prompt_tokens": 5592.475,
-   "exact": true,
-   "documents": 40,
-   "decided_by_rules": 0.4
-  },
-  {
-   "backend": "haiku-5.5",
-   "docs": "heldout",
-   "flow": "sections_first",
-   "level": "terms",
-   "calls": "batched",
-   "doc_acc": 0.825,
-   "leaf": null,
-   "prompt_tokens": 7416.175,
-   "exact": true,
-   "documents": 40,
-   "decided_by_rules": 0.375
   },
   {
    "backend": "ultrabert",
@@ -360,58 +243,6 @@
   },
   {
    "backend": "ultrabert",
-   "docs": "gold",
-   "flow": "sections_first",
-   "level": "full",
-   "calls": "batched",
-   "doc_acc": 0.7699115044247787,
-   "leaf": null,
-   "prompt_tokens": 19952.203539823007,
-   "exact": false,
-   "documents": 113,
-   "decided_by_rules": 0.008849557522123894
-  },
-  {
-   "backend": "ultrabert",
-   "docs": "gold",
-   "flow": "sections_first",
-   "level": "headings",
-   "calls": "batched",
-   "doc_acc": 0.6371681415929203,
-   "leaf": null,
-   "prompt_tokens": 3032.8407079646017,
-   "exact": false,
-   "documents": 113,
-   "decided_by_rules": 0.02654867256637168
-  },
-  {
-   "backend": "ultrabert",
-   "docs": "gold",
-   "flow": "sections_first",
-   "level": "lead",
-   "calls": "batched",
-   "doc_acc": 0.7522123893805309,
-   "leaf": null,
-   "prompt_tokens": 5692.185840707964,
-   "exact": false,
-   "documents": 113,
-   "decided_by_rules": 0.0
-  },
-  {
-   "backend": "ultrabert",
-   "docs": "gold",
-   "flow": "sections_first",
-   "level": "terms",
-   "calls": "batched",
-   "doc_acc": 0.6637168141592921,
-   "leaf": null,
-   "prompt_tokens": 3843.1150442477874,
-   "exact": false,
-   "documents": 113,
-   "decided_by_rules": 0.008849557522123894
-  },
-  {
-   "backend": "ultrabert",
    "docs": "heldout",
    "flow": "doc_first",
    "level": "lead",
@@ -419,19 +250,6 @@
    "doc_acc": 0.825,
    "leaf": null,
    "prompt_tokens": 3351.0,
-   "exact": false,
-   "documents": 40,
-   "decided_by_rules": 0.0
-  },
-  {
-   "backend": "ultrabert",
-   "docs": "heldout",
-   "flow": "sections_first",
-   "level": "lead",
-   "calls": "batched",
-   "doc_acc": 0.825,
-   "leaf": null,
-   "prompt_tokens": 6598.4,
    "exact": false,
    "documents": 40,
    "decided_by_rules": 0.0

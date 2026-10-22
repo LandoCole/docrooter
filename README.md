@@ -111,35 +111,36 @@ depth, `none` counting as an abstention.
 
 | Jev (`jev-1.13.0`), per item, doc_first | Level | Doc-type accuracy | Tag precision | Tag recall | Prompt tokens per doc | Cost per doc |
 |---|---|---:|---:|---:|---:|---:|
-| Gold (development) | `headings` | **98.2%** | 63.3% | 54.2% | 215,553 | $0.009 |
-| Gold (development) | `terms` | 99.1% | 62.5% | 61.8% | 230,195 | $0.010 |
-| Gold (development) | `lead` | 98.2% | 64.2% | **67.2%** | 258,845 | $0.011 |
-| Gold (development) | `full` | 97.3% | 63.1% | 67.1% | 321,287 | $0.013 |
+| Gold (development) | `headings` | **98.2%** | 61.5% | 61.5% | 215,639 | $0.009 |
+| Gold (development) | `terms` | 99.1% | 61.5% | 69.8% | 230,252 | $0.010 |
+| Gold (development) | `lead` | 98.2% | 63.2% | **75.4%** | 258,744 | $0.011 |
+| Gold (development) | `full` | 97.3% | 62.2% | 75.7% | 321,368 | $0.013 |
 | Held-out (**clean**) | `headings` / `terms` / `lead` | **95.0%** / 95.0% / 95.0% | — | — | 282,893 / 302,328 / 333,076 | $0.012–0.014 |
-| Held-out (**clean**), sections_first | `headings` / `terms` / `lead` | 82.5% / 90.0% / 87.5% | — | — | 281,283 / 300,858 / 331,755 | — |
 
 What it shows:
 - **The headings are enough for the type.** Jev names the document type from the title, counts
   and contents alone as well as from any richer rung: 98.2% on the gold split, 95.0% on the
   held-out set, where every rung scored the same.
-- **The section tags want the opening sentences.** Recall rises from 54% at `headings` to 67%
-  at `lead`; `full` adds nothing. Precision stays near 63% at every rung, and more text makes
+- **The section tags want the opening sentences.** Recall rises from 62% at `headings` to 75%
+  at `lead`; `full` adds nothing. Precision stays near 62% at every rung, and more text makes
   the model tag more generic headings: the share of `none` headings left untagged falls from
-  65% at `headings` to 43% at `full`.
-- **Where the tags miss.** By document type, 93% of the labelled headings of prospectuses are
-  tagged right at `lead`, 83% of research papers and court opinions, 78–79% of contracts,
-  government reports and standards, and 50% of annual reports. Annual reports have more than
-  400 headings, and the deepest (mostly the notes) fall past the cap: 11% of all labelled
-  headings were never tagged. Most wrong tags are generic headings given a domain tag (a GAO
-  report's own structure tagged `government.other` or `government.highlights`).
-- **Sections first does not beat doc first on document type.** On the held-out set
-  `sections_first` scored 82.5–90% against `doc_first`'s 95%, at the same tokens: both flows
-  tag every heading, and only how the type is decided differs. (The `sections_first` gold grid
-  was not run: the TypeSafe credits ran out.)
+  63% at `headings` to 42% at `full`.
+- **Where the tags miss.** By document type at `lead`, 93% of the labelled headings of
+  prospectuses are tagged right, 83–84% of research papers and court opinions, 78–80% of
+  contracts, government reports and standards, and 68% of annual reports. Most wrong tags are
+  generic headings given a domain tag (a GAO report's own structure tagged `government.other`
+  or `government.highlights`).
+- **Long documents.** Up to 400 headings per document are asked about; deeper ones (the notes
+  of the longest annual reports) take their nearest tagged parent's tag with no call. That
+  raised annual reports from 50% to 68% at `lead`; 1.5% of the labelled headings stay untagged.
 - **Jev's tokens are mostly option lists.** Jev answers one question per call with a
   probability for every option, so each heading costs a call or two, each carrying its options:
-  about 95,000 of the 215,553 tokens at `headings` are option lists. At $0.042 per million input
+  about 95,000 of the 215,639 tokens at `headings` are option lists. At $0.042 per million input
   tokens (output is free) a 400-heading annual report still costs about a cent.
+
+The benchmark and the demo use `doc_first` (read the document, then tag). `sections_first`,
+which lets rules over the section tags decide the type, scored lower on the held-out set
+(82.5–90% against 95%) and is not reported.
 
 Earlier runs (catalogue v1, levels 1 and 2 tagged, batched calls) are kept in
 `benchmarks/results/2026-10-21/`: Claude Haiku 5.5 named the type from the headings 98.2% of the
@@ -152,8 +153,8 @@ the v1 tags and gold.
   the same underlying model, so κ (0.914) measures consistency, not correctness.
 - The doc-type rules were revised after looking at gold results, so the gold doc-type numbers
   are development numbers. The held-out run is the clean measure.
-- Jev's tokens are exact (from the API). One full `doc_first` gold run failed one document
-  (the TypeSafe credits ran out at the end).
+- Jev's tokens are exact (from the API). At `full` one GAO report's document view was over
+  Jev's input limit (`max_tokens_exceeded`) and counts as wrong.
 
 The default level is measured per backend (`docrooter.flow.default_level`): `headings` for Jev,
 the OpenAI-compatible and keyword backends and `lead` for UltraBERT, each the cheapest rung within

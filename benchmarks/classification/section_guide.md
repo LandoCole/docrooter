@@ -3,12 +3,21 @@
 You are building the evaluation-only gold set for section tags: for each sampled section of a
 public document, one label from the section catalogue. The benchmark scores a classifier's
 section tags against your labels, so a label is a judgement about what the section *is*, made
-the same way every time. Read this guide first, then the catalogue (`catalogue.json`, next to
+the same way every time.
+
+A tag **normalises what a heading means**, so that the same kind of section can be found across
+documents however each one words it: "Statement of financial position" and "Consolidated
+balance sheets" are both `financial.balance_sheet`, "Audit opinion" and "Report of independent
+registered public accounting firm" are both `financial.auditors_report`. Generic structure that
+nobody looks for across documents (an introduction, a summary, background, a conclusion, an
+appendix, a chapter named only by its topic) gets no tag: label it `none`. `none` is a real
+answer, not a failure. Read this guide first, then the catalogue (`catalogue.json`, next to
 your batch files: every group and leaf with its description and examples).
 
 ## What you get, and what you hand back
 
-Each item is a JSON line with `item` (an opaque id), `level` (1 or 2), `title`, `heading_path`
+Each item is a JSON line with `item` (an opaque id), `level` (the heading depth, 1 and deeper),
+`title`, `heading_path`
 (the titles of the section's ancestors, outermost first, empty at the top) and `text` (the
 opening of the section's own text, cut at 600 characters). You never see the document's name,
 its type, or any model's guess, and you must not look for them.
@@ -19,8 +28,8 @@ Hand back one JSON line per item:
 {"item": "s0042", "label": "financial.income_statement", "annotator": "A1"}
 ```
 
-The label is exactly one **leaf** id of the catalogue (`group.leaf`). A group id alone
-(`financial`) is not a label. Label every item in your batch; do not skip, and do not give two
+The label is exactly one **leaf** id of the catalogue (`group.leaf`), or `none`. A group id
+alone (`financial`) is not a label. Label every item in your batch; do not skip, and do not give two
 labels. If two leaves seem right, apply the rules below to pick one.
 
 ## How to judge
@@ -28,32 +37,41 @@ labels. If two leaves seem right, apply the rules below to pick one.
 1. **Title first.** The title usually names the section. Use the catalogue's descriptions and
    examples; a title is matched by meaning, not by wording ("Our Approach" may be a method).
 2. **Heading path second.** It says where the section sits. "Statement of Cash Flows" under
-   "Notes to the financial statements" is a note about cash flows, not the statement.
+   "Notes to the financial statements" is a note about cash flows, not the statement. A deep
+   heading takes its meaning from its path: "12 Leases" under "Notes to the financial
+   statements" is `financial.notes_to_financial_statements`, and "Methodology" under "Appendix
+   I: Objectives, Scope, and Methodology" is `government.scope_and_methodology`.
 3. **Opening text third.** Use it to settle what the title leaves open, and to tell a heading
    that introduces real content from one that does not.
-4. **Label the section itself.** A level-1 heading such as "Part II" or "Financial section"
-   that only holds other sections is labelled by what it names; if it names nothing in the
-   catalogue, use the best-fitting `general` leaf (`general.body`). Do not label a section by
-   what its subsections might contain, which you cannot see.
-5. **Group first, then leaf.** Decide which group's domain the section belongs to, then which
-   leaf. The groups are `general`, `research`, `narrative`, `financial`, `disclosure`, `esg`,
-   `fund`, `offering`, `contract`, `law`, `technical` and `standard`.
+4. **Label the section itself.** A heading such as "Part II" or "Financial section" that only
+   holds other sections is labelled by what it names; if it names nothing in the catalogue, it
+   is `none`. Do not label a section by what its subsections might contain, which you cannot
+   see.
+5. **Group first, then leaf.** Decide whether the section belongs to a domain group at all
+   (otherwise `none`), then which leaf. The groups are `research`, `narrative`, `financial`,
+   `disclosure`, `esg`, `fund`, `offering`, `contract`, `government`, `law`, `technical` and
+   `standard`.
 6. **Do not infer the document type** to pick a label. A "Termination" heading is
    `contract.termination` whatever the document is; the catalogue is the same for all of them.
 
-## The `other` leaves
+## `none` and the `other` leaves
+
+`none` is for a heading with no domain meaning: front matter (title page, contents, preface,
+lists of figures, copyright), an introduction, purpose or scope statement, an executive summary
+or overview, background, a body chapter named only by its topic ("Chapter 3", "Our approach to
+X" with nothing domain-specific), a conclusion, acknowledgements and funding statements, an
+appendix, glossary or index, contact details, author biographies and disclaimers, and a heading
+that is only a number or a fragment.
 
 Every group has an `other` leaf for content that is clearly in *that group's domain* but fits
-no leaf of it (`general.other`, `research.other`, `narrative.other`, `financial.other`,
-`disclosure.other`, `esg.other`, `fund.other`, `offering.other`, `contract.other`, `law.other`,
+no leaf of it (`research.other`, `narrative.other`, `financial.other`, `disclosure.other`,
+`esg.other`, `fund.other`, `offering.other`, `contract.other`, `government.other`, `law.other`,
 `technical.other`, `standard.other`).
 
 - Use `<group>.other` only when you can name the group and no leaf fits. It is not a place for
   "I am not sure": first try the other rules below.
-- `general.other` is for brief or administrative content that belongs to no domain (contact
-  details, author biographies, disclaimers, colophons, a fragment of a heading with no
-  content). Substantive main text that fits no domain leaf is `general.body`, not
-  `general.other`.
+- Generic structure is `none`, not a group's `other`: an annual report's table of contents is
+  `none`, not `disclosure.other`.
 - A section about a group's domain but with a more specific leaf elsewhere goes to that leaf.
   The catalogue descriptions say where such content belongs; follow them.
 
@@ -103,41 +121,45 @@ Apply the first rule that fits.
 - An offering document's description of the securities and the offering is
   `offering.offering_terms`; the issuer's own business is `narrative.business_overview`.
 
-**General versus specific**
+**Domain or `none`**
 
-- `general.summary` versus `research.abstract`: a paper's abstract is `research.abstract`;
-  an executive summary or overview of any other document is `general.summary`.
-- `general.introduction` versus `general.background`: the opening that states purpose and
-  scope, or motivates a paper, is the introduction; history, definitions and preliminaries the
-  reader needs first are the background. A court's recital of the facts is `law.opinion`.
-- `general.findings` versus `general.recommendations` versus `general.conclusion`: what was
-  found is findings; what the authors recommend someone do is recommendations; the wrap-up of
-  the document is the conclusion. A paper's measured numbers are `research.results`.
-- `general.references` versus `standard.normative_references`: a bibliography or list of
-  citations is `general.references`; a standard's lists of normative and informative
-  references are `standard.normative_references`.
-- `general.appendix` versus `technical.reference`: supplementary material after the body
-  (extra tables, proofs, glossaries, revision history) is `general.appendix`; lookup material
-  that is the *point* of the document (API, command, register descriptions) is
-  `technical.reference`.
-- `technical.overview` versus `general.summary` and `general.introduction`: an overview of a
-  product or system (what it is, its features, intended users) is `technical.overview`; a
-  summary of the document's own points is `general.summary`; the opening that states the
-  document's purpose and scope is `general.introduction`.
-- `general.acknowledgements` is thanks, funding statements and author contributions; ethics and
-  data-availability statements are `research.other`; author biographies are `general.other`.
-- `general.front_matter`: table of contents, title page, preface, lists of figures and
-  copyright notices. A fund document's or filing's cover page also goes here.
+- `research.abstract` is a paper's abstract; an executive summary or overview of any other
+  document is `none`, except a government audit report's highlights (`government.highlights`).
+- An appendix is labelled by what it holds when that has a domain meaning ("Appendix I:
+  Objectives, Scope, and Methodology" is `government.scope_and_methodology`, "Appendix II:
+  Comments from the Department of Energy" is `government.agency_comments`); otherwise it is
+  `none`. Lookup material that is the *point* of a document (API, command, register
+  descriptions) is `technical.reference`.
+- `research.references` is a paper's or report's bibliography or list of citations; a
+  standard's lists of normative and informative references are `standard.normative_references`.
+- `technical.overview` is an overview of a product or system (what it is, its features,
+  intended users); a summary of the document's own points, or the opening that states its
+  purpose, is `none`.
+- Ethics and data-availability statements are `research.other`; acknowledgements, funding
+  statements and author biographies are `none`.
+
+**Government audit and oversight reports**
+
+- `government.highlights` is the front summary of an audit or oversight report (GAO's
+  highlights page, "What GAO Found", "Results in Brief").
+- `government.scope_and_methodology` is what the review set out to answer and how
+  (objectives, scope, methodology, the standards followed).
+- `government.findings` is a section stating what the review found, usually titled by the
+  finding itself ("DOD Has Not Fully Implemented Its Plan"). A "Background" section of such a
+  report is `none`.
+- `government.recommendations` is the actions recommended to an agency or a legislature;
+  `government.agency_comments` is the agency's response and the auditors' evaluation of it.
+- A program's own background, history or description in such a report is `none`.
 
 **Research**
 
 - `research.method` (how the approach works or the study was designed) versus
   `research.experiments` (datasets, baselines, metrics, protocol) versus `research.results`
   (the measurements) versus `research.discussion` (what the measurements mean).
-- `research.related_work` is a survey of prior work against this paper;
-  `general.background` is context the reader needs, not a comparison of competitors.
+- `research.related_work` is a survey of prior work against this paper; background the reader
+  needs, not a comparison of competitors, is `none`.
 - `research.limitations` is an explicit statement of weaknesses; a conclusion that mentions
-  limitations in passing is `general.conclusion`.
+  limitations in passing is `none`. A paper's introduction and conclusion are `none`.
 
 **Fund documents**
 
@@ -186,7 +208,7 @@ Apply the first rule that fits.
 - `standard.specification` (the normative body for implementers) versus `technical.reference`
   (a vendor's user-facing API reference) versus `standard.conformance` (what an implementation
   must meet to claim conformance).
-- `standard.scope` (what the standard covers) versus `general.introduction` (motivation).
+- `standard.scope` (what the standard covers) versus an introduction or motivation (`none`).
 
 **ESG**
 
@@ -199,7 +221,7 @@ Apply the first rule that fits.
 
 - **Not a real heading.** The reading picks up some headings that are not (a running page
   header, "Table 3", a figure caption). Label such an item by the content it heads, as if it
-  were a heading. If there is no content to judge, use `general.other`.
+  were a heading. If there is no content to judge, use `none`.
 - **Numbering and prefixes.** Ignore "1.", "Item 7." and "Article 4" for wording, but use item
   numbers you recognise from the title (Item 1A, Item 7, Item 9A) to confirm a label.
 - **Empty or very short text.** Judge by the title and the heading path.

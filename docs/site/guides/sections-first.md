@@ -35,12 +35,12 @@ print(f"tokens ({kind}): {result.tokens.prompt:,} prompt over {result.tokens.cal
 ```text
 doc type: research.research_paper (decided by fallback; flags: rules_unmet, thin_evidence)
   Sparse retrieval for long documents: disclosure.executive_compensation
-  Abstract: general.summary
+  Abstract: disclosure.executive_compensation
   Related work: research.related_work
   Method: esg.other
   Results: research.results
   References: standard.normative_references
-tokens (estimated): 3,991 prompt over 7 calls
+tokens (estimated): 3,491 prompt over 6 calls
 ```
 
 The keyword backend's tags are weak and its confidences far below the rules' threshold, so too

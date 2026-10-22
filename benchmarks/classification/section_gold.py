@@ -90,10 +90,13 @@ class Label(NamedTuple):
 
 @functools.cache
 def catalogue_leaves() -> dict[str, str]:
-    """``{leaf id: group id}`` of the section catalogue, in catalogue order."""
+    """``{leaf id: group id}`` of the section catalogue, in catalogue order. A top-level leaf
+    (``none``) is its own group."""
     taxonomy = builtin_taxonomy("section_catalogue")
     return {
-        leaf.id: group.id for group in taxonomy.children() for leaf in taxonomy.children(group.id)
+        leaf.id: group.id
+        for group in taxonomy.children()
+        for leaf in (taxonomy.children(group.id) or [group])
     }
 
 
@@ -118,7 +121,7 @@ def catalogue_listing() -> list[dict[str, Any]]:
                     "description": leaf.description,
                     "examples": list(leaf.examples),
                 }
-                for leaf in taxonomy.children(group.id)
+                for leaf in (taxonomy.children(group.id) or [group])
             ],
         }
         for group in taxonomy.children()

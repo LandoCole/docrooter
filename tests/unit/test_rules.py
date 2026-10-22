@@ -29,8 +29,11 @@ def test_every_doc_type_leaf_has_rules_with_known_ids():
     doc_types = builtin_taxonomy("doc_types")
     catalogue = builtin_taxonomy("section_catalogue")
     rules = doc_type_rules(doc_types)
-    assert list(rules) == [leaf.id for leaf in doc_types.leaves()]
-    assert len(rules) == 19
+    # a white paper has no defining sections (its parts are generic): the model decides it
+    assert list(rules) == [
+        leaf.id for leaf in doc_types.leaves() if leaf.id != "research.white_paper"
+    ]
+    assert len(rules) == 18
     for doc_type, rule in rules.items():
         assert rule.requires, doc_type
         ids = [i for group in rule.requires for i in group] + rule.typical + rule.excludes
@@ -220,7 +223,6 @@ def test_quarterly_report_example():
 
 # Realistic tag sets (hand-written from the filing forms, not from the corpus).
 TEN_Q = {
-    "general.front_matter": 0.9,
     "financial.financial_statements": 0.9,
     "financial.balance_sheet": 0.9,
     "financial.income_statement": 0.9,
@@ -265,14 +267,14 @@ def test_fund_annual_report_is_not_decided_as_earnings_release():
 
 def test_court_opinion_without_syllabus_is_candidate():
     rules = doc_type_rules(builtin_taxonomy("doc_types"))
-    tags = {"law.caption": 0.9, "general.background": 0.8, "general.conclusion": 0.8}
+    tags = {"law.caption": 0.9, "none": 0.8}
     result = match_rules(rules, tags)
     assert "legal.court_opinion" in result.candidates
 
 
 def test_scope_alone_is_not_a_technical_standard():
     rules = doc_type_rules(builtin_taxonomy("doc_types"))
-    tags = {"standard.scope": 0.9, "general.findings": 0.9, "general.recommendations": 0.9}
+    tags = {"standard.scope": 0.9, "government.findings": 0.9, "government.recommendations": 0.9}
     assert "research.technical_standard" not in match_rules(rules, tags).candidates
 
 
@@ -326,7 +328,7 @@ def test_a_contract_needs_no_parties_or_signatures_heading():
 
 def test_terms_policy_needs_a_section_only_published_terms_carry():
     rules = builtin_rules()
-    privacy = match_rules(rules, {"contract.privacy_data": 0.9, "general.other": 0.9})
+    privacy = match_rules(rules, {"contract.privacy_data": 0.9, "none": 0.9})
     assert privacy.candidates == ["legal.terms_policy"]
     terms = match_rules(
         rules,
@@ -365,11 +367,10 @@ def test_financial_statements_alone_do_not_make_an_earnings_release():
     assert audited.decided is None and "financial.earnings_release" in audited.barred
 
 
-def test_a_generic_body_section_does_not_make_a_report():
-    result = match_rules(builtin_rules(), {"general.body": 0.95, "general.conclusion": 0.9})
-    assert "government.government_report" not in result.candidates
-    assert "research.white_paper" not in result.candidates
-    findings = match_rules(builtin_rules(), {"general.findings": 0.9, "general.body": 0.9})
+def test_untagged_sections_do_not_make_a_report():
+    result = match_rules(builtin_rules(), {"none": 0.95})
+    assert result.candidates == [] and result.near_misses == []
+    findings = match_rules(builtin_rules(), {"government.findings": 0.9, "none": 0.9})
     assert "government.government_report" in findings.candidates
 
 
@@ -397,6 +398,6 @@ def test_a_financial_report_with_an_esg_chapter_is_no_sustainability_report():
     assert match_rules(builtin_rules(), esg_only).candidates == ["corporate.sustainability_report"]
 
 
-def test_highlights_of_a_non_financial_document_are_a_summary():
+def test_highlights_of_a_non_financial_document_are_not_financial():
     leaf = builtin_taxonomy("section_catalogue").node("financial.financial_highlights")
-    assert "general.summary" in leaf.description
+    assert "government.highlights" in leaf.description and "none" in leaf.description

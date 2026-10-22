@@ -1,232 +1,44 @@
 {
   "root": {
-    "description": "Section types shared by every kind of document, grouped by domain. A section is tagged group first, then leaf, without knowing the document's type; the doc-type rules then use the tags to decide or narrow the type."
+    "description": "Section tags that normalise what a heading means, so the same kind of section can be found across documents however each one words it, grouped by domain. A section is tagged group first, then leaf, without knowing the document's type; the doc-type rules then use the tags to decide or narrow the type. A heading with no such meaning (generic structure such as an introduction, summary or conclusion) is tagged none."
   },
   "nodes": [
     {
-      "id": "general",
-      "label": "General",
-      "description": "Parts that any kind of document can have, such as front matter, summary, introduction, background, main body, findings, recommendations, conclusion, references and appendix, when no domain-specific group fits the section better.",
-      "children": [
-        {
-          "id": "general.front_matter",
-          "label": "Front matter",
-          "description": "Material that precedes the main content, such as title page, table of contents, preface, copyright notices, list of figures, and a presentation's agenda.",
-          "examples": [
-            "Table of Contents",
-            "Contents",
-            "Title Page",
-            "Preface",
-            "Foreword",
-            "List of Figures",
-            "Copyright Notice",
-            "Agenda"
-          ],
-          "metadata": {
-            "from": [
-              "generic.front_matter"
-            ]
-          },
-          "children": []
-        },
-        {
-          "id": "general.summary",
-          "label": "Summary",
-          "description": "A condensed statement of the key points of the whole document, such as an executive summary or overview; a scholarly paper's abstract belongs to research.abstract.",
-          "examples": [
-            "Executive Summary",
-            "Summary",
-            "Overview",
-            "At a Glance"
-          ],
-          "metadata": {
-            "from": [
-              "generic.summary"
-            ]
-          },
-          "children": []
-        },
-        {
-          "id": "general.introduction",
-          "label": "Introduction",
-          "description": "The opening section that states the purpose, context, and scope of the document, or motivates a paper's problem and states its research questions or contributions.",
-          "examples": [
-            "Introduction",
-            "1 Introduction",
-            "Purpose",
-            "Purpose and Scope",
-            "Motivation"
-          ],
-          "metadata": {
-            "from": [
-              "generic.introduction",
-              "research_paper.introduction"
-            ]
-          },
-          "children": []
-        },
-        {
-          "id": "general.background",
-          "label": "Background",
-          "description": "Context the reader needs before the main content, such as history, prior events, the problem setting, definitions, notation, or technical preliminaries, distinct from a review of competing work (research.related_work); the background of a court's opinion belongs to law.opinion.",
-          "examples": [
-            "Background",
-            "Preliminaries",
-            "Problem Formulation",
-            "Notation",
-            "Problem Setup",
-            "Context"
-          ],
-          "metadata": {
-            "from": [
-              "research_paper.background"
-            ]
-          },
-          "children": []
-        },
-        {
-          "id": "general.body",
-          "label": "Body",
-          "description": "The substantive main content of the document that is neither introductory, concluding, nor back matter, when no more specific leaf in any group fits it.",
-          "examples": [
-            "Main Body",
-            "Main Text",
-            "Chapter 1",
-            "Part I"
-          ],
-          "metadata": {
-            "from": [
-              "generic.body"
-            ]
-          },
-          "children": []
-        },
-        {
-          "id": "general.findings",
-          "label": "Findings",
-          "description": "The key findings drawn from a review, audit, investigation, survey or analysis, stated as the outcome of the work; the measured results of a scholarly paper's experiments belong to research.results and the actions proposed in response to general.recommendations.",
-          "examples": [
-            "Key Findings",
-            "Findings",
-            "Main Findings",
-            "What GAO Found",
-            "Audit Findings",
-            "Summary of Findings"
-          ],
-          "children": []
-        },
-        {
-          "id": "general.recommendations",
-          "label": "Recommendations",
-          "description": "Specific actions the authors recommend to a named audience, such as policy options, recommendations for executive action, or matters for a legislature to consider; a general wrap-up of the document belongs to general.conclusion.",
-          "examples": [
-            "Recommendations",
-            "Recommendations for Executive Action",
-            "Policy Recommendations",
-            "Matters for Congressional Consideration",
-            "Our Recommendations"
-          ],
-          "children": []
-        },
-        {
-          "id": "general.conclusion",
-          "label": "Conclusion",
-          "description": "The closing section that sums up what the document showed or argued, with next steps or future directions; specific recommended actions belong to general.recommendations.",
-          "examples": [
-            "Conclusion",
-            "Conclusions",
-            "Concluding Remarks",
-            "Conclusion and Future Work",
-            "Summary and Outlook",
-            "Next Steps"
-          ],
-          "metadata": {
-            "from": [
-              "generic.conclusion",
-              "research_paper.conclusion"
-            ]
-          },
-          "children": []
-        },
-        {
-          "id": "general.acknowledgements",
-          "label": "Acknowledgments",
-          "description": "Thanks to funders, colleagues, and reviewers, including funding statements and author contributions.",
-          "examples": [
-            "Acknowledgments",
-            "Acknowledgements",
-            "Funding",
-            "Author Contributions"
-          ],
-          "metadata": {
-            "from": [
-              "research_paper.acknowledgements"
-            ]
-          },
-          "children": []
-        },
-        {
-          "id": "general.references",
-          "label": "References",
-          "description": "Bibliography, citations, footnotes, and links to sources used by the document; a standard's normative and informative references belong to standard.normative_references.",
-          "examples": [
-            "References",
-            "Bibliography",
-            "Works Cited",
-            "Literature Cited",
-            "Sources",
-            "Endnotes"
-          ],
-          "metadata": {
-            "from": [
-              "generic.references",
-              "research_paper.references"
-            ]
-          },
-          "children": []
-        },
-        {
-          "id": "general.appendix",
-          "label": "Appendix",
-          "description": "Supplementary material placed after the main body, such as extra data, tables, proofs, derivations, additional experiments, forms, glossaries, indexes, and revision history, as opposed to the lookup material in technical.reference.",
-          "examples": [
-            "Appendix",
-            "Appendix A",
-            "Annex",
-            "Glossary",
-            "Supplementary Material",
-            "Index",
-            "Revision History",
-            "Additional Experiments"
-          ],
-          "metadata": {
-            "from": [
-              "generic.appendix",
-              "research_paper.appendix",
-              "technical_document.appendix"
-            ]
-          },
-          "children": []
-        },
-        {
-          "id": "general.other",
-          "label": "Other",
-          "description": "Brief or administrative content that fits none of the other general parts, such as contact details, author biographies, disclaimers, legal notices, and colophons; substantive main text belongs to general.body.",
-          "examples": [
-            "Contact Us",
-            "About the Authors",
-            "Disclaimer",
-            "Legal Notices",
-            "Imprint"
-          ],
-          "children": []
-        }
-      ]
+      "id": "none",
+      "label": "No tag",
+      "description": "A heading with no domain meaning to normalise: generic structure that any document can have, such as a title page, contents, preface, introduction, summary or overview, background, a body chapter named only by its topic, conclusion, acknowledgements, appendix, glossary or index, contact details and disclaimers, or a heading that only numbers or titles something (\"Part II\", \"Chapter 3\"). Choose it whenever no domain group says what the section is.",
+      "examples": [
+        "Table of Contents",
+        "Introduction",
+        "Executive Summary",
+        "Background",
+        "Conclusion",
+        "Appendix A",
+        "Acknowledgments",
+        "Part II"
+      ],
+      "metadata": {
+        "from": [
+          "generic.front_matter",
+          "generic.summary",
+          "generic.introduction",
+          "research_paper.introduction",
+          "research_paper.background",
+          "generic.body",
+          "generic.conclusion",
+          "research_paper.conclusion",
+          "research_paper.acknowledgements",
+          "generic.appendix",
+          "research_paper.appendix",
+          "technical_document.appendix"
+        ]
+      },
+      "children": []
     },
     {
       "id": "research",
       "label": "Research",
-      "description": "Sections specific to scholarly research papers: the abstract, the review of related work, methods, experiments, results, discussion, and limitations.",
+      "description": "Sections specific to scholarly research papers: the abstract, the review of related work, methods, experiments, results, discussion, limitations and references.",
       "children": [
         {
           "id": "research.abstract",
@@ -352,9 +164,27 @@
           "children": []
         },
         {
+          "id": "research.references",
+          "label": "References",
+          "description": "The paper's list of cited works: references, bibliography, works cited; a standard's normative references belong to standard.normative_references.",
+          "examples": [
+            "References",
+            "Bibliography",
+            "Works Cited",
+            "Literature Cited"
+          ],
+          "metadata": {
+            "from": [
+              "generic.references",
+              "research_paper.references"
+            ]
+          },
+          "children": []
+        },
+        {
           "id": "research.other",
           "label": "Other",
-          "description": "Research-paper content that fits none of the other research leaves, such as ethics statements, data and code availability, reproducibility checklists, and conflict-of-interest declarations; funding and thanks belong to general.acknowledgements.",
+          "description": "Research-paper content that fits none of the other research leaves, such as ethics statements, data and code availability, reproducibility checklists, and conflict-of-interest declarations; funding and thanks are tagged none.",
           "examples": [
             "Ethics Statement",
             "Data Availability",
@@ -495,7 +325,9 @@
             "Statement of Financial Position",
             "Statement of Assets and Liabilities",
             "Statement of Net Assets",
-            "Condensed Consolidated Balance Sheets"
+            "Condensed Consolidated Balance Sheets",
+            "Statement of Condition",
+            "Statement of Financial Condition"
           ],
           "children": []
         },
@@ -508,9 +340,22 @@
             "Income Statement",
             "Statement of Profit or Loss",
             "Consolidated Statements of Income",
-            "Statement of Comprehensive Income",
             "Statement of Operations",
-            "Profit and Loss Account"
+            "Profit and Loss Account",
+            "Statement of Activities",
+            "Statement of Net Cost"
+          ],
+          "children": []
+        },
+        {
+          "id": "financial.comprehensive_income",
+          "label": "Comprehensive income",
+          "description": "The statement of comprehensive income or of other comprehensive income, presenting the period's other comprehensive income items, on its own or after the income statement.",
+          "examples": [
+            "Consolidated Statements of Comprehensive Income",
+            "Statement of Comprehensive Income",
+            "Statement of Other Comprehensive Income",
+            "Statement of Profit or Loss and Other Comprehensive Income"
           ],
           "children": []
         },
@@ -562,7 +407,9 @@
             "Independent Auditors' Report",
             "Report on Review of Interim Financial Information",
             "Independent Review Report",
-            "Opinion on the Financial Statements"
+            "Opinion on the Financial Statements",
+            "Audit Opinion",
+            "Report of the Independent Auditors"
           ],
           "children": []
         },
@@ -601,7 +448,7 @@
         {
           "id": "financial.financial_highlights",
           "label": "Financial highlights",
-          "description": "A short summary of headline figures for the period, such as key figures, selected financial data, the results table on a release's first page, or a fund's per-share financial highlights; the full statements belong to their own leaves; the key points of a non-financial document, such as a report's highlights page, belong to general.summary.",
+          "description": "A short summary of headline figures for the period, such as key figures, selected financial data, the results table on a release's first page, or a fund's per-share financial highlights; the full statements belong to their own leaves; a government audit report's highlights page belongs to government.highlights, and the summary of any other document is tagged none.",
           "examples": [
             "Financial Highlights",
             "Key Figures",
@@ -811,7 +658,7 @@
         {
           "id": "disclosure.other",
           "label": "Other",
-          "description": "Disclosure material that fits none of the other disclosure leaves, such as mine safety, cybersecurity, auditor fees, related-party transactions, and unresolved staff comments; a filing's cover page and table of contents belong to general.front_matter.",
+          "description": "Disclosure material that fits none of the other disclosure leaves, such as mine safety, cybersecurity, auditor fees, related-party transactions, and unresolved staff comments; a filing's cover page and table of contents are tagged none.",
           "examples": [
             "Item 4. Mine Safety Disclosures",
             "Item 1C. Cybersecurity",
@@ -1089,7 +936,7 @@
         {
           "id": "fund.other",
           "label": "Other",
-          "description": "Fund content that fits none of the other fund leaves, such as payments to financial intermediaries, service providers, shareholder services, and legal notices; a fund document's cover page and table of contents belong to general.front_matter.",
+          "description": "Fund content that fits none of the other fund leaves, such as payments to financial intermediaries, service providers, shareholder services, and legal notices; a fund document's cover page and table of contents are tagged none.",
           "examples": [
             "Payments to Broker-Dealers and Other Financial Intermediaries",
             "Service Providers",
@@ -1478,6 +1325,87 @@
       ]
     },
     {
+      "id": "government",
+      "label": "Government audit and oversight",
+      "description": "Sections of audit, evaluation and oversight reports by government bodies such as GAO, inspectors general and agency auditors: the report's highlights, its objectives, scope and methodology, its findings, its recommendations, and the audited agency's comments.",
+      "children": [
+        {
+          "id": "government.highlights",
+          "label": "Highlights",
+          "description": "The report's front summary of why the work was done, what was found and what is recommended, as GAO's highlights page or a results-in-brief section.",
+          "examples": [
+            "GAO Highlights",
+            "What GAO Found",
+            "Why GAO Did This Study",
+            "Results in Brief",
+            "What We Found",
+            "Summary of Findings"
+          ],
+          "children": []
+        },
+        {
+          "id": "government.scope_and_methodology",
+          "label": "Objectives, scope and methodology",
+          "description": "What the review set out to answer and how: its objectives, the scope of the work, the evidence gathered and the standards followed.",
+          "examples": [
+            "Objectives, Scope, and Methodology",
+            "Scope and Methodology",
+            "Objectives",
+            "Our Methodology",
+            "Audit Scope"
+          ],
+          "children": []
+        },
+        {
+          "id": "government.findings",
+          "label": "Findings",
+          "description": "A section that states what the review found about the program or agency under review, usually titled by the finding itself (\"DOD Has Not Fully Implemented...\").",
+          "examples": [
+            "Findings",
+            "Key Findings",
+            "Agency Has Not Fully Implemented Required Controls",
+            "Costs Exceeded Estimates"
+          ],
+          "children": []
+        },
+        {
+          "id": "government.recommendations",
+          "label": "Recommendations",
+          "description": "The actions the report recommends to the agency or asks a legislature to consider.",
+          "examples": [
+            "Recommendations for Executive Action",
+            "Matters for Congressional Consideration",
+            "Recommendations",
+            "Recommendation"
+          ],
+          "children": []
+        },
+        {
+          "id": "government.agency_comments",
+          "label": "Agency comments",
+          "description": "The audited agency's response to the report and the auditors' evaluation of it, including the agency's letter reproduced in an appendix.",
+          "examples": [
+            "Agency Comments and Our Evaluation",
+            "Comments from the Department of Defense",
+            "Agency Comments",
+            "Management's Response"
+          ],
+          "children": []
+        },
+        {
+          "id": "government.other",
+          "label": "Other",
+          "description": "Audit or oversight content that fits no other government leaf, such as a list of prior reports or staff acknowledgements specific to the review.",
+          "examples": [
+            "Related GAO Products",
+            "GAO Contact and Staff Acknowledgments",
+            "Status of Prior Recommendations"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
       "id": "law",
       "label": "Court opinions and legislation",
       "description": "Parts of court opinions and of legislation: the case caption, the syllabus, the court's opinion, concurring and dissenting opinions, and a statute's or regulation's preamble, operative provisions, and amendments.",
@@ -1804,7 +1732,7 @@
         {
           "id": "standard.scope",
           "label": "Scope",
-          "description": "The normative statement of what a standard covers, what it applies to, and what it leaves out; a general introduction or motivation belongs to general.introduction.",
+          "description": "The normative statement of what a standard covers, what it applies to, and what it leaves out; a general introduction or motivation is tagged none.",
           "examples": [
             "Scope",
             "1 Scope",
@@ -1884,7 +1812,7 @@
         {
           "id": "standard.normative_references",
           "label": "Normative references",
-          "description": "The lists of documents a standard cites, split into normative references needed to implement it and informative references for background; a general bibliography belongs to general.references.",
+          "description": "The lists of documents a standard cites, split into normative references needed to implement it and informative references for background; a general bibliography belongs to research.references.",
           "examples": [
             "Normative References",
             "Informative References",
@@ -1895,7 +1823,7 @@
         {
           "id": "standard.other",
           "label": "Other",
-          "description": "Standards material that fits none of the other standard leaves, such as the document status, changes from previous versions, implementation status, contributors, and authors' addresses; the title page and copyright notice belong to general.front_matter.",
+          "description": "Standards material that fits none of the other standard leaves, such as the document status, changes from previous versions, implementation status, contributors, and authors' addresses; the title page and copyright notice are tagged none.",
           "examples": [
             "Status of This Memo",
             "Changes from Previous Versions",

@@ -153,13 +153,13 @@ def test_section_f1_leaf_and_group():
         _gold_row("d", "s1", "Balance sheet", "financial.balance_sheet"),
         _gold_row("d", "s2", "Income statement", "financial.income_statement"),
         _gold_row("d", "s3", "Abstract", "research.abstract"),
-        _gold_row("d", "s4", "Original title", "general.summary"),  # reading drifted
-        _gold_row("d", "s9", "Gone", "general.summary"),  # not in this reading
+        _gold_row("d", "s4", "Original title", "government.highlights"),  # reading drifted
+        _gold_row("d", "s9", "Gone", "government.highlights"),  # not in this reading
     ]
     tags = [
         _tag("s1", "financial.income_statement"),  # wrong leaf, right group
         _tag("s2", "financial.income_statement"),
-        _tag("s4", "general.summary"),
+        _tag("s4", "government.highlights"),
         # s3 untagged (e.g. past max_sections): scored as no prediction
     ]
     records = bench.score_sections(doc, gold, tags, section_taxonomy="section_catalogue")
@@ -185,7 +185,7 @@ def test_gold_sections_fall_back_to_a_title_match_in_reading_order():
     doc = _doc(s1="Overview", s2="Balance sheet", s3="Notes", s4="Notes")
     gold = [
         _gold_row("d", "s7", "Balance sheet", "financial.balance_sheet"),  # id moved to s2
-        _gold_row("d", "s1", "Overview", "general.summary"),  # same id and title
+        _gold_row("d", "s1", "Overview", "government.highlights"),  # same id and title
         _gold_row(
             "d", "s2", "Notes", "financial.notes_to_financial_statements"
         ),  # s2 holds another title now
@@ -220,7 +220,7 @@ def test_doc_first_section_labels_map_to_catalogue():
     doc = _doc(s1="Abstract", s2="Odd")
     gold = [
         _gold_row("d", "s1", "Abstract", "research.abstract"),
-        _gold_row("d", "s2", "Odd", "general.summary"),
+        _gold_row("d", "s2", "Odd", "government.highlights"),
     ]
     tags = [_tag("s1", "abstract"), _tag("s2", "no_such_leaf")]
     records = bench.score_sections(doc, gold, tags, section_taxonomy="section_types/research_paper")
@@ -606,7 +606,7 @@ def test_report_pending_and_tables(tmp_path):
             },
         }
 
-    assert "40 sections" in pending and "61 of the 112" in pending
+    assert "up to 400 per document" in pending and "`none` as an abstention" in pending
     assert "mlx_lm.server" not in pending  # no LLM run, no stand-in disclosure
     levels = [("headings", 0.5, 100), ("terms", 0.89, 200), ("lead", 0.9, 300), ("full", 0.9, 1000)]
     runs = [result("kw", "sections_first", lv, a, p, exact=False) for lv, a, p in levels]
@@ -696,13 +696,6 @@ def test_report_warns_when_rows_ran_at_different_code_versions():
     assert "2 code versions" in mixed and "dirty" in mixed
 
 
-def test_disclosure_names_the_gold_sections_the_highlights_change_affects():
-    text = " ".join(bench.render_report([]).split())
-    assert "3 government-report gold sections" in text
-    for ref in ("`gao-gao-05-251#s2`", "`gao-gao-06-681t#s2`", "`gao-gao-05-572t#s1`"):
-        assert ref in text, ref
-
-
 def test_flow_comparison_says_whether_sections_first_wins_on_doc_type():
     def run(label, flow, level, acc, tokens, spec="openai:m", docs="gold"):
         return {
@@ -761,3 +754,22 @@ def test_readings_are_saved_once_and_reused(tmp_path, monkeypatch):
     assert again.model_dump() == first.model_dump()  # the Document round-trips through JSON
     bench._loader(tmp_path / "doc_a.pdf")()  # no readings dir: always read
     assert len(calls) == 2
+
+
+def test_domain_scores_treat_none_as_abstaining():
+    pairs = [
+        ("financial.balance_sheet", "financial.balance_sheet"),  # right
+        ("financial.balance_sheet", "none"),  # missed: recall
+        ("none", "financial.income_statement"),  # tagged a generic section: precision
+        ("none", "none"),  # agreed to abstain: neither
+        ("financial.income_statement", None),  # never tagged: recall
+    ]
+    scores = bench.domain_scores(pairs)
+    assert scores["n"] == 3
+    assert scores["precision"] == 0.5 and scores["recall"] == 1 / 3
+    assert scores["micro_f1"] == 2 * 1 / (2 + 3)
+    assert scores["macro_f1"] == (2 / 3 + 0.0) / 2  # balance sheet 2/3, income statement 0
+    records = [{"status": "ok", "gold": g, "pred": p} for g, p in pairs]
+    metrics = bench.section_metrics(records)
+    assert metrics["none"] == {"n": 2, "agreement": 0.5}
+    assert metrics["leaf"]["precision"] == 0.5 and metrics["group"]["recall"] == 1 / 3

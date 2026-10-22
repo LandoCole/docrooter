@@ -3,9 +3,11 @@
     PYTHONPATH=src python -m benchmarks.classification.section_sample
 
 Every document whose manifest split is ``gold`` is read with the reading the benchmark uses:
-profile ``fast`` (no elements, no OCR, no layout model; headings and sections only). From each,
-:func:`sample_sections` takes up to ``max_per_doc`` level-1 and level-2 sections, spread
-through the document in reading order, with half the cap reserved for level 1. The choice is
+profile ``fast`` (no elements, no OCR, no layout model; headings and sections only, read by
+PyMuPDF4LLM), from the benchmark's reading cache when it holds the document. From each,
+:func:`sample_sections` takes up to ``max_per_doc`` titled sections at any heading depth, as
+:func:`docrooter.classify` tags every depth, spread through the document in reading order, with
+a third of the cap reserved for level 1. The choice is
 a function of the document alone, so the same reading gives the same sample; the gold names a
 section by document, section id and the SHA-1 of its title, so a reading that drifts is caught
 when the gold is used. Items are numbered after a seeded shuffle across documents.
@@ -48,8 +50,8 @@ CACHE_DIR = BENCHMARKS / ".cache.nosync" / "classification"
 SAMPLE_PATH = CACHE_DIR / "section_sample.jsonl"
 SUMMARY_PATH = HERE / "section_sample_summary.json"
 
-LEVELS = (1, 2)
-MAX_PER_DOC = 12
+LEVELS = "all"  # every heading depth (v1 sampled levels 1 and 2 only)
+MAX_PER_DOC = 30
 OPENING_CHARS = 600  # how much of a section's own text the annotator sees
 DOUBLE_FRACTION = 0.2  # spec G5: 20% double-annotated for kappa
 SEED = 0
@@ -87,24 +89,25 @@ def _spread(items: Sequence[Section], k: int, rng: random.Random) -> list[Sectio
 
 
 def sample_sections(doc: Document, *, max_per_doc: int = MAX_PER_DOC) -> list[Section]:
-    """Up to ``max_per_doc`` level-1 and level-2 sections of ``doc``, in reading order.
+    """Up to ``max_per_doc`` titled sections of ``doc`` at any heading depth, in reading order.
 
     Sections without a title are skipped, and so are repeats of a title already seen in the
-    document (a running page header read as a heading). Up to half the cap (at least one slot)
-    is reserved for level 1, whose sections (Item 1A, Abstract, Article 4, ...) are the ones
-    the doc-type rules decide on; the rest goes to level 2. A level with fewer sections than its
-    share leaves the slots to the other. Within a level the picks are spread through the
-    document, one from each of equal runs. Deterministic: a function of the document alone."""
+    document (a running page header read as a heading). Up to a third of the cap (at least one
+    slot) is reserved for level 1, the document's main parts; the rest goes to the deeper
+    headings, all depths together, where a reader often puts "Balance sheet" or "Notes". A side
+    with fewer sections than its share leaves the slots to the other. Within each side the picks
+    are spread through the document, one from each of equal runs. Deterministic: a function of
+    the document alone."""
     if max_per_doc < 1:
         raise ValueError(f"max_per_doc must be positive, got {max_per_doc}")
     seen: set[str] = set()
-    levels: dict[int, list[Section]] = {level: [] for level in LEVELS}
+    first: list[Section] = []
+    second: list[Section] = []
     for s in doc.walk():
-        if s.level in LEVELS and s.title.strip() and title_sha1(s.title) not in seen:
+        if s.level >= 1 and s.title.strip() and title_sha1(s.title) not in seen:
             seen.add(title_sha1(s.title))
-            levels[s.level].append(s)
-    first, second = levels[LEVELS[0]], levels[LEVELS[1]]
-    take_first = min(len(first), max(1, max_per_doc // 2))
+            (first if s.level == 1 else second).append(s)
+    take_first = min(len(first), max(1, max_per_doc // 3))
     take_second = min(len(second), max_per_doc - take_first)
     take_first = min(len(first), max_per_doc - take_second)
     key = "\n".join(f"{s.id}\t{s.title}" for s in (*first, *second))
@@ -199,7 +202,7 @@ def build_sample(
     rows: list[dict[str, Any]] = []
     per_doc: dict[str, dict[str, int]] = {}
     for doc_id, doc in sorted(docs, key=lambda pair: pair[0]):
-        candidates = sum(1 for s in doc.walk() if s.level in LEVELS and s.title.strip())
+        candidates = sum(1 for s in doc.walk() if s.level >= 1 and s.title.strip())
         picked = sample_sections(doc, max_per_doc=max_per_doc)
         rows += [section_row(doc_id, doc, s) for s in picked]
         per_doc[doc_id] = {"candidates": candidates, "selected": len(picked)}
@@ -213,7 +216,10 @@ def build_sample(
         "documents_without_sections": sorted(d for d, c in per_doc.items() if not c["selected"]),
         "selected": len(items),
         "double_annotated": sum(r["double"] for r in items),
-        "by_level": {str(level): sum(r["level"] == level for r in items) for level in LEVELS},
+        "by_level": {
+            str(level): sum(r["level"] == level for r in items)
+            for level in sorted({r["level"] for r in items})
+        },
         "per_document": per_doc,
     }
     return items, summary
@@ -253,17 +259,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     missing = [i for i in ids if not (args.pdf_dir / f"{i}.pdf").is_file()]
     if missing:
         parser.error(f"{len(missing)} gold PDF(s) not in {args.pdf_dir}: {missing[:5]}")
+    from benchmarks.classification_bench import READINGS, _loader  # imports this module
+
     docs: list[tuple[str, Document]] = []
     for n, doc_id in enumerate(ids, 1):
         print(f"[{n}/{len(ids)}] {doc_id}", file=sys.stderr, flush=True)
-        docs.append((doc_id, read_document(args.pdf_dir / f"{doc_id}.pdf")))
+        docs.append((doc_id, _loader(args.pdf_dir / f"{doc_id}.pdf", readings=READINGS)()))
     rows, summary = build_sample(docs, max_per_doc=args.max_per_doc, seed=args.seed)
     write_atomic(args.out, jsonl(rows))
     write_atomic(args.summary, json.dumps(summary, indent=2) + "\n")
     print(
         f"{summary['selected']} sections from {summary['documents']} documents "
         f"({summary['double_annotated']} double); "
-        f"{len(summary['documents_without_sections'])} without level-1/2 sections"
+        f"{len(summary['documents_without_sections'])} without titled sections"
     )
     return 0
 

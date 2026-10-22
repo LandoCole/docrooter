@@ -30,8 +30,11 @@ def test_catalogue_loads_and_every_group_has_other():
     assert "section_catalogue" in list_builtin_taxonomies()
     catalogue = builtin_taxonomy("section_catalogue")
     assert catalogue.depth() == 2
-    groups = catalogue.children()
-    assert 2 <= len(groups) <= MAX_OPTIONS
+    top = catalogue.children()
+    assert 2 <= len(top) <= MAX_OPTIONS
+    # one top-level leaf, first: "none", for a heading with no domain meaning to normalise
+    assert [node.id for node in top if not catalogue.children(node.id)] == ["none"] == [top[0].id]
+    groups = [node for node in top if catalogue.children(node.id)]
     for group in groups:
         leaf_ids = [leaf.id for leaf in catalogue.children(group.id)]
         assert f"{group.id}.other" in leaf_ids, group.id
@@ -69,7 +72,8 @@ def test_catalogue_covers_every_family_leaf():
             assert source not in mapped, source
             mapped[source] = leaf.id
     for group in catalogue.children():
-        assert "from" not in group.metadata, group.id
+        if catalogue.children(group.id):  # a group, not the top-level leaf none
+            assert "from" not in group.metadata, group.id
     expected = {
         f"{family}.{leaf.id}"
         for family in FAMILIES
@@ -78,7 +82,7 @@ def test_catalogue_covers_every_family_leaf():
     assert set(mapped) == expected
     # a leaf that keeps its family meaning keeps its id under the new group
     for source, target in mapped.items():
-        if not source.endswith(".other"):
+        if not source.endswith(".other") and target != "none":  # generic parts: no tag
             family_leaf = source.split(".", 1)[1]
             if family_leaf != "principal_risks":
                 assert target.split(".", 1)[1] == family_leaf, (source, target)
@@ -98,8 +102,8 @@ def test_confusable_examples_and_boundaries():
     def examples(leaf_id: str) -> set[str]:
         return set(catalogue.node(leaf_id).examples)
 
-    assert "Requirements" not in examples("general.body")  # a standard's normative clause
-    assert "Notes" not in examples("general.references")  # also a financial-note heading
+    assert "Requirements" not in examples("none")  # a standard's normative clause
+    assert "Notes" not in examples("research.references")  # also a financial-note heading
     assert "Management" not in examples("fund.management")  # also an IPO's officers section
     assert "Covenants" not in examples("contract.warranties")  # covenants are not warranties
     assert "Covenants" in examples("contract.other")
@@ -107,5 +111,5 @@ def test_confusable_examples_and_boundaries():
     assert "disclosure.corporate_governance" in management
     opinion = catalogue.node("law.opinion").description or ""
     assert "background" in opinion and "discussion" in opinion
-    for leaf_id in ("research.discussion", "general.background"):
+    for leaf_id in ("research.discussion",):
         assert "law.opinion" in (catalogue.node(leaf_id).description or ""), leaf_id

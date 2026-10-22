@@ -15,37 +15,50 @@
       "element_tags": "none"
     },
     "elements": false,
-    "docrooter_version": "0.2.0",
+    "docrooter_version": "1.0.0",
     "levels": [
-      1,
-      2
+      "a",
+      "l",
+      "l"
     ],
     "opening_chars": 600
   },
-  "sections": 951,
-  "adjudicated": 14,
+  "sections": 2194,
+  "adjudicated": 34,
   "adjudications_unused": 0,
-  "double_annotated": 190,
-  "disagreements": 14,
+  "double_annotated": 439,
+  "disagreements": 34,
   "leaf": {
-    "n": 190,
-    "kappa": 0.9228000928720688,
-    "observed_agreement": 0.9263157894736842
+    "n": 439,
+    "kappa": 0.9144774161018066,
+    "observed_agreement": 0.9225512528473804
   },
   "group": {
-    "n": 190,
-    "kappa": 0.9928073894609327,
-    "observed_agreement": 0.9947368421052631
+    "n": 439,
+    "kappa": 0.931484071577355,
+    "observed_agreement": 0.9407744874715261
   },
   "annotators": {
     "first": [
-      "A1"
+      "A01",
+      "A02",
+      "A03",
+      "A04",
+      "A05",
+      "A06",
+      "A07",
+      "A08",
+      "A09",
+      "A10",
+      "A11"
     ],
     "second": [
-      "B1"
+      "B01",
+      "B02",
+      "B03"
     ],
     "adjudicator": [
-      "C1"
+      "C01"
     ]
   },
   "sample": {
@@ -64,484 +77,483 @@
         "element_tags": "none"
       },
       "elements": false,
-      "docrooter_version": "0.2.0",
+      "docrooter_version": "1.0.0",
       "levels": [
-        1,
-        2
+        "a",
+        "l",
+        "l"
       ],
       "opening_chars": 600
     },
     "seed": 0,
-    "max_per_doc": 12,
+    "max_per_doc": 30,
     "double_fraction": 0.2,
     "documents": 113,
     "documents_without_sections": [
-      "cuad-glumobileinc_20070319_s-1a_ex-10_09_436630_ex-10_09_content_lice-85069bbec7",
-      "cuad-pandiontherapeuticsholdcollc_05_22_2020-ex-10_17-consulting_agreement",
-      "cuad-springbankpharmaceuticals_inc_04_08_2020-ex-99_a-joint_filing_agreement",
-      "gao-gao-08-792r",
-      "uscourts-ca10-25-05114-0",
-      "uscourts-ca10-26-02172-0",
       "uscourts-ca8-26-02263-0"
     ],
-    "selected": 951,
-    "double_annotated": 190,
+    "selected": 2194,
+    "double_annotated": 439,
     "by_level": {
-      "1": 488,
-      "2": 463
+      "1": 604,
+      "2": 527,
+      "3": 321,
+      "4": 165,
+      "5": 102,
+      "6": 475
     },
     "per_document": {
       "arxiv-2004_06003": {
-        "candidates": 1,
-        "selected": 1
+        "candidates": 28,
+        "selected": 28
       },
       "arxiv-2209_10024": {
-        "candidates": 1,
-        "selected": 1
+        "candidates": 13,
+        "selected": 13
       },
       "arxiv-2402_08583": {
-        "candidates": 46,
-        "selected": 12
+        "candidates": 50,
+        "selected": 30
       },
       "arxiv-2402_12885": {
         "candidates": 13,
-        "selected": 12
+        "selected": 13
       },
       "arxiv-2404_01334": {
-        "candidates": 17,
-        "selected": 12
+        "candidates": 24,
+        "selected": 24
       },
       "arxiv-2404_16364": {
-        "candidates": 10,
-        "selected": 10
+        "candidates": 33,
+        "selected": 30
       },
       "arxiv-2410_19751": {
-        "candidates": 30,
-        "selected": 12
+        "candidates": 33,
+        "selected": 30
       },
       "arxiv-2412_14523": {
-        "candidates": 21,
-        "selected": 12
+        "candidates": 24,
+        "selected": 24
       },
       "arxiv-2501_00034": {
-        "candidates": 1,
-        "selected": 1
+        "candidates": 12,
+        "selected": 12
       },
       "arxiv-2501_00970": {
-        "candidates": 21,
-        "selected": 12
+        "candidates": 22,
+        "selected": 22
       },
       "arxiv-2501_01219": {
-        "candidates": 36,
-        "selected": 12
+        "candidates": 33,
+        "selected": 30
       },
       "arxiv-2501_01273": {
-        "candidates": 19,
-        "selected": 12
+        "candidates": 22,
+        "selected": 22
       },
       "arxiv-2501_07309": {
-        "candidates": 7,
-        "selected": 7
+        "candidates": 12,
+        "selected": 12
       },
       "crs-r42106": {
-        "candidates": 10,
-        "selected": 10
+        "candidates": 11,
+        "selected": 11
       },
       "crs-r43418": {
-        "candidates": 27,
-        "selected": 12
+        "candidates": 32,
+        "selected": 30
       },
       "crs-r43739": {
-        "candidates": 22,
-        "selected": 12
+        "candidates": 24,
+        "selected": 24
       },
       "crs-r44164": {
         "candidates": 16,
-        "selected": 12
+        "selected": 16
       },
       "cuad-arcgroupinc_20171211_8-k_ex-10_1_10976103_ex-10_1_sponsorship_agreement": {
-        "candidates": 6,
-        "selected": 6
+        "candidates": 11,
+        "selected": 11
       },
       "cuad-aspirityholdingsllc_05_07_2012-ex-10_6-outsourcing_agreement": {
-        "candidates": 12,
-        "selected": 12
+        "candidates": 24,
+        "selected": 24
       },
       "cuad-emeraldhealthbioceuticalsinc_20200218_1-a_ex1a-6_mat_ctrct_11987-ce2f68e65a": {
+        "candidates": 10,
+        "selected": 10
+      },
+      "cuad-glumobileinc_20070319_s-1a_ex-10_09_436630_ex-10_09_content_lice-85069bbec7": {
+        "candidates": 4,
+        "selected": 4
+      },
+      "cuad-gridironbionutrients_inc_02_05_2020-ex-10_3-supply_agreement": {
+        "candidates": 4,
+        "selected": 4
+      },
+      "cuad-innoviva_inc_08_07_2014-ex-10_1-collaboration_agreement": {
+        "candidates": 53,
+        "selected": 30
+      },
+      "cuad-ivillageinc_03_17_1999-ex-10_16-sponsorship_agreement": {
+        "candidates": 2,
+        "selected": 2
+      },
+      "cuad-pandiontherapeuticsholdcollc_05_22_2020-ex-10_17-consulting_agreement": {
         "candidates": 9,
         "selected": 9
       },
-      "cuad-glumobileinc_20070319_s-1a_ex-10_09_436630_ex-10_09_content_lice-85069bbec7": {
-        "candidates": 0,
-        "selected": 0
-      },
-      "cuad-gridironbionutrients_inc_02_05_2020-ex-10_3-supply_agreement": {
-        "candidates": 1,
-        "selected": 1
-      },
-      "cuad-innoviva_inc_08_07_2014-ex-10_1-collaboration_agreement": {
-        "candidates": 43,
-        "selected": 12
-      },
-      "cuad-ivillageinc_03_17_1999-ex-10_16-sponsorship_agreement": {
-        "candidates": 1,
-        "selected": 1
-      },
-      "cuad-pandiontherapeuticsholdcollc_05_22_2020-ex-10_17-consulting_agreement": {
-        "candidates": 0,
-        "selected": 0
-      },
       "cuad-springbankpharmaceuticals_inc_04_08_2020-ex-99_a-joint_filing_agreement": {
-        "candidates": 0,
-        "selected": 0
+        "candidates": 2,
+        "selected": 2
       },
       "cuad-summafourinc_06_19_1998-ex-10_3-software_license_and_maintenance_agreement": {
-        "candidates": 16,
-        "selected": 12
+        "candidates": 21,
+        "selected": 20
       },
       "cuad-upjohninc_20200121_10-12g_ex-2_6_11948692_ex-2_6_manufacturing_a-25b3d080a6": {
-        "candidates": 11,
-        "selected": 11
+        "candidates": 29,
+        "selected": 29
       },
       "cuad-vapotherm_inc_-_manufacturing_and_supply_agreement": {
-        "candidates": 19,
-        "selected": 12
+        "candidates": 40,
+        "selected": 30
       },
       "cuad-warnerchilcottplc_12_31_2003-ex-4_36-development_agreement": {
-        "candidates": 3,
-        "selected": 3
+        "candidates": 1,
+        "selected": 1
       },
       "cuad-webhelpcominc_03_22_2000-ex-10_8-hosting_agreement": {
-        "candidates": 2,
-        "selected": 2
+        "candidates": 5,
+        "selected": 3
       },
       "fed-ifdp-1418": {
-        "candidates": 22,
-        "selected": 12
+        "candidates": 44,
+        "selected": 30
       },
       "fund-ishares-sp-agg": {
-        "candidates": 10,
-        "selected": 10
+        "candidates": 13,
+        "selected": 13
       },
       "fund-ishares-sp-ewa": {
-        "candidates": 11,
-        "selected": 11
-      },
-      "fund-ishares-sp-ewj": {
-        "candidates": 2,
-        "selected": 2
-      },
-      "fund-ishares-sp-hyg": {
-        "candidates": 10,
-        "selected": 10
-      },
-      "fund-ishares-sp-mtum": {
-        "candidates": 3,
-        "selected": 3
-      },
-      "fund-ishares-sp-qual": {
-        "candidates": 16,
-        "selected": 12
-      },
-      "fund-ssga-fs-cery": {
-        "candidates": 4,
-        "selected": 4
-      },
-      "fund-ssga-fs-dia": {
-        "candidates": 3,
-        "selected": 3
-      },
-      "fund-ssga-fs-ewx": {
-        "candidates": 4,
-        "selected": 4
-      },
-      "fund-ssga-fs-hail": {
-        "candidates": 4,
-        "selected": 4
-      },
-      "fund-ssga-fs-kie": {
-        "candidates": 3,
-        "selected": 3
-      },
-      "fund-ssga-fs-prab": {
-        "candidates": 4,
-        "selected": 4
-      },
-      "fund-ssga-fs-rwr": {
-        "candidates": 3,
-        "selected": 3
-      },
-      "fund-ssga-fs-slyg": {
-        "candidates": 3,
-        "selected": 3
-      },
-      "fund-ssga-fs-smlv": {
-        "candidates": 3,
-        "selected": 3
-      },
-      "fund-ssga-fs-spdw": {
-        "candidates": 3,
-        "selected": 3
-      },
-      "fund-ssga-fs-sphy": {
-        "candidates": 3,
-        "selected": 3
-      },
-      "gao-gao-05-251": {
-        "candidates": 22,
-        "selected": 12
-      },
-      "gao-gao-05-572t": {
-        "candidates": 15,
-        "selected": 12
-      },
-      "gao-gao-06-42": {
-        "candidates": 25,
-        "selected": 12
-      },
-      "gao-gao-06-502": {
-        "candidates": 74,
-        "selected": 12
-      },
-      "gao-gao-06-681t": {
-        "candidates": 3,
-        "selected": 2
-      },
-      "gao-gao-06-81sp": {
-        "candidates": 10,
-        "selected": 10
-      },
-      "gao-gao-06-880": {
-        "candidates": 27,
-        "selected": 12
-      },
-      "gao-gao-06-905t": {
-        "candidates": 16,
-        "selected": 12
-      },
-      "gao-gao-06-946": {
-        "candidates": 24,
-        "selected": 12
-      },
-      "gao-gao-07-1034": {
-        "candidates": 34,
-        "selected": 12
-      },
-      "gao-gao-07-1153": {
-        "candidates": 21,
-        "selected": 12
-      },
-      "gao-gao-07-229t": {
-        "candidates": 23,
-        "selected": 12
-      },
-      "gao-gao-07-612t": {
-        "candidates": 13,
-        "selected": 12
-      },
-      "gao-gao-07-707": {
-        "candidates": 18,
-        "selected": 12
-      },
-      "gao-gao-07-74": {
-        "candidates": 36,
-        "selected": 12
-      },
-      "gao-gao-08-16": {
-        "candidates": 17,
-        "selected": 12
-      },
-      "gao-gao-08-166": {
-        "candidates": 32,
-        "selected": 12
-      },
-      "gao-gao-08-238t": {
-        "candidates": 11,
-        "selected": 11
-      },
-      "gao-gao-08-419t": {
         "candidates": 12,
         "selected": 12
       },
-      "gao-gao-08-496t": {
+      "fund-ishares-sp-ewj": {
+        "candidates": 14,
+        "selected": 14
+      },
+      "fund-ishares-sp-hyg": {
+        "candidates": 13,
+        "selected": 13
+      },
+      "fund-ishares-sp-mtum": {
+        "candidates": 14,
+        "selected": 14
+      },
+      "fund-ishares-sp-qual": {
+        "candidates": 15,
+        "selected": 15
+      },
+      "fund-ssga-fs-cery": {
+        "candidates": 8,
+        "selected": 8
+      },
+      "fund-ssga-fs-dia": {
+        "candidates": 8,
+        "selected": 8
+      },
+      "fund-ssga-fs-ewx": {
+        "candidates": 8,
+        "selected": 8
+      },
+      "fund-ssga-fs-hail": {
+        "candidates": 7,
+        "selected": 7
+      },
+      "fund-ssga-fs-kie": {
+        "candidates": 7,
+        "selected": 7
+      },
+      "fund-ssga-fs-prab": {
+        "candidates": 7,
+        "selected": 7
+      },
+      "fund-ssga-fs-rwr": {
+        "candidates": 8,
+        "selected": 8
+      },
+      "fund-ssga-fs-slyg": {
+        "candidates": 7,
+        "selected": 7
+      },
+      "fund-ssga-fs-smlv": {
+        "candidates": 6,
+        "selected": 6
+      },
+      "fund-ssga-fs-spdw": {
+        "candidates": 8,
+        "selected": 8
+      },
+      "fund-ssga-fs-sphy": {
+        "candidates": 8,
+        "selected": 8
+      },
+      "gao-gao-05-251": {
+        "candidates": 42,
+        "selected": 30
+      },
+      "gao-gao-05-572t": {
         "candidates": 13,
         "selected": 12
       },
-      "gao-gao-08-563t": {
+      "gao-gao-06-42": {
+        "candidates": 85,
+        "selected": 30
+      },
+      "gao-gao-06-502": {
+        "candidates": 80,
+        "selected": 30
+      },
+      "gao-gao-06-681t": {
+        "candidates": 13,
+        "selected": 13
+      },
+      "gao-gao-06-81sp": {
+        "candidates": 49,
+        "selected": 30
+      },
+      "gao-gao-06-880": {
+        "candidates": 24,
+        "selected": 24
+      },
+      "gao-gao-06-905t": {
+        "candidates": 15,
+        "selected": 15
+      },
+      "gao-gao-06-946": {
+        "candidates": 30,
+        "selected": 30
+      },
+      "gao-gao-07-1034": {
+        "candidates": 30,
+        "selected": 29
+      },
+      "gao-gao-07-1153": {
+        "candidates": 23,
+        "selected": 23
+      },
+      "gao-gao-07-229t": {
+        "candidates": 18,
+        "selected": 18
+      },
+      "gao-gao-07-612t": {
+        "candidates": 11,
+        "selected": 11
+      },
+      "gao-gao-07-707": {
+        "candidates": 25,
+        "selected": 25
+      },
+      "gao-gao-07-74": {
+        "candidates": 25,
+        "selected": 25
+      },
+      "gao-gao-08-16": {
+        "candidates": 25,
+        "selected": 25
+      },
+      "gao-gao-08-166": {
+        "candidates": 203,
+        "selected": 30
+      },
+      "gao-gao-08-238t": {
         "candidates": 10,
         "selected": 10
       },
+      "gao-gao-08-419t": {
+        "candidates": 10,
+        "selected": 10
+      },
+      "gao-gao-08-496t": {
+        "candidates": 18,
+        "selected": 18
+      },
+      "gao-gao-08-563t": {
+        "candidates": 14,
+        "selected": 14
+      },
       "gao-gao-08-792r": {
-        "candidates": 0,
-        "selected": 0
+        "candidates": 13,
+        "selected": 13
       },
       "ir-atlas_copco-2021-29f24c": {
-        "candidates": 69,
-        "selected": 12
+        "candidates": 982,
+        "selected": 30
       },
       "ir-barclays-2020-94ac0b": {
-        "candidates": 88,
-        "selected": 12
+        "candidates": 752,
+        "selected": 30
       },
       "ir-barclays-2021-3e4e11": {
-        "candidates": 30,
-        "selected": 12
+        "candidates": 710,
+        "selected": 30
       },
       "ir-berkshire_hathaway-2025-50487b": {
-        "candidates": 41,
-        "selected": 12
+        "candidates": 469,
+        "selected": 30
       },
       "ir-deutsche_bank-2020-b6393e": {
-        "candidates": 239,
-        "selected": 12
+        "candidates": 863,
+        "selected": 30
       },
       "ir-erste_group-2023-1517a8": {
-        "candidates": 431,
-        "selected": 12
+        "candidates": 698,
+        "selected": 30
       },
       "ir-flutter_entertainment-2024-4ecb53": {
-        "candidates": 82,
-        "selected": 12
+        "candidates": 670,
+        "selected": 30
       },
       "ir-hsbc_holdings-2024-a5692d": {
-        "candidates": 61,
-        "selected": 12
+        "candidates": 1515,
+        "selected": 30
       },
       "ir-ibm-2021-80bdbf": {
-        "candidates": 4,
-        "selected": 3
+        "candidates": 371,
+        "selected": 30
       },
       "ir-informa-2022-b71b11": {
-        "candidates": 95,
-        "selected": 12
+        "candidates": 767,
+        "selected": 30
       },
       "ir-jpmorgan_chase-2025-95524c": {
-        "candidates": 20,
-        "selected": 12
+        "candidates": 797,
+        "selected": 30
       },
       "ir-nn_group-2022-ae9dfe": {
-        "candidates": 221,
-        "selected": 12
+        "candidates": 1099,
+        "selected": 30
       },
       "ir-novo_nordisk-2024-f455be": {
-        "candidates": 90,
-        "selected": 12
+        "candidates": 595,
+        "selected": 30
       },
       "ir-relx-2024-047261": {
-        "candidates": 79,
-        "selected": 12
+        "candidates": 889,
+        "selected": 30
       },
       "ir-royal_bank_of_canada-2020-f9034e": {
-        "candidates": 17,
-        "selected": 12
+        "candidates": 768,
+        "selected": 30
       },
       "ir-royal_bank_of_canada-2021-b3720b": {
-        "candidates": 13,
-        "selected": 12
+        "candidates": 712,
+        "selected": 30
       },
       "ir-sanofi-2019-08bfe7": {
-        "candidates": 27,
-        "selected": 12
+        "candidates": 92,
+        "selected": 30
       },
       "ir-sanofi-2025-7783e6": {
-        "candidates": 42,
-        "selected": 12
+        "candidates": 840,
+        "selected": 30
       },
       "ir-scotiabank-2021-8a6c2d": {
-        "candidates": 18,
-        "selected": 12
+        "candidates": 1006,
+        "selected": 30
       },
       "ir-scotiabank-2025-2b4f82": {
-        "candidates": 13,
-        "selected": 12
+        "candidates": 882,
+        "selected": 30
       },
       "ir-siemens-2023-215a90": {
-        "candidates": 25,
-        "selected": 12
+        "candidates": 375,
+        "selected": 30
       },
       "ir-standard_chartered-2024-645d0d": {
-        "candidates": 88,
-        "selected": 12
+        "candidates": 1491,
+        "selected": 30
       },
       "ir-swiss_re-2024-9c18b8": {
-        "candidates": 68,
-        "selected": 12
+        "candidates": 473,
+        "selected": 30
       },
       "ir-swiss_re-2025-3b7111": {
-        "candidates": 32,
-        "selected": 12
+        "candidates": 310,
+        "selected": 30
       },
       "ir-verizon-2019-caf733": {
-        "candidates": 79,
-        "selected": 12
+        "candidates": 295,
+        "selected": 30
       },
       "rfc-8716": {
-        "candidates": 14,
-        "selected": 12
+        "candidates": 26,
+        "selected": 23
       },
       "rfc-8824": {
-        "candidates": 18,
-        "selected": 12
+        "candidates": 47,
+        "selected": 30
       },
       "rfc-8962": {
-        "candidates": 25,
-        "selected": 12
+        "candidates": 32,
+        "selected": 30
       },
       "rfc-9447": {
-        "candidates": 14,
-        "selected": 12
+        "candidates": 28,
+        "selected": 28
       },
       "rfc-9562": {
-        "candidates": 20,
-        "selected": 12
+        "candidates": 98,
+        "selected": 30
       },
       "rfc-9658": {
-        "candidates": 21,
-        "selected": 12
+        "candidates": 33,
+        "selected": 30
       },
       "uscourts-ca10-25-05114-0": {
-        "candidates": 0,
-        "selected": 0
+        "candidates": 6,
+        "selected": 6
       },
       "uscourts-ca10-25-05137-0": {
-        "candidates": 2,
-        "selected": 2
+        "candidates": 11,
+        "selected": 11
       },
       "uscourts-ca10-26-02172-0": {
-        "candidates": 0,
-        "selected": 0
+        "candidates": 3,
+        "selected": 3
       },
       "uscourts-ca13-26-01691-0": {
-        "candidates": 1,
-        "selected": 1
+        "candidates": 11,
+        "selected": 9
       },
       "uscourts-ca13-26-01693-0": {
-        "candidates": 1,
-        "selected": 1
+        "candidates": 10,
+        "selected": 10
       },
       "uscourts-ca3-25-02060-0": {
-        "candidates": 2,
-        "selected": 2
-      },
-      "uscourts-ca7-25-03142-0": {
         "candidates": 1,
         "selected": 1
+      },
+      "uscourts-ca7-25-03142-0": {
+        "candidates": 4,
+        "selected": 4
       },
       "uscourts-ca8-26-02263-0": {
         "candidates": 0,
         "selected": 0
       },
       "uscourts-ca9-25-5220-0": {
-        "candidates": 1,
-        "selected": 1
+        "candidates": 3,
+        "selected": 3
       },
       "uscourts-ca9-25-6980-0": {
-        "candidates": 1,
-        "selected": 1
+        "candidates": 15,
+        "selected": 14
       },
       "uscourts-cadc-25-05386-0": {
-        "candidates": 2,
-        "selected": 2
+        "candidates": 4,
+        "selected": 4
       }
     }
   }

@@ -1,7 +1,7 @@
 """Serve the demo locally: the static page from demo/ and the live function at /api/docrooter_demo.
 
 Run from the repository root:  PYTHONPATH=src python demo/serve.py [port]
-then open http://localhost:8765. Live uploads need ANTHROPIC_API_KEY in the environment;
+then open http://localhost:8765. Live uploads need TYPESAFE_API_KEY in the environment;
 the samples work without it.
 """
 

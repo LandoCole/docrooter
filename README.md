@@ -44,10 +44,13 @@ classifies sections against any taxonomy you supply, as it did before 1.0.
 
 `docrooter.classify(doc)` runs the **sections-first** flow:
 
-1. **Tag the sections.** The level-1 and level-2 sections (at most 40) are tagged against
-   `builtin_taxonomy("section_catalogue")`: 112 section types in 12 groups (financial
-   statements, narrative, disclosures, fund, offering, contract, law, research, standards,
-   technical, ESG and general), group first, then leaf.
+1. **Tag the sections.** Every heading, at any depth (at most 400), is tagged against
+   `builtin_taxonomy("section_catalogue")`: 108 section types in 12 groups (financial
+   statements, narrative, disclosures, fund, offering, contract, government audit, law,
+   research, standards, technical and ESG), group first, then leaf. A tag normalises what a
+   heading means ("Statement of financial position" and "Consolidated balance sheets" are both
+   `financial.balance_sheet`); a heading with nothing to normalise (an introduction, a
+   summary, "Part II") is tagged `none`, which is never evidence for the rules.
 2. **Match the rules.** Each of the 19 document types in `doc_types` has a `sections` rule
    block, written from its definition: `requires` (groups of section ids, each to be met),
    `typical` (an ordering) and `excludes`.

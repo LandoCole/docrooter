@@ -58,6 +58,19 @@ objective, fund facts, fees, performance and top holdings as of a date. It is no
 prospectus and not an annual report. The benchmark corpora were labelled with 18 types, before it
 existed, so their numbers do not include it.
 
+**`section_catalogue`**: the section tags `classify` uses, 108 leaves in 12 groups plus `none`,
+shared by every kind of document. A tag normalises what a heading means, so the same kind of
+section can be found across documents however each one words it: "Statement of financial
+position" and "Consolidated balance sheets" are both `financial.balance_sheet`; "Audit opinion"
+and "Report of independent registered public accounting firm" are both
+`financial.auditors_report`. Generic structure that nobody looks for across documents (a
+contents page, an introduction, a summary, background, a conclusion, "Part II") is `none`.
+Groups: `research`, `narrative`, `financial`, `disclosure`, `esg`, `fund`, `offering`,
+`contract`, `government` (audit and oversight reports: highlights, objectives and methodology,
+findings, recommendations, agency comments), `law`, `technical` and `standard`; each has an
+`other` leaf for its own domain. To tag structure too (summary, background, conclusion), pass
+your own catalogue with `classify(..., catalogue=...)`.
+
 **`section_types/*`**: canonical sections for a family of documents, used by
 [section normalisation](../guides/section-normalisation.md). Each document type maps to one:
 

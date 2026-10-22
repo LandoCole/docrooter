@@ -1,15 +1,17 @@
-"""The live demo's server function: classify one upload with docrooter and Claude Haiku 5.5.
+"""The live demo's server function: classify one upload with doc-rooter and Jev.
 
-``POST /api/docrooter_demo?flow=<flow>&level=<level>&name=<file name>`` (flow ``doc_first`` or
-``sections_first``, level ``headings``, ``terms``, ``lead`` or ``full``), with the file as the
-raw request body (a PDF, Markdown or plain text, at most 4 MB). The reply is JSON in the shape
-of the demo's sample runs: the four rung views, the sections, and one run for the requested flow
-and level. Errors reply ``{"error": "..."}``.
+``POST /api/docrooter_demo?flow=<flow>&name=<file name>`` (flow ``doc_first`` or
+``sections_first``), with the file as the raw request body (a PDF, Markdown or plain text, at
+most 4 MB). doc-rooter reads the file and classifies it at all four rungs of the context ladder
+with Jev, TypeSafe's decision model. The reply is JSON in the shape of the demo's samples (see
+:func:`describe`): what the model saw at each rung, the sections, and one run per rung for the
+requested flow. Errors reply ``{"error": "..."}``.
 
-It runs as a Vercel Python function (the ``handler`` class) and under ``demo/serve.py`` locally.
-The Anthropic key comes from ``ANTHROPIC_API_KEY`` in the environment and is never logged or
-returned. Each visitor is limited in memory (per instance) to 10 runs a minute and 100 a day, a
-PDF is read to at most 30 pages, and document text is never logged or kept.
+It runs as a Vercel Python function (the ``handler`` class) and under ``demo/serve.py`` locally;
+``demo/build_samples.py`` uses :func:`describe` and :func:`run` for the samples. The TypeSafe key
+comes from ``TYPESAFE_API_KEY`` in the environment and is never logged or returned. Each visitor
+is limited in memory (per instance) to 10 runs a minute and 100 a day, a PDF is read to at most
+30 pages, and document text is never logged or kept.
 """
 
 from __future__ import annotations
@@ -20,20 +22,24 @@ import tempfile
 import threading
 import time
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-MODEL = "claude-haiku-5-5"
-BASE_URL = "https://api.anthropic.com/v1"
-PRICE = {"prompt": 0.10e-6, "completion": 0.50e-6}  # US$ per token, list price
+MODEL = "jev-1.13.0"
+PRICE = {"prompt": 0.042e-6, "completion": 0.0}  # Jev, US$ per token: input only, output free
 MAX_BYTES = 4 * 1024 * 1024
 MAX_PAGES = 30  # the layout model reads about 0.3 to 0.4 s per page
-SECTIONS_SHOWN = 24
-VIEW_PREVIEW_CHARS = 2400
+SECTIONS_SHOWN = 200
+SECTION_VIEW_CHARS = 600  # a section's own view, as sent (the full rung's is cut for display)
+DOC_VIEW_CHARS = 20000
+TOP_TYPES = 6
 FLOWS = ("doc_first", "sections_first")
 LEVELS = ("headings", "terms", "lead", "full")
 PER_MINUTE, PER_DAY = 10, 100
+NO_TAG = "none"
 
 _hits: dict[str, deque[float]] = defaultdict(deque)
 _lock = threading.Lock()
@@ -52,24 +58,148 @@ def allowed(visitor: str, now: float | None = None) -> bool:
         return True
 
 
-def _view(doc, level: str) -> dict:
-    from docrooter.ladder import document_view
-
-    text = document_view(level).render(doc).text
-    shown = text if len(text) <= VIEW_PREVIEW_CHARS else text[:VIEW_PREVIEW_CHARS].rstrip() + " …"
-    return {"text": shown, "chars": len(text)}
+def _cut(text: str, chars: int) -> str:
+    return text if len(text) <= chars else text[:chars].rstrip() + " …"
 
 
-def classify_bytes(data: bytes, name: str, flow: str, level: str) -> dict:
-    """docrooter on one file's bytes: the demo's JSON for one run."""
-    from docrooter import classify, load
-    from docrooter.backends.openai import OpenAIBackend
+def _fields(text: str) -> list[list[str]]:
+    """A rendered document view as ``[label, content]`` pairs (its ``Label: content`` lines)."""
+    fields: list[list[str]] = []
+    for line in text.splitlines():
+        name, sep, rest = line.partition(": ")
+        if sep and name and name[0].isupper() and len(name) <= 16:
+            fields.append([name, rest])
+        elif fields:
+            fields[-1][1] += "\n" + line
+    return fields
+
+
+def describe(doc: Any, gold_tags: dict[str, str] | None = None) -> dict[str, Any]:
+    """What doc-rooter would send for ``doc`` at every rung: the document view (``views``,
+    cut to :data:`DOC_VIEW_CHARS` for display) and, per section in reading order, its own view
+    (``sections[].views``). ``gold_tags`` maps section ids to gold tags, where known."""
     from docrooter.flow import select_sections
+    from docrooter.ladder import document_view, section_view
+
+    tagged = {s.id for s in select_sections(doc)}
+    ordered = [s for s in doc.walk() if s.id in tagged][:SECTIONS_SHOWN]
+    ids = [s.id for s in ordered]
+    per_rung = {lv: section_view(lv).render_all(doc, ids) for lv in LEVELS}
+    views = {}
+    for lv in LEVELS:
+        rendered = document_view(lv).render(doc)
+        views[lv] = {
+            "fields": _fields(_cut(rendered.text, DOC_VIEW_CHARS)),
+            "chars": len(rendered.text),
+            "truncated": rendered.truncated,
+        }
+    sections = []
+    for s in ordered:
+        row: dict[str, Any] = {"id": s.id, "title": s.title, "level": s.level}
+        if gold_tags and s.id in gold_tags:
+            row["gold"] = gold_tags[s.id]
+        row["views"] = {lv: _cut(per_rung[lv][s.id].text, SECTION_VIEW_CHARS) for lv in LEVELS}
+        sections.append(row)
+    n_pages = doc.meta.get("n_pages")
+    return {
+        "title": doc.title,
+        "pages": n_pages if isinstance(n_pages, int) else None,
+        "views": views,
+        "sections": sections,
+        "sections_total": len(tagged),
+    }
+
+
+def section_score(tags: dict[str, list], gold_tags: dict[str, str]) -> dict[str, Any] | None:
+    """How a run's tags did against the gold tags it has, ``none`` abstaining: ``right`` of the
+    ``gold`` domain sections tagged right, and the share of domain tags given that were right."""
+    pairs = [(g, tags.get(sid, [None])[0]) for sid, g in gold_tags.items() if sid in tags]
+    if not pairs:
+        return None
+    domain = [p for g, p in pairs if g != NO_TAG]
+    given = [(g, p) for g, p in pairs if p not in (None, NO_TAG)]
+    right = sum(1 for g, p in pairs if g == p and g != NO_TAG)
+    return {
+        "right": right,
+        "gold": len(domain),
+        "precision": right / len(given) if given else None,
+        "none_right": sum(1 for g, p in pairs if g == NO_TAG and p in (None, NO_TAG)),
+        "none_gold": sum(1 for g, _ in pairs if g == NO_TAG),
+    }
+
+
+def run(
+    doc: Any,
+    flow: str,
+    level: str,
+    backend: Any,
+    gold: str | None = None,
+    gold_tags: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """One ``classify`` run as the demo shows it: the type, Jev's probabilities for the most
+    likely types, how it was decided, the tokens and cost, and every section's tag."""
+    from docrooter import classify
+
+    result = classify(doc, flow=flow, level=level, backend=backend, calls="per_item")
+    tokens = result.tokens
+    tags = {t.id: [t.label, round(t.confidence or 0.0, 3)] for t in result.sections}
+    probs = sorted(result.doc_type_probs.items(), key=lambda kv: -kv[1])[:TOP_TYPES]
+    return {
+        "pred": result.doc_type,
+        "correct": (result.doc_type == gold) if gold else None,
+        "confidence": result.doc_type_confidence,
+        "probs": [[k, round(v, 4)] for k, v in probs],
+        "decided_by": result.decided_by,
+        "flags": list(result.flags),
+        "candidates": list(result.candidates),
+        "tokens": {
+            "prompt": tokens.prompt,
+            "completion": tokens.completion,
+            "calls": tokens.calls,
+            "exact": tokens.exact,
+            "sections": result.stage_tokens.get("sections", tokens).prompt,
+            "document": result.stage_tokens["document"].prompt
+            if "document" in result.stage_tokens
+            else 0,
+        },
+        "cost_usd": round(
+            tokens.prompt * PRICE["prompt"] + tokens.completion * PRICE["completion"], 6
+        ),
+        "tags": tags,
+        "score": section_score(tags, gold_tags) if gold_tags else None,
+    }
+
+
+def labels_for(ids: list[str | None]) -> dict[str, str]:
+    """The display labels of doc types and section tags."""
     from docrooter.taxonomies import builtin_taxonomy
 
-    key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    taxonomies = [builtin_taxonomy("doc_types"), builtin_taxonomy("section_catalogue")]
+    out = {}
+    for node_id in ids:
+        for taxonomy in taxonomies:
+            if node_id and node_id in taxonomy:
+                node = taxonomy.node(node_id)
+                out[node_id] = node.label
+                if node_id.endswith(".other") and node.parent_id:  # "Other" alone says nothing
+                    out[node_id] = f"{taxonomy.node(node.parent_id).label}: other"
+    return out
+
+
+def jev_backend() -> Any:
+    from docrooter.backends.jev import JevBackend
+
+    key = os.environ.get("TYPESAFE_API_KEY", "").strip()
     if not key:
         raise RuntimeError("The live demo isn't configured on this server.")
+    return JevBackend(MODEL, api_key=key, concurrency=16, timeout=30)
+
+
+def classify_bytes(data: bytes, name: str, flow: str) -> dict:
+    """doc-rooter on one file's bytes, at every rung of ``flow``: the demo's JSON."""
+    from docrooter import load
+
+    jev_backend()  # no key: say so before reading the file
     suffix = Path(name).suffix.lower()
     if suffix == ".pdf" or data[:5] == b"%PDF-":
         with tempfile.TemporaryDirectory() as tmp:
@@ -84,67 +214,27 @@ def classify_bytes(data: bytes, name: str, flow: str, level: str) -> dict:
     else:
         raise ValueError("Choose a PDF, Markdown or text file.")
 
-    backend = OpenAIBackend(
-        MODEL,
-        base_url=BASE_URL,
-        api_key=key,
-        timeout=30,
-        concurrency=4,
-        extra_body={"thinking": {"type": "disabled"}},
-    )
-    result = classify(doc, flow=flow, level=level, backend=backend, calls="batched")
-    sections = select_sections(doc)
-    tokens = result.tokens
-    labels = {}
-    taxonomies = [builtin_taxonomy("doc_types")]
-    if result.section_taxonomy:
-        taxonomies.append(builtin_taxonomy(result.section_taxonomy))
-    for node_id in [result.doc_type, *(t.label for t in result.sections)]:
-        for taxonomy in taxonomies:
-            if node_id and node_id in taxonomy:
-                labels[node_id] = taxonomy.node(node_id).label
-    n_pages = doc.meta.get("n_pages")
-    return {
-        "title": doc.title or Path(name).stem or "Your document",
-        "pages": n_pages if isinstance(n_pages, int) else None,
-        "publisher": None,
-        "gold": None,
-        "views": {lv: _view(doc, lv) for lv in LEVELS},
-        "sections": [
-            {"id": s.id, "title": s.title, "level": s.level} for s in sections[:SECTIONS_SHOWN]
-        ],
-        "sections_total": len(sections),
-        "labels": labels,
-        "runs": {
-            f"{flow}/{level}": {
-                "pred": result.doc_type,
-                "correct": None,
-                "decided_by": result.decided_by,
-                "flags": list(result.flags),
-                "candidates": list(result.candidates),
-                "tokens": {
-                    "prompt": tokens.prompt,
-                    "completion": tokens.completion,
-                    "calls": tokens.calls,
-                    "exact": tokens.exact,
-                },
-                "cost_usd": round(
-                    tokens.prompt * PRICE["prompt"] + tokens.completion * PRICE["completion"], 6
-                ),
-                "tags": {t.id: {"pred": t.label} for t in result.sections},
-            }
-        },
-    }
+    out = describe(doc)
+    with ThreadPoolExecutor(len(LEVELS)) as pool:
+        # a backend each: a run's tokens are read from its backend's cumulative usage
+        found = pool.map(lambda lv: run(doc, flow, lv, jev_backend()), LEVELS)
+        runs = dict(zip(LEVELS, found, strict=True))
+    out["runs"] = {f"{flow}/{lv}": r for lv, r in runs.items()}
+    out["title"] = out["title"] or Path(name).stem or "Your document"
+    used = [r["pred"] for r in runs.values()]
+    used += [k for r in runs.values() for k, _ in r["probs"]]
+    used += [t[0] for r in runs.values() for t in r["tags"].values()]
+    out.update(gold=None, publisher=None, labels=labels_for(used))
+    return out
 
 
 class handler(BaseHTTPRequestHandler):  # noqa: N801 - Vercel looks for this name
     def do_POST(self) -> None:  # noqa: N802
         query = parse_qs(urlsplit(self.path).query)
-        flow = (query.get("flow") or ["doc_first"])[0]
-        level = (query.get("level") or ["headings"])[0]
+        flow = (query.get("flow") or ["sections_first"])[0]
         name = (query.get("name") or ["upload"])[0][:200]
-        if flow not in FLOWS or level not in LEVELS:
-            return self._reply(400, {"error": "Unknown flow or level."})
+        if flow not in FLOWS:
+            return self._reply(400, {"error": "Unknown flow."})
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
@@ -159,11 +249,11 @@ class handler(BaseHTTPRequestHandler):  # noqa: N801 - Vercel looks for this nam
             return self._reply(429, {"error": limit})
         data = self.rfile.read(length)
         try:
-            body = classify_bytes(data, name, flow, level)
+            body = classify_bytes(data, name, flow)
         except ValueError as exc:
             return self._reply(400, {"error": str(exc)})
         except Exception as exc:  # noqa: BLE001 - the visitor gets a short reason, never a trace
-            generic = "docrooter couldn't read or classify that file."
+            generic = "doc-rooter couldn't read or classify that file."
             reason = str(exc) if isinstance(exc, RuntimeError) else generic
             return self._reply(502, {"error": reason})
         return self._reply(200, body)

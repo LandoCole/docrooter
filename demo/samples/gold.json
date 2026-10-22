@@ -1,0 +1,98 @@
+{
+  "source": "Synthetic documents from github.com/LandoCole/document-classifier (samples/, MIT): invented companies, written for that repository. The doc type is the one each was written as; the section tags were labelled by Claude with the section guide (benchmarks/classification/section_guide.md), keyed by heading title, for the demo only.",
+  "documents": {
+    "annual_report_10k-1": {
+      "title": "Halvorsen Instruments 10-K, fiscal 2025",
+      "doc_type": "financial.annual_report",
+      "tags": {
+        "FORM 10-K": "none",
+        "TABLE OF CONTENTS": "none",
+        "Cautionary Statement Regarding Forward-Looking Statements": "disclosure.forward_looking_statements",
+        "PART I": "none",
+        "Item 1. Business": "narrative.business_overview",
+        "Overview": "narrative.business_overview",
+        "Segments": "narrative.business_overview",
+        "Strategy": "narrative.business_overview",
+        "Customers, Sales and Distribution": "narrative.business_overview",
+        "Competition": "narrative.business_overview",
+        "Research and Development": "narrative.business_overview",
+        "Raw Materials and Manufacturing": "narrative.business_overview",
+        "Intellectual Property": "narrative.business_overview",
+        "Human Capital": "esg.social",
+        "Regulation and Available Information": "narrative.business_overview",
+        "Item 1A. Risk Factors": "disclosure.risk_factors",
+        "Item 1B. Unresolved Staff Comments": "disclosure.other",
+        "Item 1C. Cybersecurity": "disclosure.other",
+        "Item 2. Properties": "disclosure.properties",
+        "Item 3. Legal Proceedings": "disclosure.legal_proceedings",
+        "Item 4. Mine Safety Disclosures": "disclosure.other",
+        "PART II": "none",
+        "Item 5. Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities": "disclosure.market_for_equity",
+        "Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations": "narrative.management_discussion",
+        "Results of Operations": "narrative.management_discussion",
+        "Segment Results": "narrative.management_discussion",
+        "Liquidity and Capital Resources": "narrative.management_discussion",
+        "Critical Accounting Estimates": "narrative.management_discussion",
+        "Item 7A. Quantitative and Qualitative Disclosures About Market Risk": "narrative.management_discussion",
+        "Item 8. Financial Statements and Supplementary Data": "financial.financial_statements",
+        "Report of Independent Registered Public Accounting Firm": "financial.auditors_report",
+        "HALVORSEN INSTRUMENTS, INC. CONSOLIDATED STATEMENTS OF OPERATIONS": "financial.income_statement",
+        "CONSOLIDATED BALANCE SHEETS": "financial.balance_sheet",
+        "CONSOLIDATED STATEMENTS OF CASH FLOWS (summary)": "financial.cash_flow_statement",
+        "Note 1. Summary of Significant Accounting Policies": "financial.notes_to_financial_statements",
+        "Note 4. Inventories": "financial.notes_to_financial_statements",
+        "Item 9A. Controls and Procedures": "disclosure.controls_and_procedures",
+        "PART III": "none",
+        "PART IV": "none",
+        "Item 15. Exhibits and Financial Statement Schedules": "disclosure.exhibits",
+        "SIGNATURES": "none"
+      }
+    },
+    "earnings_release-1": {
+      "title": "Lumenfield Retail Group third-quarter fiscal 2025 results",
+      "doc_type": "financial.earnings_release",
+      "tags": {
+        "Lumenfield Retail Group Reports Third Quarter Fiscal 2025 Results": "none",
+        "Third Quarter Fiscal 2025 Highlights": "financial.financial_highlights",
+        "Fiscal 2025 Outlook": "narrative.outlook",
+        "Conference Call Information": "none",
+        "Condensed Consolidated Statements of Income (unaudited)": "financial.income_statement",
+        "Condensed Consolidated Balance Sheets (unaudited)": "financial.balance_sheet",
+        "Reconciliation of Non-GAAP Financial Measures": "financial.other",
+        "Forward-Looking Statements": "disclosure.forward_looking_statements",
+        "About Lumenfield Retail Group": "narrative.business_overview"
+      }
+    },
+    "fund_prospectus-1": {
+      "title": "Calloway Street Large Cap Value Fund prospectus",
+      "doc_type": "financial.prospectus",
+      "tags": {
+        "CALLOWAY STREET FUNDS": "none",
+        "Calloway Street Large Cap Value Fund": "none",
+        "TABLE OF CONTENTS": "none",
+        "FUND SUMMARY": "none",
+        "Investment Objective": "fund.investment_objective",
+        "Fees and Expenses of the Fund": "fund.fees_and_expenses",
+        "Principal Investment Strategies": "fund.principal_investment_strategies",
+        "Principal Risks": "disclosure.risk_factors",
+        "Performance": "fund.performance",
+        "Management": "fund.management",
+        "Purchase and Sale of Fund Shares": "fund.purchase_and_sale",
+        "Tax Information": "fund.tax_information",
+        "Payments to Broker-Dealers and Other Financial Intermediaries": "fund.other"
+      }
+    },
+    "proxy_statement-1": {
+      "title": "2025 proxy statement and notice of annual meeting",
+      "doc_type": "financial.proxy_statement",
+      "tags": {
+        "NOTICE OF 2025 ANNUAL MEETING OF STOCKHOLDERS": "disclosure.shareholder_meeting",
+        "QUESTIONS AND ANSWERS ABOUT THE MEETING AND VOTING": "disclosure.shareholder_meeting",
+        "PROPOSAL 1: ELECTION OF DIRECTORS": "disclosure.shareholder_meeting",
+        "PROPOSAL 3: ADVISORY VOTE ON EXECUTIVE COMPENSATION": "disclosure.shareholder_meeting",
+        "SUMMARY COMPENSATION TABLE": "disclosure.executive_compensation",
+        "HOW TO SUBMIT PROPOSALS FOR THE 2026 ANNUAL MEETING": "disclosure.shareholder_meeting"
+      }
+    }
+  }
+}

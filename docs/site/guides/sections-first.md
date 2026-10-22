@@ -53,9 +53,11 @@ API's `usage` and are **exact**.
 
 ## How the type is decided
 
-1. **Tag the sections.** The level-1 and level-2 sections (at most `max_sections=40`: level 1
-   first, then level 2, each in reading order) are tagged against the catalogue at the section
-   level. Per-item calls go group first, then leaf, so each call carries few options. A
+1. **Tag the sections.** Every heading, at any depth (at most `max_sections=400`: level 1
+   first, then level 2 and so on, each in reading order), is tagged against the catalogue at the
+   section level. A section's view carries its heading path, so "12 Leases" under "Notes to the
+   financial statements" reads as a note. A heading with nothing to normalise is tagged `none`,
+   which never counts as evidence: the rules' evidence share is over the domain tags only. Per-item calls go group first, then leaf, so each call carries few options. A
    section with no title shows its lead even at `headings` and `terms` (within the rung's
    budget), so it is never sent as a bare path.
 2. **Match the rules.** Every doc-type leaf of `builtin_taxonomy("doc_types")` has a `sections`
@@ -98,7 +100,7 @@ the candidate's doc-type siblings excluded the true type when the evidence was s
 
 **A reply that names no option** is never read as the first option. A batched reply is asked
 again once; a per-item one is not. Either way the section gets the `other` leaf below the last
-step answered (or `general.other`) at confidence 0, the document gets no type, and the result
+step answered (or `none`) at confidence 0, the document gets no type, and the result
 is flagged `unparsed`.
 
 `result.candidates` lists the types the rules narrowed to, in order (empty when every type was

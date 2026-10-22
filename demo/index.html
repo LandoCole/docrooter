@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>doc-rooter · Landon Thornton</title>
-<meta name="description" content="doc-rooter sends a hosted LLM the least it needs to classify a document and its sections. Pick a rung of the context ladder and see the answer, the tokens and the cost, measured with Claude Haiku 5.5.">
+<meta name="description" content="doc-rooter sends a model the least it needs to name a document's type and tag every section. Pick a rung of the context ladder and see exactly what Jev saw, what it answered, and what it cost.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -12,7 +12,7 @@
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0}
 [hidden]{display:none!important}
-/* Layout: a project sheet from landonthornton.com. The controls in a left rail, docrooter's run as a drafted figure, then the benchmark and notes in the site's label/body columns on the 24px dot grid. */
+/* Layout: a project sheet from landonthornton.com. The controls in a left rail, the run as a drafted figure whose main panel is what the model saw, then the benchmark and notes in the site's label/body columns on the 24px dot grid. */
 :root{
   /* Flexoki (stephango.com/flexoki), neutrals only, as on landonthornton.com */
   --paper:#FFFCF0;
@@ -75,17 +75,17 @@ h1{font-weight:400;font-size:clamp(44px,6vw,64px);line-height:72px;letter-spacin
 .btn{box-sizing:border-box;display:grid;place-items:center;height:48px;width:100%;padding:0;background:var(--paper);border:0;outline:1px solid var(--ink);outline-offset:-0.5px;box-shadow:var(--line-box-gap);color:var(--ink);font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
 .btn:hover{background:var(--ink);color:var(--paper)}
 .btn:focus-within{outline-width:2px}
-.btn.quiet{outline-color:var(--rule)}
-.btn.quiet:hover{outline-color:var(--ink)}
 .btn[aria-disabled="true"]{opacity:.5;pointer-events:none}
 .file input{position:absolute;width:1px;height:1px;opacity:0}
 select{box-sizing:border-box;width:100%;height:48px;padding:0 12px;border:0;border-radius:0;outline:1px solid var(--ink);outline-offset:-0.5px;box-shadow:var(--line-box-gap);background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:12px;cursor:pointer}
-.group .btn + .btn, .group select + .btn{margin-top:12px}
-.seg{display:grid;grid-template-columns:1fr 1fr;outline:1px solid var(--ink);outline-offset:-0.5px;box-shadow:var(--line-box-gap)}
-.seg button{height:48px;border:0;background:var(--paper);color:var(--graphite);font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;padding:0 6px}
-.seg button + button{box-shadow:inset 0.5px 0 0 var(--ink)}
-.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
-.readout{margin:12px 0 0;padding-top:12px;box-shadow:inset 0 0.5px 0 0 var(--rule);font-family:var(--mono);font-size:11px;line-height:24px;color:var(--graphite)}
+/* the two approaches: stacked choices, each with its own one-line account */
+.choice{display:grid;gap:0;outline:1px solid var(--ink);outline-offset:-0.5px;box-shadow:var(--line-box-gap)}
+.choice button{display:grid;gap:4px;text-align:left;padding:12px;border:0;background:var(--paper);color:var(--graphite);cursor:pointer;font:inherit}
+.choice button + button{box-shadow:inset 0 0.5px 0 0 var(--ink)}
+.choice button b{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.choice button span{font-style:italic;font-size:15px;line-height:20px}
+.choice button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.readout{margin:0;padding-top:12px;box-shadow:inset 0 0.5px 0 0 var(--rule);font-family:var(--mono);font-size:11px;line-height:24px;color:var(--graphite)}
 .readout b{font-weight:500;color:var(--ink)}
 
 .fig{margin:0;min-width:0;display:grid;grid-template-columns:minmax(0,1fr);gap:0}
@@ -93,46 +93,66 @@ select{box-sizing:border-box;width:100%;height:48px;padding:0 12px;border:0;bord
 .stage.drag{outline:2px dashed var(--ink)}
 .docline{margin:0;font-family:var(--mono);font-size:11px;line-height:24px;letter-spacing:.06em;color:var(--graphite);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .docline b{font-weight:500;color:var(--ink)}
+.h4{margin:24px 0 0;font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite);line-height:24px}
+.h4 b{font-weight:500;color:var(--ink)}
+
+/* this document at each rung: one row per rung, clickable */
+.rungs{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin-top:0}
+.rungs th{font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite);text-align:right;line-height:24px;padding:0 0 0 12px;box-shadow:inset 0 -0.5px 0 0 var(--rule)}
+.rungs th:first-child{text-align:left;padding-left:0}
+.rungs td{font-family:var(--mono);font-size:12px;line-height:40px;text-align:right;padding:0 0 0 12px;box-shadow:inset 0 -0.5px 0 0 var(--rule);white-space:nowrap}
+.rungs td:first-child{text-align:left;padding-left:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--graphite)}
+.rungs td.bar{width:30%;padding-left:12px}
+.rungs td.bar i{display:block;height:10px;background:var(--graphite);opacity:.35;min-width:1px}
+.rungs tbody tr{cursor:pointer}
+.rungs tbody tr:hover td.bar i{opacity:.6}
+.rungs tr[aria-selected="true"] td{color:var(--ink);font-weight:500}
+.rungs tr[aria-selected="true"] td:first-child{color:var(--ink)}
+.rungs tr[aria-selected="true"] td.bar i{background:var(--ink);opacity:1}
+.rungs tr:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+.no{color:var(--graphite)}
+
 .verdict{margin:24px 0 0;min-height:48px;font-size:clamp(28px,4vw,36px);line-height:48px;font-weight:400;letter-spacing:-.01em;overflow-wrap:anywhere}
 .verdict.weighing{color:var(--graphite)}
-.sub{margin:0;font-family:var(--mono);font-size:12px;line-height:24px;color:var(--graphite);font-variant-numeric:tabular-nums}
+.sub{margin:0;font-family:var(--mono);font-size:12px;line-height:24px;color:var(--graphite)}
 .sub b{font-weight:500;color:var(--ink)}
-.h4{margin:24px 0 0;font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite);line-height:24px}
 
-/* the ladder: one row per rung, prompt tokens as a bar, the answer at that rung */
-.ladder{list-style:none;margin:0;padding:0}
-.rung{display:grid;grid-template-columns:96px minmax(0,1fr) 72px 24px;gap:0 12px;align-items:center;height:48px;box-shadow:inset 0 -0.5px 0 0 var(--rule);cursor:pointer}
-.rung:first-child{box-shadow:inset 0 0.5px 0 0 var(--rule), inset 0 -0.5px 0 0 var(--rule)}
-.rung .nm{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--graphite)}
-.rung .track{height:12px;position:relative}
-.rung .bar{position:absolute;inset:0 auto 0 0;background:var(--graphite);opacity:.35;min-width:1px;transition:width .25s ease}
-.rung .tk{font-family:var(--mono);font-size:12px;text-align:right;font-variant-numeric:tabular-nums;color:var(--graphite)}
-.rung .mk{font-family:var(--mono);font-size:13px;text-align:center}
-.rung .mk.no{color:var(--graphite)}
-.rung[aria-checked="true"] .nm, .rung[aria-checked="true"] .tk{color:var(--ink);font-weight:500}
-.rung[aria-checked="true"] .bar{background:var(--ink);opacity:1}
-.rung:hover .bar{opacity:.6}
-.rung[aria-checked="true"]:hover .bar{opacity:1}
-.rung:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+/* Jev's probabilities over the types it was offered */
+.probs{list-style:none;margin:0;padding:0}
+.probs li{display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr) 56px;gap:0 12px;align-items:center;line-height:28px}
+.probs .nm{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.probs .nm.gold::after{content:" · source";font-family:var(--mono);font-size:10px;color:var(--graphite);letter-spacing:.06em}
+.probs .tr{height:10px;position:relative}
+.probs .tr i{position:absolute;inset:0 auto 0 0;background:var(--graphite);opacity:.35;min-width:1px}
+.probs li.top .tr i{background:var(--ink);opacity:1}
+.probs .p{font-family:var(--mono);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
 
-/* section tags */
-.tags{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);gap:0;margin:0}
-.tags dt{font-size:17px;line-height:24px;padding-block:6px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:inset 0 -0.5px 0 0 var(--rule)}
-.tags dt.l2{padding-left:24px;color:var(--graphite)}
-.tags dd{margin:0;padding-block:6px;padding-left:24px;font-family:var(--mono);font-size:11px;line-height:24px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:inset 0 -0.5px 0 0 var(--rule)}
-.tags dd .miss{color:var(--graphite);text-decoration:line-through;text-decoration-thickness:1px}
-.tags dd .gold{color:var(--graphite)}
-.more{margin:12px 0 0;font-family:var(--mono);font-size:11px;line-height:24px;color:var(--graphite)}
-
-/* what the model saw */
-.view{margin:0;max-height:240px;overflow:auto;padding:12px;background:var(--panel);font-family:var(--mono);font-size:11.5px;line-height:18px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink)}
+/* what the model saw: the document view, then every section's own view with its tag */
+.saw{margin-top:0;outline:1px solid var(--rule);outline-offset:-0.5px;background:var(--panel)}
+.prompt{margin:0;padding:12px;font-family:var(--mono);font-size:11.5px;line-height:18px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:264px;overflow:auto}
+.prompt .f{font-weight:500}
+.prompt .muted{color:var(--graphite)}
+.prompt.open{max-height:none}
+.expand{display:block;width:100%;border:0;border-top:0.5px solid var(--rule);background:transparent;color:var(--graphite);font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;line-height:32px;cursor:pointer}
+.expand:hover{color:var(--ink)}
+.filters{display:flex;gap:0;margin:0 0 0 auto}
+.filters button{border:0;background:transparent;color:var(--graphite);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:0 0 0 12px;line-height:24px;cursor:pointer}
+.filters button[aria-pressed="true"]{color:var(--ink);text-decoration:underline;text-underline-offset:4px}
+.headrow{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.secs{list-style:none;margin:0;padding:0}
+.secs li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);gap:0 16px;padding:6px 0;box-shadow:inset 0 -0.5px 0 0 var(--rule)}
+.secs .t{font-size:17px;line-height:24px;min-width:0;overflow-wrap:anywhere}
+.secs .t small{display:block;font-family:var(--mono);font-size:11px;line-height:18px;color:var(--graphite);white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px}
+.secs .tag{font-family:var(--mono);font-size:11px;line-height:24px;text-align:right;white-space:nowrap}
+.secs .tag .chip{display:inline-block;padding:0 8px;outline:1px solid var(--ink);outline-offset:-0.5px}
+.secs .tag .chip.none{outline-color:var(--rule);color:var(--graphite)}
+.secs .tag .miss{text-decoration:line-through;text-decoration-thickness:1px;color:var(--graphite)}
+.secs .tag .gold{display:block;color:var(--graphite);font-size:10px;line-height:16px}
+.secs .tag .cf{color:var(--graphite);padding-left:6px}
+.secs .tag .chg{display:block;color:var(--graphite);font-size:10px;line-height:16px}
+.secs li.wrong .t{text-decoration:none}
 .empty{margin:24px 0 0;font-style:italic;color:var(--graphite);line-height:24px}
 .fig figcaption{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:0 24px;font-family:var(--mono);font-size:11px;line-height:48px;letter-spacing:.04em;color:var(--graphite)}
-.key{display:flex;flex-wrap:wrap;gap:0 18px}
-.key span{display:inline-flex;align-items:center;gap:8px}
-.sw{display:inline-block;width:18px;height:12px;outline:1px solid var(--ink);outline-offset:-0.5px}
-.sw.on{background:var(--ink)}
-.sw.off{background:var(--graphite);opacity:.35;outline-color:transparent}
 
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0;width:round(down, 100%, 24px);outline:1px solid var(--rule);outline-offset:-0.5px;box-shadow:var(--line-box-gap)}
 .stat{padding:12px;min-width:0;display:grid;align-content:start}
@@ -140,19 +160,18 @@ select{box-sizing:border-box;width:100%;height:48px;padding:0 12px;border:0;bord
 .stat dt{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite);line-height:24px}
 .stat dd{margin:0}
 .stat .v{font-size:28px;line-height:48px;font-variant-numeric:tabular-nums lining-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.stat .v.word{font-size:19px}
 .stat .s{font-family:var(--mono);font-size:11px;line-height:24px;color:var(--graphite)}
 .tool .stats{grid-column:2}
 
 /* ---------- benchmark ---------- */
 .tablebox{overflow-x:auto;width:round(down, 100%, 24px)}
-table{width:100%;min-width:560px;border-collapse:collapse;font-variant-numeric:tabular-nums}
+table.b{width:100%;min-width:560px;border-collapse:collapse;font-variant-numeric:tabular-nums}
 caption{text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--graphite);line-height:24px;padding-bottom:12px}
-th,td{padding:0 0 0 12px;line-height:48px;text-align:right;box-shadow:inset 0 -0.5px 0 0 var(--rule);white-space:nowrap}
-th:first-child,td:first-child{text-align:left;padding-left:0}
-thead th{font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite);line-height:24px;padding-bottom:12px;vertical-align:bottom}
-td{font-family:var(--mono);font-size:13px}
-td:first-child{font-family:var(--serif);font-size:18px}
+table.b th,table.b td{padding:0 0 0 12px;line-height:48px;text-align:right;box-shadow:inset 0 -0.5px 0 0 var(--rule);white-space:nowrap}
+table.b th:first-child,table.b td:first-child{text-align:left;padding-left:0}
+table.b thead th{font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite);line-height:24px;padding-bottom:12px;vertical-align:bottom}
+table.b td{font-family:var(--mono);font-size:13px}
+table.b td:first-child{font-family:var(--serif);font-size:18px}
 tr.pick td{font-weight:500}
 tr.pick td:first-child{font-style:italic}
 .tablebox + .tablebox{margin-top:48px}
@@ -191,10 +210,11 @@ tr.pick td:first-child{font-style:italic}
   .stats{grid-template-columns:minmax(0,1fr)}
   .stat + .stat, .stat:nth-child(4){box-shadow:inset 0 0.5px 0 0 var(--rule)}
   .stage{padding:12px}
-  .rung{grid-template-columns:72px minmax(0,1fr) 60px 18px;gap:0 8px}
-  .tags{grid-template-columns:minmax(0,1fr)}
-  .tags dt{box-shadow:none;padding-bottom:0}
-  .tags dd{text-align:left;padding-top:0;padding-left:0}
+  .rungs td.bar{display:none}
+  .rungs th.bar{display:none}
+  .probs li{grid-template-columns:minmax(0,1fr) 72px 48px}
+  .secs li{grid-template-columns:minmax(0,1fr)}
+  .secs .tag{text-align:left}
 }
 </style>
 </head>
@@ -209,31 +229,29 @@ tr.pick td:first-child{font-style:italic}
     <p class="label">Interactive tool</p>
     <div class="body">
       <h1 id="ttl">doc-rooter</h1>
-      <p class="lead">How little does a model need to read to know what a document is? Climb the ladder and watch the answer, the tokens and the cost.</p>
-      <p class="meta"><span>Claude Haiku 5.5</span><span>4-rung context ladder</span><span>Exact token accounting</span><span>Open source, MIT</span></p>
+      <p class="lead">How little does a model need to read to know what a document is, and what each of its sections is? Climb the ladder and see exactly what it saw.</p>
+      <p class="meta"><span>Jev from TypeSafe</span><span>4-rung context ladder</span><span>Every heading tagged</span><span>Open source, MIT</span></p>
     </div>
   </section>
 
   <section class="tool" aria-label="doc-rooter">
-    <aside class="controls" aria-label="Choose a document">
+    <aside class="controls" aria-label="Choose a document and an approach">
       <div class="group">
         <p class="label"><label for="sample">A sample</label></p>
         <select id="sample"><option value="">Loading samples…</option></select>
-        <button type="button" class="btn quiet" id="random">Random sample</button>
-        <p class="hint">Public-domain and openly licensed documents from the benchmark. Their runs are the benchmark's own, so they load instantly.</p>
-      </div>
-      <div class="group">
-        <p class="label" id="flowLabel">Flow</p>
-        <div class="seg" role="group" aria-labelledby="flowLabel">
-          <button type="button" id="flowDoc" aria-pressed="true">Doc first</button>
-          <button type="button" id="flowSec" aria-pressed="false">Sections first</button>
-        </div>
-        <p class="hint" id="flowHint">Name the type from the document view, then tag the sections.</p>
+        <p class="hint">Synthetic financial filings from my document classifier, and public documents from the benchmark. Their runs are saved, so they load instantly.</p>
       </div>
       <div class="group">
         <p class="label">Your document</p>
         <label class="btn file" id="fileBtn">Choose a file<input type="file" id="file" accept=".pdf,.md,.txt,application/pdf,text/markdown,text/plain"></label>
-        <p class="hint">A PDF (up to 4 MB, 30 pages read), Markdown or text file, or drop one on the figure. doc-rooter runs on the server at the rung you pick; the file isn't kept.</p>
+        <p class="hint">A PDF (up to 4 MB, 30 pages read), Markdown or text file, or drop one on the figure. It's read on the server and classified at all four rungs; the file isn't kept.</p>
+      </div>
+      <div class="group">
+        <p class="label" id="flowLabel">Approach</p>
+        <div class="choice" role="group" aria-labelledby="flowLabel">
+          <button type="button" id="flowSec" aria-pressed="true"><b>Tag, then decide</b><span>Tag every section first. Rules over the tags decide the type when they can; Jev chooses only among what's left.</span></button>
+          <button type="button" id="flowDoc" aria-pressed="false"><b>Read, then tag</b><span>Jev reads the document once and names its type, then tags every section.</span></button>
+        </div>
       </div>
       <div class="group">
         <p class="label">What's sent</p>
@@ -244,27 +262,43 @@ tr.pick td:first-child{font-style:italic}
     <figure class="fig">
       <div class="stage" id="stage">
         <p class="docline" id="docline">No document yet</p>
+        <p class="h4" id="rungsLabel">This document at each rung · choose one to see it</p>
+        <table class="rungs" aria-labelledby="rungsLabel">
+          <thead><tr><th scope="col">Rung</th><th scope="col">Type</th><th scope="col">Tags right</th><th scope="col" class="bar"><span hidden>Size</span></th><th scope="col">Tokens</th><th scope="col">Cost</th></tr></thead>
+          <tbody id="rungs"></tbody>
+        </table>
         <p class="verdict" id="verdict" aria-live="polite">Choose a document</p>
         <p class="sub" id="sub">Pick a sample, or choose a file of your own.</p>
-        <p class="h4" id="ladderLabel">Context ladder · prompt tokens and the answer at each rung</p>
-        <ol class="ladder" id="ladder" role="radiogroup" aria-labelledby="ladderLabel"></ol>
-        <p class="h4" id="tagsLabel" hidden>Section tags</p>
-        <dl class="tags" id="tags" aria-labelledby="tagsLabel" hidden></dl>
-        <p class="more" id="tagsMore" hidden></p>
-        <p class="h4" id="viewLabel" hidden>What the model saw for the type</p>
-        <pre class="view" id="view" hidden></pre>
+        <p class="h4" id="probsLabel" hidden>Jev's answer · probability of each type it was offered</p>
+        <ol class="probs" id="probs" hidden></ol>
+        <p class="h4" id="sawLabel" hidden>What Jev saw</p>
+        <div class="saw" id="saw" hidden>
+          <pre class="prompt" id="prompt"></pre>
+          <button type="button" class="expand" id="expand">Show all</button>
+        </div>
+        <div class="headrow" id="secsHead" hidden>
+          <p class="h4" id="secsLabel">Every section, as Jev saw it, and its tag</p>
+          <div class="filters" role="group" aria-label="Which sections">
+            <button type="button" data-filter="all" aria-pressed="true">All</button>
+            <button type="button" data-filter="tagged" aria-pressed="false">Tagged</button>
+            <button type="button" data-filter="wrong" aria-pressed="false">Misses</button>
+            <button type="button" data-filter="changed" aria-pressed="false">Changed</button>
+          </div>
+        </div>
+        <ol class="secs" id="secs" hidden></ol>
+        <p class="empty" id="secsEmpty" hidden></p>
       </div>
       <figcaption>
-        <span>Fig. 1 · doc-rooter with Claude Haiku 5.5</span>
-        <span class="key"><span><i class="sw on"></i>Rung sent</span><span><i class="sw off"></i>Other rungs</span><span>✓ ✗ against the source</span></span>
+        <span>Fig. 1 · doc-rooter with Jev, TypeSafe's decision model</span>
+        <span>✓ ✗ against the source</span>
       </figcaption>
     </figure>
 
     <dl class="stats" id="stats">
       <div class="stat"><dt>Prompt tokens</dt><dd><div class="v" id="sTok">–</div><div class="s" id="sTokS">exact, from the API</div></dd></div>
       <div class="stat"><dt>Share of full</dt><dd><div class="v" id="sShare">–</div><div class="s" id="sShareS">of sending the whole text</div></dd></div>
-      <div class="stat"><dt>Cost</dt><dd><div class="v" id="sCost">–</div><div class="s" id="sCostS">at Haiku 5.5 list price</div></dd></div>
-      <div class="stat"><dt>Decided by</dt><dd><div class="v word" id="sBy">–</div><div class="s" id="sByS">rules or the model</div></dd></div>
+      <div class="stat"><dt>Cost</dt><dd><div class="v" id="sCost">–</div><div class="s" id="sCostS">at Jev's list price</div></dd></div>
+      <div class="stat"><dt>Section tags</dt><dd><div class="v" id="sTags">–</div><div class="s" id="sTagsS">right, of the labelled ones</div></dd></div>
     </dl>
   </section>
 
@@ -273,48 +307,49 @@ tr.pick td:first-child{font-style:italic}
     <div class="body">
       <p class="lead" id="takeaway">The headings alone were enough.</p>
       <div class="tablebox">
-        <table id="bench">
+        <table class="b" id="bench">
           <caption id="benchCap">Loading the benchmark…</caption>
-          <thead><tr><th scope="col">Rung</th><th scope="col">Doc first</th><th scope="col">Sections first</th><th scope="col">Tokens / doc</th><th scope="col">Section tags F1</th></tr></thead>
+          <thead><tr><th scope="col">Rung</th><th scope="col">Tag, then decide</th><th scope="col">Read, then tag</th><th scope="col">Tag precision</th><th scope="col">Tag recall</th><th scope="col">Tokens / doc</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
       <div class="tablebox">
-        <table id="held">
+        <table class="b" id="held">
           <caption>Held-out: 40 documents no rule or prompt was tuned on, scored once</caption>
-          <thead><tr><th scope="col">Rung</th><th scope="col">Doc first</th><th scope="col">Sections first</th><th scope="col">Tokens / doc</th><th scope="col">Documents</th></tr></thead>
+          <thead><tr><th scope="col">Rung</th><th scope="col">Tag, then decide</th><th scope="col">Read, then tag</th><th scope="col">Tokens / doc</th><th scope="col">Documents</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
       <figure class="chart" id="chart" hidden>
         <svg id="chartSvg" role="img" aria-label="Document-type accuracy against prompt tokens per document, for each rung"></svg>
-        <figcaption>Fig. 2 · Accuracy against prompt tokens per document (log scale), gold split. Left to right: headings, key terms, leads, full text.</figcaption>
+        <figcaption>Fig. 2 · Document-type accuracy against prompt tokens per document (log scale), gold split. Left to right: headings, key terms, leads, full text.</figcaption>
       </figure>
-      <p class="note">Haiku's tokens are exact, from the API's usage. UltraBERT, a local embedding model, makes no LLM call, so its tokens estimate what the same views would cost an LLM. Haiku ran with thinking off and batched calls: one call for the type, a few for the sections, each option listed once.</p>
-      <p class="note"><b>A note on the numbers.</b> The 113 gold documents span 8 types (annual reports, fact sheets, prospectuses, government reports, contracts, court opinions, research papers, standards), and the doc-type rules were revised once after looking at them, so treat the gold column as development numbers. The held-out set is the clean measure. The section labels were written by Claude annotators for evaluation only.</p>
+      <p class="note" id="benchNote">Jev's tokens are exact, from the API. Jev answers one question per call with a probability for every option, so each section costs a call or two; its input tokens are cheap ($0.042 per million) and its output is free.</p>
+      <p class="note"><b>A note on the numbers.</b> The 113 gold documents span 8 types (annual reports, fact sheets, prospectuses, government reports, contracts, court opinions, research papers, standards). The doc-type rules were revised after looking at them, so treat the gold columns as development numbers; the held-out set is the clean measure. The section labels (2,194 headings, every depth) were written by Claude annotators for evaluation only; a third are <i>none</i>, a heading with nothing to normalise.</p>
     </div>
   </section>
 
   <section class="sec" aria-labelledby="l-how">
     <h2 class="label" id="l-how">How it works</h2>
     <div class="body">
-      <p><b>A context ladder.</b> doc-rooter reads a PDF or Markdown file into a section tree, then renders it at four rungs, each adding one field: the headings (title, page and section counts, the contents), then key terms, then the opening sentences, then the whole text, budgeted to a 16,000-token prompt. You choose the rung; the benchmark measures what each one buys.</p>
-      <p><b>Two flows.</b> Doc first names the type from the document view, then tags the sections with that type's own labels. Sections first tags the level-1 and level-2 sections against a shared catalogue of 112 section types, and lets rules (a balance sheet means a financial report, an opinion and a holding mean a court opinion) narrow or decide the type, asking the model only when they can't.</p>
-      <p><b>Every token counted.</b> Calls are batched, so each option list is sent once per stage, not once per section. Every call reports its exact prompt and completion tokens, and every section tag carries its share.</p>
+      <p><b>A context ladder.</b> doc-rooter reads a PDF or Markdown file into its section tree, then renders it at four rungs, each adding one thing: the headings (title, counts, the contents), then key terms, then the opening sentences, then the whole text, within a 16,000-token prompt. Every section gets its own view at the same rung: its path, its title and, higher up, its key terms and lead.</p>
+      <p><b>Section tags that mean something.</b> A tag normalises what a heading means, so the same kind of section can be found across documents however each one words it: "Statement of financial position" and "Consolidated balance sheets" are both a balance sheet; "Audit opinion" and "Report of independent registered public accounting firm" are both the auditor's report. A heading with nothing to normalise (an introduction, a summary, Part II) is tagged <i>none</i>. Every heading is tagged, at any depth, so the statements nested under Item 8 are found too.</p>
+      <p><b>Two approaches.</b> <i>Tag, then decide</i> tags the sections first; rules over the tags (a balance sheet plus management's discussion means a financial report) decide the type when they can, and Jev chooses only among the types left. <i>Read, then tag</i> lets Jev read the document view and name the type first, then tags the sections the same way.</p>
+      <p><b>A decision model.</b> Jev answers each question with a probability for every option instead of generating text, so the answer is always one of the options, the confidence is usable, and every call's tokens are exact.</p>
     </div>
   </section>
 
   <section class="sec" aria-labelledby="l-why">
     <h2 class="label" id="l-why">Why</h2>
     <div class="body">
-      <p>Sending a hosted LLM the whole document is the easy default, and it's expensive at volume: a 200-page filing is 100,000 tokens before the model reads a word of the question. I built doc-rooter to find the least a model needs to see. The answer surprised me. For the document's type, the title and the contents were as good as anything richer, and better than the full text, at about an eighth of the tokens. More context gave the model more to be distracted by.</p>
-      <p>doc-rooter is the next step after my <a href="https://landonthornton.com/classifier/">document classifier</a>, which names a financial document's type from a short overview in one question to Jev. doc-rooter takes the same idea further as a standalone package: it reads a PDF into its section tree, tags the sections as well as the document, lets the sections decide the type, works with any model you plug in, and measures what each extra piece of context buys.</p>
+      <p>Sending a model the whole document is the easy default, and it's expensive at volume: a 200-page filing is 100,000 tokens before the model reads a word of the question. I built doc-rooter to find the least a model needs to see. For the document's type, the title and the contents were about as good as anything richer. More context mostly gave the model more to be distracted by.</p>
+      <p>doc-rooter is the next step after my <a href="https://landonthornton.com/classifier/">document classifier</a>, which names a financial document's type from a short overview in one question to Jev. doc-rooter takes the same idea further as a standalone package: it reads a PDF into its section tree, tags every section as well as the document, lets the sections decide the type, works with any model you plug in, and measures what each extra piece of context buys.</p>
     </div>
   </section>
 
   <footer class="foot">
     <span>Code: <a href="https://github.com/LandoCole/docrooter">github.com/LandoCole/docrooter</a> · MIT</span>
-    <span>Classification by Claude Haiku 5.5 from <a href="https://www.anthropic.com">Anthropic</a></span>
+    <span>Classification by Jev from <a href="https://typesafe.ai">TypeSafe</a></span>
   </footer>
 </main>
 
@@ -322,175 +357,218 @@ tr.pick td:first-child{font-style:italic}
 const $ = id => document.getElementById(id);
 const LEVELS = ['headings', 'terms', 'lead', 'full'];
 const RUNG = { headings: 'Headings', terms: '+ Key terms', lead: '+ Leads', full: 'Full text' };
-const PRICE = { prompt: 0.10e-6, completion: 0.50e-6 };
+const FLOW = { sections_first: 'Tag, then decide', doc_first: 'Read, then tag' };
+const PRICE = 0.042e-6;           // Jev, US$ per input token; output is free
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const PROMPT_CHARS = 2400;        // the document view shown before "Show all"
 const fmt = (n, d = 0) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const pct = x => `${fmt(100 * x, 1)}%`;
-const usd = x => x < 0.01 ? `$${x.toFixed(4)}` : `$${x.toFixed(3)}`;
-const estTokens = chars => Math.round(chars / 4);
+const usd = x => x < 0.001 ? `$${x.toFixed(5)}` : x < 0.01 ? `$${x.toFixed(4)}` : `$${x.toFixed(3)}`;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 let labels = {};
 let samples = [];
-let current = null;          // the sample or live result on show
-let flow = 'doc_first';
+let current = null;               // the sample or live result on show
+let flow = 'sections_first';
 let level = 'headings';
+let filter = 'all';
+let promptOpen = false;
 let busy = false;
 
-const label = id => id ? (labels[id] || id.split('.').pop().replace(/_/g, ' ')) : 'no answer';
+const label = id => !id ? 'no answer' : id === 'none' ? 'no tag' : (labels[id] || id.split('.').pop().replace(/_/g, ' '));
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const runOf = (s, f, lv) => s?.runs?.[`${f}/${lv}`];
 
-// ---------- the ladder ----------
-for (const lv of LEVELS) {
-  const li = document.createElement('li');
-  li.className = 'rung';
-  li.tabIndex = -1;
-  li.setAttribute('role', 'radio');
-  li.dataset.level = lv;
-  li.innerHTML = `<span class="nm">${RUNG[lv]}</span><span class="track"><span class="bar"></span></span><span class="tk">–</span><span class="mk"></span>`;
-  li.addEventListener('click', () => pick(lv));
-  li.addEventListener('keydown', e => {
-    const i = LEVELS.indexOf(level);
-    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); pick(LEVELS[Math.min(3, i + 1)], true); }
-    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); pick(LEVELS[Math.max(0, i - 1)], true); }
-  });
-  $('ladder').append(li);
-}
-
-function pick(lv, focus = false) {
-  if (busy) return;
-  level = lv;
-  if (current?.live && !current.runs[`${flow}/${lv}`] && current.file) return runLive(current.file);
-  render();
-  if (focus) $('ladder').querySelector(`[data-level="${lv}"]`).focus();
-}
-
+// ---------- controls ----------
 function setFlow(f) {
   if (busy) return;
   flow = f;
   $('flowDoc').setAttribute('aria-pressed', f === 'doc_first');
   $('flowSec').setAttribute('aria-pressed', f === 'sections_first');
-  $('flowHint').textContent = f === 'doc_first'
-    ? 'Name the type from the document view, then tag the sections.'
-    : 'Tag the sections first; rules over the tags narrow or decide the type.';
-  if (current?.live && !current.runs[`${flow}/${level}`] && current.file) return runLive(current.file);
+  if (current?.live && !runOf(current, flow, level) && current.file) return runLive(current.file);
   render();
 }
 $('flowDoc').addEventListener('click', () => setFlow('doc_first'));
 $('flowSec').addEventListener('click', () => setFlow('sections_first'));
 
+function pick(lv, focus = false) {
+  level = lv;
+  render();
+  if (focus) $('rungs').querySelector(`[data-level="${lv}"]`)?.focus();
+}
+for (const b of document.querySelectorAll('.filters button')) {
+  b.addEventListener('click', () => {
+    filter = b.dataset.filter;
+    for (const o of document.querySelectorAll('.filters button')) o.setAttribute('aria-pressed', o === b);
+    renderSections(current, runOf(current, flow, level));
+  });
+}
+$('expand').addEventListener('click', () => { promptOpen = !promptOpen; renderPrompt(current); });
+
 // ---------- rendering ----------
 function render() {
   const s = current;
-  const rungs = [...$('ladder').children];
-  for (const li of rungs) {
-    const on = li.dataset.level === level;
-    li.setAttribute('aria-checked', on);
-    li.tabIndex = on ? 0 : -1;
-  }
+  renderRungs(s);
   if (!s) return;
-  const run = s.runs[`${flow}/${level}`];
-  const full = s.runs[`${flow}/full`];
-
-  // ladder rows: exact tokens where the rung was run; elsewhere an estimate, a run rung's
-  // overhead (instructions, options, sections) plus that rung's view
-  const sizes = LEVELS.map(lv => s.runs[`${flow}/${lv}`]?.tokens.prompt ?? null);
-  const ran = LEVELS.find(lv => s.runs[`${flow}/${lv}`] && s.views[lv]);
-  const overhead = ran ? Math.max(0, s.runs[`${flow}/${ran}`].tokens.prompt - estTokens(s.views[ran].chars)) : 0;
-  const guess = lv => overhead + estTokens(s.views[lv]?.chars ?? 0);
-  const max = Math.max(...LEVELS.map((lv, i) => sizes[i] ?? guess(lv)), 1);
-  rungs.forEach((li, i) => {
-    const lv = LEVELS[i];
-    const r = s.runs[`${flow}/${lv}`];
-    const size = sizes[i] ?? guess(lv);
-    li.querySelector('.bar').style.width = `${Math.max(0.5, 100 * size / max)}%`;
-    li.querySelector('.tk').textContent = sizes[i] != null ? fmt(sizes[i]) : (s.views[lv] ? `~${fmt(size)}` : '–');
-    const mk = li.querySelector('.mk');
-    if (r && s.gold) { mk.textContent = r.correct ? '✓' : '✗'; mk.className = `mk ${r.correct ? '' : 'no'}`; mk.title = label(r.pred); }
-    else { mk.textContent = r ? '•' : ''; mk.className = 'mk'; mk.title = r ? label(r.pred) : 'not run'; }
-  });
-
+  const run = runOf(s, flow, level);
   const pages = s.pages ? `${s.pages} pages` : '';
-  $('docline').innerHTML = `<b>${esc(s.title)}</b>${pages ? ` · ${pages}` : ''}${s.publisher ? ` · ${esc(s.publisher)}` : ''}`;
+  $('docline').innerHTML = `<b>${esc(s.title)}</b>${pages ? ` · ${pages}` : ''}${s.publisher ? ` · ${esc(s.publisher)}` : ''} · ${fmt(s.sections_total)} sections`;
   $('docline').title = s.attribution || s.title;
-
   if (!run) {
-    $('verdict').textContent = 'Not run at this rung';
+    $('verdict').textContent = 'Not run with this approach';
     $('verdict').className = 'verdict weighing';
-    $('sub').textContent = s.live ? 'Choose the rung again to run it.' : '';
+    $('sub').textContent = s.live ? 'Choose the approach again to run it.' : '';
+    $('probsLabel').hidden = $('probs').hidden = true;
     showStats(null, null);
   } else {
     $('verdict').textContent = cap(label(run.pred));
     $('verdict').className = 'verdict';
-    const how = run.decided_by === 'rules' ? 'decided by the section rules, no type call'
-      : run.decided_by === 'fallback' ? 'the model chose; the rules had too little to go on'
-      : run.candidates?.length > 1 ? `the model chose among ${run.candidates.length} the rules left`
-      : 'the model chose among every type';
-    const check = s.gold ? (run.correct ? ` · <b>matches the source</b>` : ` · the source says <b>${esc(label(s.gold))}</b>`) : '';
+    const how = run.decided_by === 'rules' ? 'decided by the section rules, with no type question'
+      : run.decided_by === 'fallback' && flow === 'sections_first' ? 'Jev chose among every type: the tags were too few for the rules'
+      : run.candidates?.length > 1 ? `Jev chose among the ${run.candidates.length} types the rules left`
+      : 'Jev chose among every type';
+    const check = s.gold ? (run.correct ? ' · <b>✓ matches the source</b>' : ` · ✗ the source says <b>${esc(label(s.gold))}</b>`) : '';
     $('sub').innerHTML = `${how}${check}`;
-    showStats(run, full);
+    renderProbs(s, run);
+    showStats(run, runOf(s, flow, 'full'));
   }
-  renderTags(s, run);
-  const v = s.views[level];
-  $('viewLabel').hidden = $('view').hidden = !v;
-  if (v) {
-    $('viewLabel').textContent = `What the model saw for the type · ${RUNG[level].replace('+ ', '')}${v.chars > v.text.length ? ` · first ${fmt(v.text.length)} of ${fmt(v.chars)} characters` : ''}`;
-    $('view').textContent = v.text;
-  }
+  renderPrompt(s);
+  renderSections(s, run);
 }
 
-function renderTags(s, run) {
-  const tags = $('tags');
-  tags.replaceChildren();
-  // a sample's run holds tags for the sections the annotators labelled; a live run, for all
-  const rows = (s.sections || []).filter(sec => !s.gold || run?.tags?.[sec.id]);
-  const show = run && rows.length;
-  $('tagsLabel').hidden = tags.hidden = !show;
-  $('tagsMore').hidden = true;
+function renderRungs(s) {
+  const body = $('rungs');
+  body.replaceChildren();
+  const sizes = LEVELS.map(lv => runOf(s, flow, lv)?.tokens.prompt ?? 0);
+  const max = Math.max(...sizes, 1);
+  LEVELS.forEach((lv, i) => {
+    const r = runOf(s, flow, lv);
+    const tr = document.createElement('tr');
+    tr.dataset.level = lv;
+    tr.tabIndex = lv === level ? 0 : -1;
+    tr.setAttribute('aria-selected', lv === level);
+    const type = !r ? '–' : s.gold ? (r.correct ? '✓' : `<span class="no" title="${esc(label(r.pred))}">✗</span>`) : esc(label(r.pred));
+    const tags = r?.score ? `${r.score.right} / ${r.score.gold}` : r ? `${Object.values(r.tags).filter(t => t[0] && t[0] !== 'none').length} tagged` : '–';
+    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${type}</td><td>${tags}</td><td class="bar"><i style="width:${Math.max(0.5, 100 * sizes[i] / max)}%"></i></td><td>${r ? fmt(r.tokens.prompt) : '–'}</td><td>${r ? usd(r.cost_usd) : '–'}</td>`;
+    tr.addEventListener('click', () => pick(lv));
+    tr.addEventListener('keydown', e => {
+      const k = LEVELS.indexOf(level);
+      if (e.key === 'ArrowDown') { e.preventDefault(); pick(LEVELS[Math.min(3, k + 1)], true); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); pick(LEVELS[Math.max(0, k - 1)], true); }
+    });
+    body.append(tr);
+  });
+}
+
+function renderProbs(s, run) {
+  const ol = $('probs');
+  ol.replaceChildren();
+  const probs = run.probs || [];
+  const show = probs.length > 0;
+  $('probsLabel').hidden = ol.hidden = !show;
   if (!show) return;
-  let right = 0, scored = 0;
-  for (const sec of rows) {
-    const t = run.tags?.[sec.id];
-    const dt = document.createElement('dt');
-    dt.textContent = sec.title || '(untitled)';
-    dt.title = sec.title;
-    if (sec.level > 1) dt.className = 'l2';
-    const dd = document.createElement('dd');
-    if (!t || !t.pred) dd.innerHTML = '<span class="gold">not tagged</span>';
-    else if (t.gold && t.gold !== t.pred) dd.innerHTML = `<span class="miss">${esc(label(t.pred))}</span> <span class="gold">${esc(label(t.gold))}</span>`;
-    else dd.textContent = label(t.pred);
-    if (t?.gold) { scored++; if (t.gold === t.pred) right++; }
-    tags.append(dt, dd);
+  $('probsLabel').innerHTML = run.candidates?.length > 1 && run.decided_by === 'model'
+    ? `Jev's answer · probability of each of the ${run.candidates.length} types the rules left`
+    : "Jev's answer · probability of each type, the most likely first";
+  probs.forEach(([id, p], i) => {
+    const li = document.createElement('li');
+    if (i === 0) li.className = 'top';
+    li.innerHTML = `<span class="nm${id === s.gold ? ' gold' : ''}" title="${esc(label(id))}">${esc(cap(label(id)))}</span><span class="tr"><i style="width:${Math.max(0.3, 100 * p)}%"></i></span><span class="p">${p >= 0.995 ? '>99%' : p < 0.005 ? '<1%' : pct(p)}</span>`;
+    ol.append(li);
+  });
+}
+
+// The document view, exactly as sent for the type question, its field labels picked out.
+function renderPrompt(s) {
+  const v = s?.views?.[level];
+  const run = runOf(s, flow, level);
+  $('sawLabel').hidden = $('saw').hidden = !v;
+  if (!v) return;
+  const asked = !run || run.decided_by !== 'rules';
+  $('sawLabel').innerHTML = `What Jev saw for the type · <b>${RUNG[level].replace('+ ', '')}</b>${asked ? '' : ' · not sent: the rules decided'}${v.chars > 0 ? ` · ${fmt(v.chars)} characters` : ''}`;
+  let html = '', used = 0;
+  for (const [name, text] of v.fields) {
+    let body = text;
+    if (!promptOpen && used + body.length > PROMPT_CHARS) body = body.slice(0, Math.max(0, PROMPT_CHARS - used)) + ' …';
+    used += body.length;
+    html += `<span class="f">${esc(name)}:</span> ${name === 'Contents' ? esc(body).replace(/; /g, ';\n  ') : esc(body)}\n`;
+    if (!promptOpen && used >= PROMPT_CHARS) break;
   }
-  $('tagsLabel').textContent = scored ? `Section tags · ${right} of ${scored} match the annotators` : 'Section tags';
-  const extra = (s.sections_total || rows.length) - rows.length;
-  if (extra > 0) {
-    $('tagsMore').hidden = false;
-    $('tagsMore').textContent = s.gold
-      ? `Showing the ${rows.length} sections the annotators labelled, of ${s.sections_total} tagged.`
-      : `+ ${extra} more sections tagged`;
+  if (v.chars > 20000) html += `<span class="muted">[shown to 20,000 of ${fmt(v.chars)} characters]</span>`;
+  $('prompt').innerHTML = html.trimEnd();
+  $('prompt').classList.toggle('open', promptOpen);
+  const long = v.fields.reduce((n, [, t]) => n + t.length, 0) > PROMPT_CHARS;
+  $('expand').hidden = !long;
+  $('expand').textContent = promptOpen ? 'Show less' : 'Show all';
+  $('saw').style.opacity = asked ? 1 : 0.55;
+}
+
+// Every section's own view at this rung (what was sent beyond its path and title), with the
+// tag Jev gave, the source's label where there is one, and the tag one rung down if it differs.
+function renderSections(s, run) {
+  const ol = $('secs');
+  ol.replaceChildren();
+  const show = !!(s && run);
+  $('secsHead').hidden = ol.hidden = !show;
+  $('secsEmpty').hidden = true;
+  if (!show) return;
+  const below = level === 'headings' ? null : runOf(s, flow, LEVELS[LEVELS.indexOf(level) - 1]);
+  let shown = 0;
+  for (const sec of s.sections) {
+    const t = run.tags[sec.id];
+    const pred = t?.[0] ?? null;
+    const was = below?.tags[sec.id]?.[0];
+    const wrong = sec.gold && pred !== sec.gold;
+    const changed = below && was !== undefined && was !== pred;
+    if (filter === 'tagged' && (!pred || pred === 'none')) continue;
+    if (filter === 'wrong' && !wrong) continue;
+    if (filter === 'changed' && !changed) continue;
+    shown++;
+    const li = document.createElement('li');
+    if (wrong) li.className = 'wrong';
+    const view = sec.views?.[level] || '';
+    const extra = view.split('\n').filter(l => !/^(Path|Title): /.test(l)).join('\n');
+    const pad = Math.min(sec.level - 1, 4) * 16;
+    const chip = pred ? `<span class="chip${pred === 'none' ? ' none' : ''}${wrong ? ' miss' : ''}">${esc(label(pred))}</span>` : '<span class="chip none">not tagged</span>';
+    const conf = t && t[1] != null && pred && pred !== 'none' ? `<span class="cf">${Math.round(100 * t[1])}%</span>` : '';
+    const gold = wrong ? `<span class="gold">source: ${esc(label(sec.gold))}</span>` : sec.gold ? '' : '';
+    const chg = changed ? `<span class="chg">was ${esc(label(was))} one rung down</span>` : '';
+    li.innerHTML = `<span class="t" style="padding-left:${pad}px">${esc(sec.title || '(untitled)')}${sec.gold && !wrong ? ' <span class="no" title="matches the source">✓</span>' : ''}${extra ? `<small>${esc(extra)}</small>` : ''}</span><span class="tag">${chip}${conf}${gold}${chg}</span>`;
+    ol.append(li);
+  }
+  const sc = run.score;
+  $('secsLabel').innerHTML = sc
+    ? `Every section, as Jev saw it, and its tag · <b>${sc.right} of ${sc.gold}</b> labelled sections right${sc.none_gold ? `, ${sc.none_right} of ${sc.none_gold} untagged headings left untagged` : ''}`
+    : 'Every section, as Jev saw it, and its tag';
+  if (!shown) {
+    $('secsEmpty').hidden = false;
+    $('secsEmpty').textContent = filter === 'changed' ? 'No tag changed from the rung below.' : filter === 'wrong' ? 'No misses against the source.' : 'No sections to show.';
+  }
+  if (s.sections_total > s.sections.length) {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="t no">+ ${fmt(s.sections_total - s.sections.length)} more sections tagged</span>`;
+    ol.append(li);
   }
 }
 
 function showStats(run, full) {
   if (!run) {
-    for (const id of ['sTok', 'sShare', 'sCost', 'sBy']) $(id).textContent = '–';
+    for (const id of ['sTok', 'sShare', 'sCost', 'sTags']) $(id).textContent = '–';
     $('sent').textContent = 'Nothing yet.';
     return;
   }
   const t = run.tokens;
   $('sTok').textContent = fmt(t.prompt);
-  $('sTokS').textContent = `${t.exact ? 'exact' : 'estimated'}, over ${t.calls} call${t.calls === 1 ? '' : 's'}`;
+  $('sTokS').textContent = `${t.exact ? 'exact' : 'estimated'}, over ${fmt(t.calls)} call${t.calls === 1 ? '' : 's'}`;
   $('sShare').textContent = full ? pct(t.prompt / full.tokens.prompt) : '–';
-  $('sShareS').textContent = full ? `of ${fmt(full.tokens.prompt)} at full text` : 'run full text to compare';
-  const c = run.cost_usd ?? (t.prompt * PRICE.prompt + t.completion * PRICE.completion);
-  $('sCost').textContent = usd(c);
-  $('sCostS').textContent = `≈ $${fmt(c * 1000, 2)} per 1,000 docs`;
-  $('sBy').textContent = run.decided_by === 'rules' ? 'Section rules' : run.decided_by === 'fallback' ? 'Model (fallback)' : 'Model';
-  $('sByS').textContent = run.flags?.length ? run.flags.join(', ').replace(/_/g, ' ') : 'no flags';
-  $('sent').innerHTML = `<b>${fmt(t.prompt)}</b> prompt and <b>${fmt(t.completion)}</b> completion tokens in <b>${t.calls}</b> call${t.calls === 1 ? '' : 's'} at the <b>${RUNG[level].replace('+ ', '').toLowerCase()}</b> rung.`;
+  $('sShareS').textContent = full ? `of ${fmt(full.tokens.prompt)} at full text` : 'full text not run';
+  $('sCost').textContent = usd(run.cost_usd ?? t.prompt * PRICE);
+  $('sCostS').textContent = `≈ $${fmt((run.cost_usd ?? t.prompt * PRICE) * 1000, 2)} per 1,000 docs`;
+  const sc = run.score;
+  $('sTags').textContent = sc ? `${sc.right} / ${sc.gold}` : `${Object.values(run.tags).filter(x => x[0] && x[0] !== 'none').length}`;
+  $('sTagsS').textContent = sc ? `right; ${sc.precision != null ? pct(sc.precision) : '–'} of the tags given` : 'sections tagged (no labels to check)';
+  $('sent').innerHTML = `<b>${fmt(t.prompt)}</b> input tokens in <b>${fmt(t.calls)}</b> questions to Jev at the <b>${RUNG[level].replace('+ ', '').toLowerCase()}</b> rung: <b>${fmt(t.sections)}</b> for the sections, <b>${fmt(t.document)}</b> for the type.`;
 }
-
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ---------- samples ----------
 fetch('data/index.json').then(r => r.json()).then(data => {
@@ -498,16 +576,14 @@ fetch('data/index.json').then(r => r.json()).then(data => {
   samples = data.samples;
   const sel = $('sample');
   sel.replaceChildren(new Option('Choose a sample…', ''));
-  const groups = new Map();
-  for (const s of samples) {
-    if (!groups.has(s.gold)) groups.set(s.gold, []);
-    groups.get(s.gold).push(s);
-  }
-  for (const [type, list] of groups) {
+  for (const [name, synthetic] of [['Financial filings (synthetic)', true], ['Public documents', false]]) {
     const og = document.createElement('optgroup');
-    og.label = cap(label(type));
-    for (const s of list) og.append(new Option(s.title.length > 60 ? s.title.slice(0, 58) + '…' : s.title, s.id));
-    sel.append(og);
+    og.label = name;
+    for (const s of samples.filter(x => !!x.synthetic === synthetic)) {
+      const t = `${s.title} · ${label(s.gold)}`;
+      og.append(new Option(t.length > 70 ? t.slice(0, 68) + '…' : t, s.id));
+    }
+    if (og.children.length) sel.append(og);
   }
   const first = new URLSearchParams(location.search).get('sample') || samples[0]?.id;
   if (first) { sel.value = first; loadSample(first); }
@@ -516,16 +592,11 @@ fetch('data/index.json').then(r => r.json()).then(data => {
 
 async function loadSample(id) {
   if (!id || busy) return;
-  const s = await (await fetch(`data/${id}.json`)).json();
-  current = s;
+  current = await (await fetch(`data/${id}.json`)).json();
+  promptOpen = false;
   render();
 }
 $('sample').addEventListener('change', e => loadSample(e.target.value));
-$('random').addEventListener('click', () => {
-  const others = samples.filter(s => s.id !== current?.id);
-  const s = others[Math.floor(Math.random() * others.length)];
-  if (s) { $('sample').value = s.id; loadSample(s.id); }
-});
 
 // ---------- your own document ----------
 $('file').addEventListener('change', e => { const f = e.target.files[0]; if (f) runLive(f); e.target.value = ''; });
@@ -545,21 +616,21 @@ async function runLive(file) {
   $('docline').innerHTML = `<b>${esc(file.name)}</b> · ${fmt(file.size / 1024)} KB`;
   $('verdict').textContent = 'Reading…';
   $('verdict').className = 'verdict weighing';
-  $('sub').textContent = `doc-rooter is reading it and asking Claude Haiku 5.5 at the ${RUNG[level].replace('+ ', '').toLowerCase()} rung.`;
+  $('sub').textContent = `doc-rooter is reading it and asking Jev at all four rungs (${FLOW[flow].toLowerCase()}).`;
   const t0 = performance.now();
   try {
-    const q = new URLSearchParams({ flow, level, name: file.name });
+    const q = new URLSearchParams({ flow, name: file.name });
     const res = await fetch(`/api/docrooter_demo?${q}`, { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
     const data = await res.json().catch(() => ({ error: `The server answered ${res.status}.` }));
     if (!res.ok || data.error) throw new Error(data.error || `The server answered ${res.status}.`);
     Object.assign(labels, data.labels || {});
     const result = keep || { ...data, live: true, file, runs: {} };
     Object.assign(result.runs, data.runs);
-    result.views = data.views;
     current = result;
     busy = false;
+    promptOpen = false;
     render();
-    $('sub').innerHTML += ` · ${fmt((performance.now() - t0) / 1000, 1)} s`;
+    $('sub').innerHTML += ` · ${fmt((performance.now() - t0) / 1000, 1)} s for all four rungs`;
   } catch (err) {
     busy = false;
     fail(err.message);
@@ -571,13 +642,8 @@ async function runLive(file) {
 
 function fail(msg) {
   current = null;
-  for (const li of $('ladder').children) {
-    li.querySelector('.bar').style.width = '0';
-    li.querySelector('.tk').textContent = '–';
-    li.querySelector('.mk').textContent = '';
-  }
-  $('tagsLabel').hidden = $('tags').hidden = $('tagsMore').hidden = true;
-  $('viewLabel').hidden = $('view').hidden = true;
+  renderRungs(null);
+  for (const id of ['probsLabel', 'probs', 'sawLabel', 'saw', 'secsHead', 'secs', 'secsEmpty']) $(id).hidden = true;
   showStats(null, null);
   $('verdict').textContent = 'Couldn’t classify that';
   $('verdict').className = 'verdict weighing';
@@ -592,48 +658,53 @@ async function loadBench() {
   const get = (backend, docs, f, lv) => rows.find(r => r.backend === backend && r.docs === docs && r.flow === f && r.level === lv);
   const body = $('bench').tBodies[0];
   for (const lv of LEVELS) {
-    const d = get('haiku-5.5', 'gold', 'doc_first', lv), s = get('haiku-5.5', 'gold', 'sections_first', lv);
-    if (!d) continue;
+    const s = get('jev', 'gold', 'sections_first', lv), d = get('jev', 'gold', 'doc_first', lv);
+    if (!s && !d) continue;
     const tr = document.createElement('tr');
     if (lv === 'headings') tr.className = 'pick';
-    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${pct(d.doc_acc)}</td><td>${s ? pct(s.doc_acc) : '–'}</td><td>${fmt(d.prompt_tokens)}</td><td>${s?.leaf_f1 != null ? fmt(100 * s.leaf_f1, 1) : '–'}</td>`;
+    const leaf = s?.leaf || {};
+    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${s ? pct(s.doc_acc) : '–'}</td><td>${d ? pct(d.doc_acc) : '–'}</td><td>${leaf.precision != null ? pct(leaf.precision) : '–'}</td><td>${leaf.recall != null ? pct(leaf.recall) : '–'}</td><td>${fmt((s || d).prompt_tokens)}</td>`;
     body.append(tr);
   }
-  $('benchCap').textContent = `Claude Haiku 5.5 on 113 public documents (gold split). Document-type accuracy per flow; tokens are doc first's.`;
+  $('benchCap').textContent = 'Jev on 113 public documents (gold split): document-type accuracy for each approach, and section tags at every depth (tag, then decide).';
   const held = $('held').tBodies[0];
   for (const lv of LEVELS) {
-    const d = get('haiku-5.5', 'heldout', 'doc_first', lv), s = get('haiku-5.5', 'heldout', 'sections_first', lv);
-    if (!d) continue;
+    const s = get('jev', 'heldout', 'sections_first', lv), d = get('jev', 'heldout', 'doc_first', lv);
+    if (!s && !d) continue;
     const tr = document.createElement('tr');
     if (lv === 'headings') tr.className = 'pick';
-    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${pct(d.doc_acc)}</td><td>${s ? pct(s.doc_acc) : '–'}</td><td>${fmt(d.prompt_tokens)}</td><td>${d.documents}</td>`;
+    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${s ? pct(s.doc_acc) : '–'}</td><td>${d ? pct(d.doc_acc) : '–'}</td><td>${fmt((s || d).prompt_tokens)}</td><td>${(s || d).documents}</td>`;
     held.append(tr);
   }
-  const ub = get('ultrabert', 'heldout', 'doc_first', 'lead');
-  if (ub) {
+  for (const [backend, name, lv] of [['haiku-5.5', 'Claude Haiku 5.5, headings', 'headings'], ['ultrabert', 'UltraBERT, + leads', 'lead']]) {
+    const d = get(backend, 'heldout', 'doc_first', lv);
+    if (!d) continue;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>UltraBERT, + leads</td><td>${pct(ub.doc_acc)}</td><td>–</td><td>~${fmt(ub.prompt_tokens)}</td><td>${ub.documents}</td>`;
+    tr.innerHTML = `<td>${name}</td><td>–</td><td>${pct(d.doc_acc)}</td><td>${d.exact ? '' : '~'}${fmt(d.prompt_tokens)}</td><td>${d.documents}</td>`;
     held.append(tr);
   }
+  const head = get('jev', 'gold', 'sections_first', 'headings'), full = get('jev', 'gold', 'sections_first', 'full');
+  if (head && full) $('takeaway').textContent = `From the headings alone, Jev named the type ${pct(head.doc_acc)} of the time and tagged sections at ${pct(head.leaf?.precision ?? 0)} precision, for ${pct(head.prompt_tokens / full.prompt_tokens)} of the full text's tokens.`;
   drawChart(get);
 }
 
 function drawChart(get) {
   const series = [
-    { name: 'Haiku, doc first', cls: 'a', pts: LEVELS.map(lv => get('haiku-5.5', 'gold', 'doc_first', lv)) },
-    { name: 'Haiku, sections first', cls: 'b', pts: LEVELS.map(lv => get('haiku-5.5', 'gold', 'sections_first', lv)) },
-    { name: 'UltraBERT (est. tokens)', cls: 'c', pts: LEVELS.map(lv => get('ultrabert', 'gold', 'doc_first', lv)) },
+    { name: 'Jev, tag then decide', cls: 'a', pts: LEVELS.map(lv => get('jev', 'gold', 'sections_first', lv)) },
+    { name: 'Jev, read then tag', cls: 'b', pts: LEVELS.map(lv => get('jev', 'gold', 'doc_first', lv)) },
+    { name: 'Claude Haiku 5.5', cls: 'c', pts: LEVELS.map(lv => get('haiku-5.5', 'gold', 'doc_first', lv)) },
   ].map(s => ({ ...s, pts: s.pts.filter(Boolean) })).filter(s => s.pts.length);
   if (!series.length) return;
   const W = 640, H = 336, L = 48, R = 168, T = 12, B = 48;
   const all = series.flatMap(s => s.pts);
-  const x0 = Math.log10(1000), x1 = Math.log10(Math.max(...all.map(p => p.prompt_tokens)) * 1.15);
-  const y0 = 0.5, y1 = 1;
+  const lo = Math.min(...all.map(p => p.prompt_tokens)), hi = Math.max(...all.map(p => p.prompt_tokens));
+  const x0 = Math.log10(lo / 1.3), x1 = Math.log10(hi * 1.15);
+  const y0 = Math.min(0.5, Math.floor(10 * Math.min(...all.map(p => p.doc_acc))) / 10), y1 = 1;
   const X = v => L + (Math.log10(v) - x0) / (x1 - x0) * (W - L - R);
   const Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
   let svg = '';
-  for (const v of [0.5, 0.6, 0.7, 0.8, 0.9, 1]) svg += `<line class="gr" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="t" x="${L - 8}" y="${Y(v) + 3}" text-anchor="end">${v * 100}%</text>`;
-  for (const v of [1000, 2000, 5000, 10000, 20000, 50000]) if (Math.log10(v) <= x1) svg += `<line class="gr" x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H - B}"/><text class="t" x="${X(v)}" y="${H - B + 18}" text-anchor="middle">${v >= 1000 ? v / 1000 + 'k' : v}</text>`;
+  for (let v = y0; v <= 1.0001; v += 0.1) svg += `<line class="gr" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="t" x="${L - 8}" y="${Y(v) + 3}" text-anchor="end">${Math.round(v * 100)}%</text>`;
+  for (const v of [1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5, 2e5, 5e5, 1e6, 2e6]) if (Math.log10(v) >= x0 && Math.log10(v) <= x1) svg += `<line class="gr" x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H - B}"/><text class="t" x="${X(v)}" y="${H - B + 18}" text-anchor="middle">${v >= 1e6 ? v / 1e6 + 'M' : v / 1000 + 'k'}</text>`;
   svg += `<line class="ax" x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}"/><line class="ax" x1="${L}" x2="${L}" y1="${T}" y2="${H - B}"/>`;
   svg += `<text class="t" x="${(L + W - R) / 2}" y="${H - 8}" text-anchor="middle">prompt tokens per document</text>`;
   for (const s of series) {

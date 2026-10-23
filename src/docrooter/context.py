@@ -14,8 +14,9 @@ explicit ``found``, ``not_found`` or ``unknown_tag`` and no model call.
 
 - A section's text is its own body, then every subsection under it. In ``section_text`` each
   leaf tag (``none`` excluded) lists the sections carrying it; a section inside another with the
-  same tag is dropped, since its text is already in the outer one, and same-tag siblings stay
-  separate. Text can repeat across tags (Item 8 holds the balance sheet).
+  same tag is dropped, since its text is already in the outer one, and consecutive same-tag
+  sections merge into one entry (flat headings otherwise split one section into many). Text can
+  repeat across tags (Item 8 holds the balance sheet).
 - A tag matches its own key, and a group tag (``"financial"``) every key under it.
 - A tag the catalogue has but the document does not is ``not_found``; a tag the catalogue lacks
   is ``unknown_tag``. Neither raises, since an application asks for tags speculatively.
@@ -65,6 +66,11 @@ STAGES = (DOCUMENT_STAGE, SECTION_STAGE)
 class SectionMatch(BaseModel):
     """One section that carries the asked tag.
 
+    - ``section_id`` is the section's id; ``section_ids`` lists every section merged into the
+      entry, in reading order (just ``[section_id]`` when none was). A merged entry takes the first
+      section's ``section_id``, ``heading``, ``path``, ``level`` and ``page_start`` and the last
+      one's ``page_end``; its ``text`` is the first section's, then each later one under a Markdown
+      heading of its own.
     - ``tag`` is the section's own leaf label, which can differ from the asked tag on a group
       query; ``path`` is the ancestors' titles from the outermost down, without the section
       itself or the preamble.
@@ -73,13 +79,15 @@ class SectionMatch(BaseModel):
     - ``page_start`` is the section's page and ``page_end`` an upper bound: the page where the
       next section after it starts, else the last page start within it. Both are ``None``
       without pages (Markdown input).
-    - ``confidence`` and ``confidence_source`` are copied from the section's tag.
+    - ``confidence`` and ``confidence_source`` are copied from the section's tag; for a merged
+      entry, the lowest known confidence among the sections and that section's source.
     - ``tokens`` is ``estimate_tokens(heading + "\\n\\n" + text)``, for budgeting a prompt.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     section_id: str
+    section_ids: list[str]
     tag: str
     heading: str
     path: list[str]
@@ -158,8 +166,9 @@ class ParseResult(BaseModel):
     def get_section(self, tag: str, *, catalogue: Taxonomy | None = None) -> SectionContext:
         """The context of ``tag`` (surrounding whitespace is ignored, case is exact), read from
         ``section_text``. A group tag such as ``"financial"`` matches every ``financial.*`` key;
-        a match inside another match is dropped. ``catalogue`` (default: the built-in
-        ``section_catalogue``) says which tags exist. ``ValueError`` below ``include="text"``."""
+        a match inside any section of another match (``section_ids``) is dropped. ``catalogue``
+        (default: the built-in ``section_catalogue``) says which tags exist. ``ValueError`` below
+        ``include="text"``."""
         return self._context(tag, catalogue)
 
     def get_sections(
@@ -183,7 +192,7 @@ class ParseResult(BaseModel):
             if key == tag or key.startswith(tag + ".")
             for match in matches
         ]
-        ids = {match.section_id for match in hits}
+        ids = {section_id for match in hits for section_id in match.section_ids}
         hits = [
             match
             for match in hits
@@ -284,8 +293,10 @@ def section_text(
 ) -> dict[str, list[SectionMatch]]:
     """The text of each tagged section, keyed by leaf tag in reading order of the tag's first
     section, without ``none``. A section inside another section with the same tag is dropped
-    (its text is already in the outer one); text can repeat across tags. ``ValueError`` when the
-    classification tags a section the document does not have."""
+    (its text is already in the outer one); then consecutive matches of one tag merge into one
+    entry when no section between them in reading order carries a different label (``none``
+    counts as different, an untagged section does not). Text can repeat across tags.
+    ``ValueError`` when the classification tags a section the document does not have."""
     labels = _labels(document, classification)
     order = list(document.walk())
     position = {section.id: index for index, section in enumerate(order)}
@@ -298,12 +309,55 @@ def section_text(
     for section, tag in tagged:
         ids_by_tag.setdefault(tag.label or "", set()).add(section.id)
     result: dict[str, list[SectionMatch]] = {}
+    # per tag, the reading position just after the subtree of its latest section
+    ends: dict[str, int] = {}
     for section, tag in tagged:
         label = tag.label or ""
         if any(a.id in ids_by_tag[label] for a in _ancestors(document, section)):
             continue
-        result.setdefault(label, []).append(_match(document, section, tag, order, position))
+        match = _match(document, section, tag, order, position)
+        end = position[section.id] + len(list(_subtree(document, section)))
+        entries = result.setdefault(label, [])
+        if entries and _unbroken(order, labels, label, ends[label], position[section.id]):
+            entries[-1] = _merge(entries[-1], match)
+        else:
+            entries.append(match)
+        ends[label] = end
     return result
+
+
+def _unbroken(
+    order: list[Section],
+    labels: dict[str, SectionTag],
+    label: str,
+    start: int,
+    stop: int,
+) -> bool:
+    """Whether no section in ``order[start:stop]`` carries a label other than ``label``. An
+    untagged section carries none; ``none`` is a label."""
+    for between in order[start:stop]:
+        tag = labels.get(between.id)
+        if tag is not None and tag.label is not None and tag.label != label:
+            return False
+    return True
+
+
+def _merge(first: SectionMatch, later: SectionMatch) -> SectionMatch:
+    """``later`` joined onto ``first``: ``later`` goes in as a Markdown heading plus its text."""
+    heading = f"{'#' * min(later.level, MAX_HEADING_HASHES)} {later.heading}"
+    text = "\n\n".join(part for part in (first.text, heading, later.text) if part)
+    known = [m for m in (first, later) if m.confidence is not None]
+    lowest = min(known, key=lambda m: m.confidence or 0.0) if known else first
+    return first.model_copy(
+        update={
+            "section_ids": [*first.section_ids, *later.section_ids],
+            "text": text,
+            "page_end": later.page_end,
+            "confidence": lowest.confidence,
+            "confidence_source": lowest.confidence_source,
+            "tokens": estimate_tokens(first.heading + "\n\n" + text),
+        }
+    )
 
 
 def _labels(document: Document, classification: Classification) -> dict[str, SectionTag]:
@@ -345,6 +399,7 @@ def _match(
             page_end = max(s.page_start for s in subtree if s.page_start is not None)
     return SectionMatch(
         section_id=section.id,
+        section_ids=[section.id],
         tag=tag.label or "",
         heading=section.title,
         path=[a.title for a in reversed(list(_ancestors(document, section)))],

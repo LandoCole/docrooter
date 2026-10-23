@@ -134,8 +134,127 @@ def test_nested_matches_collapse(tenk):
     assert "Note 1" not in [m.heading for m in matches]
 
 
-def test_same_tag_siblings_stay_separate(tenk):
-    assert [m.heading for m in section_text(*tenk)[NOTES]] == ["Notes", "Note A", "Note B"]
+def test_same_tag_siblings_merge_into_one_entry(tenk):
+    [merged] = section_text(*tenk)[NOTES]
+    assert merged.heading == "Notes"
+    assert merged.section_ids == ["s1.2", "s1.3", "s1.4"]
+    assert "\n\n## Note A\n\nFirst separate note.\n\n## Note B\n\nSecond separate note." in (
+        merged.text
+    )
+    assert (merged.page_start, merged.page_end) == (48, 60)  # the end is Note B's: next is Risks
+
+
+def test_a_single_section_lists_its_own_id(tenk):
+    [match] = section_text(*tenk)[BALANCE]
+    assert match.section_ids == [match.section_id] == ["s1.1.1"]
+
+
+def test_consecutive_same_tag_siblings_merge():
+    rows = [
+        ("Note 1", 1, NOTES, "First.", 0.9, 1),
+        ("Note 2", 1, NOTES, "Second.", 0.9, 2),
+        ("Risks", 1, RISKS, "Risky.", 0.9, 5),
+    ]
+    [match] = text_of(rows)[NOTES]
+    assert match.section_ids == ["s1", "s2"]
+    assert (match.section_id, match.heading, match.level) == ("s1", "Note 1", 1)
+    assert match.text == "First.\n\n# Note 2\n\nSecond."
+    assert (match.page_start, match.page_end) == (1, 5)
+    assert match.tokens == estimate_tokens(match.heading + "\n\n" + match.text)
+
+
+def test_a_run_of_three_merges_in_order():
+    rows = [(f"N{i}", 1, NOTES, f"body {i}", 0.9, i) for i in (1, 2, 3)]
+    [match] = text_of(rows)[NOTES]
+    assert match.section_ids == ["s1", "s2", "s3"]
+    assert match.text == "body 1\n\n# N2\n\nbody 2\n\n# N3\n\nbody 3"
+
+
+def test_a_merged_entry_keeps_the_heading_of_an_empty_body():
+    rows = [("A", 1, NOTES, "a", 0.9, 1), ("B", 1, NOTES, "", 0.9, 1)]
+    [match] = text_of(rows)[NOTES]
+    assert match.text == "a\n\n# B"
+
+
+def test_run_breaks_on_a_different_tag_and_on_none():
+    for between in (BALANCE, "none"):
+        rows = [
+            ("A", 1, NOTES, "a", 0.9, 1),
+            ("B", 1, between, "b", 0.9, 2),
+            ("C", 1, NOTES, "c", 0.9, 3),
+        ]
+        assert [m.heading for m in text_of(rows)[NOTES]] == ["A", "C"]
+
+
+def test_run_breaks_on_a_different_tag_below_an_untagged_section():
+    rows = [
+        ("A", 1, NOTES, "a", 0.9, 1),
+        ("B", 1, None, "b", 0.9, 2),
+        ("B inner", 2, BALANCE, "x", 0.9, 2),
+        ("C", 1, NOTES, "c", 0.9, 3),
+    ]
+    assert [m.heading for m in text_of(rows)[NOTES]] == ["A", "C"]
+
+
+def test_untagged_section_does_not_break_a_run():
+    rows = [
+        ("A", 1, NOTES, "a", 0.9, 1),
+        ("Gap", 1, None, "gap", 0.9, 2),
+        ("C", 1, NOTES, "c", 0.9, 3),
+    ]
+    [match] = text_of(rows)[NOTES]
+    assert match.section_ids == ["s1", "s3"]
+    assert "gap" not in match.text  # the untagged section's text is not pulled in
+
+
+def test_a_label_inside_the_earlier_match_does_not_break_a_run():
+    rows = [
+        ("A", 1, NOTES, "a", 0.9, 1),
+        ("A child", 2, "none", "inside", 0.9, 1),
+        ("C", 1, NOTES, "c", 0.9, 3),
+    ]
+    [match] = text_of(rows)[NOTES]  # the child is in A's subtree, not between A and C
+    assert match.section_ids == ["s1", "s2"]
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "expected"),
+    [
+        (0.9, 0.4, 0.4),
+        (0.4, 0.9, 0.4),
+        (0.9, None, 0.9),
+        (None, 0.9, 0.9),
+        (None, None, None),
+    ],
+)
+def test_merged_confidence_is_lowest_known(first, second, expected):
+    rows = [("A", 1, NOTES, "a", first, 1), ("B", 1, NOTES, "b", second, 2)]
+    [match] = text_of(rows)[NOTES]
+    assert match.confidence == expected
+
+
+def test_merged_confidence_source_follows_the_lowest():
+    document, cls = build([("A", 1, NOTES, "a", 0.9, 1), ("B", 1, NOTES, "b", 0.4, 2)])
+    tags = [cls.sections[0], cls.sections[1].model_copy(update={"confidence_source": "batched"})]
+    [match] = section_text(document, cls.model_copy(update={"sections": tags}))[NOTES]
+    assert (match.confidence, match.confidence_source) == (0.4, "batched")
+    [unknown] = text_of([("A", 1, NOTES, "a", None, 1), ("B", 1, NOTES, "b", None, 2)])[NOTES]
+    assert (unknown.confidence, unknown.confidence_source) == (None, "text")
+
+
+def test_group_query_collapse_uses_section_ids():
+    rows = [
+        ("A", 1, NOTES, "a", 0.9, 1),
+        ("Gap", 1, None, "gap", 0.9, 2),
+        ("C", 1, NOTES, "c", 0.9, 3),
+        ("C inner", 2, BALANCE, "cash", 0.9, 3),
+    ]
+    result = result_of(rows)
+    assert [m.heading for m in result.section_text[BALANCE]] == ["C inner"]
+    context = result.get_section("financial")
+    # "C inner" (s3.1) is inside s3, the second section of the merged notes entry
+    assert [(m.heading, m.section_ids) for m in context.sections] == [("A", ["s1", "s3"])]
+    assert "cash" in context.sections[0].text
 
 
 def test_section_text_keys(tenk):
@@ -411,6 +530,7 @@ def test_parse_result_json_has_the_documented_shape():
     ]
     assert list(dumped["section_text"][BALANCE][0]) == [
         "section_id",
+        "section_ids",
         "tag",
         "heading",
         "path",
@@ -487,8 +607,6 @@ def test_get_section_group_collapses_across_keys():
     assert [(m.heading, m.tag) for m in context.sections] == [
         ("Item 8. Financial Statements", STATEMENTS),
         ("Notes", NOTES),
-        ("Note A", NOTES),
-        ("Note B", NOTES),
     ]
     assert "CONSOLIDATED BALANCE SHEETS" in context.sections[0].text
 

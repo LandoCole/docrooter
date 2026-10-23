@@ -22,6 +22,11 @@ tagged or published, and their entries are kept as history. The package version 
   `found`, `not_found` or `unknown_tag`. Exports `ParseResult`, `TaggedSection`,
   `SectionMatch` and `SectionContext`. See the guide "Parse a document for extraction" and
   `examples/parse_for_extraction.py`.
+- **`section_text` joins neighbouring sections with the same tag.** Flat PDF headings used to
+  split one section into dozens of entries (one annual report's notes came back as 42). Now
+  sections with the same tag and no differently tagged section between them are one entry; a
+  heading tagged `none` ends the run and an untagged one does not. `SectionMatch.section_ids`
+  lists the sections joined, and the confidence is the lowest known one.
 - **`extra_body` for the OpenAI-compatible backend.** `OpenAIBackend(extra_body=...)`, or the
   JSON object in `DOCROOTER_LLM_EXTRA_BODY`, adds provider fields to every request without
   replacing the request's own, e.g. `{"thinking": {"type": "disabled"}}` for a Claude model that

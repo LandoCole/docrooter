@@ -105,7 +105,7 @@ At `"text"`, the response looks like this. A section's text is under its tag in
   ],
   "section_text": {
     "financial.schedule_of_investments": [
-      {"section_id": "s3", "tag": "financial.schedule_of_investments",
+      {"section_id": "s3", "section_ids": ["s3"], "tag": "financial.schedule_of_investments",
        "heading": "Schedule of Investments", "path": [], "level": 1,
        "text": "| Company | Shares | Fair value |\n|---|---|---|\n...",
        "page_start": 12, "page_end": 15, "confidence": 0.97,
@@ -123,6 +123,9 @@ At `"text"`, the response looks like this. A section's text is under its tag in
   first. It is left out at `"type"`.
 - `section_text` is the text of each tagged section, by tag, in reading order. `none` is
   left out. It is left out below `"text"`.
+- `section_id` is the section's id, and `section_ids` lists every section in the entry (see
+  [Nested and repeated text](#nested-and-repeated-text)). It is a single id unless sections
+  were joined.
 - `page_start` and `page_end` are `null` for Markdown, which has no pages. `page_end` is an
   upper bound: the page where the next section starts.
 - `tokens` in a section is an estimate of its size, for budgeting a prompt.
@@ -141,8 +144,19 @@ In the example, the balance sheet's text runs on through its `### Current assets
 ## Nested and repeated text
 
 - **A section inside another section with the same tag is dropped.** Its text is already in
-  the outer one, so the model never reads it twice. Two separate sections with the same tag,
-  such as "Note 1" and "Note 4", stay as two entries.
+  the outer one, so the model never reads it twice.
+- **Neighbouring sections with the same tag are joined into one entry.** Some documents,
+  PDFs especially, have flat headings, so one section such as "Notes to the financial
+  statements" arrives as dozens of headings with the same tag. If no section with a different
+  tag sits between two of them, they become one entry. A heading tagged `none` counts as a
+  different tag and ends the run. A heading with no tag at all does not.
+  - `section_id`, `heading`, `path`, `level` and `page_start` are the first section's, and
+    `page_end` is the last one's. `section_ids` lists all of them, in order.
+  - `text` is the first section's text. Each later section follows as a Markdown heading with
+    its text after it.
+  - `confidence` is the lowest one known among the sections, with its `confidence_source`. It
+    is `null` only if none of them has one.
+  - `tokens` is worked out again for the joined text.
 - **Across different tags, text repeats.** "Item 8" is tagged `financial.financial_statements`
   and contains the balance sheet, which is also under `financial.balance_sheet`. Each tag's
   entry is complete on its own, so the extraction engine can read the one it wants.
@@ -182,8 +196,8 @@ It returns a `SectionContext` with a `status`:
 None of them raises, since an application often asks for tags that a document may not have;
 check `status`. `message` explains anything but `found`.
 
-- A group tag such as `"financial"` matches every tag under it. A match inside another match
-  is dropped, and matches come in reading order.
+- A group tag such as `"financial"` matches every tag under it. A match inside any section of
+  another match (any id in its `section_ids`) is dropped, and matches come in reading order.
 - Surrounding spaces are ignored; upper and lower case must match exactly.
 - `get_sections(["financial.balance_sheet", "disclosure.risk_factors"])` asks several tags at
   once and answers each in order.

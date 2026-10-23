@@ -67,15 +67,46 @@ class SectionView(BaseModel):
         return {section.id: self._render(doc, section, df, n_docs, count) for section in sections}
 
     def _render(self, doc, section: Section, df, n_docs, count) -> RenderedView:
-        entries = (self._field(doc, section, name, df, n_docs) for name in self.fields)
+        entries = [self._field(doc, section, name, df, n_docs) for name in self.fields]
+        if "path" in self.fields and "title" in self.fields:
+            entries = self._title_first(entries, section, count)
         return render_budgeted(entries, section.title, self.max_tokens, count)
+
+    def _title_first(
+        self, entries: list[tuple[str, str] | None], section: Section, count
+    ) -> list[tuple[str, str] | None]:
+        """Shorten the path so the title line fits after it: a deep heading's long path must
+        not push its own title out of a small budget. The outermost ancestors go first, marked
+        ``…``; when not even the nearest one fits, the path is left out."""
+        at, title_at = self.fields.index("path"), self.fields.index("title")
+        path = entries[at]
+        if title_at < at or path is None:
+            return entries
+        titles = path[1].split(" > ")
+        title_line = f"Title: {section.title}"
+
+        def fits(ancestors: list[str]) -> bool:
+            return count(f"Path: {' > '.join(ancestors)}\n{title_line}") <= self.max_tokens
+
+        if fits(titles) or count(title_line) > self.max_tokens:
+            return entries
+        shortened = list(entries)
+        shortened[at] = None
+        for i in range(1, len(titles)):  # keep at least the nearest ancestor
+            if fits(["…", *titles[i:]]):
+                shortened[at] = ("Path:", " > ".join(["…", *titles[i:]]))
+                break
+        return shortened
 
     def _field(
         self, doc: Document, section: Section, name: str, df, n_docs
     ) -> tuple[str, str] | None:
         text = section.text.strip()
-        if name == "path":
-            return "Path:", " > ".join(_path_titles(doc, section))
+        if name == "path":  # the ancestors; the section's own title too when no title line
+            path = _path_titles(doc, section)
+            if "title" in self.fields:
+                path = path[:-1]
+            return ("Path:", " > ".join(path)) if path else None
         if name == "title":
             return "Title:", section.title
         if name == "keyphrases":

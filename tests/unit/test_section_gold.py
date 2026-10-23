@@ -30,12 +30,12 @@ def _doc(n_top: int, *, subs: int = 2) -> Document:
 
 
 def test_sample_deterministic_and_capped() -> None:
-    doc = _doc(10, subs=3)  # 10 level-1 and 30 level-2 candidates
+    doc = _doc(10, subs=3)  # 10 level-1, 30 level-2 and 30 level-3 candidates
     first = section_sample.sample_sections(doc, max_per_doc=12)
     again = section_sample.sample_sections(_doc(10, subs=3), max_per_doc=12)
     assert [s.id for s in first] == [s.id for s in again]
     assert len(first) == 12
-    assert {s.level for s in first} <= {1, 2}
+    assert {s.level for s in first} == {1, 2, 3}  # every depth, as classify tags them
     order = [s.id for s in doc.walk()]
     positions = [order.index(s.id) for s in first]
     assert positions == sorted(positions)
@@ -44,7 +44,7 @@ def test_sample_deterministic_and_capped() -> None:
     assert positions[0] < len(order) // 4 and positions[-1] > 3 * len(order) // 4
     # a small document is taken whole; the cap is the argument
     small = _doc(2, subs=1)
-    assert len(section_sample.sample_sections(small, max_per_doc=12)) == 4
+    assert len(section_sample.sample_sections(small, max_per_doc=12)) == 6  # 2 + 2 + 2 deep
     assert len(section_sample.sample_sections(doc, max_per_doc=5)) == 5
     with pytest.raises(ValueError):
         section_sample.sample_sections(doc, max_per_doc=0)
@@ -75,7 +75,7 @@ def test_kappa_and_merge() -> None:
     sample = _sample(10)
     double = [r["item"] for r in sample if r["double"]]
     assert len(double) == 4
-    a, b, c = "general.body", "general.summary", "research.method"
+    a, b, c = "government.findings", "government.highlights", "research.method"
     first = _labels(sample, "A1", {r["item"]: a for r in sample})
     # B1 agrees on two double items, disagrees on two (one within the group, one across)
     second_labels = {double[0]: a, double[1]: a, double[2]: b, double[3]: c}
@@ -110,31 +110,29 @@ def test_kappa_and_merge() -> None:
 
 def test_merge_rejects_bad_roles_and_labels() -> None:
     sample = _sample(10)
-    every = {r["item"]: "general.body" for r in sample}
+    every = {r["item"]: "none" for r in sample}
     first = _labels(sample, "A1", every)
-    double = {r["item"]: "general.body" for r in sample if r["double"]}
+    double = {r["item"]: "none" for r in sample if r["double"]}
     with pytest.raises(AnnotationError, match="not independent"):
         section_gold.agreement(sample, first, _labels(sample, "A1", double))
     with pytest.raises(AnnotationError, match="missing"):
         section_gold.agreement(sample, first, _labels(sample, "B1", {}))
-    for bad, text in (("general", "is a group"), ("general.nope", "unknown"), (3, "string")):
+    for bad, text in (("financial", "is a group"), ("financial.nope", "unknown"), (3, "string")):
         rows = [{"item": "s0000", "label": bad, "annotator": "A1"}]
         with pytest.raises(AnnotationError, match=text):
             section_gold.read_annotations(rows, sample)
     with pytest.raises(AnnotationError, match="not an item"):
-        section_gold.read_annotations(
-            [{"item": "zz", "label": "general.body", "annotator": "x"}], sample
-        )
+        section_gold.read_annotations([{"item": "zz", "label": "none", "annotator": "x"}], sample)
     with pytest.raises(AnnotationError, match="annotated twice"):
         section_gold.read_annotations(
-            [{"item": "s0000", "label": "general.body", "annotator": "x"}] * 2, sample
+            [{"item": "s0000", "label": "none", "annotator": "x"}] * 2, sample
         )
 
 
 def test_gold_rows_hold_no_text(tmp_path: Path) -> None:
     sample = _sample(10)
-    first = _labels(sample, "A1", {r["item"]: "general.body" for r in sample})
-    second = _labels(sample, "B1", {r["item"]: "general.body" for r in sample if r["double"]})
+    first = _labels(sample, "A1", {r["item"]: "none" for r in sample})
+    second = _labels(sample, "B1", {r["item"]: "none" for r in sample if r["double"]})
     rows = section_gold.merge_gold(sample, first, second, {})
     assert all(tuple(r) == section_gold.GOLD_FIELDS for r in rows)
     assert not {"text", "title", "heading_path"} & set(rows[0])
@@ -154,7 +152,7 @@ def test_gold_rows_hold_no_text(tmp_path: Path) -> None:
         ("second", "B1", [r["item"] for r in sample if r["double"]]),
     ):
         text = "".join(
-            json.dumps({"item": i, "label": "general.body", "annotator": who}) + "\n" for i in items
+            json.dumps({"item": i, "label": "none", "annotator": who}) + "\n" for i in items
         )
         (tmp_path / f"{name}.jsonl").write_text(text, encoding="utf-8")
     (tmp_path / "adj.jsonl").write_text("", encoding="utf-8")
@@ -232,18 +230,18 @@ def _levels(doc: Document, max_per_doc: int = 12) -> list[int]:
 
 
 def test_sample_stratifies_levels() -> None:
-    # 10 level-1 and 30 level-2: half the cap goes to each level
+    # 10 level-1 and 60 deeper: a third of the cap goes to level 1, the rest to the deeper ones
     levels = _levels(_doc(10, subs=3))
-    assert levels.count(1) == 6 and levels.count(2) == 6
-    # unused slots pass to the other level
-    assert _levels(_doc(2, subs=20)).count(1) == 2  # both level-1, ten level-2
+    assert levels.count(1) == 4 and len(levels) == 12 and {2, 3} <= set(levels)
+    # unused slots pass to the other side
+    assert _levels(_doc(2, subs=20)).count(1) == 2  # both level-1, ten deeper
     assert len(_levels(_doc(2, subs=20))) == 12
-    assert _levels(_doc(20, subs=0)).count(1) == 12  # no level 2: all twelve are level 1
+    assert _levels(_doc(20, subs=0)).count(1) == 12  # nothing deeper: all twelve are level 1
     assert _levels(_doc(3, subs=0)) == [1, 1, 1]
     deep = _doc(40, subs=1)
-    assert sorted(_levels(deep, 4)) == [1, 1, 2, 2]  # half the cap for each level
+    assert sorted(_levels(deep, 4))[:2] == [1, 2] and len(_levels(deep, 4)) == 4  # one slot
     # level 1 is picked in proportion to the cap, not to how common it is
-    assert _levels(_doc(5, subs=8)).count(1) == 5
+    assert _levels(_doc(5, subs=8)).count(1) == 4
 
 
 def test_every_document_with_level_one_gets_one() -> None:
@@ -254,17 +252,17 @@ def test_every_document_with_level_one_gets_one() -> None:
         doc = _doc(rng.randint(1, 15), subs=rng.randint(0, 8))
         n1 = sum(1 for s in doc.walk() if s.level == 1)
         got = _levels(doc)
-        assert got.count(1) >= min(6, n1)
-        assert len(got) == min(12, len([s for s in doc.walk() if s.level in (1, 2)]))
+        assert got.count(1) >= min(4, n1)
+        assert len(got) == min(12, len([s for s in doc.walk() if s.level >= 1]))
 
 
 def test_sample_is_not_fooled_by_periodic_structure() -> None:
-    # a level-1 heading and three level-2 ones, repeated: 48 candidates in a period of 4
+    # a level-1 heading and three level-2 ones, each with a level-3 one, repeated
     doc = _doc(12, subs=3)
     picked = section_sample.sample_sections(doc, max_per_doc=12)
-    assert [s.level for s in picked].count(1) == 6
-    assert len({s.title for s in picked if s.level == 2}) == 6
-    offsets = {int(s.title.split(".")[-1]) for s in picked if s.level == 2}
+    assert [s.level for s in picked].count(1) == 4
+    assert len({s.title for s in picked if s.level > 1}) == 8
+    offsets = {int(s.title.split(".")[-1]) for s in picked if s.level > 1}
     assert len(offsets) > 1  # not always the same child of a part
 
 
@@ -298,10 +296,10 @@ def _annotated(tmp_path: Path):
     sample = _sample(10)
     sample_path = _write(tmp_path / "sample.jsonl", sample)
     double = [r["item"] for r in sample if r["double"]]
-    every = [{"item": r["item"], "label": "general.body", "annotator": "A1"} for r in sample]
-    other = "general.summary"
+    every = [{"item": r["item"], "label": "none", "annotator": "A1"} for r in sample]
+    other = "government.highlights"
     second = [
-        {"item": i, "label": other if k == 0 else "general.body", "annotator": "B1"}
+        {"item": i, "label": other if k == 0 else "none", "annotator": "B1"}
         for k, i in enumerate(double)
     ]
     first_path = _write(tmp_path / "first.jsonl", every)
@@ -331,18 +329,18 @@ def test_adjudication_batch_and_undecided_merge(
     assert section_gold.main(argv) == 0
     rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
     assert [r["item"] for r in rows] == double[:1]  # only the disputed item
-    assert sorted(rows[0]["labels"]) == ["general.body", "general.summary"]
+    assert sorted(rows[0]["labels"]) == ["government.highlights", "none"]
     assert "A1" not in out.read_text(encoding="utf-8")  # no annotator names
     assert "B1" not in out.read_text(encoding="utf-8")
     assert not {"doc_id", "section_id", "title_sha1", "double"} & set(rows[0])
     # the label order does not give away who was first: it varies by item, and is fixed per item
     many = [{**r, "double": True} for r in _sample(40)]
-    firsts = {r["item"]: section_gold.Label("general.body", "A1") for r in many}
-    seconds = {r["item"]: section_gold.Label("general.summary", "B1") for r in many}
+    firsts = {r["item"]: section_gold.Label("none", "A1") for r in many}
+    seconds = {r["item"]: section_gold.Label("government.highlights", "B1") for r in many}
     shown = section_gold._adjudication_rows(many, firsts, seconds)
     assert {tuple(r["labels"]) for r in shown} == {
-        ("general.body", "general.summary"),
-        ("general.summary", "general.body"),
+        ("none", "government.highlights"),
+        ("government.highlights", "none"),
     }
     assert shown == section_gold._adjudication_rows(many, firsts, seconds)
 
@@ -356,9 +354,7 @@ def test_adjudication_batch_and_undecided_merge(
     assert section_gold.main(undecided) == 1
     assert "no adjudication" in capsys.readouterr().err
     assert not gold.exists()
-    own = _write(
-        tmp_path / "own.jsonl", [{"item": double[0], "label": "general.body", "annotator": "A1"}]
-    )
+    own = _write(tmp_path / "own.jsonl", [{"item": double[0], "label": "none", "annotator": "A1"}])
     assert (
         section_gold.main([*merge, "--adjudication", str(own), "--sample-summary", str(summary)])
         == 1
@@ -366,7 +362,7 @@ def test_adjudication_batch_and_undecided_merge(
     assert "third annotator" in capsys.readouterr().err
     third = _write(
         tmp_path / "third.jsonl",
-        [{"item": double[0], "label": "general.body", "annotator": "C1"}],
+        [{"item": double[0], "label": "none", "annotator": "C1"}],
     )
     no_reading = _write(tmp_path / "noreading.json", [])
     no_reading.write_text(json.dumps({"counts": 1}), encoding="utf-8")

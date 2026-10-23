@@ -27,7 +27,7 @@ SECTIONS = {
     "Notes to the financial statements": ("financial.notes_to_financial_statements", 0.95),
     "Management discussion": ("narrative.management_discussion", 0.95),
     "Executive compensation": ("disclosure.executive_compensation", 0.95),
-    "Acknowledgements": ("general.acknowledgements", 0.95),
+    "References": ("research.references", 0.95),
     "Performance": ("fund.performance", 0.95),
     "Top holdings": ("fund.holdings_and_allocation", 0.95),
     "Offering terms": ("offering.offering_terms", 0.95),
@@ -39,6 +39,8 @@ def by_title(table):
         for title, target in table.items():
             if re.search(rf"^Title: {re.escape(title)}$", text, re.MULTILINE):
                 return target
+        if re.search(r"^Title: Miscellany \d+$", text, re.MULTILINE):
+            return FILLER  # see with_filler
         return None
 
     return answer
@@ -203,24 +205,24 @@ def test_low_support_widens_a_custom_doc_type_taxonomy_too():
                 id="a.memo",
                 label="Memo",
                 parent_id="a",
-                sections={"requires": [["general.summary"]]},
+                sections={"requires": [["government.highlights"]]},
             ),
             TaxonomyNode(id="b", label="B"),
             TaxonomyNode(
                 id="b.letter",
                 label="Letter",
                 parent_id="b",
-                sections={"requires": [["general.acknowledgements"]]},
+                sections={"requires": [["research.references"]]},
             ),
         ]
     )
     doc = Document.from_sections(
         [
-            {"title": "Summary", "level": 1, "text": "In short."},
-            {"title": "Summary", "level": 2, "text": "In shorter."},
+            {"title": "Highlights", "level": 1, "text": "In short."},
+            {"title": "Highlights", "level": 2, "text": "In shorter."},
         ]
     )
-    backend = Scripted(by_title({"Summary": ("general.summary", 0.75)}))
+    backend = Scripted(by_title({"Highlights": ("government.highlights", 0.75)}))
     result = classify(doc, backend=backend, doc_types=doc_types)
     assert result.decided_by == "model" and "low_support" in result.flags
     assert "rules_unmet" not in result.flags
@@ -415,6 +417,7 @@ def test_max_sections_order():
         "Gamma",
         "Alpha one",
         "Beta one",
+        "Beta one deep",
     ]
     result = classify(doc, backend=KeywordBackend(), max_sections=4)
     assert [t.title for t in result.sections] == ["Alpha", "Beta", "Gamma", "Alpha one"]
@@ -438,14 +441,14 @@ def test_doc_first_level_aware():
     assert result.doc_type == "research.research_paper"
     assert result.candidates == []
     assert result.levels == {"section": "lead", "document": "headings"}
-    assert result.section_taxonomy == "section_types/research_paper"
+    assert result.section_taxonomy == "section_catalogue"
     (doc_call,) = backend.of("document")
     assert set(doc_call[1]) == DOC_TYPE_LEAVES
     assert "Key phrases:" not in doc_call[0] and "Lead:" not in doc_call[0]
     section_texts = [text for text, _ in backend.of("section")]
     assert len(section_texts) == 2 and all("Lead:" in text for text in section_texts)
-    research = builtin_taxonomy("section_types/research_paper")
-    assert all(t.label in research and t.level_used == "lead" for t in result.sections)
+    catalogue = builtin_taxonomy("section_catalogue")  # the same tags as sections_first
+    assert all(t.label in catalogue and t.level_used == "lead" for t in result.sections)
     assert result.stage_tokens["document"].calls == 1
     assert result.stage_tokens["sections"].calls == 1  # estimated as one batched call
     assert not result.tokens.exact  # no usage reported: estimated
@@ -478,12 +481,12 @@ def test_custom_rules_with_unknown_section_ids_raise():
             TaxonomyNode(
                 id="memo",
                 label="Memo",
-                sections={"requires": [["general.summaryy"]]},
+                sections={"requires": [["government.highlightss"]]},
             ),
             TaxonomyNode(id="letter", label="Letter"),
         ]
     )
-    with pytest.raises(ValueError, match=r"memo: general\.summaryy"):
+    with pytest.raises(ValueError, match=r"memo: government\.highlightss"):
         classify(financial_doc(), backend=KeywordBackend(), doc_types=doc_types)
 
 
@@ -582,9 +585,14 @@ def test_too_many_doc_types_for_per_item_calls_raise_up_front():
 # --- N1: the rules need adequate section evidence; N2: low support widens to every type ----
 
 
+FILLER = ("esg.other", 0.3)
+"""A filler section's answer: a domain tag, but never a confident one."""
+
+
 def with_filler(sections, n_total):
-    """``sections`` plus untitled-for-the-rules filler sections, ``n_total`` in all: the
-    scripted backend knows no filler title, so their tags are uniform (never confident)."""
+    """``sections`` plus filler sections, ``n_total`` in all. The scripted backend tags each
+    filler with a domain tag at low confidence (:data:`FILLER`): domain-tagged sections that
+    are no evidence, the case the evidence gate is for."""
     filler = [
         {"title": f"Miscellany {i}", "level": 1, "text": "Assorted remarks of no consequence."}
         for i in range(n_total - len(sections))
@@ -594,7 +602,7 @@ def with_filler(sections, n_total):
 
 NOTES = {"title": "Notes to the financial statements", "level": 1, "text": "Accounting policies."}
 MDA = {"title": "Management discussion", "level": 1, "text": "Revenue grew across segments."}
-THANKS = {"title": "Acknowledgements", "level": 1, "text": "We thank our auditors."}
+THANKS = {"title": "References", "level": 1, "text": "Smith (2020). Accounting."}
 
 
 def test_one_confident_tag_among_ten_is_thin_evidence_and_offers_every_type():
@@ -645,10 +653,10 @@ def test_low_support_offers_every_type():
     doc = Document.from_sections(
         [
             {"title": "Opinion", "level": 1, "text": "The court holds that the appeal fails."},
-            {"title": "Acknowledgements", "level": 1, "text": "We thank counsel."},
+            {"title": "References", "level": 1, "text": "Smith v. Jones (2020)."},
         ]
     )
-    weak = {"Opinion": ("law.opinion", 0.75), "Acknowledgements": SECTIONS["Acknowledgements"]}
+    weak = {"Opinion": ("law.opinion", 0.75), "References": SECTIONS["References"]}
     backend = Scripted(by_title(weak))  # 0.75**2 < decide_conf: a lone undecided candidate
     result = classify(doc, backend=backend)
     assert result.decided_by == "model"
@@ -662,6 +670,7 @@ def test_default_level_is_measured_per_backend():
     from docrooter.flow import FALLBACK_LEVEL, default_level
 
     assert default_level("openai:claude-haiku-5-5") == "headings"
+    assert default_level("jev") == default_level("jev:jev-1.13.0") == "headings"
     assert default_level("openai:any-model") == "headings"  # one hosted LLM measured
     assert default_level("embedding:dmis-lab/UltraBERT-Embed-150M") == "lead"
     assert default_level("embedding:some/other-model") == FALLBACK_LEVEL == "terms"
@@ -675,3 +684,40 @@ def test_default_level_is_measured_per_backend():
     assert result.levels == {"section": "terms", "document": None}
     result = classify(financial_doc(EXEC_COMP), backend=Scripted(name="openai:m"), level="lead")
     assert result.levels == {"section": "lead", "document": None}  # an explicit level wins
+
+
+def test_sections_past_the_cap_inherit_their_nearest_tagged_ancestors_tag():
+    doc = Document.from_sections(
+        [
+            {"title": "Notes to the financial statements", "level": 1, "text": "Policies."},
+            {"title": "12 Leases", "level": 2, "text": "Leases."},
+            {"title": "12.1 Right-of-use assets", "level": 3, "text": "Assets."},
+            {"title": "Introduction", "level": 1, "text": "Hello."},
+            {"title": "Scope", "level": 2, "text": "Scope."},
+        ]
+    )
+    table = {
+        "Notes to the financial statements": ("financial.notes_to_financial_statements", 0.9),
+        "Introduction": ("none", 0.9),
+    }
+    for flow in ("sections_first", "doc_first"):
+        backend = Scripted(by_title(table), document=lambda text: ("financial.annual_report", 0.9))
+        result = classify(doc, flow=flow, backend=backend, max_sections=2)
+        asked = [t.title for t in result.sections if t.confidence_source != "inherited"]
+        assert asked == ["Notes to the financial statements", "Introduction"]
+        inherited = {t.title: t for t in result.sections if t.confidence_source == "inherited"}
+        assert set(inherited) == {"12 Leases", "12.1 Right-of-use assets"}  # not under none
+        assert all(t.label == "financial.notes_to_financial_statements" for t in inherited.values())
+        notes = next(t for t in result.sections if t.title.startswith("Notes"))
+        assert all(t.confidence == notes.confidence for t in inherited.values())
+        assert all(t.tokens.prompt == 0 for t in inherited.values())
+        assert len(backend.of("section")) == 3  # the two asked only: notes 2 steps, none 1
+
+
+def test_inherited_tags_are_no_evidence_for_the_rules():
+    sections = [{"title": "Opinion", "level": 1, "text": "The court holds."}]
+    sections += [{"title": f"Part {i}", "level": 2, "text": "More."} for i in range(5)]
+    backend = Scripted(by_title({"Opinion": ("law.opinion", 0.99)}))
+    result = classify(Document.from_sections(sections), backend=backend, max_sections=1)
+    assert sum(t.confidence_source == "inherited" for t in result.sections) == 5
+    assert "thin_evidence" in result.flags  # one asked tag, however many inherit it

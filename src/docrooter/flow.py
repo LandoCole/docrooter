@@ -2,12 +2,16 @@
 
 Two flows (spec G3):
 
-- **sections_first** (the default) tags the document's level-1 and level-2 sections against the
-  shared section catalogue (``builtin_taxonomy("section_catalogue")``), group first, then leaf
-  (``Greedy``). It matches the doc-type section rules (:func:`~docrooter.rules.match_rules`)
-  against the tags, then decides the type. The rules narrow or decide only on adequate
-  evidence: at least ``max(min_evidence, ceil(min_evidence_share * tagged sections))``
-  confidently tagged sections (2 and 20% by default; :func:`~docrooter.rules.evidence_needed`).
+- **sections_first** (the default) tags the document's headings, at every depth (see
+  :func:`select_sections`), against the shared section catalogue
+  (``builtin_taxonomy("section_catalogue")``), group first, then leaf (``Greedy``). A tag
+  normalises what a heading means; a heading with no such meaning is tagged ``none``
+  (:data:`NO_TAG`), which is never evidence for the rules. It matches the doc-type section
+  rules (:func:`~docrooter.rules.match_rules`) against the tags, then decides the type. The
+  rules narrow or decide only on adequate evidence: at least
+  ``max(min_evidence, ceil(min_evidence_share * domain-tagged sections))`` confidently tagged
+  sections, a ``none`` tag counting in neither (2 and 20% by default;
+  :func:`~docrooter.rules.evidence_needed`).
   A tag is confident at ``rule_min_conf`` or more; a batched or text answer, which has no
   probability, counts when it is a valid tag. On thinner evidence the rules are set aside: the
   model chooses among every doc type, flagged ``rules_unmet`` and ``thin_evidence``. Otherwise:
@@ -22,17 +26,17 @@ Two flows (spec G3):
   - **by fallback** among every doc type when nothing is left to offer (flagged ``rules_unmet``).
 
   When every candidate hit an ``excludes`` rule, the waived candidates are offered (flagged
-  ``excludes_waived``). A document with no level-1 or level-2 section to tag runs the
-  ``doc_first`` document step at the same document level, flagged ``no_sections``.
-- **doc_first** classifies the type among every doc type from the document view, then labels
-  the sections with that type's section taxonomy (as :func:`~docrooter.normalize_sections`
-  does).
+  ``excludes_waived``). A document with no section to tag runs the ``doc_first`` document
+  step at the same document level, flagged ``no_sections``.
+- **doc_first** classifies the type among every doc type from the document view, then tags the
+  sections against the same catalogue. The two flows tag sections alike and differ only in how
+  the type is decided: read the document, then tag; or tag the sections, then decide.
 
 **Levels.** ``level`` (a rung of :mod:`docrooter.ladder`) sets both the section and the document
 view; ``section_level`` and ``doc_level`` override one each. Left out, it is the backend's measured
 default (:func:`default_level`): the cheapest rung within 2 points of ``full`` in the
-classification benchmark, ``headings`` for the OpenAI-compatible backend (measured on Claude
-Haiku 5.5) and the keyword backend, and ``lead`` for UltraBERT, else ``terms``. With
+classification benchmark, ``headings`` for Jev, the OpenAI-compatible backend (measured on
+Claude Haiku 5.5) and the keyword backend, and ``lead`` for UltraBERT, else ``terms``. With
 ``cascade=True``, every section tag or document decision whose confidence is below ``threshold``
 is asked again one rung up,
 until ``full``; only those items are asked again, every attempt's tokens count, and the last
@@ -69,7 +73,7 @@ listed with a one-line gloss), then one call per group that received sections ch
 group's leaves only. ``calls="batched_flat"`` lists every leaf in one call instead (kept for the
 benchmark comparison). The document stage is one call among the offered types. A batched answer has
 confidence 1.0 (``confidence_source="batched"``); an id that is not an option is asked again once,
-in one call for the failures only, then tagged ``general.other`` (or the group's ``other`` leaf)
+in one call for the failures only, then tagged ``none`` (or the group's ``other`` leaf)
 with confidence 0 and flagged ``unparsed``. ``calls="per_item"`` asks one item at a time, with
 probabilities; ``cascade`` needs it. A backend that cannot batch always asks per item, but its
 token estimate follows the ``calls`` pattern (two-step batched unless told otherwise), since that
@@ -85,7 +89,7 @@ batched calls, or when any supporting tag is a text answer, a lone candidate is 
 only when at least two tagged sections, in total, support its required groups. With fewer it
 takes the ``low_support`` path: every doc type is offered to the model. A per-item reply
 that names no option is never read as the first option: the section gets the ``other`` leaf
-below the last answered step (or ``general.other``) at confidence 0, the document no type, and
+below the last answered step (or ``none``) at confidence 0, the document no type, and
 the result is flagged ``unparsed``.
 
 **Results log.** ``log=path`` appends one :class:`~docrooter.results_log.ResultsLog` row per
@@ -147,8 +151,6 @@ from docrooter.classify.engine import backend_temperature, score_batch
 from docrooter.classify.normalize import (
     CUSTOM_TAXONOMY,
     DOC_TYPES,
-    _section_taxonomy_name,
-    section_classifier,
 )
 from docrooter.classify.results import DocTypeResult, PathResult
 from docrooter.classify.strategies import Flat, Greedy
@@ -192,28 +194,32 @@ Flag = Literal[
 ]
 Step = Literal["group", "leaf", "batch", "batch_group", "batch_leaf", "document"]
 Calls = Literal["batched", "batched_flat", "per_item"]
-ConfidenceSource = Literal["probability", "batched", "text"]
+ConfidenceSource = Literal["probability", "batched", "text", "inherited"]
 CALLS: tuple[str, ...] = ("batched", "batched_flat", "per_item")
 MEASURED_LEVELS: dict[str, Level] = {
+    "jev": "headings",
     "openai": "headings",
     "embedding:dmis-lab/UltraBERT-Embed-150M": "lead",
     "keyword": "headings",
 }
 """The default level per backend: the cheapest rung within 2 points of ``full`` in
 ``docs/benchmarks-classification.md`` (batched, both flows, document ladder), read with the
-PyMuPDF4LLM reader. ``openai`` covers every model of the OpenAI-compatible backend, measured on
+PyMuPDF4LLM reader. ``jev`` was measured per item on ``jev-1.13.0`` (doc_first, every heading
+tagged); ``openai`` covers every model of the OpenAI-compatible backend, measured on
 ``claude-haiku-5-5``."""
 FALLBACK_LEVEL: Level = "terms"
 """The default level of a backend the benchmark has not measured."""
 BATCHED_SUPPORT = 2
 """Tagged sections a lone candidate's required groups need, with batched calls, for the rules
 to decide it alone."""
-UNPARSED_LABEL = "general.other"
+NO_TAG = "none"
+"""The catalogue's top-level leaf for a heading with no domain meaning: never rule evidence."""
+UNPARSED_LABEL = NO_TAG
 """The tag of a section whose batched answer named no option twice."""
 CATALOGUE = "section_catalogue"
 """The built-in section catalogue that ``sections_first`` tags against."""
-SECTION_LEVELS = (1, 2)
-"""The heading levels whose sections are tagged."""
+MAX_SECTIONS = 400
+"""The most sections :func:`classify` tags by default."""
 SECTION_STAGE = "sections"
 DOCUMENT_STAGE = "document"
 _BODY_FIELDS = frozenset({"keyphrases", "lead", "text"})
@@ -227,7 +233,9 @@ class SectionTag(BaseModel):
     probability of a per-item answer (``"probability"``); 1.0 for a valid batched answer and 0
     for an unparsed one (``"batched"``); or, for a per-item answer read from the reply's letter
     because the endpoint returned no logprobs (``"text"``), ``None``, since a bare letter is no
-    probability, and 0 for a reply that named no option."""
+    probability, and 0 for a reply that named no option. A section past ``max_sections`` that
+    was not asked about takes its nearest tagged ancestor's domain tag and confidence
+    (``"inherited"``, no tokens); it is never evidence for the doc-type rules."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -341,7 +349,7 @@ def classify(
     doc_level: Level | None = None,
     backend: str | Backend = DEFAULT_BACKEND,
     log: str | os.PathLike[str] | None = None,
-    max_sections: int = 40,
+    max_sections: int = MAX_SECTIONS,
     rule_min_conf: float = 0.5,
     decide_conf: float = 0.7,
     cascade: bool = False,
@@ -358,14 +366,16 @@ def classify(
     ``source_or_doc`` is a :class:`Document` or anything :func:`~docrooter.load` reads.
     ``level`` defaults to the backend's measured :func:`default_level`; ``section_level`` and
     ``doc_level`` default to ``level``. At most ``max_sections`` sections
-    are tagged: level 1 first, then level 2, each in reading order. ``rule_min_conf`` is the
+    are tagged (:func:`select_sections`): level 1 first, then level 2 and so on, each in reading
+    order. ``rule_min_conf`` is the
     least confidence a tag needs to count for a rule, ``decide_conf`` the least every supporting
     tag needs for the rules to decide alone. The rules narrow or decide only when at least
-    ``max(min_evidence, ceil(min_evidence_share * tagged sections))`` sections were tagged with
-    confidence (a valid batched or text answer counts); with fewer, every type is offered
-    (flags ``rules_unmet`` and ``thin_evidence``). ``cascade`` and ``threshold`` control escalation
-    (per-item calls only). ``calls`` is ``"batched"`` (two-step sections), ``"batched_flat"``
-    or ``"per_item"``; ``None`` batches when the backend can (see the module docs).
+    ``max(min_evidence, ceil(min_evidence_share * domain-tagged sections))`` sections have a
+    domain tag (not ``none``) with confidence (a valid batched or text answer counts); with
+    fewer, every type is offered (flags ``rules_unmet`` and ``thin_evidence``). ``cascade`` and
+    ``threshold`` control escalation (per-item calls only). ``calls`` is ``"batched"``
+    (two-step sections), ``"batched_flat"`` or ``"per_item"``; ``None`` batches when the backend
+    can (see the module docs).
     ``max_call_tokens`` budgets every call's prompt, on estimated tokens: batched sections are
     packed into calls of at most 40 views and :func:`~docrooter.batch.call_budget` of it (85%,
     the rest covering the estimate's error), a view too large for any call is cut (flagged
@@ -441,7 +451,13 @@ def classify(
             max_call_tokens=max_call_tokens,
         )
         if flow == "doc_first":
-            result = run.doc_first(levels["section"], levels["document"], max_sections)
+            result = run.doc_first(
+                levels["section"],
+                levels["document"],
+                max_sections,
+                catalogue_taxonomy,
+                CATALOGUE if catalogue is None else CUSTOM_TAXONOMY,
+            )
         else:
             result = run.sections_first(
                 levels["section"],
@@ -463,12 +479,13 @@ def classify(
             close_backend(inner)
 
 
-def select_sections(doc: Document, max_sections: int = 40) -> list[Section]:
-    """The sections :func:`classify` tags: those at heading levels 1 and 2 with a title or text,
-    level 1 first, then level 2, each in reading order, at most ``max_sections``."""
-    usable = [s for s in doc.walk() if s.title.strip() or s.text.strip()]
-    ordered = [s for level in SECTION_LEVELS for s in usable if s.level == level]
-    return ordered[:max_sections]
+def select_sections(doc: Document, max_sections: int = MAX_SECTIONS) -> list[Section]:
+    """The sections :func:`classify` tags: every section with a title or text, at any heading
+    depth (not the document's untitled lead, level 0), level 1 first, then level 2 and so on,
+    each in reading order, at most ``max_sections``. A deep heading keeps its meaning through
+    the heading path its view carries ("Notes to the financial statements > 12 Leases")."""
+    usable = [s for s in doc.walk() if s.level >= 1 and (s.title.strip() or s.text.strip())]
+    return sorted(usable, key=lambda s: s.level)[:max_sections]  # stable: reading order kept
 
 
 # --- metering -----------------------------------------------------------------------------
@@ -764,20 +781,22 @@ class _Run:
         def tagger(view: SectionView) -> Classifier:
             return Classifier(catalogue, self.metered, strategy=Greedy(), view=view, threshold=0.0)
 
-        tags = self.tag(selected, section_level, tagger, catalogue, catalogue_name)
-        needed = evidence_needed(len(tags), min_evidence, min_evidence_share)
-        if sum(_confident(tag, rule_min_conf) for tag in tags) < needed:
+        asked = self.tag(selected, section_level, tagger, catalogue, catalogue_name)
+        domain = [tag for tag in asked if tag.label != NO_TAG]  # inherited tags are no evidence
+        tags = asked + _inherited(self.doc, asked)
+        needed = evidence_needed(len(domain), min_evidence, min_evidence_share)
+        if sum(_confident(tag, rule_min_conf) for tag in domain) < needed:
             # too few confident tags to narrow on: narrowing would exclude the true type
             decision = self.decide_document(self.doc_types, doc_level)
             flags: list[Flag] = ["rules_unmet", "thin_evidence"]
             return self.result(decision, "fallback", [], flags, catalogue_name, tags, section_level)
         evidence: dict[str, float] = {}
-        for tag in tags:
+        for tag in domain:
             if tag.label is not None:
                 evidence[tag.label] = max(evidence.get(tag.label, 0.0), tag.confidence)
         match = match_rules(rules, evidence, min_conf=rule_min_conf, decide_conf=decide_conf)
         flags = ["excludes_waived"] if match.excludes_waived else []
-        support = _supporting(rules[match.decided], tags, rule_min_conf) if match.decided else []
+        support = _supporting(rules[match.decided], asked, rule_min_conf) if match.decided else []
         # batched or letter answers carry no probability: count supporting sections instead
         hard = self.batched or any(t.source == "text" for t in support)
         weak = match.decided is not None and hard and len(support) < BATCHED_SUPPORT
@@ -822,21 +841,22 @@ class _Run:
         )
 
     def doc_first(
-        self, section_level: Level, doc_level: Level, max_sections: int
+        self,
+        section_level: Level,
+        doc_level: Level,
+        max_sections: int,
+        catalogue: Taxonomy,
+        catalogue_name: str,
     ) -> Classification:
         decision = self.decide_document(self.doc_types, doc_level)
-        best = decision.result.best
-        doc_type = best.node_ids[-1] if best.node_ids else None
-        name = _section_taxonomy_name(doc_type, self.doc_types)
-        section_taxonomy = builtin_taxonomy(name)
 
         def tagger(view: SectionView) -> Classifier:
-            return section_classifier(
-                section_taxonomy, self.metered, doc_type, view, self.doc_types
-            )
+            return Classifier(catalogue, self.metered, strategy=Greedy(), view=view, threshold=0.0)
 
         selected = select_sections(self.doc, max_sections)
-        tags = self.tag(selected, section_level, tagger, section_taxonomy, name)
+        tags = self.tag(selected, section_level, tagger, catalogue, catalogue_name)
+        tags = tags + _inherited(self.doc, tags)
+        name = catalogue_name
         decided_by: DecidedBy = "model" if decision.calls else "fallback"  # nothing was sent
         return self.result(decision, decided_by, [], [], name, tags, section_level)
 
@@ -1515,9 +1535,31 @@ def _supporting(rule: DocTypeRules, tags: Sequence[_Tag], min_conf: float) -> li
     ]
 
 
+def _inherited(doc: Document, tags: Sequence[_Tag]) -> list[_Tag]:
+    """Tags for the sections past ``max_sections``, in reading order: each takes the domain tag
+    of its nearest tagged ancestor ("12 Leases" under a tagged "Notes to the financial
+    statements"), at that ancestor's confidence, with no tokens. A section whose nearest tagged
+    ancestor is ``none``, untagged, or missing stays untagged."""
+    tagged = {t.section.id: t for t in tags}
+    out: list[_Tag] = []
+    for section in doc.walk():
+        if section.id in tagged or section.level < 1:
+            continue
+        if not (section.title.strip() or section.text.strip()):
+            continue
+        parent = section.parent_id
+        while parent is not None and parent not in tagged:
+            parent = doc.sections[parent].parent_id
+        source = tagged.get(parent) if parent is not None else None
+        if source is None or source.label in (None, NO_TAG) or source.unparsed:
+            continue
+        out.append(_Tag(section, source.label, source.confidence, source.level, source="inherited"))
+    return out
+
+
 def _unparsed_label(taxonomy: Taxonomy, parent: str | None) -> str | None:
     """The tag of a section whose answer named no option below ``parent`` (``None`` at the
-    top): the parent's ``other`` leaf, else ``general.other``, else nothing."""
+    top): the parent's ``other`` leaf, else ``none``, else nothing."""
     if parent is not None and f"{parent}.other" in taxonomy:
         return f"{parent}.other"
     return UNPARSED_LABEL if UNPARSED_LABEL in taxonomy else None

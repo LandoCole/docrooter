@@ -11,8 +11,9 @@ offered, sends only the context level you choose, and counts every token.
 
 ## What it does
 
-- **Sections first.** The level-1 and level-2 sections are tagged against one shared
-  [section catalogue](concepts/taxonomies.md) (112 section types in 12 groups). Each of the 19
+- **Sections first.** Every heading, at any depth, is tagged against one shared
+  [section catalogue](concepts/taxonomies.md) (108 section types in 12 groups, plus
+  `none` for a heading with nothing to normalise). Each of the 19
   document types is defined by the sections it needs, so the tags decide the type with no
   document-level call, or narrow the choice to a few types: a document with a balance sheet and
   a shareholder letter is offered the financial types that need them, not all 19. See

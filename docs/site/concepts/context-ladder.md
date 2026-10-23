@@ -92,10 +92,10 @@ for level in LEVELS:
 ```
 
 ```text
-headings  sections  84 tokens, document  36 tokens
-terms     sections 134 tokens, document  62 tokens
-lead      sections 211 tokens, document 133 tokens
-full      sections 220 tokens, document 133 tokens
+headings  sections  64 tokens, document  36 tokens
+terms     sections 113 tokens, document  62 tokens
+lead      sections 189 tokens, document 133 tokens
+full      sections 198 tokens, document 133 tokens
 ```
 
 On a document this small `lead` already shows nearly everything; on a real report the gap

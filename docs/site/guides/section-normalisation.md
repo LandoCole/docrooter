@@ -19,7 +19,7 @@ section_types/contract legal.contract
 s1 'Master Services Agreement' -> term (0.10)
 s2 '1. Definitions' -> definitions (0.18)
 s3 '2. Term' -> term (0.12)
-s4 '3. Fees and payment' -> payment (0.22)
+s4 '3. Fees and payment' -> payment (0.23)
 s5 '4. Termination' -> termination (0.10)
 ```
 

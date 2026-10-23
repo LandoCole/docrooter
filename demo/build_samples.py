@@ -1,16 +1,25 @@
-"""Build the demo's sample runs and benchmark summary from the committed benchmark results.
+"""Build the demo's samples and benchmark summary.
 
-No model is called: every sample run is the Claude Haiku 5.5 benchmark result for that document
-(``benchmarks/results/2026-10-21/classification/haiku-5.5__gold__*.json``), joined to the
-document's own section titles and the view text each rung of the ladder sends. Only documents
-whose licence allows redistribution are used (GAO reports, CC-BY-4.0 arXiv papers and CUAD
-contracts, US federal court opinions, RFCs). The PDFs must be in the benchmark cache.
+Each sample is classified live with Jev (``TYPESAFE_API_KEY``), read then tag (``doc_first``)
+at all four rungs,
+through the same code as the live upload (``demo/api/docrooter_demo.py``: :func:`describe` and
+:func:`run`), so a sample shows exactly what the model saw and answered. Two kinds of sample:
+
+- four synthetic financial documents from github.com/LandoCole/document-classifier (MIT;
+  invented companies), copied into ``demo/samples/`` with gold tags in ``samples/gold.json``;
+- four public documents from the benchmark whose licence allows redistribution (a GAO report,
+  a CC BY 4.0 arXiv paper and CUAD contract, a U.S. federal court opinion), read from the
+  benchmark's reading cache, with the benchmark's doc-type gold and section gold (v2).
+
+The benchmark summary comes from the committed results (Jev, plus Claude Haiku 5.5 and
+UltraBERT for comparison). About 70 Jev runs, a few cents.
 
 Run from the repository root:  PYTHONPATH=src python demo/build_samples.py
 """
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -18,38 +27,47 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from benchmarks.classification.section_sample import read_document  # noqa: E402
-from benchmarks.classification_bench import PDF_DIR  # noqa: E402
-from docrooter.flow import select_sections  # noqa: E402
-from docrooter.ladder import LEVELS, document_view  # noqa: E402
+from benchmarks.classification.section_gold import read_jsonl  # noqa: E402
+from benchmarks.classification.section_sample import title_sha1  # noqa: E402
+from benchmarks.classification_bench import (  # noqa: E402
+    PDF_DIR,
+    READINGS,
+    SECTION_GOLD_PATH,
+    _loader,
+    load_doc_type_gold,
+)
+from docrooter import load  # noqa: E402
 from docrooter.taxonomies import builtin_taxonomy  # noqa: E402
 
-RESULTS = ROOT / "benchmarks" / "results" / "2026-10-21" / "classification"
-MANIFEST = ROOT / "benchmarks" / "training_corpus" / "manifest.jsonl"
-OUT = ROOT / "demo" / "data"
-LABEL = "haiku-5.5"
-FLOWS = ("doc_first", "sections_first")
-PRICE = {"prompt": 0.10e-6, "completion": 0.50e-6}  # Claude Haiku 5.5, US$ per token (list)
-FULL_PREVIEW_CHARS = 2400
-SECTIONS_SHOWN = 24
+_api = ROOT / "demo" / "api" / "docrooter_demo.py"
+_spec = importlib.util.spec_from_file_location("docrooter_demo", _api)
+assert _spec is not None and _spec.loader is not None
+demo = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(demo)
 
-SAMPLES = [
+RESULTS = ROOT / "benchmarks" / "results"
+JEV = RESULTS / "2026-10-22" / "classification"
+HAIKU = RESULTS / "2026-10-21" / "classification"
+MANIFEST = ROOT / "benchmarks" / "training_corpus" / "manifest.jsonl"
+SAMPLES = ROOT / "demo" / "samples"
+OUT = ROOT / "demo" / "data"
+
+SYNTHETIC = ["annual_report_10k-1", "earnings_release-1", "fund_prospectus-1", "proxy_statement-1"]
+PUBLIC = [
     "gao-gao-07-707",
-    "cuad-arcgroupinc_20171211_8-k_ex-10_1_10976103_ex-10_1_sponsorship_agreement",
-    "arxiv-2501_07309",
-    "rfc-8962",
-    "uscourts-ca9-25-5220-0",
-    "cuad-vapotherm_inc_-_manufacturing_and_supply_agreement",
-    "gao-gao-06-946",
     "arxiv-2404_01334",
+    "cuad-vapotherm_inc_-_manufacturing_and_supply_agreement",
+    "uscourts-ca9-25-5220-0",
 ]
+SYNTHETIC_NOTE = (
+    "Synthetic: an invented company, written for the document classifier "
+    "(github.com/LandoCole/document-classifier, MIT). Section gold labelled by Claude for the demo."
+)
 ATTRIBUTION = {
     "gao": "U.S. Government Accountability Office; GAO products are not protected by copyright.",
     "cuad": "From CUAD (Contract Understanding Atticus Dataset), The Atticus Project, CC BY 4.0.",
     "arxiv": "arXiv preprint, CC BY 4.0; the authors hold the copyright.",
     "uscourts": "U.S. federal court opinion, a work of the U.S. government.",
-    "rfc": "IETF RFC, copyright IETF Trust and the authors; reproduced unmodified under the IETF "
-    "Trust Legal Provisions.",
 }
 
 
@@ -58,116 +76,151 @@ def manifest() -> dict[str, dict]:
     return {r["id"]: r for r in rows}
 
 
-def results() -> dict[tuple[str, str], dict[str, dict]]:
-    """(flow, level) -> document id -> the benchmark record."""
-    out = {}
-    for flow in FLOWS:
-        for level in LEVELS:
-            path = RESULTS / f"{LABEL}__gold__batched__{flow}__{level}__{level}.json"
-            data = json.loads(path.read_text())
-            out[(flow, level)] = {r["id"]: r for r in data["documents"]}
-    return out
-
-
-def cost(tokens: dict) -> float:
-    return tokens["prompt"] * PRICE["prompt"] + tokens["completion"] * PRICE["completion"]
-
-
-def view_text(doc, level: str) -> dict:
-    rendered = document_view(level).render(doc)
-    text = rendered.text
-    shown = text if len(text) <= FULL_PREVIEW_CHARS else text[:FULL_PREVIEW_CHARS].rstrip() + " …"
-    return {"text": shown, "chars": len(text), "truncated": rendered.truncated}
-
-
-def build_sample(doc_id: str, meta: dict, runs: dict) -> dict:
-    doc = read_document(PDF_DIR / f"{doc_id}.pdf")
-    sections = select_sections(doc)
-    titles = {s.id: s.title for s in sections}
-    family = doc_id.split("-", 1)[0]
-    sample = {
-        "id": doc_id,
-        "title": meta.get("title") or doc.title or doc_id,
-        "publisher": meta.get("publisher"),
-        "pages": meta.get("pages"),
-        "url": meta.get("url"),
-        "attribution": ATTRIBUTION[family],
-        "gold": None,
-        "views": {level: view_text(doc, level) for level in LEVELS},
-        "sections": [
-            {"id": s.id, "title": s.title, "level": s.level} for s in sections[:SECTIONS_SHOWN]
-        ],
-        "sections_total": len(sections),
-        "runs": {},
+def section_gold(doc, doc_id: str, rows: dict[str, list[dict]]) -> dict[str, str]:
+    """The benchmark's section gold for this reading of ``doc_id``: section id -> tag."""
+    return {
+        r["section_id"]: r["label"]
+        for r in rows.get(doc_id, [])
+        if r["section_id"] in doc.sections
+        and title_sha1(doc.sections[r["section_id"]].title) == r["title_sha1"]
     }
-    for (flow, level), by_doc in runs.items():
-        r = by_doc[doc_id]
-        sample["gold"] = r["gold"]
-        tags = {  # keyed by this reading's section id (a title match keeps it in matched_id)
-            t.get("matched_id") or t["section_id"]: {"pred": t.get("pred"), "gold": t.get("gold")}
-            for t in r.get("sections", [])
-            if t.get("status") == "ok"
-        }
-        sample["runs"][f"{flow}/{level}"] = {
-            "pred": r["pred"],
-            "correct": r["correct"],
-            "decided_by": r["decided_by"],
-            "flags": r["flags"],
-            "candidates": r.get("candidates") if isinstance(r.get("candidates"), list) else [],
-            "tokens": r["tokens"],
-            "cost_usd": round(cost(r["tokens"]), 6),
-            "tags": {sid: tags[sid] for sid in titles if sid in tags},
-        }
+
+
+def build(doc, meta: dict, gold: str, gold_tags: dict[str, str], backend) -> dict:
+    sample = {**demo.describe(doc, gold_tags), **meta, "gold": gold, "runs": {}}
+    for flow in ("doc_first",):  # read, then tag: the only approach the demo shows
+        for level in demo.LEVELS:
+            sample["runs"][f"{flow}/{level}"] = demo.run(doc, flow, level, backend, gold, gold_tags)
     return sample
 
 
+PRICES = {  # US$ per (input, output) token, list prices
+    "jev": (0.042e-6, 0.0),  # output is free
+    "haiku-5.5": (0.10e-6, 0.50e-6),
+}
+
+
+def _mean(values: list[float]) -> float | None:
+    return sum(values) / len(values) if values else None
+
+
 def bench_summary() -> dict:
-    """Main-grid and held-out rows for the demo's benchmark table."""
+    """The benchmark rows the demo's tables and chart show: read, then tag (doc_first) only,
+    with the cost per document at list prices, split into the type question and the section
+    tags (UltraBERT runs locally, so it has no cost), and the prompt tokens as a share of the
+    same backend's full-text run."""
     rows = []
-    for path in sorted(RESULTS.glob("*.json")):
-        data = json.loads(path.read_text())
-        c, m = data["config"], data["metrics"]
-        if c["section_level"] != c["doc_level"] or c.get("calls", "per_item") != "batched":
-            continue
-        if data["backend"]["label"] not in (LABEL, "ultrabert"):
-            continue
-        rows.append(
-            {
-                "backend": data["backend"]["label"],
-                "docs": data["docs"],
-                "flow": c["flow"],
-                "level": c["doc_level"],
-                "doc_acc": m["doc_type"]["accuracy"],
-                "leaf_f1": (m.get("sections") or {}).get("leaf", {}).get("macro_f1"),
-                "prompt_tokens": m["prompt_tokens_mean"],
-                "exact": m["tokens_exact"],
-                "documents": m["documents"],
-            }
+    for directory, wanted in ((JEV, {"jev"}), (HAIKU, {"haiku-5.5", "ultrabert"})):
+        for path in sorted(directory.glob("*.json")):
+            data = json.loads(path.read_text())
+            c, m = data["config"], data["metrics"]
+            label = data["backend"]["label"]
+            if c["section_level"] != c["doc_level"] or label not in wanted:
+                continue
+            if c["flow"] != "doc_first":  # read, then tag only
+                continue
+            if (data.get("settings") or {}).get("limit"):  # a smoke run
+                continue
+            docs = [d for d in data["documents"] if not d.get("error")]
+            price = PRICES.get(label)
+
+            def cost(tokens: dict, price: tuple[float, float] | None = price) -> float | None:
+                if price is None:
+                    return None
+                return tokens["prompt"] * price[0] + tokens["completion"] * price[1]
+
+            stage = lambda d, k: d.get("stage_tokens", {}).get(k)  # noqa: E731
+            sec = m.get("sections") or {}
+            rows.append(
+                {
+                    "backend": label,
+                    "docs": data["docs"],
+                    "flow": c["flow"],
+                    "level": c["doc_level"],
+                    "calls": c.get("calls", "per_item"),
+                    "doc_acc": m["doc_type"]["accuracy"],
+                    "leaf": sec.get("leaf") if directory == JEV else None,
+                    "prompt_tokens": m["prompt_tokens_mean"],
+                    "exact": m["tokens_exact"],
+                    "documents": m["documents"],
+                    "sections_tagged": _mean([d.get("sections_tagged", 0) for d in docs]),
+                    "cost_doc": _mean([x for d in docs if (x := cost(d["tokens"])) is not None]),
+                    "cost_type": _mean(
+                        [
+                            x
+                            for d in docs
+                            if stage(d, "document")
+                            and (x := cost(stage(d, "document"))) is not None
+                        ]
+                    ),
+                }
+            )
+    for row in rows:  # tokens against the same backend's full-text run on the same documents
+        full = next(
+            (
+                r
+                for r in rows
+                if r["level"] == "full"
+                and r["backend"] == row["backend"]
+                and r["docs"] == row["docs"]
+            ),
+            None,
         )
-    return {"rows": rows, "price": PRICE, "model": "claude-haiku-5-5"}
+        row["share_of_full"] = row["prompt_tokens"] / full["prompt_tokens"] if full else None
+    return {"rows": rows, "prices": PRICES, "model": demo.MODEL}
 
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    meta, runs = manifest(), results()
-    doc_types, catalogue = builtin_taxonomy("doc_types"), builtin_taxonomy("section_catalogue")
-    index = []
-    for doc_id in SAMPLES:
-        sample = build_sample(doc_id, meta[doc_id], runs)
-        (OUT / f"{doc_id}.json").write_text(json.dumps(sample, ensure_ascii=False, indent=1))
-        keep = ("id", "title", "gold", "pages")
-        index.append({k: sample[k] for k in keep})
-        print(f"{doc_id}: {sample['sections_total']} sections")
-    labels = {}
-    for taxonomy in (doc_types, catalogue):
-        stack = list(taxonomy.children())
-        while stack:
-            node = stack.pop()
-            labels[node.id] = node.label
-            stack += taxonomy.children(node.id)
-    (OUT / "index.json").write_text(json.dumps({"samples": index, "labels": labels}, indent=1))
+    backend = demo.jev_backend()
+    meta, doc_gold = manifest(), load_doc_type_gold()
+    gold_rows: dict[str, list[dict]] = {}
+    for row in read_jsonl(SECTION_GOLD_PATH):
+        gold_rows.setdefault(row["doc_id"], []).append(row)
+    synthetic = json.loads((SAMPLES / "gold.json").read_text())["documents"]
+    index, used = [], set()
+    for name in SYNTHETIC:
+        info = synthetic[name]
+        doc = load(SAMPLES / f"{name}.md")
+        by_title = info["tags"]
+        gold_tags = {s.id: by_title[s.title] for s in doc.walk() if s.title in by_title}
+        extra = {"title": info["title"], "publisher": "Synthetic", "url": None,
+                 "attribution": SYNTHETIC_NOTE, "synthetic": True}  # fmt: skip
+        sample = build(doc, extra, info["doc_type"], gold_tags, backend)
+        index.append((name, sample))
+    for doc_id in PUBLIC:
+        doc = _loader(PDF_DIR / f"{doc_id}.pdf", readings=READINGS)()
+        m = meta[doc_id]
+        extra = {
+            "title": m.get("title") or doc.title or doc_id,
+            "publisher": m.get("publisher"),
+            "url": m.get("url"),
+            "attribution": ATTRIBUTION[doc_id.split("-", 1)[0]],
+            "synthetic": False,
+        }
+        sample = build(doc, extra, doc_gold[doc_id], section_gold(doc, doc_id, gold_rows), backend)
+        index.append((doc_id, sample))
+    entries = []
+    for sample_id, sample in index:
+        (OUT / f"{sample_id}.json").write_text(json.dumps(sample, ensure_ascii=False))
+        keep = ("title", "gold", "pages", "synthetic")
+        entries.append({"id": sample_id} | {k: sample[k] for k in keep})
+        used.add(sample["gold"])
+        for r in sample["runs"].values():
+            used.update([r["pred"], *(k for k, _ in r["probs"])])
+            used.update(t[0] for t in r["tags"].values())
+        used.update(s.get("gold") for s in sample["sections"])
+        tokens = sum(r["tokens"]["prompt"] for r in sample["runs"].values())
+        print(f"{sample_id}: {sample['sections_total']} sections, {tokens:,} prompt tokens")
+    labels = demo.labels_for(sorted(i for i in used if i))
+    for node in builtin_taxonomy("doc_types").leaves():  # every type: an upload's probabilities
+        labels[node.id] = node.label
+    (OUT / "index.json").write_text(json.dumps({"samples": entries, "labels": labels}, indent=1))
     (OUT / "bench.json").write_text(json.dumps(bench_summary(), indent=1))
-    print(f"wrote {len(index)} samples, index.json and bench.json to {OUT}")
+    for stale in OUT.glob("*.json"):  # samples no longer listed
+        if stale.stem not in {"index", "bench"} | {e["id"] for e in entries}:
+            stale.unlink()
+    print(f"wrote {len(entries)} samples, index.json and bench.json to {OUT}")
 
 
 if __name__ == "__main__":

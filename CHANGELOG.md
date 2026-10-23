@@ -17,6 +17,13 @@ tagged or published, and their entries are kept as history. The package version 
   JSON object in `DOCROOTER_LLM_EXTRA_BODY`, adds provider fields to every request without
   replacing the request's own, e.g. `{"thinking": {"type": "disabled"}}` for a Claude model that
   would otherwise spend its small batched reply budget thinking.
+- **Jev reports exact tokens.** `JevBackend.usage()` sums the input and output tokens every
+  request reported, so a `classify` run on Jev has exact token counts.
+- **Jev rows in the classification benchmark**, on the full main grid and the held-out set,
+  per item with probabilities; Jev is the demo's model.
+- **A `government` group in the section catalogue** for audit and oversight reports: highlights,
+  objectives scope and methodology, findings, recommendations, agency comments. Also
+  `research.references` and `financial.comprehensive_income`.
 - **Hosted-LLM rows in the classification benchmark.** Claude Haiku 5.5 through Anthropic's
   OpenAI-compatible endpoint, on the full main grid (exact tokens) and once on the held-out set.
   The report gains a generated "Sections first against doc first" section.
@@ -36,6 +43,30 @@ tagged or published, and their entries are kept as history. The package version 
 
 ### Changed
 
+- **Section tags normalise a heading's meaning (catalogue v2).** The generic `general` group
+  (summary, introduction, background, body, findings, conclusion, references, appendix, ...)
+  is gone: a heading with nothing to normalise is tagged `none`, a top-level leaf, and `none`
+  is never evidence for the doc-type rules (their evidence share counts domain tags only). An
+  unanswered item falls back to `none`, not `general.other`. The government-report rule needs
+  a `government` tag; the white paper has no rule (the model decides it). Pass your own
+  catalogue to tag structure too.
+- **`classify` tags every heading at any depth**, level 1 first, then level 2 and so on, up to
+  `max_sections=400` (was 40 sections at levels 1 and 2). The PyMuPDF4LLM reader often nests a
+  balance sheet or the notes at level 3 to 6, where they were never tagged.
+- **Headings past the cap inherit.** A section past `max_sections` takes its nearest tagged
+  ancestor's domain tag and confidence (`confidence_source="inherited"`, no tokens): the notes
+  under a tagged "Notes to the financial statements" are notes. Inherited tags are never
+  evidence for the doc-type rules.
+- **`doc_first` tags against the section catalogue**, as `sections_first` does: the two flows
+  tag sections alike and differ only in how the type is decided.
+- **A section view's path holds the section's ancestors** when the view also has a title line
+  (it repeated the title), and when the budget is tight the outermost ancestors go first,
+  marked `…`, so a deep heading's title always fits. At the `headings` rung (32 tokens) a deep
+  heading's title was cut.
+- **Section gold v2 and abstaining scores.** The benchmark's section gold is 2,194 headings at
+  every depth of the PyMuPDF4LLM reading, labelled against catalogue v2 (Claude annotators,
+  439 double-annotated, leaf κ 0.914). Section precision, recall and F1 treat `none` as an
+  abstention.
 - **The default `level` is measured per backend.** `classify(level=None)` (now the default), the
   CLI and the UI use `docrooter.flow.default_level`: the cheapest rung within 2 points of `full`
   in the benchmark. That is `headings` for the OpenAI-compatible backend (measured on Claude Haiku

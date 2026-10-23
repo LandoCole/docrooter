@@ -91,7 +91,7 @@ FLOWS: tuple[str, ...] = ("doc_first", "sections_first")
 CALLS: tuple[str, ...] = ("per_item", "batched", "batched_flat")
 """How ``classify`` asks the backend (V4b): one item per call, or a stage per call with each
 option listed once (two-step groups then leaves, or flat)."""
-MAX_SECTIONS = 40  # spec §6.2: classify tags at most 40 level-1/2 sections per document
+MAX_SECTIONS = 400  # docrooter.flow.MAX_SECTIONS: classify tags up to 400, every depth
 DOCS_SPLITS: tuple[str, ...] = ("gold", "heldout")
 FULL_CAP = 16000  # spec §6.1: the measured prompt size of a ``full`` document call
 CALL_VIEWS = 40  # docrooter.batch.MAX_BATCH: the most section views one batched call carries
@@ -338,20 +338,55 @@ def score_sections(
     return records
 
 
+NO_TAG = "none"
+"""The catalogue's tag for a heading with no domain meaning: an abstention when scoring."""
+
+
+def domain_scores(pairs: Sequence[tuple[str, str | None]]) -> dict[str, Any]:
+    """Precision, recall, micro-F1 and macro-F1 of ``(gold, prediction)`` pairs over the domain
+    tags, with ``none`` (or no prediction) an abstention: a domain tag on a gold ``none``
+    section costs precision, ``none`` on a gold domain section costs recall, and ``none``
+    on ``none`` is neither. Macro-F1 averages the domain classes in the gold."""
+    gold_domain = sum(1 for g, _ in pairs if g != NO_TAG)
+    given = sum(1 for _, p in pairs if p not in (None, NO_TAG))
+    correct = sum(1 for g, p in pairs if g == p and g != NO_TAG)
+    precision = correct / given if given else None
+    recall = correct / gold_domain if gold_domain else None
+    per_class = {c: v for c, v in _class_f1(pairs).items() if c != NO_TAG}
+    return {
+        "n": gold_domain,
+        "precision": precision,
+        "recall": recall,
+        "micro_f1": 2 * correct / (given + gold_domain) if given + gold_domain else None,
+        "macro_f1": sum(v["f1"] for v in per_class.values()) / len(per_class)
+        if per_class
+        else None,
+    }
+
+
 def section_metrics(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Section macro- and micro-F1 at leaf and at group over the ``ok`` records, with the count
-    excluded (reading mismatches), missing (no tag) and unmapped."""
+    """Section scores over the ``ok`` records, at leaf and at group (:func:`domain_scores`:
+    ``none`` abstains), how often a gold ``none`` section was left untagged (``none``), and the
+    count excluded (reading mismatches), missing (no tag) and unmapped."""
     scored = [r for r in records if r["status"] == "ok"]
     leaf = [(r["gold"], r["pred"]) for r in scored]
     group = [(group_of(g), group_of(p) if p is not None else None) for g, p in leaf]
-    leaf_scores, group_scores = f1_scores(leaf), f1_scores(group)
+    gold_none = [p for g, p in leaf if g == NO_TAG]
+    keys = ("precision", "recall", "micro_f1", "macro_f1")
+    leaf_scores, group_scores = domain_scores(leaf), domain_scores(group)
     return {
         "n": len(scored),
         "excluded": len(records) - len(scored),
         "missing": sum(1 for r in scored if r["pred"] is None and not r.get("unmapped")),
         "unmapped": sum(1 for r in scored if r.get("unmapped")),
-        "leaf": {k: leaf_scores[k] for k in ("macro_f1", "micro_f1")},
-        "group": {k: group_scores[k] for k in ("macro_f1", "micro_f1")},
+        "leaf": {k: leaf_scores[k] for k in keys},
+        "group": {k: group_scores[k] for k in keys},
+        "none": {
+            "n": len(gold_none),
+            "agreement": sum(p in (None, NO_TAG) for p in gold_none) / len(gold_none)
+            if gold_none
+            else None,
+        },
     }
 
 
@@ -1014,26 +1049,6 @@ def _llm_disclosure(results: Sequence[Mapping[str, Any]]) -> list[str]:
     return lines
 
 
-def _highlights_conflict(doc_gold: Mapping[str, str]) -> str:
-    """The gold sections of non-financial reports labelled ``financial.financial_highlights``
-    under the catalogue's earlier wording, which the sharpened definition now sends to
-    ``general.summary`` (ids only)."""
-    refs = [
-        f"`{doc_id}#{row['section_id']}`"
-        for doc_id, rows in load_section_gold().items()
-        if doc_gold.get(doc_id) == "government.government_report"
-        for row in rows
-        if row["label"] == "financial.financial_highlights"
-    ]
-    if not refs:
-        return ""
-    return (
-        f" {len(refs)} government-report gold sections ({', '.join(refs)}) were labelled "
-        "`financial.financial_highlights` under the earlier wording and now disagree with the "
-        "definition; a model that follows it is scored wrong on them."
-    )
-
-
 def _heldout_types(results: Sequence[Mapping[str, Any]]) -> str:
     """How many doc types the held-out rows cover, when there are any."""
     heldout = [r for r in results if r.get("docs") == "heldout"]
@@ -1072,7 +1087,7 @@ def _code_versions(results: Sequence[Mapping[str, Any]]) -> list[str]:
 
 
 def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
-    from docrooter.taxonomies import DOC_TYPE_TO_SECTION_TAXONOMY, builtin_taxonomy
+    from docrooter.taxonomies import builtin_taxonomy
 
     agreement = json.loads(AGREEMENT_PATH.read_text(encoding="utf-8"))
     summary = json.loads(SAMPLE_SUMMARY_PATH.read_text(encoding="utf-8"))
@@ -1081,34 +1096,49 @@ def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
     types = sorted(set(doc_gold.values()))
     all_types = [n.id for n in builtin_taxonomy("doc_types").leaves()]
     without = summary["documents_without_sections"]
-    reachable = len(set(catalogue_sources().values()))
-    generic = "section_types/generic"
-    generic_docs = sum(
-        1 for t in doc_gold.values() if DOC_TYPE_TO_SECTION_TAXONOMY.get(t, generic) == generic
-    )
-    generic_leaves = len(list(builtin_taxonomy(generic).leaves()))
-    return [
+    gold_rows = [row for rows in load_section_gold().values() for row in rows]
+    none_share = sum(row["label"] == NO_TAG for row in gold_rows) / max(len(gold_rows), 1)
+    # the rules and sections_first notes only when a sections_first run is reported
+    rules = any(_key(r)[3] == "sections_first" for r in results) or not results
+    gold_note = [
         f"- **Section gold is Claude-annotated, for evaluation only.** "
-        f"{agreement['sections']} level-1 and level-2 sections of the "
-        f"{len(gold_data['documents'])} documents, labelled blind against the section catalogue; "
+        f"{agreement['sections']} sections of the {len(gold_data['documents'])} documents, at "
+        f"every heading depth (up to {summary['max_per_doc']} per document, a third reserved "
+        f"for level 1), labelled blind against the section catalogue (v2); "
+        f"{none_share:.0%} are `none`, a heading with no domain meaning; "
         f"{agreement['double_annotated']} were double-annotated: Cohen's κ "
         f"{agreement['leaf']['kappa']:.3f} at leaf and {agreement['group']['kappa']:.3f} at group, "
         f"{agreement['adjudicated']} disagreements adjudicated. The annotators were all Claude "
         f"(the same underlying model), so κ measures consistency, not correctness.",
+    ]
+    rule_notes = [
         "- **Doc-type rules were revised once after a reviewer checked them against the section "
         "gold. Gold-split doc-type numbers are therefore development numbers; the held-out run "
         "is the clean measure.** The revision was made from the doc-type definitions (an "
         "ordinary contract clause no longer makes a terms policy, and a contract no longer needs "
-        "a titled parties or signatures section), not tuned to the gold labels; two catalogue "
-        "definitions were sharpened with it (`contract.acceptable_use` now covers the user "
-        "terms of published terms, and `financial.financial_highlights` sends a non-financial "
-        "report's highlights to `general.summary`), after the section gold was labelled."
-        f"{_highlights_conflict(doc_gold)}",
+        "a titled parties or signatures section), not tuned to the gold labels. With catalogue "
+        "v2 (2026-10-22) the generic `general` tags became `none`, a `government` group was "
+        "added, and the government-report rule now needs a `government` tag; the section gold "
+        "was labelled afresh against v2.",
         "- **Rules N1/N2 were changed after viewing gold-split results; gold doc-type numbers "
         "are development numbers; the held-out set is the clean measure.** N1: the rules narrow "
         "or decide only when at least max(2, 20% of the tagged sections) sections were tagged "
         "with confidence, otherwise every type is offered (`thin_evidence`). N2: a weakly "
         "supported lone type (`low_support`) is offered with every type, not with its siblings.",
+    ]
+    notes = [
+        *gold_note,
+        *(
+            rule_notes
+            if rules
+            else [
+                "- **Gold-split doc-type numbers are development numbers; the held-out run is "
+                "the clean measure.** The type definitions and the section catalogue were "
+                "refined after looking at gold results; catalogue v2 (2026-10-22) replaced the "
+                "generic `general` tags with `none` and added a `government` group, and the "
+                "section gold was labelled afresh against it."
+            ]
+        ),
         f"- **Doc-type gold comes from the source**: the manifest's source-assigned type "
         f"(`benchmarks/classification/doc_type_gold.json`), with "
         f"{len(gold_data['corrections'])} correction(s).",
@@ -1136,24 +1166,37 @@ def _disclosures(results: Sequence[Mapping[str, Any]] = ()) -> list[str]:
         f"exact call over {FULL_CAP:,} tokens, the largest exact call (estimated runs have none), "
         f"the share whose deciding document view was cut, and the share with any view (section "
         f"or document) cut.",
-        f"- **At most {MAX_SECTIONS} sections** (level 1 first, then level 2, in reading order) "
-        f"are tagged per document. A gold section past the cap is untagged and counts as a miss: "
-        f"the Sections column gives scored / excluded (reading mismatch) / untagged.",
-        f"- **{len(without)} documents have no level-1/2 sections** in the reading (profile "
-        f"`fast`), so they hold no section gold; `sections_first` falls back to `doc_first` "
-        f"for them (flag `no_sections`).",
-        f"- **doc_first section labels** come from the predicted doc type's own section taxonomy "
-        f"and are scored through the catalogue's `from` mapping, which reaches only "
-        f"{reachable} of the {len(catalogue_leaves())} catalogue leaves (from "
-        f"{len(catalogue_sources())} per-type leaves). The {generic_docs} gold documents whose "
-        f"type maps to `{generic}` ({generic_leaves} leaves) are capped hardest, so doc_first's "
-        f"section F1 is structurally below sections_first's. A label with no catalogue leaf "
-        f"counts as no prediction (it costs recall, not precision).",
+        f"- **Every heading is tagged**, at any depth, up to {MAX_SECTIONS} per document (level "
+        f"1 first, then level 2 and so on, in reading order). A section past the cap takes its "
+        f"nearest tagged ancestor's tag, with no call (since 2026-10-22); one with no tagged "
+        f"domain ancestor is untagged and counts as a miss: the Sections column gives scored / "
+        f"excluded (reading mismatch) / untagged.",
+        "- **Section scores treat `none` as an abstention.** Precision is the share of domain "
+        "tags given that were right (a domain tag on a gold `none` section is wrong); recall is "
+        "the share of gold domain sections tagged right; macro-F1 averages the domain leaves "
+        "in the gold. How often a gold `none` section was left `none` is reported apart.",
+        f"- **{len(without)} document(s) have no titled sections** in the reading (profile "
+        f"`fast`), so they hold no section gold"
+        + (
+            "; `sections_first` falls back to `doc_first` for them (flag `no_sections`)."
+            if rules
+            else "."
+        ),
+        *(
+            [
+                "- **Both flows tag sections against the same catalogue**: they differ only in "
+                "how the type is decided (read the document, then tag; or tag the sections, "
+                "then decide)."
+            ]
+            if rules
+            else []
+        ),
         "- **Token share** is a run's prompt tokens over those of the same backend, calls and "
         "flow's `full`/`full` run, summed over the same documents.",
         "- **Failed documents** (the Errors column) count as wrong in accuracy and carry no "
         "tokens, so they are left out of the token means.",
     ]
+    return notes
 
 
 def _split(result: Mapping[str, Any]) -> str:
@@ -1174,12 +1217,13 @@ def _main_table(
     runs: Sequence[Mapping[str, Any]], all_runs: Sequence[Mapping[str, Any]]
 ) -> list[str]:
     lines = [
-        "| Backend | Calls | Flow | Level | Doc acc | Doc macro-F1 | Sec leaf macro-F1 "
-        "| Sec leaf micro-F1 | Sec group macro-F1 | Sec group micro-F1 "
+        "| Backend | Calls | Flow | Level | Doc acc | Doc macro-F1 | Sec leaf precision "
+        "| Sec leaf recall | Sec leaf macro-F1 "
+        "| Sec leaf micro-F1 | Sec group macro-F1 | Sec group micro-F1 | `none` kept "
         "| Sections scored / excl. / untagged | Prompt tokens/doc | Token share vs full "
         "| Est. split options / content / instr. | Decided by rules | Any view truncated "
         "| Tokens | Wall s/doc | Errors |",
-        "|---|---|---|---|" + "---:|" * 6 + "---|---:|---:|---|---:|---:|---|---:|---:|",
+        "|---|---|---|---|" + "---:|" * 9 + "---|---:|---:|---|---:|---:|---|---:|---:|",
     ]
     for r in runs:
         label, _, calls, flow, level, _ = _key(r)
@@ -1189,10 +1233,13 @@ def _main_table(
             f"| {label} | {calls} | {flow} | {level} "
             f"| {_pct(_metric(r, 'doc_type', 'accuracy'))} "
             f"| {_pct(_metric(r, 'doc_type', 'macro_f1'))} "
+            f"| {_pct(_metric(r, 'sections', 'leaf', 'precision'))} "
+            f"| {_pct(_metric(r, 'sections', 'leaf', 'recall'))} "
             f"| {_pct(_metric(r, 'sections', 'leaf', 'macro_f1'))} "
             f"| {_pct(_metric(r, 'sections', 'leaf', 'micro_f1'))} "
             f"| {_pct(_metric(r, 'sections', 'group', 'macro_f1'))} "
             f"| {_pct(_metric(r, 'sections', 'group', 'micro_f1'))} "
+            f"| {_pct(_metric(r, 'sections', 'none', 'agreement'))} "
             f"| {_section_counts(r)} "
             f"| {_tokens(_metric(r, 'prompt_tokens_mean'))} | {_pct(share)} | {_split(r)} "
             f"| {_pct(_metric(r, 'decided_by_rules'))} | {_pct(_metric(r, 'truncated_share'))} "
@@ -1412,8 +1459,9 @@ def render_report(results: Sequence[Mapping[str, Any]]) -> str:
         lines += _main_table(main, gold) if main else ["No main-grid runs."]
         lines += [
             "",
-            "Doc acc is doc-type accuracy; Sec are the section-tag F1 scores at catalogue leaf "
-            "and group. Percentages, except counts, tokens and seconds.",
+            "Doc acc is doc-type accuracy; Sec are the section-tag scores at catalogue leaf and "
+            "group, with `none` an abstention; `none` kept is the share of gold `none` headings "
+            "left untagged. Percentages, except counts, tokens and seconds.",
             "",
             "## Cheapest level within 2 points of full",
             "",

@@ -126,7 +126,7 @@ def _by_title(view):
     for title, leaf in SECTIONS.items():
         if f"Title: {title}" in view:
             return leaf
-    return "general.body"
+    return "none"
 
 
 def llm(handler):
@@ -198,7 +198,7 @@ def test_batched_invalid_ids_reasked_once_then_unparsed():
     tags = {t.title: t for t in result.sections}
     assert tags["Notes to the financial statements"].confidence == 1.0
     bad = tags["Management discussion"]
-    assert bad.label == "general.other" and bad.confidence == 0.0
+    assert bad.label == "none" and bad.confidence == 0.0
     assert "unparsed" in result.flags
     assert result.stage_tokens["sections"].calls == 2
 
@@ -216,7 +216,7 @@ def test_batched_invalid_ids_reasked_once_then_unparsed():
     result = classify(financial_doc(), backend=llm(fake))
     assert len(fake.of("groups")) == 2 and len(fake.of("sections")) == 1
     tags = {t.title: t for t in result.sections}
-    assert tags["Management discussion"].label == "general.other"
+    assert tags["Management discussion"].label == "none"
     assert tags["Management discussion"].confidence == 0.0 and "unparsed" in result.flags
 
 
@@ -242,9 +242,10 @@ def test_non_llm_estimate_uses_batched_pattern():
     assert batched.calls == "per_item"  # a keyword backend scores per item, whatever the pattern
     assert not batched.tokens.exact
     sections = batched.stage_tokens["sections"]
-    groups = {t.label.split(".")[0] for t in batched.sections}
+    groups = {t.label.split(".")[0] for t in batched.sections} - {"none"}  # a top-level leaf
     assert sections.calls == 1 + len(groups)  # the groups call, then one call per group
-    assert per_item.stage_tokens["sections"].calls == 28  # per item: group + leaf each
+    leaf_steps = sum(t.label != "none" for t in per_item.sections)  # none needs no leaf step
+    assert per_item.stage_tokens["sections"].calls == 14 + leaf_steps  # per item: group + leaf
     assert batched.tokens.prompt < per_item.tokens.prompt / 2  # the options once, not 28 times
 
     flat = classify(doc, backend=KeywordBackend(), level="headings", calls="batched_flat")
@@ -410,7 +411,8 @@ def test_two_step_batched_sections():
     system = groups_call["messages"][0]["content"]
     for group in CATALOGUE.children():
         assert re.search(rf"^{re.escape(group.id)}: {re.escape(group.label)}", system, re.M)
-    assert not any(leaf.id in system for leaf in CATALOGUE.leaves())  # groups only
+    nested = [leaf for leaf in CATALOGUE.leaves() if "." in leaf.id]  # none is a top-level leaf
+    assert not any(leaf.id in system for leaf in nested)  # groups only
 
     leaf_calls = fake.of("sections")
     assert len(leaf_calls) == 3
@@ -441,7 +443,7 @@ def test_batched_rule_gate_needs_two_supporting_sections():
     one = Document.from_sections(
         [
             {"title": "Opinion", "level": 1, "text": "The court holds."},
-            {"title": "Miscellany", "level": 1, "text": "Assorted remarks."},
+            {"title": "Properties", "level": 1, "text": "We lease our offices."},
         ]
     )
     fake = FakeLLM(doc_type="legal.court_opinion")
@@ -598,8 +600,11 @@ class FirstOption:
 
 
 def first_listed(system: str, indented: bool) -> str:
-    """The first option id a batched system turn lists (the first leaf when ``indented``)."""
+    """The first option id a batched system turn lists (the first leaf when ``indented``; the
+    catalogue's first node, ``none``, is itself a leaf)."""
     lines = system.split("Options:\n", 1)[1].splitlines()
+    if lines[0].startswith("none: "):
+        return "none"
     pick = next((ln for ln in lines if ln.startswith("  ")), lines[0]) if indented else lines[0]
     return pick.strip().split(": ", 1)[0]
 
@@ -770,7 +775,7 @@ def test_a_per_item_reply_naming_no_option_is_flagged_never_defaulted():
     result = classify(court("Opinion"), backend=letter_llm(by_label(unparsed=("group",))),
                       calls="per_item")  # fmt: skip
     (tag,) = result.sections
-    assert tag.label == "general.other" and tag.confidence == 0.0 and "unparsed" in result.flags
+    assert tag.label == "none" and tag.confidence == 0.0 and "unparsed" in result.flags
 
     result = classify(court("Opinion"), backend=letter_llm(by_label(unparsed=("leaf",))),
                       calls="per_item")  # fmt: skip
@@ -843,7 +848,7 @@ def filler_doc(titles, n_total):
 def known_only(n, view, attempt):
     """Valid ids for the known titles; an id that is not an option for every other section."""
     leaf = _by_title(view)
-    return leaf if leaf != "general.body" else "not.an.option"
+    return leaf if leaf != "none" else "not.an.option"
 
 
 def known_group(n, view, attempt):

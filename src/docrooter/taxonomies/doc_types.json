@@ -358,10 +358,8 @@
             ],
             "typical": [
               "research.related_work",
-              "general.background",
               "research.limitations",
-              "general.acknowledgements",
-              "general.references"
+              "research.references"
             ],
             "excludes": [
               "standard.normative_references",
@@ -400,35 +398,6 @@
           "id": "research.white_paper",
           "label": "White paper",
           "description": "An industry, vendor, consultancy or think-tank report that argues for a position, explains a topic or presents analysis aimed at a professional audience, without being peer-reviewed or normative. Not a research_paper (academic) or a government_report (issued by an agency).",
-          "sections": {
-            "requires": [
-              [
-                "general.summary",
-                "general.findings",
-                "general.recommendations"
-              ]
-            ],
-            "typical": [
-              "general.summary",
-              "general.background",
-              "general.recommendations",
-              "general.references",
-              "general.body"
-            ],
-            "excludes": [
-              "standard.normative_references",
-              "standard.iana_considerations",
-              "law.syllabus",
-              "contract.parties_recitals",
-              "financial.financial_statements",
-              "financial.balance_sheet",
-              "financial.income_statement",
-              "financial.cash_flow_statement",
-              "financial.changes_in_equity",
-              "financial.notes_to_financial_statements",
-              "financial.auditors_report"
-            ]
-          },
           "children": []
         }
       ]
@@ -501,18 +470,15 @@
           "sections": {
             "requires": [
               [
-                "general.summary",
-                "general.findings",
-                "general.recommendations"
+                "government"
               ]
             ],
             "typical": [
-              "general.summary",
-              "general.findings",
-              "general.recommendations",
-              "general.background",
-              "research.method",
-              "general.body"
+              "government.highlights",
+              "government.findings",
+              "government.recommendations",
+              "government.scope_and_methodology",
+              "government.agency_comments"
             ],
             "excludes": [
               "standard.normative_references",
@@ -577,7 +543,6 @@
               ]
             ],
             "typical": [
-              "general.front_matter",
               "financial.financial_highlights",
               "narrative.outlook"
             ],

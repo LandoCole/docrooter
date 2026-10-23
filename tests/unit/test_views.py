@@ -23,9 +23,7 @@ def long_doc():
 
 def test_render_field_order_and_labels(doc):
     v = SectionView(fields=("path", "title", "text")).render_all(doc, ["s1.2"])["s1.2"]
-    assert (
-        v.text.splitlines()[0] == "Path: Intro > Scope" and v.text.splitlines()[1] == "Title: Scope"
-    )
+    assert v.text.splitlines()[0] == "Path: Intro" and v.text.splitlines()[1] == "Title: Scope"
     assert v.text.splitlines()[2] == "Text: Scope body."
     assert not v.truncated
 
@@ -224,3 +222,20 @@ def test_precut_matches_uncut_rendering_on_random_inputs(monkeypatch, count):
         any(e is not None and len(e[1].split()) > 4 * m for e in entries) for entries, _, m in cases
     )
     assert over_cap > 100  # the cap was exercised, not idle
+
+
+def test_path_beside_a_title_holds_the_ancestors_and_never_pushes_the_title_out():
+    long = "Financial Statements and Supplementary Data of the Registrant"
+    d = Document.from_sections(
+        [
+            {"title": "PART II", "level": 1, "text": "x"},
+            {"title": f"Item 8. {long}", "level": 2, "text": "x"},
+            {"title": "Consolidated Statements of Operations", "level": 3, "text": "x"},
+        ]
+    )
+    deep, top = list(d.sections)[-1], list(d.sections)[0]
+    view = SectionView(fields=("path", "title"), max_tokens=24)
+    text = view.render_all(d, [deep])[deep].text
+    assert text.endswith("Title: Consolidated Statements of Operations")  # the title survives
+    assert text.startswith("Path: … > Item 8.")  # the outermost ancestor went first
+    assert view.render_all(d, [top])[top].text == "Title: PART II"  # no ancestors, no path

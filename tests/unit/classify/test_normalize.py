@@ -145,8 +145,8 @@ def test_one_batched_call_with_instruction_and_view():
     assert backend.last_instruction == "Which standard section of a Research paper is this?"
     assert len(backend.last_texts) == 4
     # default view: the heading path and the title, no body text
-    assert backend.last_texts[0] == "Path: Abstract\nTitle: Abstract"
-    assert backend.last_texts[2] == "Path: Method > Datasets\nTitle: Datasets"
+    assert backend.last_texts[0] == "Title: Abstract"
+    assert backend.last_texts[2] == "Path: Method\nTitle: Datasets"
 
     backend = RecordingBackend(KeywordBackend())
     normalize_sections(paper(), taxonomy="generic", backend=backend)
@@ -158,7 +158,7 @@ def test_view_override_renders_sections_with_that_view():
     view = SectionView(fields=("path", "title"), max_tokens=32)
     normalize_sections(paper(), doc_type="research.research_paper", backend=backend, view=view)
     assert backend.calls == 1
-    assert backend.last_texts[2] == "Path: Method > Datasets\nTitle: Datasets"
+    assert backend.last_texts[2] == "Path: Method\nTitle: Datasets"
 
 
 def _custom(examples: bool) -> Taxonomy:
@@ -185,7 +185,7 @@ def test_default_view_is_title_and_lead_for_a_taxonomy_without_examples():
 def test_default_view_is_path_and_title_once_any_node_has_examples():
     backend = RecordingBackend(KeywordBackend())
     normalize_sections(paper(), taxonomy=_custom(examples=True), backend=backend)
-    assert backend.last_texts[2] == "Path: Method > Datasets\nTitle: Datasets"
+    assert backend.last_texts[2] == "Path: Method\nTitle: Datasets"
 
 
 def test_explicit_view_wins_over_the_examples_rule():
@@ -205,7 +205,7 @@ def test_blank_title_with_text_gets_its_lead_under_a_heading_only_view():
     )
     backend = RecordingBackend(KeywordBackend())
     normalize_sections(doc, taxonomy="research_paper", backend=backend)
-    assert backend.last_texts[0] == "Path: Method\nTitle: Method"
+    assert backend.last_texts[0] == "Title: Method"
     assert backend.last_texts[1].endswith("Lead: We list the cited works. More.")
 
 

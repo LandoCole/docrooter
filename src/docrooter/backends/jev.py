@@ -12,7 +12,7 @@ import numpy as np
 from docrooter._extras import require
 from docrooter.backends._async import run_sync
 from docrooter.backends._secrets import redact
-from docrooter.backends.base import Candidate, ScoreKind, Scores
+from docrooter.backends.base import Candidate, ScoreKind, Scores, TokenUsage
 from docrooter.errors import BackendError
 
 API_KEY_ENV = "TYPESAFE_API_KEY"
@@ -32,7 +32,8 @@ class JevBackend:
     ``model`` (default ``jev-1.13.0``); aliases such as ``jev-latest`` move without notice.
 
     ``score`` is synchronous. It runs its own event loop, or a worker thread when called from a
-    thread that already runs one.
+    thread that already runs one. ``usage()`` is the tokens every request reported, cumulative
+    (Jev bills input tokens only; output tokens are reported but free).
     """
 
     max_candidates: int | None = _MAX_CHOICES
@@ -60,6 +61,7 @@ class JevBackend:
         self.temperature = 1.0
         self.concurrency = max(1, concurrency)
         self.timeout = timeout
+        self._spent = TokenUsage()
 
     def _client(self, sdk: Any) -> Any:
         return sdk.AsyncTypeSafeClient(api_key=self._api_key, timeout=self.timeout)
@@ -114,6 +116,7 @@ class JevBackend:
                 response = await client.system_one(
                     state={"section": text}, questions=questions(), model=self.model_id
                 )
+            self._count(response)
             try:
                 return read(response)
             except (AttributeError, KeyError, TypeError, ValueError) as exc:
@@ -154,6 +157,20 @@ class JevBackend:
             self._score_all(sdk, texts, candidates, instruction or DEFAULT_INSTRUCTION, multi_label)
         )
         return Scores(values, kind)
+
+    def _count(self, response: Any) -> None:
+        usage = getattr(response, "usage", None)
+        prompt = getattr(usage, "input_tokens", None)
+        completion = getattr(usage, "output_tokens", None)
+        if isinstance(prompt, int):
+            spent = TokenUsage(prompt, completion if isinstance(completion, int) else 0, 1)
+        else:  # the API did not report it: an unknown share of the total
+            spent = TokenUsage(0, 0, 1, exact=False)
+        self._spent = self._spent + spent
+
+    def usage(self) -> TokenUsage:
+        """The tokens of every request so far, as the API reported them."""
+        return self._spent
 
     def close(self) -> None:
         """Nothing to release: each ``score`` call opens and closes its own client."""

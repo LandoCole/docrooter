@@ -90,7 +90,8 @@ section taxonomy: section_types/annual_report
   classified it against the built-in `doc_types` taxonomy. `confidence` is the probability of
   the chosen type.
 - **`normalize_sections`** picked the section taxonomy for that type
-  (`section_types/annual_report`) and labelled each level-1 and level-2 heading.
+  (`section_types/annual_report`) and labelled each level-1 and level-2 heading. (`classify`,
+  below, tags every heading at any depth against the shared catalogue.)
 
 The keyword backend only counts shared words, which is why its confidence is so low and why
 some labels are wrong (the cover title is labelled `controls_and_procedures`). It is good for

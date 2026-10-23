@@ -259,6 +259,16 @@ FLOW_MARKDOWN = (
 )
 
 
+def test_playground_flow_without_level_uses_the_measured_default(client):
+    run_id, _ = run(client, "report.md", FLOW_MARKDOWN, flow="sections_first", profile="fast")
+    detail = client.get(f"/api/runs/{run_id}").json()
+    assert detail["status"] == "done", detail["error"]
+    assert detail["options"]["level"] is None
+    assert detail["doc_type"]["levels"]["section"] == "terms"  # keyword: not measured
+    page = client.get("/").text
+    assert '<option value="" selected>Measured default</option>' in page
+
+
 def test_playground_flow_level_payload(client):
     run_id, events = run(
         client, "report.md", FLOW_MARKDOWN, flow="sections_first", level="headings", profile="fast"

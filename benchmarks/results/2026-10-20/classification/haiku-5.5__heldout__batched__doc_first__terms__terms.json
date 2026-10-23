@@ -1,0 +1,2708 @@
+{
+ "schema": 1,
+ "settings": {
+  "schema": 1,
+  "reading": {
+   "profile": "fast",
+   "settings": {
+    "text": "auto",
+    "ocr": "none",
+    "layout": "none",
+    "doc_type": "none",
+    "sections": "none",
+    "summaries": "none",
+    "embeddings": "none",
+    "escalate": "none",
+    "escalate_below": 0.5,
+    "element_tags": "none"
+   },
+   "elements": false,
+   "levels": [
+    1,
+    2
+   ]
+  },
+  "docrooter_version": "1.0.0",
+  "limit": null,
+  "code_fingerprint": "def91cad1e9f36425a5ada1f0c09b0dadb880662",
+  "heldout_manifest_sha1": "69c3fee4b5496a56582a4f297cf6686c7fe8ef45",
+  "spec": "openai:claude-haiku-5-5",
+  "label": "haiku-5.5",
+  "docs": "heldout",
+  "flow": "doc_first",
+  "section_level": "terms",
+  "doc_level": "terms",
+  "calls": "batched"
+ },
+ "settings_hash": "bf0959b0905340a18a8214b33626168561fc1f9adfde9a68137a2e101082525b",
+ "backend": {
+  "spec": "openai:claude-haiku-5-5",
+  "label": "haiku-5.5",
+  "endpoint_host": "api.anthropic.com",
+  "extra_body": {
+   "thinking": {
+    "type": "disabled"
+   }
+  }
+ },
+ "config": {
+  "flow": "doc_first",
+  "section_level": "terms",
+  "doc_level": "terms",
+  "calls": "batched"
+ },
+ "docs": "heldout",
+ "code": {
+  "git_sha": "64f2150365433f1664f7c63efde197f69db39b43",
+  "dirty": false
+ },
+ "started_at": "2026-10-21T22:47:10Z",
+ "finished_at": "2026-10-21T22:49:12Z",
+ "wall_s": 121.436,
+ "cost_usd": null,
+ "metrics": {
+  "documents": 40,
+  "errors": 0,
+  "doc_type": {
+   "n": 40,
+   "accuracy": 0.85,
+   "macro_f1": 0.848941798941799,
+   "per_type": {
+    "corporate.investor_presentation": {
+     "n": 2,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0
+    },
+    "corporate.sustainability_report": {
+     "n": 2,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    },
+    "financial.annual_report": {
+     "n": 2,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    },
+    "financial.earnings_release": {
+     "n": 2,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    },
+    "financial.prospectus": {
+     "n": 2,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    },
+    "financial.proxy_statement": {
+     "n": 2,
+     "precision": 0.6666666666666666,
+     "recall": 1.0,
+     "f1": 0.8
+    },
+    "financial.quarterly_report": {
+     "n": 2,
+     "precision": 0.6666666666666666,
+     "recall": 1.0,
+     "f1": 0.8
+    },
+    "financial.shareholder_letter": {
+     "n": 2,
+     "precision": 1.0,
+     "recall": 0.5,
+     "f1": 0.6666666666666666
+    },
+    "government.government_report": {
+     "n": 2,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    },
+    "legal.contract": {
+     "n": 2,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    },
+    "legal.court_opinion": {
+     "n": 3,
+     "precision": 1.0,
+     "recall": 0.6666666666666666,
+     "f1": 0.8
+    },
+    "legal.legislation": {
+     "n": 3,
+     "precision": 0.75,
+     "recall": 1.0,
+     "f1": 0.8571428571428571
+    },
+    "legal.terms_policy": {
+     "n": 2,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    },
+    "research.research_paper": {
+     "n": 2,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    },
+    "research.technical_standard": {
+     "n": 3,
+     "precision": 1.0,
+     "recall": 0.3333333333333333,
+     "f1": 0.5
+    },
+    "research.white_paper": {
+     "n": 2,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    },
+    "technical.datasheet": {
+     "n": 3,
+     "precision": 0.75,
+     "recall": 1.0,
+     "f1": 0.8571428571428571
+    },
+    "technical.user_manual": {
+     "n": 2,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0
+    }
+   }
+  },
+  "sections": null,
+  "decided_by_rules": 0.0,
+  "prompt_tokens_mean": 5115.4,
+  "completion_tokens_mean": 214.65,
+  "calls_mean": 2.0,
+  "tokens_exact": true,
+  "exact_share": 1.0,
+  "truncated_share": 0.275,
+  "doc_truncated_share": 0.025,
+  "tokens_split_mean": {
+   "content": 1097.4,
+   "instructions": 97.4,
+   "options": 1371.275
+  },
+  "calls_used": [
+   "batched"
+  ],
+  "over_cap_share": 0.0,
+  "over_cap_n": 39,
+  "max_call_prompt": 5554,
+  "wall_s_total": 121.429,
+  "wall_s_mean": 3.035735
+ },
+ "documents": [
+  {
+   "id": "ho_001",
+   "gold": "financial.annual_report",
+   "pred": "financial.annual_report",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 6552,
+    "completion": 405,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3965,
+     "completion": 386,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2587,
+     "completion": 19,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2587,
+     "completion_tokens": 19,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.968336984076198
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3965,
+     "completion_tokens": 386,
+     "exact": true,
+     "truncated": false,
+     "options_count": 15,
+     "token_ratio": 1.9675341968284712
+    }
+   ],
+   "max_call_prompt": 3965,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1537,
+    "content": 1586,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.6809,
+   "error": null
+  },
+  {
+   "id": "ho_002",
+   "gold": "financial.annual_report",
+   "pred": "financial.annual_report",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 5158,
+    "completion": 416,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 2533,
+     "completion": 397,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2625,
+     "completion": 19,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2625,
+     "completion_tokens": 19,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.970892863484097
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2533,
+     "completion_tokens": 397,
+     "exact": true,
+     "truncated": false,
+     "options_count": 15,
+     "token_ratio": 1.9691920779629049
+    }
+   ],
+   "max_call_prompt": 2625,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1537,
+    "content": 1050,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.7974,
+   "error": null
+  },
+  {
+   "id": "ho_003",
+   "gold": "financial.quarterly_report",
+   "pred": "financial.quarterly_report",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 10,
+   "tokens": {
+    "prompt": 3960,
+    "completion": 119,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 1667,
+     "completion": 98,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2293,
+     "completion": 21,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2293,
+     "completion_tokens": 21,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.969402505621587
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 1667,
+     "completion_tokens": 98,
+     "exact": true,
+     "truncated": false,
+     "options_count": 15,
+     "token_ratio": 1.9675383432113287
+    }
+   ],
+   "max_call_prompt": 2293,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1537,
+    "content": 463,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.1264,
+   "error": null
+  },
+  {
+   "id": "ho_004",
+   "gold": "financial.quarterly_report",
+   "pred": "financial.quarterly_report",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 7156,
+    "completion": 472,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 4446,
+     "completion": 451,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2710,
+     "completion": 21,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2710,
+     "completion_tokens": 21,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.967521846291732
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 4446,
+     "completion_tokens": 451,
+     "exact": true,
+     "truncated": true,
+     "options_count": 15,
+     "token_ratio": 1.9668137200838205
+    }
+   ],
+   "max_call_prompt": 4446,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1537,
+    "content": 1844,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.3032,
+   "error": null
+  },
+  {
+   "id": "ho_005",
+   "gold": "financial.shareholder_letter",
+   "pred": "financial.shareholder_letter",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 0,
+   "tokens": {
+    "prompt": 2086,
+    "completion": 22,
+    "calls": 1,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 0,
+     "completion": 0,
+     "calls": 0,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2086,
+     "completion": 22,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2086,
+     "completion_tokens": 22,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9709177566667027
+    }
+   ],
+   "section_calls": [],
+   "max_call_prompt": 2086,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1083,
+    "content": 38,
+    "instructions": 37
+   },
+   "calls_used": "batched",
+   "wall_s": 0.7558,
+   "error": null
+  },
+  {
+   "id": "ho_006",
+   "gold": "financial.shareholder_letter",
+   "pred": "financial.proxy_statement",
+   "correct": false,
+   "decided_by": "model",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": 0,
+   "sections_tagged": 12,
+   "tokens": {
+    "prompt": 4414,
+    "completion": 157,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 2017,
+     "completion": 136,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2397,
+     "completion": 21,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2397,
+     "completion_tokens": 21,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9688268810905798
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2017,
+     "completion_tokens": 136,
+     "exact": true,
+     "truncated": true,
+     "options_count": 15,
+     "token_ratio": 1.9673061164456958
+    }
+   ],
+   "max_call_prompt": 2397,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1537,
+    "content": 678,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.4062,
+   "error": null
+  },
+  {
+   "id": "ho_007",
+   "gold": "financial.earnings_release",
+   "pred": "financial.earnings_release",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 7,
+   "tokens": {
+    "prompt": 3201,
+    "completion": 81,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 959,
+     "completion": 61,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2242,
+     "completion": 20,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2242,
+     "completion_tokens": 20,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9674136748227762
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 959,
+     "completion_tokens": 61,
+     "exact": true,
+     "truncated": false,
+     "options_count": 7,
+     "token_ratio": 1.9657490659769266
+    }
+   ],
+   "max_call_prompt": 2242,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 385,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.0285,
+   "error": null
+  },
+  {
+   "id": "ho_008",
+   "gold": "financial.earnings_release",
+   "pred": "financial.earnings_release",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 4,
+   "tokens": {
+    "prompt": 2815,
+    "completion": 48,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 671,
+     "completion": 28,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2144,
+     "completion": 20,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2144,
+     "completion_tokens": 20,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9655454118415947
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 671,
+     "completion_tokens": 28,
+     "exact": true,
+     "truncated": false,
+     "options_count": 7,
+     "token_ratio": 1.96353840876531
+    }
+   ],
+   "max_call_prompt": 2144,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 228,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.6721,
+   "error": null
+  },
+  {
+   "id": "ho_009",
+   "gold": "financial.prospectus",
+   "pred": "financial.prospectus",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 16,
+   "tokens": {
+    "prompt": 4619,
+    "completion": 181,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 2295,
+     "completion": 162,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2324,
+     "completion": 19,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2324,
+     "completion_tokens": 19,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9629607293268603
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2295,
+     "completion_tokens": 162,
+     "exact": true,
+     "truncated": false,
+     "options_count": 10,
+     "token_ratio": 1.961673234794866
+    }
+   ],
+   "max_call_prompt": 2324,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1592,
+    "content": 740,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.4176,
+   "error": null
+  },
+  {
+   "id": "ho_010",
+   "gold": "financial.prospectus",
+   "pred": "financial.prospectus",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": 0,
+   "sections_tagged": 37,
+   "tokens": {
+    "prompt": 7043,
+    "completion": 347,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 4296,
+     "completion": 328,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2747,
+     "completion": 19,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2747,
+     "completion_tokens": 19,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9615177055839557
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 4296,
+     "completion_tokens": 328,
+     "exact": true,
+     "truncated": true,
+     "options_count": 10,
+     "token_ratio": 1.9616970612150075
+    }
+   ],
+   "max_call_prompt": 4296,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1592,
+    "content": 1713,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 9.6303,
+   "error": null
+  },
+  {
+   "id": "ho_011",
+   "gold": "financial.proxy_statement",
+   "pred": "financial.proxy_statement",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 36,
+   "tokens": {
+    "prompt": 6496,
+    "completion": 303,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3758,
+     "completion": 282,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2738,
+     "completion": 21,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2738,
+     "completion_tokens": 21,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9650487096222868
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3758,
+     "completion_tokens": 282,
+     "exact": true,
+     "truncated": false,
+     "options_count": 15,
+     "token_ratio": 1.9651103947220452
+    }
+   ],
+   "max_call_prompt": 3758,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1537,
+    "content": 1495,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.1066,
+   "error": null
+  },
+  {
+   "id": "ho_012",
+   "gold": "financial.proxy_statement",
+   "pred": "financial.proxy_statement",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 8805,
+    "completion": 363,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 5554,
+     "completion": 342,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 3251,
+     "completion": 21,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3251,
+     "completion_tokens": 21,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9682699223576712
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 5554,
+     "completion_tokens": 342,
+     "exact": true,
+     "truncated": true,
+     "options_count": 15,
+     "token_ratio": 1.9708961264563305
+    }
+   ],
+   "max_call_prompt": 5554,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1537,
+    "content": 2157,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.3272,
+   "error": null
+  },
+  {
+   "id": "ho_013",
+   "gold": "legal.contract",
+   "pred": "legal.contract",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 8327,
+    "completion": 406,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 5212,
+     "completion": 389,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 3115,
+     "completion": 17,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3115,
+     "completion_tokens": 17,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9802558893759579
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 5212,
+     "completion_tokens": 389,
+     "exact": true,
+     "truncated": true,
+     "options_count": 14,
+     "token_ratio": 1.9814402897811696
+    }
+   ],
+   "max_call_prompt": 5212,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1447,
+    "content": 2170,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.5321,
+   "error": null
+  },
+  {
+   "id": "ho_014",
+   "gold": "legal.contract",
+   "pred": "legal.contract",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 2,
+   "tokens": {
+    "prompt": 3029,
+    "completion": 47,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 927,
+     "completion": 30,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2102,
+     "completion": 17,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2102,
+     "completion_tokens": 17,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9886588068892357
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 927,
+     "completion_tokens": 30,
+     "exact": true,
+     "truncated": false,
+     "options_count": 14,
+     "token_ratio": 1.9869265976705264
+    }
+   ],
+   "max_call_prompt": 2102,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1447,
+    "content": 111,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.8761,
+   "error": null
+  },
+  {
+   "id": "ho_015",
+   "gold": "legal.terms_policy",
+   "pred": "legal.terms_policy",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 4,
+   "tokens": {
+    "prompt": 2881,
+    "completion": 51,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 708,
+     "completion": 31,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2173,
+     "completion": 20,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2173,
+     "completion_tokens": 20,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9864459239985375
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 708,
+     "completion_tokens": 31,
+     "exact": true,
+     "truncated": false,
+     "options_count": 7,
+     "token_ratio": 1.9848725913579313
+    }
+   ],
+   "max_call_prompt": 2173,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 231,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 1.584,
+   "error": null
+  },
+  {
+   "id": "ho_016",
+   "gold": "legal.terms_policy",
+   "pred": "legal.terms_policy",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 18,
+   "tokens": {
+    "prompt": 3904,
+    "completion": 138,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 1595,
+     "completion": 118,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2309,
+     "completion": 20,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2309,
+     "completion_tokens": 20,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9845177856657352
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 1595,
+     "completion_tokens": 118,
+     "exact": true,
+     "truncated": false,
+     "options_count": 7,
+     "token_ratio": 1.9830923691444042
+    }
+   ],
+   "max_call_prompt": 2309,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 743,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.3695,
+   "error": null
+  },
+  {
+   "id": "ho_017",
+   "gold": "legal.court_opinion",
+   "pred": "legal.court_opinion",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 1,
+   "tokens": {
+    "prompt": 2558,
+    "completion": 33,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 440,
+     "completion": 13,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2118,
+     "completion": 20,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2118,
+     "completion_tokens": 20,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9827047267148878
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 440,
+     "completion_tokens": 13,
+     "exact": true,
+     "truncated": false,
+     "options_count": 7,
+     "token_ratio": 1.98084619782733
+    }
+   ],
+   "max_call_prompt": 2118,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 115,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 1.4038,
+   "error": null
+  },
+  {
+   "id": "ho_018",
+   "gold": "legal.court_opinion",
+   "pred": null,
+   "correct": false,
+   "decided_by": "fallback",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 0,
+   "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "calls": 0,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 0,
+     "completion": 0,
+     "calls": 0,
+     "exact": true
+    },
+    "document": {
+     "prompt": 0,
+     "completion": 0,
+     "calls": 0,
+     "exact": true
+    }
+   },
+   "document_calls": [],
+   "section_calls": [],
+   "max_call_prompt": null,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 0,
+    "content": 0,
+    "instructions": 0
+   },
+   "calls_used": "batched",
+   "wall_s": 0.0038,
+   "error": null
+  },
+  {
+   "id": "ho_019",
+   "gold": "legal.court_opinion",
+   "pred": "legal.court_opinion",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 1,
+   "tokens": {
+    "prompt": 2538,
+    "completion": 30,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 431,
+     "completion": 10,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2107,
+     "completion": 20,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2107,
+     "completion_tokens": 20,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9801217633682975
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 431,
+     "completion_tokens": 10,
+     "exact": true,
+     "truncated": false,
+     "options_count": 7,
+     "token_ratio": 1.9782208588957055
+    }
+   ],
+   "max_call_prompt": 2107,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 106,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 1.776,
+   "error": null
+  },
+  {
+   "id": "ho_020",
+   "gold": "legal.legislation",
+   "pred": "legal.legislation",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 7322,
+    "completion": 265,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 4423,
+     "completion": 247,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2899,
+     "completion": 18,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2899,
+     "completion_tokens": 18,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.977581401343666
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 4423,
+     "completion_tokens": 247,
+     "exact": true,
+     "truncated": true,
+     "options_count": 7,
+     "token_ratio": 1.9762115028124527
+    }
+   ],
+   "max_call_prompt": 4423,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 2372,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.0969,
+   "error": null
+  },
+  {
+   "id": "ho_021",
+   "gold": "legal.legislation",
+   "pred": "legal.legislation",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": 0,
+   "sections_tagged": 39,
+   "tokens": {
+    "prompt": 7641,
+    "completion": 285,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 4631,
+     "completion": 267,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 3010,
+     "completion": 18,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3010,
+     "completion_tokens": 18,
+     "exact": true,
+     "truncated": true,
+     "options_count": 19,
+     "token_ratio": 1.9775118307325277
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 4631,
+     "completion_tokens": 267,
+     "exact": true,
+     "truncated": true,
+     "options_count": 7,
+     "token_ratio": 1.9768106758980937
+    }
+   ],
+   "max_call_prompt": 4631,
+   "doc_truncated": true,
+   "tokens_split": {
+    "options": 1239,
+    "content": 2535,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.1596,
+   "error": null
+  },
+  {
+   "id": "ho_022",
+   "gold": "legal.legislation",
+   "pred": "legal.legislation",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 5022,
+    "completion": 282,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 2216,
+     "completion": 264,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2806,
+     "completion": 18,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2806,
+     "completion_tokens": 18,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9774209467410697
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2216,
+     "completion_tokens": 264,
+     "exact": true,
+     "truncated": true,
+     "options_count": 7,
+     "token_ratio": 1.9770648402649484
+    }
+   ],
+   "max_call_prompt": 2806,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 1114,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.4424,
+   "error": null
+  },
+  {
+   "id": "ho_023",
+   "gold": "research.research_paper",
+   "pred": "research.research_paper",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 12,
+   "tokens": {
+    "prompt": 3840,
+    "completion": 109,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 1619,
+     "completion": 91,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2221,
+     "completion": 18,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2221,
+     "completion_tokens": 18,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.97875734176083
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 1619,
+     "completion_tokens": 91,
+     "exact": true,
+     "truncated": false,
+     "options_count": 13,
+     "token_ratio": 1.9773019366847384
+    }
+   ],
+   "max_call_prompt": 2221,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1390,
+    "content": 574,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.0877,
+   "error": null
+  },
+  {
+   "id": "ho_024",
+   "gold": "research.research_paper",
+   "pred": "research.research_paper",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 7,
+   "tokens": {
+    "prompt": 3515,
+    "completion": 68,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 1266,
+     "completion": 50,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2249,
+     "completion": 18,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2249,
+     "completion_tokens": 18,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9770231383603476
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 1266,
+     "completion_tokens": 50,
+     "exact": true,
+     "truncated": false,
+     "options_count": 13,
+     "token_ratio": 1.9759093124949978
+    }
+   ],
+   "max_call_prompt": 2249,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1390,
+    "content": 376,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.4063,
+   "error": null
+  },
+  {
+   "id": "ho_025",
+   "gold": "research.technical_standard",
+   "pred": "legal.legislation",
+   "correct": false,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 5881,
+    "completion": 294,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3214,
+     "completion": 276,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2667,
+     "completion": 18,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2667,
+     "completion_tokens": 18,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9758194168851295
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3214,
+     "completion_tokens": 276,
+     "exact": true,
+     "truncated": false,
+     "options_count": 7,
+     "token_ratio": 1.975717676756811
+    }
+   ],
+   "max_call_prompt": 3214,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 1380,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 4.1802,
+   "error": null
+  },
+  {
+   "id": "ho_026",
+   "gold": "research.technical_standard",
+   "pred": "technical.datasheet",
+   "correct": false,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 16,
+   "tokens": {
+    "prompt": 3749,
+    "completion": 140,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 1518,
+     "completion": 121,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2231,
+     "completion": 19,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2231,
+     "completion_tokens": 19,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9794887820399003
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 1518,
+     "completion_tokens": 121,
+     "exact": true,
+     "truncated": false,
+     "options_count": 8,
+     "token_ratio": 1.9782351532904279
+    }
+   ],
+   "max_call_prompt": 2231,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1282,
+    "content": 595,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.3192,
+   "error": null
+  },
+  {
+   "id": "ho_027",
+   "gold": "research.technical_standard",
+   "pred": "research.technical_standard",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 36,
+   "tokens": {
+    "prompt": 5847,
+    "completion": 280,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3240,
+     "completion": 261,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2607,
+     "completion": 19,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2607,
+     "completion_tokens": 19,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9783924243909956
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3240,
+     "completion_tokens": 261,
+     "exact": true,
+     "truncated": false,
+     "options_count": 7,
+     "token_ratio": 1.977441887889235
+    }
+   ],
+   "max_call_prompt": 3240,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 1664,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.888,
+   "error": null
+  },
+  {
+   "id": "ho_028",
+   "gold": "research.white_paper",
+   "pred": "research.white_paper",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 18,
+   "tokens": {
+    "prompt": 4606,
+    "completion": 136,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 2216,
+     "completion": 118,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2390,
+     "completion": 18,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2390,
+     "completion_tokens": 18,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9778011017129373
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2216,
+     "completion_tokens": 118,
+     "exact": true,
+     "truncated": false,
+     "options_count": 7,
+     "token_ratio": 1.9773627001510061
+    }
+   ],
+   "max_call_prompt": 2390,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 836,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 1.9604,
+   "error": null
+  },
+  {
+   "id": "ho_029",
+   "gold": "research.white_paper",
+   "pred": "research.white_paper",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": 0,
+   "sections_tagged": 31,
+   "tokens": {
+    "prompt": 5871,
+    "completion": 220,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3147,
+     "completion": 202,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2724,
+     "completion": 18,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2724,
+     "completion_tokens": 18,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9799113177959229
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3147,
+     "completion_tokens": 202,
+     "exact": true,
+     "truncated": true,
+     "options_count": 7,
+     "token_ratio": 1.978716284050599
+    }
+   ],
+   "max_call_prompt": 3147,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 1717,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.7229,
+   "error": null
+  },
+  {
+   "id": "ho_030",
+   "gold": "technical.user_manual",
+   "pred": "technical.user_manual",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 6121,
+    "completion": 317,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3483,
+     "completion": 298,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2638,
+     "completion": 19,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2638,
+     "completion_tokens": 19,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.97877427216615
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3483,
+     "completion_tokens": 298,
+     "exact": true,
+     "truncated": false,
+     "options_count": 8,
+     "token_ratio": 1.9775299327538134
+    }
+   ],
+   "max_call_prompt": 3483,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1282,
+    "content": 1860,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.7276,
+   "error": null
+  },
+  {
+   "id": "ho_031",
+   "gold": "technical.user_manual",
+   "pred": "technical.user_manual",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 6026,
+    "completion": 317,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3471,
+     "completion": 298,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2555,
+     "completion": 19,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2555,
+     "completion_tokens": 19,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9769181892449135
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3471,
+     "completion_tokens": 298,
+     "exact": true,
+     "truncated": false,
+     "options_count": 8,
+     "token_ratio": 1.9760340882799043
+    }
+   ],
+   "max_call_prompt": 3471,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1282,
+    "content": 1714,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.4117,
+   "error": null
+  },
+  {
+   "id": "ho_032",
+   "gold": "technical.datasheet",
+   "pred": "technical.datasheet",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 6287,
+    "completion": 322,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3599,
+     "completion": 303,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2688,
+     "completion": 19,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2688,
+     "completion_tokens": 19,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9763675425549496
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3599,
+     "completion_tokens": 303,
+     "exact": true,
+     "truncated": false,
+     "options_count": 8,
+     "token_ratio": 1.9765178920302002
+    }
+   ],
+   "max_call_prompt": 3599,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1282,
+    "content": 1523,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 7.5092,
+   "error": null
+  },
+  {
+   "id": "ho_033",
+   "gold": "technical.datasheet",
+   "pred": "technical.datasheet",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 35,
+   "tokens": {
+    "prompt": 6164,
+    "completion": 289,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3457,
+     "completion": 270,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2707,
+     "completion": 19,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2707,
+     "completion_tokens": 19,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9798223770026275
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3457,
+     "completion_tokens": 270,
+     "exact": true,
+     "truncated": false,
+     "options_count": 8,
+     "token_ratio": 1.9801568389584507
+    }
+   ],
+   "max_call_prompt": 3457,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1282,
+    "content": 1361,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.1275,
+   "error": null
+  },
+  {
+   "id": "ho_034",
+   "gold": "technical.datasheet",
+   "pred": "technical.datasheet",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 6354,
+    "completion": 327,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3739,
+     "completion": 308,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2615,
+     "completion": 19,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2615,
+     "completion_tokens": 19,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9843709730864107
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3739,
+     "completion_tokens": 308,
+     "exact": true,
+     "truncated": false,
+     "options_count": 8,
+     "token_ratio": 1.983776843360737
+    }
+   ],
+   "max_call_prompt": 3739,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1282,
+    "content": 1788,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.0068,
+   "error": null
+  },
+  {
+   "id": "ho_035",
+   "gold": "government.government_report",
+   "pred": "government.government_report",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": 0,
+   "sections_tagged": 29,
+   "tokens": {
+    "prompt": 5676,
+    "completion": 210,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3087,
+     "completion": 193,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2589,
+     "completion": 17,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2589,
+     "completion_tokens": 17,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.984801242385573
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3087,
+     "completion_tokens": 193,
+     "exact": true,
+     "truncated": true,
+     "options_count": 7,
+     "token_ratio": 1.983810888252149
+    }
+   ],
+   "max_call_prompt": 3087,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 1632,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.5389,
+   "error": null
+  },
+  {
+   "id": "ho_036",
+   "gold": "government.government_report",
+   "pred": "government.government_report",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 17,
+   "tokens": {
+    "prompt": 3442,
+    "completion": 146,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 1199,
+     "completion": 129,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2243,
+     "completion": 17,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2243,
+     "completion_tokens": 17,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9835421853470452
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 1199,
+     "completion_tokens": 129,
+     "exact": true,
+     "truncated": false,
+     "options_count": 7,
+     "token_ratio": 1.9823637505797536
+    }
+   ],
+   "max_call_prompt": 2243,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 535,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 3.0106,
+   "error": null
+  },
+  {
+   "id": "ho_037",
+   "gold": "corporate.sustainability_report",
+   "pred": "corporate.sustainability_report",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 40,
+   "tokens": {
+    "prompt": 5871,
+    "completion": 293,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3229,
+     "completion": 271,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2642,
+     "completion": 22,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2642,
+     "completion_tokens": 22,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9819791892097398
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3229,
+     "completion_tokens": 271,
+     "exact": true,
+     "truncated": false,
+     "options_count": 7,
+     "token_ratio": 1.9815652961041674
+    }
+   ],
+   "max_call_prompt": 3229,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 1586,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.7234,
+   "error": null
+  },
+  {
+   "id": "ho_038",
+   "gold": "corporate.sustainability_report",
+   "pred": "corporate.sustainability_report",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": 0,
+   "sections_tagged": 17,
+   "tokens": {
+    "prompt": 3802,
+    "completion": 145,
+    "calls": 2,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 1505,
+     "completion": 123,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 2297,
+     "completion": 22,
+     "calls": 1,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2297,
+     "completion_tokens": 22,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9824486744493646
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 1505,
+     "completion_tokens": 123,
+     "exact": true,
+     "truncated": false,
+     "options_count": 7,
+     "token_ratio": 1.9814714363205528
+    }
+   ],
+   "max_call_prompt": 2297,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 1239,
+    "content": 684,
+    "instructions": 96
+   },
+   "calls_used": "batched",
+   "wall_s": 2.6416,
+   "error": null
+  },
+  {
+   "id": "ho_039",
+   "gold": "corporate.investor_presentation",
+   "pred": null,
+   "correct": false,
+   "decided_by": "model",
+   "flags": [
+    "truncated",
+    "unparsed"
+   ],
+   "candidates": 0,
+   "sections_tagged": 39,
+   "tokens": {
+    "prompt": 9053,
+    "completion": 285,
+    "calls": 3,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 3098,
+     "completion": 243,
+     "calls": 1,
+     "exact": true
+    },
+    "document": {
+     "prompt": 5955,
+     "completion": 42,
+     "calls": 2,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2961,
+     "completion_tokens": 21,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9813085174721021
+    },
+    {
+     "level": "terms",
+     "prompt_tokens": 2994,
+     "completion_tokens": 21,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9813085174721021
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 3098,
+     "completion_tokens": 243,
+     "exact": true,
+     "truncated": true,
+     "options_count": 7,
+     "token_ratio": 1.98156978271685
+    }
+   ],
+   "max_call_prompt": 3098,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 2322,
+    "content": 1899,
+    "instructions": 159
+   },
+   "calls_used": "batched",
+   "wall_s": 4.4294,
+   "error": null
+  },
+  {
+   "id": "ho_040",
+   "gold": "corporate.investor_presentation",
+   "pred": "financial.quarterly_report",
+   "correct": false,
+   "decided_by": "model",
+   "flags": [
+    "unparsed"
+   ],
+   "candidates": 0,
+   "sections_tagged": 2,
+   "tokens": {
+    "prompt": 6984,
+    "completion": 237,
+    "calls": 4,
+    "exact": true
+   },
+   "stage_tokens": {
+    "sections": {
+     "prompt": 2401,
+     "completion": 160,
+     "calls": 2,
+     "exact": true
+    },
+    "document": {
+     "prompt": 4583,
+     "completion": 77,
+     "calls": 2,
+     "exact": true
+    }
+   },
+   "document_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 2275,
+     "completion_tokens": 56,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9833877829484883
+    },
+    {
+     "level": "terms",
+     "prompt_tokens": 2308,
+     "completion_tokens": 21,
+     "exact": true,
+     "truncated": false,
+     "options_count": 19,
+     "token_ratio": 1.9833877829484883
+    }
+   ],
+   "section_calls": [
+    {
+     "level": "terms",
+     "prompt_tokens": 1184,
+     "completion_tokens": 80,
+     "exact": true,
+     "truncated": false,
+     "options_count": 15,
+     "token_ratio": 1.9821144173776934
+    },
+    {
+     "level": "terms",
+     "prompt_tokens": 1217,
+     "completion_tokens": 80,
+     "exact": true,
+     "truncated": false,
+     "options_count": 15,
+     "token_ratio": 1.9821144173776934
+    }
+   ],
+   "max_call_prompt": 2308,
+   "doc_truncated": false,
+   "tokens_split": {
+    "options": 3074,
+    "content": 298,
+    "instructions": 244
+   },
+   "calls_used": "batched",
+   "wall_s": 5.2416,
+   "error": null
+  }
+ ]
+}

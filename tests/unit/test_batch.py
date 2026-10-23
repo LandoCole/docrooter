@@ -16,7 +16,7 @@ httpx = pytest.importorskip("httpx")
 
 from docrooter import classify  # noqa: E402
 from docrooter.backends import KeywordBackend  # noqa: E402
-from docrooter.backends.base import Scores  # noqa: E402
+from docrooter.backends.base import Candidate, Scores  # noqa: E402
 from docrooter.backends.openai import OpenAIBackend  # noqa: E402
 from docrooter.batch import (  # noqa: E402
     RETRY_NOTE,
@@ -291,6 +291,63 @@ def test_cascade_with_batched_raises():
         financial_doc(), backend=llm(handler), calls="per_item", cascade=True, level="full"
     )
     assert result.tokens.calls == len(fake_calls)
+
+
+def test_calls_fall_back_without_temperature():
+    # Some hosted models (Claude Haiku 5.5 through Anthropic's OpenAI-compatible endpoint) refuse
+    # any temperature; the call is sent again without it, and later calls never send it.
+    bodies = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        bodies.append(body)
+        if "temperature" in body:
+            message = "`temperature` is deprecated for this model."
+            return httpx.Response(400, json={"error": {"message": message}})
+        content = '{"doc_type": "legal.contract"}'
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    backend = llm(handler)
+    messages = [{"role": "user", "content": "hi"}]
+    assert backend.chat_json(messages) == {"doc_type": "legal.contract"}
+    assert backend.chat_json(messages) == {"doc_type": "legal.contract"}
+    assert [("temperature" in b) for b in bodies] == [True, False, False]  # remembered
+    assert all("response_format" in b for b in bodies)  # JSON mode is untouched
+    assert backend.usage().calls == 2
+
+    def unrelated(request):
+        return httpx.Response(400, json={"error": {"message": "prompt is too long"}})
+
+    other = llm(unrelated)
+    with pytest.raises(BackendError, match="too long"):
+        other.chat_json(messages)
+    assert other._send_temperature is True  # an unrelated 400 keeps the temperature
+
+
+def test_extra_body_is_sent_with_every_call(monkeypatch):
+    bodies = []
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        if "logprobs" in bodies[-1]:
+            return httpx.Response(200, json={"choices": [{"message": {"content": "A"}}]})
+        content = '{"doc_type": "legal.contract"}'
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    monkeypatch.setenv("DOCROOTER_LLM_EXTRA_BODY", '{"thinking": {"type": "disabled"}}')
+    backend = llm(handler)
+    assert backend.extra_body == {"thinking": {"type": "disabled"}}
+    backend.chat_json([{"role": "user", "content": "hi"}])
+    backend.score(["a contract"], [Candidate("legal.contract", "Contract")])
+    assert [b["thinking"] for b in bodies] == [{"type": "disabled"}] * 2
+    assert bodies[0]["model"] == "gpt-test"  # extra fields never replace the request's own
+
+    explicit = OpenAIBackend("m", base_url="http://llm.test/v1", extra_body={"seed": 7})
+    assert explicit.extra_body == {"seed": 7}  # the argument wins over the environment
+    for bad in ("[1]", "not json"):
+        monkeypatch.setenv("DOCROOTER_LLM_EXTRA_BODY", bad)
+        with pytest.raises(BackendError, match="DOCROOTER_LLM_EXTRA_BODY"):
+            OpenAIBackend("m", base_url="http://llm.test/v1")
 
 
 def test_chat_json_falls_back_without_response_format():

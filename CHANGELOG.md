@@ -11,8 +11,26 @@ tagged or published, and their entries are kept as history. The package version 
 
 ## [Unreleased]
 
+### Added
+
+- **`extra_body` for the OpenAI-compatible backend.** `OpenAIBackend(extra_body=...)`, or the
+  JSON object in `DOCROOTER_LLM_EXTRA_BODY`, adds provider fields to every request without
+  replacing the request's own, e.g. `{"thinking": {"type": "disabled"}}` for a Claude model that
+  would otherwise spend its small batched reply budget thinking.
+- **Hosted-LLM rows in the classification benchmark.** Claude Haiku 5.5 through Anthropic's
+  OpenAI-compatible endpoint, on the full main grid (exact tokens) and once on the held-out set.
+  The report gains a generated "Sections first against doc first" section.
+
 ### Changed
 
+- **The default `level` is measured per backend.** `classify(level=None)` (now the default), the
+  CLI and the UI use `docrooter.flow.default_level`: the cheapest rung within 2 points of `full`
+  in the benchmark. That is `headings` for the OpenAI-compatible backend (measured on Claude Haiku
+  5.5) and `lead` for UltraBERT, the default backend; any other backend keeps `terms`. Pass
+  `level="terms"` for the old behaviour.
+- **A refused `temperature` is dropped.** A server that answers HTTP 400 naming `temperature`
+  (Claude Haiku 5.5 does) is asked again without it, and never sent it again, as
+  `response_format` already was.
 - **`classify` narrows only on adequate section evidence.** In `sections_first` the doc-type
   rules may narrow or decide only when at least `max(min_evidence, ceil(min_evidence_share ×
   tagged sections))` sections were tagged with confidence (at least `rule_min_conf`; a valid

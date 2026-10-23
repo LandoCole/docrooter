@@ -656,3 +656,21 @@ def test_low_support_offers_every_type():
     assert result.candidates == ["legal.court_opinion"]  # the rules' weak suggestion
     (doc_call,) = backend.of("document")
     assert set(doc_call[1]) == DOC_TYPE_LEAVES  # every type, siblings or not
+
+
+def test_default_level_is_measured_per_backend():
+    from docrooter.flow import FALLBACK_LEVEL, default_level
+
+    assert default_level("openai:claude-haiku-5-5") == "headings"
+    assert default_level("openai:any-model") == "headings"  # one hosted LLM measured
+    assert default_level("embedding:dmis-lab/UltraBERT-Embed-150M") == "lead"
+    assert default_level("embedding:some/other-model") == FALLBACK_LEVEL == "terms"
+    assert default_level("keyword") == "terms"  # its pick lost 17.7 points to lead
+    assert default_level(Scripted(name="openai:m")) == "headings"  # a backend by its name
+
+    result = classify(financial_doc(EXEC_COMP), backend=Scripted(name="openai:m"))
+    assert result.levels == {"section": "headings", "document": None}
+    result = classify(financial_doc(EXEC_COMP), backend=Scripted())
+    assert result.levels == {"section": "terms", "document": None}
+    result = classify(financial_doc(EXEC_COMP), backend=Scripted(name="openai:m"), level="lead")
+    assert result.levels == {"section": "lead", "document": None}  # an explicit level wins

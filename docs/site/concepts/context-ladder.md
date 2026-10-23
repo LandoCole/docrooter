@@ -13,11 +13,15 @@ each extra rung buys.
 | `full` | its whole text, budgeted | the whole body text, budgeted to the prompt cap |
 
 Each rung shows everything the rung below shows and adds one field, with a budget at least as
-large, so a higher rung never loses anything a lower one showed. `terms` is the default of
-`docrooter.classify` and `docrooter classify`, until the classification benchmark measures the
-cheapest rung within 2 points of `full` for a hosted LLM (see
-[the benchmark](../benchmarks/classification.md); for UltraBERT that rung is `lead`, which beat
-`full`). The older entry points
+large, so a higher rung never loses anything a lower one showed.
+
+The default level of `docrooter.classify` and `docrooter classify` is measured per backend: the
+cheapest rung within 2 points of `full` in [the benchmark](../benchmarks/classification.md)
+(`docrooter.flow.default_level`). For an LLM through the OpenAI-compatible backend it is
+`headings`, measured on Claude Haiku 5.5: 96.5% doc-type accuracy in `doc_first` at 13% of the
+`full` tokens, where `full` scored 93.8%. For UltraBERT it is `lead`, which beat `full` by about
+6 points. A backend the benchmark has not measured (keyword among them, whose `full` is too weak
+to measure against) gets `terms`. Pass `level=` to choose. The older entry points
 (`classify_document`, `Classifier.classify_documents`, `normalize_sections`) default to
 `level=None`, their views from before 1.0 (see below).
 

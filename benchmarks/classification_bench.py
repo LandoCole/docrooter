@@ -680,6 +680,7 @@ def run_configuration(
             "spec": spec,
             "label": label,
             "endpoint_host": getattr(backend, "endpoint_host", None) or None,
+            "extra_body": dict(getattr(backend, "extra_body", None) or {}) or None,
         },
         "config": config.as_dict(),
         "docs": docs,
@@ -941,9 +942,17 @@ def _llm_disclosure(results: Sequence[Mapping[str, Any]]) -> list[str]:
             if host is None or host in _LOCAL_HOSTS
             else f"the hosted endpoint `{host}`"
         )
+        extra = backend.get("extra_body")
+        sent = (
+            f" Every request also sent `{json.dumps(extra, sort_keys=True)}`"
+            " (`DOCROOTER_LLM_EXTRA_BODY`)."
+            if extra
+            else ""
+        )
+        same = " (the same code path as a hosted model)" if "local" in where else ""
         lines.append(
             f"- **LLM rows `{label}`** are `{_model_name(str(backend['spec']))}` through the "
-            f"OpenAI-compatible backend, on {where} (the same code path as a hosted model)."
+            f"OpenAI-compatible backend, on {where}{same}.{sent}"
         )
     return lines
 
@@ -1238,6 +1247,70 @@ def _over_cap(runs: Sequence[Mapping[str, Any]]) -> list[str]:
     return lines
 
 
+def flow_comparison(runs: Sequence[Mapping[str, Any]]) -> list[str]:
+    """``sections_first`` against ``doc_first`` on document type: one row per backend, docs,
+    calls and level run in both flows, then one verdict line per backend. Empty
+    when no level was run in both flows."""
+    pairs: dict[tuple[str, str, str, str], dict[str, Mapping[str, Any]]] = {}
+    llm: dict[str, bool] = {}
+    for r in runs:
+        label, docs, calls, flow, section_level, doc_level = _key(r)
+        if section_level != doc_level:
+            continue
+        pairs.setdefault((label, docs, calls, doc_level), {})[flow] = r
+        llm[label] = str(r["backend"].get("spec", "")).startswith("openai:")
+    rows = []
+    verdicts: dict[str, list[tuple[float, float]]] = {}
+    order = {level: i for i, level in enumerate(LEVELS)}
+    for (label, docs, calls, level), flows in sorted(
+        pairs.items(), key=lambda kv: (kv[0][0], kv[0][1], kv[0][2], order.get(kv[0][3], 99))
+    ):
+        if "doc_first" not in flows or "sections_first" not in flows:
+            continue
+        df, sf = flows["doc_first"], flows["sections_first"]
+        df_acc = _metric(df, "doc_type", "accuracy")
+        sf_acc = _metric(sf, "doc_type", "accuracy")
+        df_tok, sf_tok = _metric(df, "prompt_tokens_mean"), _metric(sf, "prompt_tokens_mean")
+        if df_acc is None or sf_acc is None:
+            continue
+        delta = round(100 * sf_acc, 1) - round(100 * df_acc, 1)  # as the columns show them
+        ratio = sf_tok / df_tok if df_tok and sf_tok is not None else None
+        rows.append(
+            f"| {label} | {calls} | {level} | {_pct(df_acc)} | {_pct(sf_acc)} | {delta:+.1f} "
+            f"| {'–' if ratio is None else f'{ratio:.2f}×'} | {docs} |"
+        )
+        verdicts.setdefault((label, docs), []).append((delta, ratio if ratio is not None else 0.0))
+    if not rows:
+        return []
+    lines = [
+        "| Backend | Calls | Level | doc_first doc acc | sections_first doc acc | Difference "
+        "(points) | sections_first tokens / doc_first | Docs |",
+        "|---|---|---|---:|---:|---:|---:|---|",
+        *rows,
+        "",
+    ]
+    for (label, docs), found in sorted(
+        verdicts.items(), key=lambda kv: (kv[0][0], kv[0][1] != "gold")
+    ):
+        wins = sum(d > 0 for d, _ in found)
+        low, high = min(d for d, _ in found), max(d for d, _ in found)
+        spread = f"{low:+.1f} points" if low == high else f"{low:+.1f} to {high:+.1f} points"
+        ratios = [t for _, t in found if t]
+        tagger = " (LLM tagger)" if llm.get(label) else ""
+        span = (
+            f"{min(ratios):.2f}"
+            if ratios and min(ratios) == max(ratios)
+            else (f"{min(ratios):.2f}–{max(ratios):.2f}" if ratios else "")
+        )
+        cost = f", at {span}× the prompt tokens" if ratios else ""
+        split = "the held-out set" if docs == "heldout" else f"the {docs} split"
+        lines.append(
+            f"- **{label}**{tagger}: sections_first beats doc_first on document type at {wins} "
+            f"of {len(found)} level(s) on {split} ({spread}){cost}."
+        )
+    return lines
+
+
 def _heldout_table(runs: Sequence[Mapping[str, Any]]) -> list[str]:
     lines = [
         "| Backend | Calls | Flow | Section level | Doc level | Doc acc | Doc macro-F1 "
@@ -1294,6 +1367,18 @@ def render_report(results: Sequence[Mapping[str, Any]]) -> str:
             "",
         ]
         lines += _picks(main) if main else ["No main-grid runs."]
+        comparison = flow_comparison(gold + heldout)
+        if comparison:
+            lines += [
+                "",
+                "## Sections first against doc first (document type)",
+                "",
+                "Does tagging the sections first, and letting the doc-type rules narrow or decide "
+                "the type, beat classifying the document view directly? Same backend, calls and "
+                "level; a positive difference favours `sections_first`.",
+                "",
+                *comparison,
+            ]
         cross = _cross_tables(gold)
         if cross:
             lines += ["", "## Cross-grid: section level x document level", "", *cross]

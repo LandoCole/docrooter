@@ -78,7 +78,10 @@ and `doc_level=` set the two steps apart). Each rung shows everything below it a
 | `lead` | + first sentences (192) | + opening text (640) |
 | `full` | the whole section text (2,048) | the whole body text, budgeted to a 16,000-token target prompt |
 
-**Calls.** With an LLM backend, `calls="batched"` (the default) sorts the sections into groups
+**Calls.** A decision model (`jev`) is always asked one question at a time and answers with a
+probability for every option. With an LLM, batched calls are recommended (the default) because
+they send each option list once per request rather than once per heading; see
+[Batched or one at a time](docs/site/guides/calls.md). With an LLM backend, `calls="batched"` (the default) sorts the sections into groups
 in one call and labels them within each group in one more call per group, listing each option
 once; `calls="batched_flat"` lists every leaf in one call; `calls="per_item"` asks one item at a
 time, with probabilities (and allows `cascade=True`, which asks low-confidence items again one

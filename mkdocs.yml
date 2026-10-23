@@ -137,6 +137,7 @@ nav:
       - OCR and layout models: guides/ocr-and-layout.md
       - Chunking for RAG: guides/chunking-for-rag.md
       - Jev and OpenAI-compatible LLMs: guides/llm-backends.md
+      - Batched or one at a time: guides/calls.md
       - Memory and performance: guides/memory-performance.md
       - The playground: guides/playground.md
   - Reference:

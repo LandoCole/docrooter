@@ -13,6 +13,10 @@ Two backends call a language model over HTTP instead of running one locally:
 Both send the rendered [views](../concepts/views.md) (not whole documents) to the server, so
 check that this is acceptable for your data before you use them.
 
+How `classify` packs its questions into requests differs between the two: a decision model is
+asked one question at a time, an LLM in batches by default. See
+[Batched or one at a time](calls.md) for which to use and how to set it.
+
 ## Keys stay in the environment
 
 Keys are read only from environment variables (or an explicit `api_key=`), and are redacted from
@@ -93,6 +97,24 @@ The model name is required (`openai:gpt-4o-mini`). For a local server, set
 `DOCROOTER_LLM_BASE_URL` (e.g. `http://localhost:11434/v1`); a server that needs no key works
 without one. Requests run concurrently (8 at a time). The script is
 [`examples/openai_backend.py`](../../../examples/openai_backend.py).
+
+### Claude
+
+Anthropic's API speaks the OpenAI chat format, so Claude needs no extra code: point the backend
+at it and name the model.
+
+```bash
+export DOCROOTER_LLM_BASE_URL=https://api.anthropic.com/v1
+export DOCROOTER_LLM_API_KEY=...   # your Anthropic key, from a git-ignored .env
+export DOCROOTER_LLM_EXTRA_BODY='{"thinking": {"type": "disabled"}}'
+docrooter classify report.pdf -b openai:claude-haiku-5-5
+```
+
+`DOCROOTER_LLM_EXTRA_BODY` adds fields to every request: with thinking on, Claude spent the small
+batched reply budget thinking and returned no answer. The endpoint refuses `temperature` (the
+backend notices and stops sending it) and returns no logprobs, so per-item answers are read
+from the letter, with no probability. Use batched calls (the default); see
+[Batched or one at a time](calls.md).
 
 In a per-item call (a `score` call, or `classify(..., calls="per_item")`) the options are
 lettered A-Z and the model answers with one letter. `classify`'s default batched calls list the

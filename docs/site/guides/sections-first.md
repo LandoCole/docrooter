@@ -114,7 +114,8 @@ document view, then label the sections with that type's own section taxonomy (as
 
 ## How the LLM is asked
 
-`calls=` says how a backend that can batch (the OpenAI-compatible one) is asked:
+`calls=` says how a backend that can batch (the OpenAI-compatible one) is asked (which to use
+for which model: [Batched or one at a time](calls.md)):
 
 - **`"batched"`** (the default for such a backend) lists the options once per call instead of
   once per section. One call sorts the sections into catalogue groups (each group with a

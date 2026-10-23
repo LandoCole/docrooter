@@ -147,3 +147,216 @@ def test_pymupdf4llm_max_pages(bookmarked_pdf):
     assert "Methods" in titles and "Appendix Notes" not in titles
     assert doc.meta["n_pages"] == 3 and doc.meta["warnings"] == ["truncated_pages"]
     assert load(bookmarked_pdf, engine="pymupdf4llm").meta["warnings"] == []
+
+
+# --- D9: fuzzy bookmarks, headings from bookmarks, no level jumps ----------------------------
+
+ITEM_10 = "Item 10. Directors, Executive Officers and Corporate Governance"
+COMPARISONS = "Comparisons of the Tax Liabilities of FCCs and USCCs Depend on the Measure Used"
+
+
+def body(title, text, *, level=1, page=1, line=1):
+    return RawHeading(title=title, level=level, text=text, line=line, page=page)
+
+
+def pages_of(text, *page_runs, first_line=2):
+    """``(line, page)`` for each line of ``text``: ``page_runs`` are ``(page, n_lines)`` runs."""
+    pages = [page for page, count in page_runs for _ in range(count)]
+    assert len(pages) == len(text.splitlines())
+    return [(first_line + k, page) for k, page in enumerate(pages)]
+
+
+@pytest.mark.parametrize(
+    ("title", "bookmark"),
+    [
+        (ITEM_10, "Item 10. Directors, Executive Officers and Corporate Goverance"),
+        (
+            "Report of Independent Registered Public Accounting Firm",
+            "Reports of Independent Registered Public Accounting Firm",
+        ),
+        (
+            "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND "
+            "RELATED STOCKHOLDER MATTERS",
+            "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND "
+            "RELATED STOCKHOLDERMATTERS",
+        ),
+    ],
+)
+def test_bookmark_typo_still_matches(title, bookmark):
+    out = apply_bookmarks(
+        [heading("PART III", 1, page=55), heading(title, 4, page=56)],
+        [[1, "PART III", 55], [2, bookmark, 56]],
+    )
+    assert [(h.title, h.level) for h in out] == [("PART III", 1), (title, 2)]
+    assert out[1].flags == ["level_from_bookmark"]
+
+
+def test_fuzzy_match_needs_nearby_page():
+    toc = [[2, "Item 10. Directors, Executive Officers and Corporate Goverance", 70]]
+    out = apply_bookmarks([heading(ITEM_10, 4, page=56)], toc)
+    assert out[0].level == 4 and out[0].flags == []
+    # one page away still matches
+    toc = [[2, "Item 10. Directors, Executive Officers and Corporate Goverance", 57]]
+    assert apply_bookmarks([heading(ITEM_10, 4, page=56)], toc)[0].level == 2
+
+
+def test_exact_matches_win_before_fuzzy():
+    # The near-duplicate comes first in reading order, but the bookmark "Basis for Opinions"
+    # belongs to the exact heading later on; the first heading must not take it fuzzily.
+    headings = [heading("Basis for Opinion", 4, page=52), heading("Basis for Opinions", 4, page=52)]
+    out = apply_bookmarks(headings, [[3, "Basis for Opinions", 52]])
+    assert [h.level for h in out] == [4, 3]
+    assert out[0].flags == [] and out[1].flags == ["level_from_bookmark"]
+
+
+def test_missing_bookmark_heading_is_inserted():
+    text = (
+        "Scope text on page nine.\n"
+        "\n"
+        "Comparisons of the Tax Liabilities of FCCs and USCCs\n"
+        "Depend on the Measure Used\n"
+        "\n"
+        "Comparisons of the tax liabilities vary."
+    )
+    scope = body("Scope and Methodology", text, level=2, page=9, line=40)
+    toc = [[2, "Scope and Methodology", 9], [2, COMPARISONS, 10]]
+    out = apply_bookmarks([scope], toc, line_pages=[pages_of(text, (9, 2), (10, 4), first_line=42)])
+    assert [(h.title, h.level, h.page) for h in out] == [
+        ("Scope and Methodology", 2, 9),
+        (COMPARISONS, 2, 10),
+    ]
+    assert out[0].text == "Scope text on page nine."
+    assert out[1].text == "Comparisons of the tax liabilities vary."
+    assert out[1].flags == ["heading_from_bookmark"] and out[1].line == 44
+    assert scope.text == text  # input untouched
+
+
+def test_inserted_heading_allows_emphasis_and_punctuation():
+    text = "Intro.\n**Item 10. Directors, Executive Officers and Corporate Governance**\nBody."
+    out = apply_bookmarks([body("PART III", text, page=56)], [[2, ITEM_10, 56]])
+    assert [(h.title, h.level) for h in out] == [("PART III", 1), (ITEM_10, 2)]
+    assert out[1].text == "Body." and out[0].text == "Intro."
+
+
+def test_insertion_skips_contents_and_mid_sentence():
+    # A "Contents" page (p3) lists the title at a line start; the bookmark points at p10.
+    contents = f"{COMPARISONS}\nBackground"
+    text = (
+        "Earlier text.\n"
+        f"As shown in {COMPARISONS}, the measures differ.\n"
+        f"{COMPARISONS} differently, the note says.\n"
+        "More text."
+    )
+    headings = [body("Contents", contents, page=3), body("Scope", text, level=2, page=9)]
+    line_pages = [pages_of(contents, (3, 2)), pages_of(text, (9, 1), (10, 3))]
+    toc = [[2, COMPARISONS, 10]]
+    assert apply_bookmarks(headings, toc, line_pages=line_pages) == headings
+    # the same body with the title on a line of its own on p10 is split
+    text = f"{contents}\nOn page ten.\n{COMPARISONS}\nFindings."
+    single = [body("Scope", text, level=2, page=3)]
+    out = apply_bookmarks(single, toc, line_pages=[pages_of(text, (3, 2), (10, 3))])
+    assert [h.title for h in out] == ["Scope", COMPARISONS]
+    assert out[0].text == f"{contents}\nOn page ten." and out[1].text == "Findings."
+    # without line pages a body counts as on its heading's page only
+    assert apply_bookmarks(single, toc) == single
+
+
+def make_blank_pdf(pymupdf, path, n_pages, toc):
+    doc = pymupdf.open()
+    for _ in range(n_pages):
+        doc.new_page()
+    if toc:
+        doc.set_toc(toc)
+    doc.save(str(path))
+    doc.close()
+    return path
+
+
+def fake_markdown(monkeypatch, chunks):
+    """Make PyMuPDF4LLM return ``chunks`` (one Markdown string per page)."""
+    import pymupdf4llm
+
+    def to_markdown(path, **options):
+        return [{"text": text, "metadata": {"page_number": i + 1}} for i, text in enumerate(chunks)]
+
+    monkeypatch.setattr(pymupdf4llm, "to_markdown", to_markdown)
+
+
+def test_no_level_jump_after_bookmarks(pymupdf, tmp_path, monkeypatch):
+    from docrooter.document.pdf import load_pdf_markdown
+
+    # font levels 1-4 then 4 and 5: the bookmark lifts PART III to level 1, which leaves
+    # "Executive Compensation" three levels below it unless the cap runs again
+    chunks = [
+        "# Annual Report\n\n## Part II\n\n### Item 9\n\nx\n\n#### PART III\n\nintro\n\n"
+        "#### Executive Compensation\n\nbody\n\n##### Detail\n\nx\n"
+    ]
+    fake_markdown(monkeypatch, chunks)
+    path = make_blank_pdf(pymupdf, tmp_path / "jump.pdf", 1, [[1, "PART III", 1]])
+    doc = load_pdf_markdown(path)
+    assert [(s.title, s.level) for s in doc.walk()][3:] == [
+        ("PART III", 1),
+        ("Executive Compensation", 2),
+        ("Detail", 3),
+    ]
+    assert "level_repaired" in doc.section("s2.1").flags
+    assert doc.section("s2.1").parent_id == "s2"
+    # repair=False leaves the levels alone
+    raw = load_pdf_markdown(path, repair=False)
+    assert [s.level for s in raw.walk()] == [1, 2, 3, 1, 4, 5]
+
+
+def test_heading_from_bookmark_through_the_reader(pymupdf, tmp_path, monkeypatch):
+    from docrooter.document.pdf import load_pdf_markdown
+
+    chunks = [
+        "# Contents\n\nScope and Methodology\n\nComparisons of the Tax Liabilities of FCCs and "
+        "USCCs Depend on the Measure Used\n",
+        "## Scope and Methodology\n\nWe used SOI data.\n\n## ***\n",  # emptied: text joins
+        "concluded that the data were reliable.\n\nComparisons of the Tax Liabilities of FCCs and "
+        "USCCs\nDepend on the Measure Used \n\nComparisons vary.\n\n### Sub finding\n\nmore\n",
+    ]
+    fake_markdown(monkeypatch, chunks)
+    toc = [[1, "Contents", 1], [2, "Scope and Methodology", 2], [2, COMPARISONS, 3]]
+    doc = load_pdf_markdown(make_blank_pdf(pymupdf, tmp_path / "gao.pdf", 3, toc))
+    assert [(s.title, s.level, s.page_start) for s in doc.walk()] == [
+        ("Contents", 1, 1),
+        ("Scope and Methodology", 2, 2),
+        (COMPARISONS, 2, 3),
+        ("Sub finding", 3, 3),
+    ]
+    scope = doc.section("s1.1")
+    assert scope.text == "We used SOI data.\nconcluded that the data were reliable."
+    finding = doc.section("s1.2")
+    assert finding.text == "Comparisons vary." and "heading_from_bookmark" in finding.flags
+    assert doc.section("s1").text.endswith("Depend on the Measure Used")  # contents untouched
+
+
+def test_no_bookmarks_reads_as_before(pymupdf, tmp_path, monkeypatch):
+    from docrooter.document.build import build_document
+    from docrooter.document.headings import repair_levels
+    from docrooter.document.markdown import extract_headings
+    from docrooter.document.pdf import load_pdf_markdown
+
+    chunks = [
+        "lead\n\n# Report\n\nintro\n\n### Deep\n\nComparisons of the Tax Liabilities\n",
+        "## Next\n\nbody\n\n#### Deeper\n\ntext\n",
+    ]
+    fake_markdown(monkeypatch, chunks)
+    path = make_blank_pdf(pymupdf, tmp_path / "plain.pdf", 2, [])
+    doc = load_pdf_markdown(path)
+    markdown, starts, pages = _join_chunks(
+        [{"text": t, "metadata": {"page_number": i + 1}} for i, t in enumerate(chunks)]
+    )
+    raw = [
+        h.model_copy(update={"page": pages[0] if h.line < starts[1] else pages[1]})
+        for h in extract_headings(markdown)
+    ]
+    expected = build_document(repair_levels(raw), source=str(path), title="Report")
+    assert doc.sections == expected.sections and doc.root_ids == expected.root_ids
+    assert doc.meta["bookmarks"] == 0
+
+
+def test_line_pages_needs_one_entry_per_heading():
+    with pytest.raises(ValueError, match="one entry per heading"):
+        apply_bookmarks([heading("A")], [[1, "B", 1]], line_pages=[])

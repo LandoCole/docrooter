@@ -119,25 +119,48 @@ def repair_levels(raw: list[RawHeading]) -> list[RawHeading]:
 
     When at least half of the headings carry a dotted-numeric prefix ("1", "1.2", "1.2.3"), those
     headings take the number of dot-separated parts as their level. A single pass then caps each
-    level at ``previous_level + 1`` so the hierarchy has no gaps. Changed headings get the
-    ``level_repaired`` flag. The level-0 preamble block is untouched. Inputs are not mutated.
+    level at ``previous_level + 1`` so the hierarchy has no gaps (:func:`cap_levels`). Changed
+    headings get the ``level_repaired`` flag. The level-0 preamble block is untouched. Inputs are
+    not mutated.
     """
     headings = [h for h in raw if h.level > 0]
     numbered = sum(1 for h in headings if _DOTTED.match(h.title.strip()))
     use_numbering = bool(headings) and numbered / len(headings) >= _NUMBERED_FRACTION
 
-    out: list[RawHeading] = []
-    previous = 0
+    levels: list[int] = []
     for heading in raw:
-        if heading.level <= 0:
-            out.append(heading)
-            continue
-        level = heading.level
-        match = _DOTTED.match(heading.title.strip()) if use_numbering else None
-        if match:
-            level = len(match.group(1).split("."))
-        level = min(level, previous + 1)
-        previous = level
+        match = (
+            _DOTTED.match(heading.title.strip()) if use_numbering and heading.level > 0 else None
+        )
+        levels.append(len(match.group(1).split(".")) if match else heading.level)
+    return _relevel(raw, _capped(levels))
+
+
+def cap_levels(raw: list[RawHeading]) -> list[RawHeading]:
+    """Cap each heading's level at the previous heading's level plus one.
+
+    The pass :func:`repair_levels` ends with. Changed headings get the ``level_repaired`` flag;
+    the level-0 preamble block is untouched. Inputs are not mutated.
+    """
+    return _relevel(raw, _capped([h.level for h in raw]))
+
+
+def _capped(levels: list[int]) -> list[int]:
+    """``levels`` with each positive level at most one deeper than the positive one before."""
+    out: list[int] = []
+    previous = 0
+    for level in levels:
+        if level > 0:
+            level = min(level, previous + 1)
+            previous = level
+        out.append(level)
+    return out
+
+
+def _relevel(raw: list[RawHeading], levels: list[int]) -> list[RawHeading]:
+    """Each heading at its new level, flagged ``level_repaired`` when that changes it."""
+    out: list[RawHeading] = []
+    for heading, level in zip(raw, levels, strict=True):
         if level != heading.level:
             flags = list(heading.flags)
             if "level_repaired" not in flags:

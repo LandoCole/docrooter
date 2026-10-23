@@ -106,6 +106,15 @@ tagged or published, and their entries are kept as history. The package version 
   `token_ratio()`, the exact prompt tokens the OpenAI-compatible backend has spent per estimated
   token (1.0 to 3.0), recorded per call as `CallRecord.token_ratio`.
 
+### Fixed
+
+- **PDF headings get their bookmark levels despite small differences in the bookmark.** A
+  bookmark with a typo, a plural or joined words ("Goverance", "Reports of …",
+  "STOCKHOLDERMATTERS") now matches a heading on the same or next page, so Item 12 no longer
+  sits inside Item 11. A bookmarked heading the reader saw only as body text becomes a heading
+  (flag `heading_from_bookmark`), and the headings after a bookmarked one can no longer sit
+  levels deeper than it. PDFs without bookmarks read as before.
+
 ## [1.0.0] - 2026-10-20
 
 docrooter 1.0 gives a hosted LLM the minimum context it needs to classify a document. It tags

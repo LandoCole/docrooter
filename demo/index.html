@@ -339,6 +339,7 @@ const LEVELS = ['headings', 'terms', 'lead', 'full'];
 const RUNG = { headings: 'Headings', terms: '+ Key terms', lead: '+ Opening lines', full: 'Full text' };
 const PRICE = 0.042e-6;           // Jev, US$ per input token; output is free
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const DEFAULT_SAMPLE = 'fund_prospectus-1';  // the sample the page opens on
 const PROMPT_CHARS = 2400;        // the document view shown before "Show all"
 const fmt = (n, d = 0) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const pct = x => `${fmt(100 * x, 1)}%`;
@@ -543,7 +544,8 @@ fetch('data/index.json').then(r => r.json()).then(data => {
     }
     if (og.children.length) sel.append(og);
   }
-  const first = new URLSearchParams(location.search).get('sample') || samples[0]?.id;
+  const opening = samples.find(x => x.id === DEFAULT_SAMPLE)?.id;
+  const first = new URLSearchParams(location.search).get('sample') || opening || samples[0]?.id;
   if (first) { sel.value = first; loadSample(first); }
   loadBench();
 }).catch(() => { $('sample').replaceChildren(new Option('Samples unavailable', '')); $('sample').disabled = true; });

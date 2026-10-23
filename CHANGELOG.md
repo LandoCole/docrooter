@@ -110,10 +110,10 @@ tagged or published, and their entries are kept as history. The package version 
 
 - **PDF headings get their bookmark levels despite small differences in the bookmark.** A
   bookmark with a typo, a plural or joined words ("Goverance", "Reports of …",
-  "STOCKHOLDERMATTERS") now matches a heading on the same or next page, so Item 12 no longer
+  "STOCKHOLDERMATTERS") now matches a heading on the same or next page (short titles must match exactly), so Item 12 no longer
   sits inside Item 11. A bookmarked heading the reader saw only as body text becomes a heading
   (flag `heading_from_bookmark`), and the headings after a bookmarked one can no longer sit
-  levels deeper than it. PDFs without bookmarks read as before.
+  levels deeper than it. PDFs without bookmarks change only where the level repair below applies.
 - **Headings of the same level no longer nest in each other.** Closing a level gap used to
   push a run of same-level headings one level deeper each (`# A` then three `###` came out at
   2, 3 and 3), so one financial statement held the next ones and all the notes. They are now

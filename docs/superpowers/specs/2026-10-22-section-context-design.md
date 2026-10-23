@@ -252,7 +252,7 @@ In `load_pdf_markdown` (`src/docrooter/document/pdf.py`), with `use_bookmarks`:
 
 1. **Fuzzy bookmark match.** A heading with no exact (normalised) bookmark match takes a
    bookmark whose normalised title has a `difflib.SequenceMatcher` ratio of at least 0.9 with
-   the heading's, and whose page is within one page of the heading's. Each bookmark is used at
+   the heading's (both titles at least 15 characters long, so "Revenue" never takes "Revenues"), and whose page is within one page of the heading's. Each bookmark is used at
    most once, in document order. The heading gets the `level_from_bookmark` flag, as for an
    exact match.
 2. **Missing headings from bookmarks.** A bookmark (level ≥ 1, page ≥ 1) that no heading used is
@@ -262,11 +262,9 @@ In `load_pdf_markdown` (`src/docrooter/document/pdf.py`), with `use_bookmarks`:
    before stays, and a new heading follows with the bookmark's title and level, the page, the
    rest of the text, and the flag `heading_from_bookmark`. A bookmark that can't be found is
    skipped.
-3. **No level jumps after bookmarks.** The level cap (each level at most one deeper than the
-   heading before it) runs again after the bookmark levels are applied, so a heading under
-   a bookmarked "PART III" (level 1) cannot sit at level 4.
+3. **Levels after bookmarks.** Bookmark levels are applied first; then, with `repair`, one gap repair runs (`repair_levels` with `keep_flags`). Bookmarked and bookmark-inserted headings keep their levels exactly. Every other heading goes one level below the nearest open heading with a smaller level (a stack keyed on the raw level, or on the kept level for a bookmarked heading), so no heading sits more than one level below the heading it nests under, and headings of one level stay siblings. A bookmark level itself may still jump. This replaces the repair-then-bookmarks order; a two-pass version flattened single-font headings.
 
-Everything else in the reader is unchanged. Without bookmarks, nothing changes.
+Without bookmarks, only the gap repair changes: runs of same-level headings no longer nest (`# A / ### B / ### C` → B and C are siblings), in Markdown too.
 
 ### D10. The benchmark keeps its reading
 

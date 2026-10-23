@@ -244,7 +244,7 @@ Global Constraints above still apply. Spec: the "Revision 3" section of the same
 1. **Fuzzy matching must not steal.** Exact matches are made first for all headings; fuzzy matching only considers bookmarks left over, so two "Basis for Opinion" headings or a near-duplicate title never take each other's bookmark (Task 8 test).
 2. **Inserting from a bookmark must not split a table of contents.** Only the text covering the bookmark's own page is searched, and only at a line start; a title listed on a "Contents" page or mentioned mid-sentence is not split (Task 8 test).
 3. **A run breaks on `none` but not on an untagged section** (Task 7 test).
-4. **Markdown input and PDFs without bookmarks read exactly as before** (Task 8 test: `load_pdf_markdown` output unchanged when `toc` is empty; `load()` of Markdown untouched).
+4. **Markdown input and PDFs without bookmarks read as before, except that same-level headings no longer nest** (Task 8 test: `test_no_bookmarks_only_repairs_levels`: `load_pdf_markdown` output is the repaired reading when `toc` is empty).
 5. **The benchmark's default reading is the pinned one** and `--fresh-reading` switches to `reading_key()` (Task 9 test).
 
 ### Task 7: Merge runs in `section_text`

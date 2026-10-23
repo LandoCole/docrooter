@@ -8,7 +8,7 @@ import io
 import re
 import time
 from bisect import bisect_right
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
@@ -29,6 +29,9 @@ _FROM_BOOKMARK_FLAG = "heading_from_bookmark"
 # A heading with no exact bookmark takes a leftover one this similar on a page this close.
 _FUZZY_RATIO = 0.9
 _FUZZY_PAGES = 1
+# Both titles need this many characters (normalised) to be fuzzy matched: "Revenue" and
+# "Revenues", or "Income Taxes" and "Income Tax", are different headings, not a typo.
+_FUZZY_MIN_CHARS = 15
 # Words that number what follows them ("Part II", "Item 7A", "Note 1", "Appendix B").
 _NUMBERED_WORDS = frozenset(
     "part item note section article chapter appendix exhibit schedule table figure".split()
@@ -73,7 +76,8 @@ def apply_bookmarks(
     normalisation (casefold, punctuation and whitespace collapsed), preferring a bookmark that
     points at the heading's own page when several share a title. Then a heading still without
     one takes a bookmark left over whose normalised title is at least 90% similar
-    (``difflib.SequenceMatcher`` ratio), whose numbering is the same ("Item 7" never takes
+    (``difflib.SequenceMatcher`` ratio; both titles at least 15 characters, so "Revenue" never
+    takes "Revenues"), whose numbering is the same ("Item 7" never takes
     "Item 7A", nor "Part I" "Part II") and whose page is within one page of the heading's.
     Each bookmark is used at most once, in document order. Matched headings get the
     ``level_from_bookmark`` flag.
@@ -141,8 +145,9 @@ def apply_bookmarks(
             for heading in headings
         ]
     )
+    bodies: dict[int, _Body] = {}
     for level, title, page in leftover:
-        _insert_heading(out, pages, level, title, page)
+        _insert_heading(out, pages, bodies, level, title, page)
     return out
 
 
@@ -155,6 +160,8 @@ def _fuzzy_pick(
 ) -> int | None:
     """The unused bookmark most similar to ``key`` (ratio at least 0.9) within a page of it,
     with the same numbering (:func:`_numbering`)."""
+    if len(key) < _FUZZY_MIN_CHARS:
+        return None
     numbering = _numbering(key)
     best: tuple[float, int, int] | None = None  # (ratio, -page distance, -index)
     for index, (_, _, bookmark_page) in enumerate(bookmarks):
@@ -163,7 +170,7 @@ def _fuzzy_pick(
         distance = abs(bookmark_page - page)
         if distance > _FUZZY_PAGES:
             continue
-        if _numbering(keys[index]) != numbering:
+        if len(keys[index]) < _FUZZY_MIN_CHARS or _numbering(keys[index]) != numbering:
             continue
         matcher = SequenceMatcher(None, key, keys[index])
         if matcher.real_quick_ratio() < _FUZZY_RATIO or matcher.quick_ratio() < _FUZZY_RATIO:
@@ -199,35 +206,66 @@ def _title_pattern(title: str) -> re.Pattern[str] | None:
     return re.compile(rf"^{_TITLE_EDGE}{body}{_TITLE_EDGE}$", re.IGNORECASE | re.MULTILINE)
 
 
+class _Body:
+    """A heading's body split into lines once, as ``str.splitlines`` counts them (as the reader
+    and ``line_pages`` do). The lines are joined by "\\n", so a match's line is its "\\n" count."""
+
+    def __init__(self, text: str, lines: list[tuple[int, int | None]]) -> None:
+        self.kept = text.splitlines(keepends=True)
+        self.plain = [line.rstrip("\r\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029") for line in self.kept]
+        self.joined = "\n".join(self.plain)
+        self.starts: list[int] = []  # where each line starts in ``joined``
+        offset = 0
+        for line in self.plain:
+            self.starts.append(offset)
+            offset += len(line) + 1
+        # per page, the runs of consecutive lines on it as (first line, one past the last)
+        self.runs: dict[int | None, list[tuple[int, int]]] = {}
+        for index, (_, line_page) in enumerate(lines[: len(self.plain)]):
+            runs = self.runs.setdefault(line_page, [])
+            if runs and runs[-1][1] == index:
+                runs[-1] = (runs[-1][0], index + 1)
+            else:
+                runs.append((index, index + 1))
+
+    def find(self, pattern: re.Pattern[str], page: int, wrap: int) -> Iterator[tuple[int, int]]:
+        """The first and last line of each match of ``pattern`` that starts on ``page``. Only
+        those lines and the ``wrap`` after them are searched, so a title may wrap over lines."""
+        count = len(self.plain)
+        for run_start, run_end in self.runs.get(page, []):
+            stop = min(run_end + wrap, count)
+            end = len(self.joined) if stop == count else self.starts[stop] - 1
+            for match in pattern.finditer(self.joined, self.starts[run_start], end):
+                first = self.joined.count("\n", 0, match.start())
+                if run_start <= first < run_end:
+                    yield first, self.joined.count("\n", 0, match.end())
+
+
 def _insert_heading(
     headings: list[RawHeading],
     pages: list[list[tuple[int, int | None]]],
+    bodies: dict[int, _Body],
     level: int,
     title: str,
     page: int,
 ) -> None:
-    """Split the first body holding ``title`` on ``page`` at it, in place (both lists)."""
+    """Split the first body holding ``title`` on ``page`` at it, in place (``headings`` and
+    ``pages``). ``bodies`` keeps each heading's :class:`_Body` by ``id``."""
     pattern = _title_pattern(title)
     if pattern is None:
         return
+    wrap = len(title.split()) + 1
     for position, heading in enumerate(headings):
         lines = pages[position]
-        if not any(line_page == page for _, line_page in lines):
-            continue
-        # Lines as str.splitlines counts them (as the reader and ``line_pages`` do); the
-        # pattern runs on them joined by "\n" so a match's line is its "\n" count.
-        kept = heading.text.splitlines(keepends=True)
-        plain = [line.rstrip("\r\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029") for line in kept]
-        joined = "\n".join(plain)
-        for match in pattern.finditer(joined):
-            first = joined.count("\n", 0, match.start())
-            if first >= len(lines) or lines[first][1] != page:
-                continue
-            start = joined.count("\n", 0, match.end()) + 1
-            while start < len(plain) and not plain[start].strip():
+        body = bodies.get(id(heading))
+        if body is None:
+            body = bodies[id(heading)] = _Body(heading.text, lines)
+        for first, last in body.find(pattern, page, wrap):
+            start = last + 1
+            while start < len(body.plain) and not body.plain[start].strip():
                 start += 1
-            before = "".join(kept[:first]).rstrip()
-            after = "".join(kept[start:]).strip()
+            before = "".join(body.kept[:first]).rstrip()
+            after = "".join(body.kept[start:]).strip()
             new = RawHeading(
                 title=" ".join(title.split()),
                 level=level,
@@ -236,6 +274,7 @@ def _insert_heading(
                 page=page,
                 flags=[_FROM_BOOKMARK_FLAG],
             )
+            del bodies[id(heading)]
             headings[position] = heading.model_copy(update={"text": before})
             headings.insert(position + 1, new)
             pages[position] = lines[: len(before.splitlines())]

@@ -1,5 +1,7 @@
 """PDF loader: bookmark matching (pure) and a generated PDF through PyMuPDF4LLM."""
 
+import time
+
 import pytest
 
 from docrooter import load
@@ -332,7 +334,7 @@ def test_heading_from_bookmark_through_the_reader(pymupdf, tmp_path, monkeypatch
     assert doc.section("s1").text.endswith("Depend on the Measure Used")  # contents untouched
 
 
-def test_no_bookmarks_reads_as_before(pymupdf, tmp_path, monkeypatch):
+def test_no_bookmarks_only_repairs_levels(pymupdf, tmp_path, monkeypatch):
     from docrooter.document.build import build_document
     from docrooter.document.headings import repair_levels
     from docrooter.document.markdown import extract_headings
@@ -382,10 +384,10 @@ def test_insertion_counts_lines_as_splitlines_does(separator):
 @pytest.mark.parametrize(
     ("title", "bookmark"),
     [
-        ("Part I", "Part II"),
-        ("Item 7", "Item 7A"),
-        ("Note 1 Revenue", "Note 2 Revenue"),
-        ("Exhibit 3.1", "Exhibit 3.2"),
+        ("Part I Financial Information", "Part II Financial Information"),
+        ("Item 7 Management Discussion", "Item 7A Management Discussion"),
+        ("Note 1 Summary of Significant Policies", "Note 2 Summary of Significant Policies"),
+        ("Exhibit 3.1 Certificate of Incorporation", "Exhibit 3.2 Certificate of Incorporation"),
     ],
 )
 def test_fuzzy_match_keeps_numbering_apart(title, bookmark):
@@ -408,3 +410,49 @@ def test_same_level_headings_stay_siblings_under_a_bookmark(pymupdf, tmp_path, m
     assert item_8.level == 3
     assert [doc.section(c).title for c in item_8.children] == statements
     assert {doc.section(c).level for c in item_8.children} == {4}
+
+
+def test_many_leftover_bookmarks_in_a_large_body_stay_fast():
+    # 3 MB body over 100 pages and 500 bookmarks that are nowhere in it: each bookmark must
+    # only search the lines of its own page, not the whole body.
+    line = "x" * 74
+    text = "\n".join([line] * 40_000)
+    lines = [(2 + k, 1 + k // 400) for k in range(40_000)]
+    toc = [[2, f"Missing Heading Number {k}", 1 + k % 100] for k in range(500)]
+    started = time.perf_counter()
+    out = apply_bookmarks([body("Start", text, page=1)], toc, line_pages=[lines])
+    assert time.perf_counter() - started < 3
+    assert len(out) == 1 and out[0].text == text
+
+
+def test_insertion_finds_a_title_wrapped_over_several_lines():
+    text = "one\ntwo\nA Long Title That\nWraps Over Lines\nThree\nafter"
+    lines = pages_of(text, (1, 2), (2, 4))
+    toc = [[2, "A Long Title That Wraps Over Lines", 2]]
+    out = apply_bookmarks([body("Start", text, page=1)], toc, line_pages=[lines])
+    assert [(h.title, h.text) for h in out] == [
+        ("Start", "one\ntwo"),
+        ("A Long Title That Wraps Over Lines", "Three\nafter"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("title", "bookmark"),
+    [("Revenue", "Revenues"), ("Income Taxes", "Income Tax"), ("Risk Factor", "Risk Factors")],
+)
+def test_short_titles_are_not_fuzzy_matched(title, bookmark):
+    # a short title one letter off is more likely a different heading than a typo
+    out = apply_bookmarks([heading(title, 4, page=30)], [[2, bookmark, 30]])
+    assert out[0].level == 4 and out[0].flags == []
+    # equal after normalisation still matches
+    out = apply_bookmarks([heading(title, 4, page=30)], [[2, title.upper(), 30]])
+    assert out[0].level == 2
+
+
+def test_a_short_heading_leaves_its_bookmark_for_the_missed_heading():
+    text = "Intro.\nRevenues\nSales grew."
+    out = apply_bookmarks(
+        [body("Revenue", text, level=3, page=30)], [[2, "Revenues", 30]], line_pages=None
+    )
+    assert [(h.title, h.level) for h in out] == [("Revenue", 3), ("Revenues", 2)]
+    assert out[0].text == "Intro." and out[1].text == "Sales grew."

@@ -84,10 +84,10 @@ SAMPLE_SUMMARY_PATH = section_sample.SUMMARY_PATH
 HELDOUT_DIR = BENCHMARKS / "heldout"
 RESULTS_ROOT = BENCHMARKS / "results"
 READINGS = BENCHMARKS / ".cache.nosync" / "readings"
-# The reading the section gold was annotated on; runs load it unless --fresh-reading.
-GOLD_READING_KEY = "pymupdf4llm-1.28.2-7560c2e7a05a"
 """Each document's reading (``Document`` JSON), kept per reader version so a run reads a PDF
 once however many backends follow; never committed."""
+# The reading the section gold was annotated on; runs load it unless --fresh-reading.
+GOLD_READING_KEY = "pymupdf4llm-1.28.2-7560c2e7a05a"
 DOCS_PATH = REPO_ROOT / "docs" / "benchmarks-classification.md"
 
 SCHEMA = 1

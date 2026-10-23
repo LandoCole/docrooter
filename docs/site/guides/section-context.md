@@ -196,8 +196,9 @@ It returns a `SectionContext` with a `status`:
 None of them raises, since an application often asks for tags that a document may not have;
 check `status`. `message` explains anything but `found`.
 
-- A group tag such as `"financial"` matches every tag under it. A match inside any section of
-  another match (any id in its `section_ids`) is dropped, and matches come in reading order.
+- A group tag such as `"financial"` matches every tag under it. A match is dropped
+  only when every section in it (every id in its `section_ids`) lies inside another match.
+  Matches come in reading order.
 - Surrounding spaces are ignored; upper and lower case must match exactly.
 - `get_sections(["financial.balance_sheet", "disclosure.risk_factors"])` asks several tags at
   once and answers each in order.

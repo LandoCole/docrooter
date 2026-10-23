@@ -15,6 +15,8 @@ when the gold is used. Items are numbered after a seeded shuffle across document
 The sample (``benchmarks/.cache.nosync/classification/section_sample.jsonl`` by default) holds
 section text from documents that are never redistributed: it stays in the git-ignored cache and
 is never committed. Keep the file the annotations were made against: their item ids refer to it.
+Sampling again reads with the current reader and makes a new gold version keyed to that reading:
+it does not extend v2, which is keyed to ``GOLD_READING_KEY``.
 A summary of counts only (``section_sample_summary.json``) is committed with the gold, with the
 reading settings the sample was made under.
 

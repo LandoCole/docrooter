@@ -189,7 +189,7 @@ def main() -> None:
         sample = build(doc, extra, info["doc_type"], gold_tags, backend)
         index.append((name, sample))
     for doc_id in PUBLIC:
-        doc = _loader(PDF_DIR / f"{doc_id}.pdf", readings=READINGS)()
+        doc = _loader(PDF_DIR / f"{doc_id}.pdf", readings=READINGS, pinned=True)()
         m = meta[doc_id]
         extra = {
             "title": m.get("title") or doc.title or doc_id,

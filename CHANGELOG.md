@@ -114,6 +114,10 @@ tagged or published, and their entries are kept as history. The package version 
   sits inside Item 11. A bookmarked heading the reader saw only as body text becomes a heading
   (flag `heading_from_bookmark`), and the headings after a bookmarked one can no longer sit
   levels deeper than it. PDFs without bookmarks read as before.
+- **Headings of the same level no longer nest in each other.** Closing a level gap used to
+  push a run of same-level headings one level deeper each (`# A` then three `###` came out at
+  2, 3 and 3), so one financial statement held the next ones and all the notes. They are now
+  siblings, in Markdown and PDFs alike.
 
 ## [1.0.0] - 2026-10-20
 

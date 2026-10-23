@@ -38,15 +38,17 @@ gives them. Page headers and footers are left out. No OCR runs unless you pass `
 (`<u>`, `<mark>`) and a leading bullet. A heading with no letter or digit left is dropped, and
 its text joins the section before. There is no scoring: every heading PyMuPDF4LLM marks is kept.
 
-**3. Levels.** PyMuPDF4LLM's levels are kept, with two adjustments. Gaps are closed so a level
-never jumps by more than one below its parent (flag `level_repaired`; `repair=False` keeps the
-raw levels). And a heading whose title matches one of the PDF's bookmarks takes the bookmark's
-level (flag `level_from_bookmark`; `use_bookmarks=False` turns this off). A title that differs
-from the bookmark only slightly (a typo, a plural, joined words: 90% similar) still matches
-when the bookmark points at the heading's page or the next or previous one. A bookmarked title
-PyMuPDF4LLM left as body text, alone on its line on the bookmark's page, becomes a heading
-there (flag `heading_from_bookmark`). The gaps are then closed again, so the headings after a
-bookmarked one sit at most one level below it.
+**3. Levels.** PyMuPDF4LLM's levels are kept, with two adjustments. A heading whose title
+matches one of the PDF's bookmarks takes the bookmark's level (flag `level_from_bookmark`;
+`use_bookmarks=False` turns this off). A title that differs from the bookmark only slightly (a
+typo, a plural, joined words: 90% similar, same numbering) still matches when the bookmark
+points at the heading's page or the next or previous one. A bookmarked title PyMuPDF4LLM left
+as body text, alone on its line on the bookmark's page, becomes a heading there (flag
+`heading_from_bookmark`). Then gaps are closed (flag `level_repaired`; `repair=False` keeps the
+raw levels): a heading goes one level below the nearest heading before it with a smaller level,
+so a level never jumps by more than one and headings of one level stay siblings. Bookmark
+levels stay as they are, and a heading after a bookmarked one nests under it unless its own
+level is at or above the bookmark's.
 
 **4. Tree.** The headings and the text between them become sections, each with the page it
 starts on. Text before the first heading is the level-0 preamble.

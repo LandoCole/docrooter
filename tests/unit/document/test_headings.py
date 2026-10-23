@@ -4,6 +4,7 @@ import pytest
 
 from docrooter.document import RawHeading, extract_headings
 from docrooter.document.headings import repair_levels, score_heading, validate_headings
+from docrooter.document.markdown import parse_markdown
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "docs"
 
@@ -174,3 +175,58 @@ def test_ordinary_words_do_not_get_roman_numbering_bonus(title):
 @pytest.mark.parametrize("title", ["IV. Results", "XII. Appendix", "IX. Notes", "XL. Index"])
 def test_uppercase_roman_numerals_get_numbering_bonus(title):
     assert "numbering_prefix" in score_heading(title)[1]
+
+
+def test_repair_keeps_same_level_headings_siblings():
+    # three "###" after a "#": all close the gap to level 2, none nests in the one before
+    doc = parse_markdown(source="t.md", text="# A\n\nx\n\n### B\n\ny\n\n### C\n\nz\n\n### D\n\nw\n")
+    assert [(s.title, s.level, s.parent_id) for s in doc.walk()] == [
+        ("A", 1, None),
+        ("B", 2, "s1"),
+        ("C", 2, "s1"),
+        ("D", 2, "s1"),
+    ]
+    raw = [
+        RawHeading(title=t, level=lv, text="", line=i)
+        for i, (t, lv) in enumerate(
+            [("A", 1), ("B", 4), ("C", 4), ("D", 6), ("E", 5), ("F", 4), ("G", 2)]
+        )
+    ]
+    assert [h.level for h in repair_levels(raw)] == [1, 2, 2, 3, 3, 2, 2]
+
+
+def test_repair_keeps_flagged_levels_and_nests_siblings_under_them():
+    def h(title, level, *flags):
+        return RawHeading(title=title, level=level, text="", line=0, flags=list(flags))
+
+    keep = ("level_from_bookmark", "heading_from_bookmark")
+    raw = (
+        [h("Part II", 1), h("ITEM 8", 3, "level_from_bookmark")]
+        + [h(f"Statement {i}", 6) for i in range(4)]
+        + [h("Added", 2, "heading_from_bookmark"), h("Under added", 5)]
+    )
+    out = repair_levels(raw, keep_flags=keep)
+    assert [x.level for x in out] == [1, 3, 4, 4, 4, 4, 2, 3]
+    assert "level_repaired" not in out[1].flags and "level_repaired" in out[2].flags
+    # without keep_flags the bookmarked level is repaired like any other
+    assert [x.level for x in repair_levels(raw)][:3] == [1, 2, 3]
+
+    # A 10-K drawn in one heading size (font level 4): the bookmarks hold the structure, a
+    # heading without one sits beside or under the bookmarked headings, never above them.
+    rows = [
+        ("PART II", 1, True),
+        ("Item 8", 2, True),
+        ("Apple Inc.", 4, False),
+        ("Statement of Operations", 3, True),
+        ("Apple Inc.", 4, False),
+        ("Notes", 3, True),
+        ("Note 1", 4, True),
+        ("Basis of Presentation", 4, False),
+        ("Recently Adopted", 4, False),
+        ("Note 2", 4, True),
+        ("Report of Auditors", 3, True),
+        ("SIGNATURES", 1, True),
+    ]
+    raw = [h(t, lv, *(["level_from_bookmark"] if b else [])) for t, lv, b in rows]
+    out = repair_levels(raw, keep_flags=keep)
+    assert [x.level for x in out] == [1, 2, 3, 3, 4, 3, 4, 4, 4, 4, 3, 1]

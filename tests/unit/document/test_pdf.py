@@ -391,3 +391,20 @@ def test_insertion_counts_lines_as_splitlines_does(separator):
 def test_fuzzy_match_keeps_numbering_apart(title, bookmark):
     out = apply_bookmarks([heading(title, 4, page=30)], [[2, bookmark, 31]])
     assert out[0].level == 4 and out[0].flags == []
+
+
+def test_same_level_headings_stay_siblings_under_a_bookmark(pymupdf, tmp_path, monkeypatch):
+    from docrooter.document.pdf import load_pdf_markdown
+
+    statements = ["Balance Sheets", "Cash Flows", "Equity", "Notes"]
+    chunks = [
+        "# Annual Report\n\n## Part II\n\n### Item 7\n\nx\n\n#### Item 8\n\ny\n\n"
+        + "".join(f"###### {title}\n\nbody\n\n" for title in statements)
+    ]
+    fake_markdown(monkeypatch, chunks)
+    toc = [[1, "Annual Report", 1], [2, "Part II", 1], [3, "Item 7", 1], [3, "Item 8", 1]]
+    doc = load_pdf_markdown(make_blank_pdf(pymupdf, tmp_path / "att.pdf", 1, toc))
+    item_8 = next(s for s in doc.walk() if s.title == "Item 8")
+    assert item_8.level == 3
+    assert [doc.section(c).title for c in item_8.children] == statements
+    assert {doc.section(c).level for c in item_8.children} == {4}

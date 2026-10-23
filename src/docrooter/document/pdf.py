@@ -16,7 +16,7 @@ from typing import Any
 from docrooter import events
 from docrooter._extras import require
 from docrooter.document.build import build_document
-from docrooter.document.headings import cap_levels, repair_levels
+from docrooter.document.headings import repair_levels
 from docrooter.document.markdown import extract_headings
 from docrooter.document.models import Document, RawHeading
 from docrooter.errors import DocrooterError
@@ -300,9 +300,9 @@ def load_pdf_markdown(
     (1-based). Titles lose Markdown emphasis, HTML tags and leading bullets; a heading with no
     letter or digit left is dropped (its text stays with the section before). ``repair`` fixes
     level jumps (:func:`~docrooter.document.headings.repair_levels`). With ``use_bookmarks`` a
-    heading that matches a PDF bookmark, exactly or nearly, takes the bookmark's level, a
-    bookmarked heading found only in body text becomes a heading (:func:`apply_bookmarks`), and
-    with ``repair`` the level jumps that leaves are capped again.
+    heading that matches a PDF bookmark, exactly or nearly, takes the bookmark's level, and a
+    bookmarked heading found only in body text becomes a heading (:func:`apply_bookmarks`);
+    the repair then keeps the bookmark levels and nests the other headings around them.
     The title is the first level-1 heading, else the PDF's metadata title, else the file name.
     PyMuPDF and PyMuPDF4LLM are AGPL-3.0 licensed.
     """
@@ -360,12 +360,10 @@ def load_pdf_markdown(
             continue
         raw.append(heading.model_copy(update={"title": clean, "page": page}))
         line_pages.append(text_pages)
-    if repair:
-        raw = repair_levels(raw)
     if toc:
         raw = apply_bookmarks(raw, toc, line_pages=line_pages)
-        if repair:  # a bookmark level can leave the headings after it too deep
-            raw = cap_levels(raw)
+    if repair:  # after the bookmarks, so the headings around a bookmarked one nest by it
+        raw = repair_levels(raw, keep_flags=(_BOOKMARK_FLAG, _FROM_BOOKMARK_FLAG))
     if not raw:
         raw = [RawHeading(title="Preamble", level=0, text="", line=0, page=1 if n_pages else None)]
     if stage.active:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Sequence
 
 from docrooter.document.models import RawHeading
 
@@ -114,46 +115,56 @@ def validate_headings(raw: list[RawHeading], *, min_score: float = 0.5) -> list[
     return out
 
 
-def repair_levels(raw: list[RawHeading]) -> list[RawHeading]:
+def repair_levels(raw: list[RawHeading], *, keep_flags: Sequence[str] = ()) -> list[RawHeading]:
     """Fix heading levels.
 
     When at least half of the headings carry a dotted-numeric prefix ("1", "1.2", "1.2.3"), those
-    headings take the number of dot-separated parts as their level. A single pass then caps each
-    level at ``previous_level + 1`` so the hierarchy has no gaps (:func:`cap_levels`). Changed
-    headings get the ``level_repaired`` flag. The level-0 preamble block is untouched. Inputs are
-    not mutated.
+    headings take the number of dot-separated parts as their level. Gaps are then closed: a
+    heading goes one level below the nearest heading before it with a smaller level (1 when
+    there is none), so a level never jumps by more than one and headings of one level stay
+    siblings. A heading carrying one of ``keep_flags`` keeps its level exactly, and the
+    headings after it nest under it by the same rule. Changed headings get the
+    ``level_repaired`` flag. The level-0 preamble block is untouched. Inputs are not mutated.
     """
     headings = [h for h in raw if h.level > 0]
     numbered = sum(1 for h in headings if _DOTTED.match(h.title.strip()))
     use_numbering = bool(headings) and numbered / len(headings) >= _NUMBERED_FRACTION
 
     levels: list[int] = []
+    kept: list[int | None] = []
     for heading in raw:
+        keep = heading.level > 0 and any(flag in heading.flags for flag in keep_flags)
+        kept.append(heading.level if keep else None)
         match = (
             _DOTTED.match(heading.title.strip()) if use_numbering and heading.level > 0 else None
         )
-        levels.append(len(match.group(1).split(".")) if match else heading.level)
-    return _relevel(raw, _capped(levels))
+        levels.append(len(match.group(1).split(".")) if match and not keep else heading.level)
+    return _relevel(raw, _stacked(levels, kept))
 
 
-def cap_levels(raw: list[RawHeading]) -> list[RawHeading]:
-    """Cap each heading's level at the previous heading's level plus one.
+def _stacked(levels: list[int], kept: list[int | None]) -> list[int]:
+    """Gap-free levels for ``levels``, keeping the ``kept`` ones.
 
-    The pass :func:`repair_levels` ends with. Changed headings get the ``level_repaired`` flag;
-    the level-0 preamble block is untouched. Inputs are not mutated.
+    A stack holds ``(level in, level out)`` of the open headings. A heading closes those with a
+    level in at or above its own and goes one below the one left open (1 when none is). A kept
+    heading closes those with a level out at or above the one it keeps, and keeps it.
     """
-    return _relevel(raw, _capped([h.level for h in raw]))
-
-
-def _capped(levels: list[int]) -> list[int]:
-    """``levels`` with each positive level at most one deeper than the positive one before."""
     out: list[int] = []
-    previous = 0
-    for level in levels:
-        if level > 0:
-            level = min(level, previous + 1)
-            previous = level
-        out.append(level)
+    stack: list[tuple[int, int]] = []
+    for level, keep in zip(levels, kept, strict=True):
+        if level <= 0:
+            out.append(level)
+            continue
+        if keep is not None:
+            while stack and stack[-1][1] >= keep:
+                stack.pop()
+            new = keep
+        else:
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+            new = stack[-1][1] + 1 if stack else 1
+        stack.append((level if keep is None else keep, new))
+        out.append(new)
     return out
 
 

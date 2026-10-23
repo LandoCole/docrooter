@@ -1,8 +1,8 @@
 # The TOC engine
 
 `load()` turns a file into a `Document`: a tree of `Section`s in reading order. For Markdown the
-headings are the `#` lines. For PDFs there are no heading tags, so docrooter reads every text
-line with its font, size, weight and position, and decides which lines are headings. This page
+headings are the `#` lines. For PDFs, docrooter asks PyMuPDF4LLM, whose layout model reads each
+page and writes Markdown with its headings marked; docrooter turns that into the tree. This page
 explains how, so you can tell why a heading was found or missed.
 
 ## The document model
@@ -19,9 +19,8 @@ print(doc.section("2. Risk factors").text)  # look up by id or by title
   (PDFs), `heading_score` and `flags`.
 - `doc.toc()` lists the headings in reading order with their `level` and their `depth` in the
   tree. `doc.walk()` yields every section, `doc.leaves()` the ones without children.
-- `doc.meta` (PDFs) holds `engine`, `n_pages`, `timings` (seconds per stage), `bookmarks` (how
-  many the file has), `printed_toc_entries`, `body_size` and `warnings`
-  (`"no_text_layer"`, `"truncated_pages"`).
+- `doc.meta` (PDFs) holds `engine` (`"pymupdf4llm"`), `n_pages`, `timings` (seconds per stage),
+  `bookmarks` (how many were used) and `warnings` (`"no_text_layer"`, `"truncated_pages"`).
 - Text before the first heading becomes a level-0 preamble section, which is not in `toc()`.
 - `Document.from_sections([...])` builds a document from headings you already have.
 
@@ -29,101 +28,64 @@ The full script is [`examples/toc.py`](../../../examples/toc.py).
 
 ## How PDF headings are found
 
-**1. Lines.** The engine extracts each text line with its size, boldness, page and position.
-No OCR is involved in `load()`: a page without a text layer yields nothing. (Element mode
-can OCR such pages; see [the rooter](rooter.md).)
+**1. PyMuPDF4LLM reads the pages.** `pymupdf4llm.to_markdown(path, page_chunks=True,
+header=False, footer=False)` runs its layout model (PyMuPDF-Layout, ONNX on the CPU) over each
+page, classifies the blocks (section header, text, table, picture, page header, footer, ...)
+and writes Markdown: section headers become `#` to `######` lines, with the level PyMuPDF4LLM
+gives them. Page headers and footers are left out. No OCR runs unless you pass `ocr="auto"`.
 
-**2. Document signals.** Before looking at headings, the engine measures the document:
+**2. docrooter cleans the headings.** Titles lose Markdown emphasis (`**`, `_`), HTML tags
+(`<u>`, `<mark>`) and a leading bullet. A heading with no letter or digit left is dropped, and
+its text joins the section before. There is no scoring: every heading PyMuPDF4LLM marks is kept.
 
-- the **body size** (the most common text size) and the median gap between lines;
-- **running headers and footers**: lines in the top or bottom 8% of the page that recur on at
-  least 30% of pages (minimum 3), or whose text, minus a page number, recurs on 3 pages. Page
-  numbers ("5", "Page 5 of 80", "v") are excluded too;
-- **printed contents pages**: lines ending in a page number after dot leaders
-  (`Introduction ........ 5`), at least 5 per page, or a page headed "Contents";
-- the PDF's **bookmarks** (its outline), if it has any.
+**3. Levels.** PyMuPDF4LLM's levels are kept, with two adjustments. Gaps are closed so a level
+never jumps by more than one below its parent (flag `level_repaired`; `repair=False` keeps the
+raw levels). And a heading whose title matches one of the PDF's bookmarks takes the bookmark's
+level (flag `level_from_bookmark`; `use_bookmarks=False` turns this off).
 
-**3. Candidates.** A line can be a heading if it is large (at least 1.15 × body size), or
-isolated (a gap above it of at least 1.2 × the median gap) and bold or numbered. Lines smaller
-than body text, longer than 20 words, running headers, page numbers and lines on contents pages
-never are. Consecutive candidate lines of the same style are merged into one wrapped title.
+**4. Tree.** The headings and the text between them become sections, each with the page it
+starts on. Text before the first heading is the level-0 preamble.
 
-**4. Scoring.** Each candidate gets a score between 0 and 1:
+Markdown documents skip step 1 and are parsed directly. Their headings still go through title
+scoring (false headings below 0.5 are merged into the text before them) and the same level
+repair: in a Markdown file whose headings are mostly numbered, `## 1. Business` becomes level 1.
 
-| Signal | Weight |
-| --- | ---: |
-| Looks like a title (title case, no sentence punctuation, not a URL, not repeated, ...) | 0.40 × title score |
-| Size above body text (full weight at 1.6 × body) | up to 0.25 |
-| Bold | 0.10 |
-| Isolated from the text around it | 0.10 |
-| Numbered ("2.1", "IV.", "Item 7", "Chapter 3") | 0.10 |
-| Matches an entry of the printed contents page | 0.25 |
-| Matches a bookmark (same title, within one page) | 0.25 |
-| Followed by a line of the same style (a list or table, not a heading) | −0.15 |
-
-Candidates scoring at least `min_heading_score` (0.55 for PDFs, 0.5 for Markdown) are kept.
-Kept headings below 0.7 get the flag `low_heading_confidence`.
-
-**5. Levels.** Heading styles (size, then bold) are ranked: the largest recurring style is
-level 1, the next level 2, and so on. A style used only once or twice (a cover title) shares the
-level of the next recurring style. When at least half the headings carry dotted numbering
-("2.1.3"), the numbering sets the level. A matching bookmark's level wins over both (flag
-`level_from_bookmark`). Finally, gaps are closed so a level never jumps by more than one
-(flag `level_repaired`).
-
-**6. Tree.** The headings and the text between them become sections, with page numbers.
-
-Markdown documents skip steps 1-4 but get the same title scoring (false headings below 0.5 are
-merged into the text before them) and the same level repair: in a Markdown file whose headings
-are mostly numbered, `## 1. Business` becomes level 1.
+**Element mode** (`elements=True`, the `balanced` and `accurate` profiles) is a separate reader:
+it extracts native text lines with PyMuPDF or pdfplumber, types every block (heuristic rules or
+the heron layout model) and builds the sections from the typed headings. See
+[Elements](elements.md) and [the rooter](rooter.md).
 
 ## Engines
 
-`load(path, engine=...)` and `load_pdf(path, engine=...)` take:
-
-| Engine | Extra | What it does |
-| --- | --- | --- |
-| `auto` (default) | `pdf` or `pdf-mit` | PyMuPDF if installed, otherwise pdfplumber |
-| `pymupdf` | `pdf` (AGPL-3.0) | The fastest: about 1 s per 100 pages on the benchmark machine |
-| `pdfplumber` | `pdf-mit` (MIT) | Permissive licence, about 6 times slower |
-| `both` | both | PyMuPDF headings kept when pdfplumber agrees or either engine is at least 0.8 confident |
-| `pymupdf4llm` | `pdf` | The legacy v0.1 path through Markdown, kept for comparison |
-
-On the 24 bookmarked development PDFs the three main engines score within 1.3 points of each
-other (F1 at depth ≤ 2: 0.703, 0.711, 0.716). See the [PDF benchmarks](../benchmarks/pdf.md).
+Without element mode, `engine` is `auto` (the default), `pymupdf` or `pymupdf4llm`, all read
+the section tree the same way, through PyMuPDF4LLM (extra `pdf`, AGPL-3.0). `pdfplumber`
+(extra `pdf-mit`, MIT) reads native lines for element mode only. See the
+[PDF benchmarks](../benchmarks/pdf.md) for the measured quality.
 
 ## Options
 
 ```python
-plain = load_pdf(path, engine="pdfplumber", use_bookmarks=False, max_pages=50)
-strict = load(path, min_heading_score=0.7)
+plain = load_pdf(path, use_bookmarks=False, max_pages=50)
 ```
 
-- `use_bookmarks=False` ignores the PDF's outline. As an illustration, a public 80-page 10-K
-  annual report with 102 bookmarks gave 94 headings, 87 of them with the bookmark's level;
-  without the bookmarks, 32 from typography alone. Bookmarks are the strongest signal when a
-  file has them. (The benchmarks run with `use_bookmarks=False`, because the bookmarks are their
-  answer key.)
-- `use_printed_toc=False` ignores the printed contents page.
+- `use_bookmarks=False` ignores the PDF's outline. Bookmarks are the strongest signal for levels
+  when a file has them. (The benchmarks run with `use_bookmarks=False`, because the bookmarks
+  are their answer key.)
 - `max_pages=N` reads only the first N pages, which bounds time and memory on very long files;
   `meta["warnings"]` then contains `"truncated_pages"`.
-- `min_heading_score` trades recall for precision.
-- `repair=False` keeps the raw levels (Markdown and `pymupdf4llm`).
-- `on_event` reports the stages `extract` (with progress every 10 pages), `signals`,
-  `headings` and `assemble`; see [Events](events.md).
+- `ocr="auto"` lets PyMuPDF4LLM OCR pages without a text layer, with an OCR engine it can find
+  (RapidOCR, Tesseract).
+- `repair=False` keeps PyMuPDF4LLM's raw levels.
+- `on_event` reports the stages `extract`, `headings` and `assemble`; see [Events](events.md).
 
 ## Known limitations
 
-These come from the benchmarks; the [held-out analysis](../benchmarks/heldout.md) has the
-details.
-
-- **No OCR in `load()`.** Scanned PDFs give an empty document (`meta["warnings"]` has
-  `"no_text_layer"`); element mode with an OCR engine reads them.
-- **Headings set at body size that are neither bold nor numbered** are not candidates, and
-  headings set *below* body size (some small-caps styles) never are. Earnings releases whose
-  section titles are bold body text are a known weak spot.
-- **Slide decks and bilingual layouts.** Slide titles and parallel-column statutes produce poor
-  tables of contents.
-- **Repeated headings in the page margins.** A real heading printed at the same height in the
-  top or bottom 8% of 3 or more pages is treated as a running header.
-- **Levels after a split cover title** can be one too deep.
+- **Speed.** The layout model reads about 0.3 to 0.4 s per page on a laptop CPU, far slower
+  than plain text extraction; use `max_pages` on very long files.
+- **Over-marking.** Short bold lines (questions in an interview, labels beside charts, running
+  section tabs) can come back as headings at the deepest level. Selection (`max_sections`, levels
+  1 and 2 first) usually keeps them out of what a model sees.
+- **Weakly styled headings.** Documents whose headings look like body text, such as many court
+  opinions, still yield thin trees.
+- **No OCR by default.** Scanned PDFs give an empty document (`meta["warnings"]` has
+  `"no_text_layer"`) unless `ocr="auto"` finds an OCR engine.

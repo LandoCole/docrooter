@@ -30,27 +30,21 @@ everything locally and send only low-confidence documents, or only some taxonomy
 
 ## AGPL or MIT: which PDF engine? {#agpl-or-mit-which-pdf-engine}
 
-- **`pymupdf`** (extra `pdf`) is the default and the fastest (about 1 s per 100 pages). PyMuPDF
-  is licensed under the **AGPL-3.0** (or a commercial licence from Artifex). If you distribute
-  software that includes it, or run it as part of a network service, the AGPL's obligations may
-  apply to your code. docrooter itself is Apache-2.0 and imports PyMuPDF only when it loads a
-  PDF.
-- **`pdfplumber`** (extra `pdf-mit`) is MIT-licensed. It is about 6 times slower and scored
-  about the same on the development corpus (F1 0.711 vs 0.703), but on the held-out set it
-  returned only 3 headings for one 816-page specification without raising an error. A candidate
-  cause was found and fixed afterwards on other documents; whether it was that file's cause is
-  not confirmed.
-
-If you only install `pdf-mit`, `load(path)` uses pdfplumber automatically. This is a summary,
-not legal advice.
+PDFs are read with **PyMuPDF4LLM** (extra `pdf`), which, like PyMuPDF and its layout model, is
+licensed under the **AGPL-3.0** (or a commercial licence from Artifex). If you distribute
+software that includes it, or run it as part of a network service, the AGPL's obligations may
+apply to your code. docrooter itself is Apache-2.0 and imports it only when it loads a PDF.
+There is no MIT reader for the section tree any more: docrooter's own heuristic heading
+detector was removed in favour of PyMuPDF4LLM's layout model. `pdfplumber` (extra `pdf-mit`,
+MIT) remains as element mode's line reader. This is a summary, not legal advice.
 
 ## Does it work on scanned PDFs?
 
-Yes, in element mode; no, on the default path. `load()` and the `fast` profile read only the
-PDF's text layer: a scan without one loads as one empty section, `doc.meta["warnings"]` contains
+Yes, with `ocr="auto"` or in element mode. By default `load()` and the `fast` profile read only
+the PDF's text layer: a scan without one loads as one empty section, `doc.meta["warnings"]` contains
 `"no_text_layer"`, and document typing reports `stopped_reason="empty_text"`. The `balanced` and
 `accurate` profiles of [`process()`](concepts/rooter.md) route each page to its text layer or to
-OCR, and install-wise OCR is an extra (`docrooter[ocr]`, `docrooter[ocr-mac]` or the Tesseract
+OCR, and `load(path, ocr="auto")` lets PyMuPDF4LLM OCR pages without text; and install-wise OCR is an extra (`docrooter[ocr]`, `docrooter[ocr-mac]` or the Tesseract
 binary). See [OCR and layout models](guides/ocr-and-layout.md).
 
 ## Why does the keyword backend give such low confidences?
@@ -62,11 +56,11 @@ for tests and for trying the API without downloads. Use a real backend for real 
 
 ## How do I make the TOC better on my documents?
 
-- Check `doc.meta["bookmarks"]`: if the PDF has an outline, docrooter uses it (and it is the
-  strongest signal).
-- Look at `heading_score` and `flags` on the sections you expected or did not expect.
-- Raise `min_heading_score` (default 0.55) for fewer false headings, lower it for more recall.
-- Try `engine="both"`, which keeps PyMuPDF headings that pdfplumber agrees with.
+- Check `doc.meta["bookmarks"]`: if the PDF has an outline, docrooter uses its levels (and it
+  is the strongest signal).
+- The headings are PyMuPDF4LLM's: if it misses or over-marks them, try element mode
+  (`load(path, elements=True)`, or `layout="heron"` with the `layout` extra), which reads the
+  page another way.
 - If you already have headings from another tool, build the document with
   `Document.from_sections([...])` and use the rest of docrooter on it.
 

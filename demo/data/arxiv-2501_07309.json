@@ -8,23 +8,23 @@
  "gold": "research.research_paper",
  "views": {
   "headings": {
-   "text": "Title: Making Tennis Fairer: The Grand Tiebreaker\nStats: 21 pages, 7 sections\nContents: 1 Making Tennis Fairer: The Grand Tiebreaker; 2 Introduction; 3 Markov Chains and Games; 4 Tiebreak of a Set; 5 Probability of Winning a Set; 6 The Grand Tiebreak and the Data; 7 Conclusions",
-   "chars": 278,
+   "text": "Title: Making Tennis Fairer: The Grand Tiebreaker\nStats: 21 pages, 12 sections\nContents: 1 Making Tennis Fairer: The Grand Tiebreaker; 1.1 Abstract; 1.2 Introduction; 1.3 Markov Chains and Games; 1.4 Tiebreak of a Tiebreak; 1.5 Probability of Winning a Set; 1.6 The Grand Tiebreak and the Data; 1.7 The Grand Tiebreak; 1.8 The GT Probability; 1.9 Grand Slam Dataset; 1.10 Conclusions; 1.11 References",
+   "chars": 400,
    "truncated": false
   },
   "terms": {
-   "text": "Title: Making Tennis Fairer: The Grand Tiebreaker\nStats: 21 pages, 7 sections\nKey phrases: 1 1, 1 1 1, l, 0, gt probability, 1 7, 6, l 6, match scores, 7 1, 1 l, grand slam tournaments\nContents: 1 Making Tennis Fairer: The Grand Tiebreaker; 2 Introduction; 3 Markov Chains and Games; 4 Tiebreak of a Set; 5 Probability of Winning a Set; 6 The Grand Tiebreak and the Data; 7 Conclusions",
-   "chars": 385,
+   "text": "Title: Making Tennis Fairer: The Grand Tiebreaker\nStats: 21 pages, 12 sections\nKey phrases: match scores, gt probability, s relative score, 0 1 2, sup sup 1, distinct match scores, b, state, 4 6, sup 1 sup, 1 sup sup, k 1\nContents: 1 Making Tennis Fairer: The Grand Tiebreaker; 1.1 Abstract; 1.2 Introduction; 1.3 Markov Chains and Games; 1.4 Tiebreak of a Tiebreak; 1.5 Probability of Winning a Set; 1.6 The Grand Tiebreak and the Data; 1.7 The Grand Tiebreak; 1.8 The GT Probability; 1.9 Grand Slam Dataset; 1.10 Conclusions; 1.11 References",
+   "chars": 543,
    "truncated": false
   },
   "lead": {
-   "text": "Title: Making Tennis Fairer: The Grand Tiebreaker\nStats: 21 pages, 7 sections\nKey phrases: 1 1, 1 1 1, l, 0, gt probability, 1 7, 6, l 6, match scores, 7 1, 1 l, grand slam tournaments\nLead: Steven J. Brams Department of Politics New York University New York, NY 10012 USA steven.brams@nyu.edu Mehmet S. Ismail Department of Political Economy King’s College London London WC2R 2LS UK mehmet.ismail@kcl.ac.uk D. Marc Kilgour Department of Mathematics Wilfrid Laurier University Waterloo, Ontario N2L 3C5 CANADA mkilgour@wlu.ca Abstract Tennis, like other games and sports, is governed by rules, including the rules that determine the winner of points, games, sets, and matches. If the two players are equally skilled—each has the same probability of winning a point when serving or when receiving— we show that each has an equal chance of winning games, sets, and matches, whether or not sets go to a tiebreak. However, in a women’s match that is decided by\nContents: 1 Making Tennis Fairer: The Grand Tiebreaker; 2 Introduction; 3 Markov Chains and Games; 4 Tiebreak of a Set; 5 Probability of Winning a Set; 6 The Grand Tiebreak and the Data; 7 Conclusions",
-   "chars": 1157,
+   "text": "Title: Making Tennis Fairer: The Grand Tiebreaker\nStats: 21 pages, 12 sections\nKey phrases: match scores, gt probability, s relative score, 0 1 2, sup sup 1, distinct match scores, b, state, 4 6, sup 1 sup, 1 sup sup, k 1\nLead: Steven J. Brams Department of Politics New York University New York, NY 10012 USA <u>steven.brams@nyu.edu</u> Mehmet S. Ismail Department of Political Economy King’s College London London WC2R 2LS UK <u>mehmet.ismail@kcl.ac.uk</u> D. Marc Kilgour Department of Mathematics Wilfrid Laurier University Waterloo, Ontario N2L 3C5 CANADA <u>mkilgour@wlu.ca</u> Tennis, like other games and sports, is governed by rules, including the rules that determine the winner of points, games, sets, and matches. If the two players are equally skilled—each has the same probability of winning a point when serving or when receiving— we show that each has an equal chance of winning games, sets, and matches, whether or not sets go to a tiebreak. However, in a women’s match that is decided by 2\nContents: 1 Making Tennis Fairer: The Grand Tiebreaker; 1.1 Abstract; 1.2 Introduction; 1.3 Markov Chains and Games; 1.4 Tiebreak of a Tiebreak; 1.5 Probability of Winning a Set; 1.6 The Grand Tiebreak and the Data; 1.7 The Grand Tiebreak; 1.8 The GT Probability; 1.9 Grand Slam Dataset; 1.10 Conclusions; 1.11 References",
+   "chars": 1329,
    "truncated": false
   },
   "full": {
-   "text": "Title: Making Tennis Fairer: The Grand Tiebreaker\nStats: 21 pages, 7 sections\nKey phrases: 1 1, 1 1 1, l, 0, gt probability, 1 7, 6, l 6, match scores, 7 1, 1 l, grand slam tournaments\nContents: 1 Making Tennis Fairer: The Grand Tiebreaker; 2 Introduction; 3 Markov Chains and Games; 4 Tiebreak of a Set; 5 Probability of Winning a Set; 6 The Grand Tiebreak and the Data; 7 Conclusions\nText: Steven J. Brams Department of Politics New York University New York, NY 10012 USA steven.brams@nyu.edu Mehmet S. Ismail Department of Political Economy King’s College London London WC2R 2LS UK mehmet.ismail@kcl.ac.uk D. Marc Kilgour Department of Mathematics Wilfrid Laurier University Waterloo, Ontario N2L 3C5 CANADA mkilgour@wlu.ca Abstract Tennis, like other games and sports, is governed by rules, including the rules that determine the winner of points, games, sets, and matches. If the two players are equally skilled—each has the same probability of winning a point when serving or when receiving— we show that each has an equal chance of winning games, sets, and matches, whether or not sets go to a tiebreak. However, in a women’s match that is decided by 2 out of 3 sets, and a men’s match that is decided by 3 out of 5 sets, it is possible that the player who wins the most games may not be the player who wins the match. We calculate the probability that this happens and show that it has actually occurred—most notably, in the 2019 men’s Wimbledon final between Novak Djokovic and Roger Federer, which took almost five hours to complete and is considered one of the greatest tennis matches ever (Djokovic won). We argue that the discrepancy between the game winner and the match winner, when it occurs, should be resolved by a Grand Tiebreak (GT)—played according to the rules of tiebreaks in sets—because each player has a valid claim to being called the rightful winner. A GT would have the salutary effect of giving each player an incentive to strive hard to win every game—even every point—lest he/she win in sets but lose more games. This would make competition keener throughout a match and probably decrease the need for a GT, because the game and set winner would more likely coincide when the players fight hard for every point. In Kemeny and Snell (1960), the authors use Markov chains to calculate the probability that players with different probabilities of winning points go on to …",
-   "chars": 28037,
+   "text": "Title: Making Tennis Fairer: The Grand Tiebreaker\nStats: 21 pages, 12 sections\nKey phrases: match scores, gt probability, s relative score, 0 1 2, sup sup 1, distinct match scores, b, state, 4 6, sup 1 sup, 1 sup sup, k 1\nContents: 1 Making Tennis Fairer: The Grand Tiebreaker; 1.1 Abstract; 1.2 Introduction; 1.3 Markov Chains and Games; 1.4 Tiebreak of a Tiebreak; 1.5 Probability of Winning a Set; 1.6 The Grand Tiebreak and the Data; 1.7 The Grand Tiebreak; 1.8 The GT Probability; 1.9 Grand Slam Dataset; 1.10 Conclusions; 1.11 References\nText: Steven J. Brams Department of Politics New York University New York, NY 10012 USA <u>steven.brams@nyu.edu</u> Mehmet S. Ismail Department of Political Economy King’s College London London WC2R 2LS UK <u>mehmet.ismail@kcl.ac.uk</u> D. Marc Kilgour Department of Mathematics Wilfrid Laurier University Waterloo, Ontario N2L 3C5 CANADA <u>mkilgour@wlu.ca</u> Tennis, like other games and sports, is governed by rules, including the rules that determine the winner of points, games, sets, and matches. If the two players are equally skilled—each has the same probability of winning a point when serving or when receiving— we show that each has an equal chance of winning games, sets, and matches, whether or not sets go to a tiebreak. However, in a women’s match that is decided by 2 out of 3 sets, and a men’s match that is decided by 3 out of 5 sets, it is possible that the player who wins the most games may not be the player who wins the match. We calculate the probability that this happens and show that it has actually occurred—most notably, in the 2019 men’s Wimbledon final between Novak Djokovic and Roger Federer, which took almost five hours to complete and is considered one of the greatest tennis matches ever (Djokovic won). We argue that the discrepancy between the game winner and the match winner, when it occurs, should be resolved by a Grand Tiebreak (GT)—played according to the rules of tiebreaks in sets—because each player has a valid claim to being called the rightful winner. A GT would have the salutary effect of giving each player an incentive to strive hard to win every game—even every point—lest he/she win in sets but lose more games. This would make competition keener throughout a match and probably decrease the need for a GT, because the game and set winner would more likely coincide when the players fight hard for …",
+   "chars": 26893,
    "truncated": false
   }
  },
@@ -35,37 +35,62 @@
    "level": 1
   },
   {
-   "id": "s2",
+   "id": "s1.1",
+   "title": "Abstract",
+   "level": 2
+  },
+  {
+   "id": "s1.2",
    "title": "1. Introduction",
-   "level": 1
+   "level": 2
   },
   {
-   "id": "s3",
-   "title": "2.  Markov Chains and Games",
-   "level": 1
+   "id": "s1.3",
+   "title": "2. Markov Chains and Games",
+   "level": 2
   },
   {
-   "id": "s4",
-   "title": "3. Tiebreak of a Set",
-   "level": 1
+   "id": "s1.4",
+   "title": "Tiebreak of a Tiebreak",
+   "level": 2
   },
   {
-   "id": "s5",
-   "title": "4.  Probability of Winning a Set",
-   "level": 1
+   "id": "s1.5",
+   "title": "4. Probability of Winning a Set",
+   "level": 2
   },
   {
-   "id": "s6",
+   "id": "s1.6",
    "title": "4. The Grand Tiebreak and the Data",
-   "level": 1
+   "level": 2
   },
   {
-   "id": "s7",
+   "id": "s1.7",
+   "title": "The Grand Tiebreak",
+   "level": 2
+  },
+  {
+   "id": "s1.8",
+   "title": "The GT Probability",
+   "level": 2
+  },
+  {
+   "id": "s1.9",
+   "title": "Grand Slam Dataset",
+   "level": 2
+  },
+  {
+   "id": "s1.10",
    "title": "5. Conclusions",
-   "level": 1
+   "level": 2
+  },
+  {
+   "id": "s1.11",
+   "title": "References",
+   "level": 2
   }
  ],
- "sections_total": 7,
+ "sections_total": 12,
  "runs": {
   "doc_first/headings": {
    "pred": "research.research_paper",
@@ -74,38 +99,26 @@
    "flags": [],
    "candidates": [],
    "tokens": {
-    "prompt": 3037,
-    "completion": 73,
+    "prompt": 3482,
+    "completion": 103,
     "calls": 2,
     "exact": true
    },
-   "cost_usd": 0.00034,
+   "cost_usd": 0.0004,
    "tags": {
     "s1": {
-     "pred": "research.abstract",
+     "pred": "general.references",
      "gold": "general.front_matter"
     },
-    "s2": {
+    "s1.2": {
      "pred": "general.introduction",
      "gold": "general.introduction"
     },
-    "s3": {
-     "pred": "general.background",
-     "gold": "general.background"
-    },
-    "s4": {
-     "pred": "research.method",
-     "gold": "research.method"
-    },
-    "s5": {
-     "pred": "research.experiments",
-     "gold": "research.method"
-    },
-    "s6": {
-     "pred": "research.method",
+    "s1.6": {
+     "pred": "research.results",
      "gold": "research.results"
     },
-    "s7": {
+    "s1.10": {
      "pred": "general.conclusion",
      "gold": "general.conclusion"
     }
@@ -118,38 +131,26 @@
    "flags": [],
    "candidates": [],
    "tokens": {
-    "prompt": 3430,
-    "completion": 71,
+    "prompt": 4129,
+    "completion": 105,
     "calls": 2,
     "exact": true
    },
-   "cost_usd": 0.000378,
+   "cost_usd": 0.000465,
    "tags": {
     "s1": {
-     "pred": "research.abstract",
+     "pred": "general.references",
      "gold": "general.front_matter"
     },
-    "s2": {
+    "s1.2": {
      "pred": "general.introduction",
      "gold": "general.introduction"
     },
-    "s3": {
-     "pred": "general.background",
-     "gold": "general.background"
-    },
-    "s4": {
-     "pred": "research.method",
-     "gold": "research.method"
-    },
-    "s5": {
-     "pred": "research.method",
-     "gold": "research.method"
-    },
-    "s6": {
-     "pred": "research.results",
+    "s1.6": {
+     "pred": "research.discussion",
      "gold": "research.results"
     },
-    "s7": {
+    "s1.10": {
      "pred": "general.conclusion",
      "gold": "general.conclusion"
     }
@@ -162,38 +163,26 @@
    "flags": [],
    "candidates": [],
    "tokens": {
-    "prompt": 4706,
-    "completion": 71,
+    "prompt": 6288,
+    "completion": 105,
     "calls": 2,
     "exact": true
    },
-   "cost_usd": 0.000506,
+   "cost_usd": 0.000681,
    "tags": {
     "s1": {
-     "pred": "research.abstract",
+     "pred": "general.introduction",
      "gold": "general.front_matter"
     },
-    "s2": {
+    "s1.2": {
      "pred": "general.introduction",
      "gold": "general.introduction"
     },
-    "s3": {
-     "pred": "general.background",
-     "gold": "general.background"
-    },
-    "s4": {
-     "pred": "general.background",
-     "gold": "research.method"
-    },
-    "s5": {
+    "s1.6": {
      "pred": "research.method",
-     "gold": "research.method"
-    },
-    "s6": {
-     "pred": "research.results",
      "gold": "research.results"
     },
-    "s7": {
+    "s1.10": {
      "pred": "general.conclusion",
      "gold": "general.conclusion"
     }
@@ -208,38 +197,26 @@
    ],
    "candidates": [],
    "tokens": {
-    "prompt": 27386,
-    "completion": 75,
+    "prompt": 24464,
+    "completion": 111,
     "calls": 3,
     "exact": true
    },
-   "cost_usd": 0.002776,
+   "cost_usd": 0.002502,
    "tags": {
     "s1": {
      "pred": "research.abstract",
      "gold": "general.front_matter"
     },
-    "s2": {
+    "s1.2": {
      "pred": "general.introduction",
      "gold": "general.introduction"
     },
-    "s3": {
-     "pred": "research.method",
-     "gold": "general.background"
-    },
-    "s4": {
-     "pred": "research.method",
-     "gold": "research.method"
-    },
-    "s5": {
-     "pred": "research.method",
-     "gold": "research.method"
-    },
-    "s6": {
-     "pred": "research.results",
+    "s1.6": {
+     "pred": "general.introduction",
      "gold": "research.results"
     },
-    "s7": {
+    "s1.10": {
      "pred": "general.conclusion",
      "gold": "general.conclusion"
     }
@@ -252,38 +229,26 @@
    "flags": [],
    "candidates": [],
    "tokens": {
-    "prompt": 1746,
-    "completion": 112,
-    "calls": 2,
+    "prompt": 3184,
+    "completion": 202,
+    "calls": 3,
     "exact": true
    },
-   "cost_usd": 0.000231,
+   "cost_usd": 0.000419,
    "tags": {
     "s1": {
-     "pred": "research.abstract",
+     "pred": "research.other",
      "gold": "general.front_matter"
     },
-    "s2": {
+    "s1.2": {
      "pred": "research.other",
      "gold": "general.introduction"
     },
-    "s3": {
-     "pred": "research.method",
-     "gold": "general.background"
-    },
-    "s4": {
-     "pred": "research.method",
-     "gold": "research.method"
-    },
-    "s5": {
-     "pred": "research.experiments",
-     "gold": "research.method"
-    },
-    "s6": {
+    "s1.6": {
      "pred": "research.results",
      "gold": "research.results"
     },
-    "s7": {
+    "s1.10": {
      "pred": "research.discussion",
      "gold": "general.conclusion"
     }
@@ -296,38 +261,26 @@
    "flags": [],
    "candidates": [],
    "tokens": {
-    "prompt": 3110,
-    "completion": 125,
+    "prompt": 4580,
+    "completion": 193,
     "calls": 3,
     "exact": true
    },
-   "cost_usd": 0.000373,
+   "cost_usd": 0.000554,
    "tags": {
     "s1": {
-     "pred": "research.other",
+     "pred": "general.front_matter",
      "gold": "general.front_matter"
     },
-    "s2": {
+    "s1.2": {
      "pred": "research.related_work",
      "gold": "general.introduction"
     },
-    "s3": {
-     "pred": "research.method",
-     "gold": "general.background"
-    },
-    "s4": {
-     "pred": "research.method",
-     "gold": "research.method"
-    },
-    "s5": {
-     "pred": "research.results",
-     "gold": "research.method"
-    },
-    "s6": {
-     "pred": "research.results",
+    "s1.6": {
+     "pred": "research.discussion",
      "gold": "research.results"
     },
-    "s7": {
+    "s1.10": {
      "pred": "research.discussion",
      "gold": "general.conclusion"
     }
@@ -340,38 +293,26 @@
    "flags": [],
    "candidates": [],
    "tokens": {
-    "prompt": 4384,
-    "completion": 112,
-    "calls": 2,
+    "prompt": 8292,
+    "completion": 191,
+    "calls": 3,
     "exact": true
    },
-   "cost_usd": 0.000494,
+   "cost_usd": 0.000925,
    "tags": {
     "s1": {
-     "pred": "research.abstract",
+     "pred": "general.front_matter",
      "gold": "general.front_matter"
     },
-    "s2": {
+    "s1.2": {
      "pred": "research.related_work",
      "gold": "general.introduction"
     },
-    "s3": {
+    "s1.6": {
      "pred": "research.method",
-     "gold": "general.background"
-    },
-    "s4": {
-     "pred": "research.method",
-     "gold": "research.method"
-    },
-    "s5": {
-     "pred": "research.method",
-     "gold": "research.method"
-    },
-    "s6": {
-     "pred": "research.results",
      "gold": "research.results"
     },
-    "s7": {
+    "s1.10": {
      "pred": "research.discussion",
      "gold": "general.conclusion"
     }
@@ -382,42 +323,30 @@
    "correct": true,
    "decided_by": "rules",
    "flags": [
-    "truncated"
+    "unparsed"
    ],
    "candidates": [],
    "tokens": {
-    "prompt": 30599,
-    "completion": 133,
-    "calls": 5,
+    "prompt": 27912,
+    "completion": 226,
+    "calls": 6,
     "exact": true
    },
-   "cost_usd": 0.003126,
+   "cost_usd": 0.002904,
    "tags": {
     "s1": {
-     "pred": "research.abstract",
+     "pred": "general.front_matter",
      "gold": "general.front_matter"
     },
-    "s2": {
-     "pred": "research.discussion",
+    "s1.2": {
+     "pred": "research.related_work",
      "gold": "general.introduction"
     },
-    "s3": {
-     "pred": "research.method",
-     "gold": "general.background"
-    },
-    "s4": {
-     "pred": "research.method",
-     "gold": "research.method"
-    },
-    "s5": {
-     "pred": "research.method",
-     "gold": "research.method"
-    },
-    "s6": {
-     "pred": "research.results",
+    "s1.6": {
+     "pred": "research.discussion",
      "gold": "research.results"
     },
-    "s7": {
+    "s1.10": {
      "pred": "research.discussion",
      "gold": "general.conclusion"
     }

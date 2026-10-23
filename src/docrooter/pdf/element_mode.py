@@ -136,7 +136,7 @@ def load_elements(
     whole document's count, ``"truncated_pages"`` is warned when pages were left out, and
     bookmarks pointing to pages not read are ignored.
     """
-    if engine in ("both", "pymupdf4llm"):
+    if engine == "pymupdf4llm":
         raise DocrooterError(
             f"engine {engine!r} has no element mode; use 'auto', 'pymupdf' or 'pdfplumber'"
         )

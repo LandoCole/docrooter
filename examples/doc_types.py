@@ -1,7 +1,7 @@
 """Document type and canonical section labels with the built-in taxonomies (keyword backend).
 
 Run it as is for a Markdown paper, or pass a PDF path: ``python examples/doc_types.py x.pdf``
-loads it with the MIT-licensed pdfplumber engine (``pip install 'docrooter[pdf-mit]'``).
+loads it with PyMuPDF4LLM (``pip install 'docrooter[pdf]'``, AGPL-3.0).
 """
 
 import sys
@@ -33,7 +33,7 @@ Cited works and prior research.
 
 
 def main(path: str | None = None) -> None:
-    doc = load(path, engine="pdfplumber") if path else load(MARKDOWN)
+    doc = load(path) if path else load(MARKDOWN)
     print(", ".join(list_builtin_taxonomies()))
     doc_types = builtin_taxonomy("doc_types")
     view = DocumentView(fields=("title", "toc", "lead"), max_tokens=512)

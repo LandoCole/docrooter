@@ -25,8 +25,8 @@ const FLAG_NAMES = {
   low_heading_confidence: "low confidence",
 };
 const ENGINE_LABELS = {
-  both: "both (slower: runs two engines)",
-  pymupdf4llm: "pymupdf4llm (legacy, slow)",
+  pymupdf4llm: "pymupdf4llm (sections only)",
+  pdfplumber: "pdfplumber (elements only)",
 };
 const PREFS_KEY = "docrooter.playground.options";
 const KIND_NAMES = { page_header: "page header", page_footer: "page footer", page_number: "page number", list_item: "list item" };

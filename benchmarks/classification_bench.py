@@ -80,6 +80,9 @@ AGREEMENT_PATH = CLASSIFICATION_DIR / "section_gold_agreement.json"
 SAMPLE_SUMMARY_PATH = section_sample.SUMMARY_PATH
 HELDOUT_DIR = BENCHMARKS / "heldout"
 RESULTS_ROOT = BENCHMARKS / "results"
+READINGS = BENCHMARKS / ".cache.nosync" / "readings"
+"""Each document's reading (``Document`` JSON), kept per reader version so a run reads a PDF
+once however many backends follow; never committed."""
 DOCS_PATH = REPO_ROOT / "docs" / "benchmarks-classification.md"
 
 SCHEMA = 1
@@ -281,24 +284,43 @@ def score_sections(
     """One record per gold section of ``doc``: ``section_id``, ``gold``, ``pred`` (a catalogue
     id or ``None``) and ``status``. A gold section whose id is not in this reading is
     ``absent``, one whose title's SHA-1 differs is ``title_mismatch``; both are excluded from
-    scoring. ``raw`` keeps a predicted label that is not itself the catalogue id, and
-    ``unmapped`` marks one with no catalogue id. ``section_taxonomy`` is the taxonomy the tags'
+    scoring. Another reader numbers sections differently, so such a gold section is first
+    matched by title: to the first section with the same title SHA-1, in reading order, that
+    no other gold section holds by id or has already taken (``matched_id``). ``raw`` keeps a
+    predicted label that is not itself the catalogue id, and ``unmapped`` marks one with no
+    catalogue id. ``section_taxonomy`` is the taxonomy the tags'
     labels belong to (see :func:`catalogue_label`). ``doc`` is ``None`` for a document that
     failed to read: its gold sections are scored as untagged misses."""
     predicted = {str(tag.id): tag.label for tag in tags}
+    by_title: dict[str, list[str]] = {}
+    used: set[str] = set()
+    if doc is not None:
+        ordered = (  # reading order; a stand-in with only ``sections`` keeps its own order
+            [(s.id, s) for s in doc.walk()] if hasattr(doc, "walk") else doc.sections.items()
+        )
+        for sid, section in ordered:
+            by_title.setdefault(section_sample.title_sha1(section.title), []).append(sid)
+        for row in gold_rows:  # a gold section held by its own id keeps it
+            held = doc.sections.get(row["section_id"])
+            if held is not None and section_sample.title_sha1(held.title) == row["title_sha1"]:
+                used.add(row["section_id"])
     records: list[dict[str, Any]] = []
     for row in gold_rows:
         section_id = row["section_id"]
         section = doc.sections.get(section_id) if doc is not None else None
+        matched = None
         if doc is None:  # the document failed to read: every gold section is a miss
             status = "ok"
-        elif section is None:
-            status = "absent"
-        elif section_sample.title_sha1(section.title) != row["title_sha1"]:
-            status = "title_mismatch"
-        else:
+        elif section is not None and section_sample.title_sha1(section.title) == row["title_sha1"]:
             status = "ok"
-        raw = predicted.get(section_id)
+        else:
+            matched = next((i for i in by_title.get(row["title_sha1"], []) if i not in used), None)
+            if matched is not None:
+                used.add(matched)
+                status = "ok"
+            else:
+                status = "absent" if section is None else "title_mismatch"
+        raw = predicted.get(matched or section_id)
         label = catalogue_label(raw, section_taxonomy=section_taxonomy)
         record: dict[str, Any] = {
             "section_id": section_id,
@@ -306,6 +328,8 @@ def score_sections(
             "pred": label,
             "status": status,
         }
+        if matched is not None:
+            record["matched_id"] = matched
         if raw is not None and raw != label:
             record["raw"] = raw
         if raw is not None and label is None:
@@ -843,31 +867,64 @@ def code_fingerprint(paths: Iterable[Path]) -> str:
 # --- documents -------------------------------------------------------------------------------
 
 
-def _loader(path: Path, *, cache: bool = True) -> Callable[[], Any]:
+def reading_key() -> str:
+    """The reader's identity for the readings cache: PyMuPDF4LLM's version and the source of
+    docrooter's PDF loading, so a change to either reads the PDFs again."""
+    from importlib.metadata import version
+
+    source = b"".join(
+        (BENCHMARKS.parent / "src" / "docrooter" / rel).read_bytes()
+        for rel in ("document/pdf.py", "pdf/load.py", "document/build.py", "document/headings.py")
+    )
+    return f"pymupdf4llm-{version('pymupdf4llm')}-{hashlib.sha256(source).hexdigest()[:12]}"
+
+
+def _loader(path: Path, *, cache: bool = True, readings: Path | None = None) -> Callable[[], Any]:
     """Reads the document on first use and keeps it (one reading per process), or, without
-    ``cache``, reads it again on every use (less memory, one reading per configuration)."""
+    ``cache``, reads it again on every use (less memory, one reading per configuration). With
+    ``readings``, a reading is also saved there (under :func:`reading_key`) and reused by later
+    runs."""
 
     def read() -> Any:
-        return section_sample.read_document(path)
+        if readings is None:
+            return section_sample.read_document(path)
+        from docrooter.document.models import Document
+
+        saved = readings / reading_key() / f"{path.stem}.json"
+        if saved.is_file():
+            return Document.model_validate_json(saved.read_text(encoding="utf-8"))
+        doc = section_sample.read_document(path)
+        saved.parent.mkdir(parents=True, exist_ok=True)
+        write_atomic(saved, doc.model_dump_json())
+        return doc
 
     return functools.cache(read) if cache else read
 
 
 def gold_inputs(
-    gold: Mapping[str, str], pdf_dir: Path = PDF_DIR, *, cache: bool = True
+    gold: Mapping[str, str],
+    pdf_dir: Path = PDF_DIR,
+    *,
+    cache: bool = True,
+    readings: Path | None = None,
 ) -> list[DocInput]:
     missing = [d for d in gold if not (pdf_dir / f"{d}.pdf").is_file()]
     if missing:
         raise FileNotFoundError(f"{len(missing)} gold PDF(s) not in {pdf_dir}: {missing[:5]}")
-    return [DocInput(d, gold[d], _loader(pdf_dir / f"{d}.pdf", cache=cache)) for d in sorted(gold)]
+    return [
+        DocInput(d, gold[d], _loader(pdf_dir / f"{d}.pdf", cache=cache, readings=readings))
+        for d in sorted(gold)
+    ]
 
 
-def heldout_inputs(corpus: Path = HELDOUT_DIR, *, cache: bool = True) -> list[DocInput]:
+def heldout_inputs(
+    corpus: Path = HELDOUT_DIR, *, cache: bool = True, readings: Path | None = None
+) -> list[DocInput]:
     """The frozen held-out corpus: gold is each record's ``label``."""
     from benchmarks.corpora import read_manifest
 
     return [
-        DocInput(r["id"], r["label"], _loader(corpus / r["file"], cache=cache))
+        DocInput(r["id"], r["label"], _loader(corpus / r["file"], cache=cache, readings=readings))
         for r in read_manifest(corpus)
     ]
 
@@ -1449,14 +1506,14 @@ def _run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     reading = check_reading()
     if args.docs == "gold":
         doc_type_gold = load_doc_type_gold()
-        docs_in = gold_inputs(doc_type_gold, cache=not args.no_cache)
+        docs_in = gold_inputs(doc_type_gold, cache=not args.no_cache, readings=READINGS)
         section_gold: dict[str, list[dict[str, Any]]] | None = load_section_gold()
         gold_hashes = {
             "doc_type_gold_sha1": _sha1(DOC_TYPE_GOLD_PATH),
             "section_gold_sha1": _sha1(SECTION_GOLD_PATH),
         }
     else:
-        docs_in = heldout_inputs(cache=not args.no_cache)
+        docs_in = heldout_inputs(cache=not args.no_cache, readings=READINGS)
         section_gold = None
         gold_hashes = {"heldout_manifest_sha1": _sha1(HELDOUT_DIR / "manifest.jsonl")}
     if args.limit:

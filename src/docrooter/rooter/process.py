@@ -93,11 +93,11 @@ def process(
     :class:`~docrooter.Classifier`, and ``escalate`` a backend: the caller owns these and they
     are never closed here. What this call creates from names (engines and backends, each
     loaded at most once, shared between tasks with the same spec) is closed before it returns.
-    Unknown backend kinds, OCR and layout engine names, and ``text="both"`` in element mode are
-    errors raised before any document is read; a missing extra, key or network shows at first
-    use. A ``sections`` Classifier built on another section taxonomy than the detected
-    document type's has its backend label the sections with that type's taxonomy, with a
-    warning decision in the route log.
+    Unknown backend kinds, OCR and layout engine names, ``text="pymupdf4llm"`` in element mode
+    and ``text="pdfplumber"`` without it are errors raised before any document is read; a
+    missing extra, key or network shows at first use. A ``sections`` Classifier built on
+    another section taxonomy than the detected document type's has its backend label the
+    sections with that type's taxonomy, with a warning decision in the route log.
 
     Every configuration decision (OCR engine, layout, backends) is a document-scope
     ``RouteDecision``, emitted as a ``route`` event and, in element mode, put at the head of
@@ -234,10 +234,15 @@ def _check_names(cfg: RouterConfig, given: dict[str, object]) -> None:
         if cfg.layout not in layout_registry.available_layout_engines():
             names = ", ".join(["none", "heuristic", *layout_registry.available_layout_engines()])
             raise DocrooterError(f"unknown layout engine {cfg.layout!r}; use one of {names}")
-    if cfg.layout != "none" and cfg.text == "both":
+    if cfg.layout != "none" and cfg.text == "pymupdf4llm":
         raise DocrooterError(
-            "text='both' has no element mode; use 'auto', 'pymupdf' or 'pdfplumber', or "
+            "text='pymupdf4llm' has no element mode; use 'auto', 'pymupdf' or 'pdfplumber', or "
             "layout='none' (the fast path)"
+        )
+    if cfg.layout == "none" and cfg.text == "pdfplumber":
+        raise DocrooterError(
+            "text='pdfplumber' reads native lines for element mode only; the fast path "
+            "(layout='none') reads with PyMuPDF4LLM: use text='auto'"
         )
 
 

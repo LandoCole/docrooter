@@ -2,9 +2,9 @@
 
 Usage: ``python examples/pdf_quickstart.py [report.pdf]``. Without a path it first writes a small
 sample annual report (``sample_report.pdf``, 3 pages) to a scratch directory with PyMuPDF, so the
-output is reproducible. Needs a PDF engine: install ``docrooter[pdf]`` (PyMuPDF, AGPL-3.0) or, for
-your own files only, ``docrooter[pdf-mit]`` (pdfplumber, MIT). The keyword backend needs no
-models; swap in ``backend="embedding"`` (``docrooter[models]``) or ``"jev"`` for real accuracy.
+output is reproducible. Needs ``docrooter[pdf]`` (PyMuPDF4LLM, AGPL-3.0). The keyword backend
+needs no models; swap in ``backend="embedding"`` (``docrooter[models]``) or ``"jev"`` for real
+accuracy.
 """
 
 import sys
@@ -55,7 +55,7 @@ def write_sample(path: Path) -> None:
 
 
 def main(path: str) -> None:
-    doc = load(path)  # engine="auto": PyMuPDF if installed, else pdfplumber; no OCR
+    doc = load(path)  # the section tree from PyMuPDF4LLM (its layout model); no OCR
     print(f"{doc.meta['engine']}: {doc.meta['n_pages']} pages, {len(doc.toc())} headings")
     for entry in doc.toc():
         page = doc.sections[entry.id].page_start

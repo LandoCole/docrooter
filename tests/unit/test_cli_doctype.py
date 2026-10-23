@@ -542,7 +542,9 @@ def test_parse_one_reports_truncation(tmp_path):
     path = tmp_path / "two.pdf"
     pdf = pymupdf.open()
     for text in ("First page body.", "Second page body."):
-        pdf.new_page().insert_text((72, 90), text, fontsize=11)
+        page = pdf.new_page()
+        for k in range(6):  # a paragraph mid-page: a lone top line reads as a page header
+            page.insert_text((72, 300 + 15 * k), f"{text} Line {k}.", fontsize=11)
     pdf.save(str(path))
     pdf.close()
     data, _, error = cli._parse_one(str(path), "pymupdf", 1)

@@ -195,7 +195,7 @@ def test_stamp_adds_the_freeze_record_and_keeps_results(tmp_path):
 
 def _toc(f1):
     agg = {"f1": f1, "macro_f1": f1 / 2}
-    return {"engines": {"pymupdf": {"n_docs": 3, "depth2": agg, "all": agg}}}
+    return {"engines": {"pymupdf4llm": {"n_docs": 3, "depth2": agg, "all": agg}}}
 
 
 def _pdf(**systems):
@@ -225,7 +225,7 @@ def test_comparison_rows_pair_loo_systems_with_their_transfer_counterparts():
     }
     rows = heldout_eval.comparison_rows(dev, held)
     keys = [(r["task"], r["system"], r["metric"]) for r in rows]
-    assert ("TOC", "pymupdf", "F1 micro (d<=2)") in keys
+    assert ("TOC", "pymupdf4llm", "F1 micro (d<=2)") in keys
     assert ("Doc type", "jev-view", "leaf accuracy") in keys
     assert ("Doc type", "ultrabert-loo -> ultrabert-dev-logistic", "macro F1") in keys
     assert ("Normalisation", "jev", "accuracy") in keys

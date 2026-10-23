@@ -32,8 +32,9 @@ Two flows (spec G3):
 view; ``section_level`` and ``doc_level`` override one each. Left out, it is the backend's measured
 default (:func:`default_level`): the cheapest rung within 2 points of ``full`` in the
 classification benchmark, ``headings`` for the OpenAI-compatible backend (measured on Claude
-Haiku 5.5) and ``lead`` for UltraBERT, else ``terms``. With ``cascade=True``, every section
-tag or document decision whose confidence is below ``threshold`` is asked again one rung up,
+Haiku 5.5) and the keyword backend, and ``lead`` for UltraBERT, else ``terms``. With
+``cascade=True``, every section tag or document decision whose confidence is below ``threshold``
+is asked again one rung up,
 until ``full``; only those items are asked again, every attempt's tokens count, and the last
 attempt's answer stands, even when an earlier rung's was more confident. A section with no
 title shows its lead even at ``headings`` and ``terms`` (within the rung's budget), so it is
@@ -196,11 +197,12 @@ CALLS: tuple[str, ...] = ("batched", "batched_flat", "per_item")
 MEASURED_LEVELS: dict[str, Level] = {
     "openai": "headings",
     "embedding:dmis-lab/UltraBERT-Embed-150M": "lead",
+    "keyword": "headings",
 }
 """The default level per backend: the cheapest rung within 2 points of ``full`` in
-``docs/benchmarks-classification.md`` (batched, both flows, both ladders). ``openai`` covers every
-model of the OpenAI-compatible backend, measured on ``claude-haiku-5-5``. The keyword backend is
-left out: its pick (``headings``) was 17.7 points below its ``lead``, since its ``full`` is weak."""
+``docs/benchmarks-classification.md`` (batched, both flows, document ladder), read with the
+PyMuPDF4LLM reader. ``openai`` covers every model of the OpenAI-compatible backend, measured on
+``claude-haiku-5-5``."""
 FALLBACK_LEVEL: Level = "terms"
 """The default level of a backend the benchmark has not measured."""
 BATCHED_SUPPORT = 2

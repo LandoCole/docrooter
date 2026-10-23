@@ -22,8 +22,8 @@ the same extras. With [uv](https://docs.astral.sh/uv/):
 | Extra | Adds | Licence of what it adds | Needed for |
 | --- | --- | --- | --- |
 | *(none)* | `pydantic`, `numpy`, `typer`, `rich` | MIT / BSD | Markdown and text loading, taxonomies, the `keyword` backend, the CLI |
-| `pdf` | `pymupdf4llm`, which installs PyMuPDF | **AGPL-3.0** (or a commercial licence from Artifex) | Loading PDFs with PyMuPDF, the default and fastest engine |
-| `pdf-mit` | `pdfplumber` | MIT (its dependencies pdfminer.six and pypdfium2: MIT, Apache-2.0 / BSD-3) | Loading PDFs with a permissively licensed engine |
+| `pdf` | `pymupdf4llm`, which installs PyMuPDF and PyMuPDF-Layout (with onnxruntime) | **AGPL-3.0** (or a commercial licence from Artifex) | Loading PDFs: the section tree from PyMuPDF4LLM's layout model |
+| `pdf-mit` | `pdfplumber` | MIT (its dependencies pdfminer.six and pypdfium2: MIT, Apache-2.0 / BSD-3) | Element mode's permissively licensed line reader |
 | `models` | `torch`, `transformers>=5`, `sentence-transformers>=6`, `scikit-learn`, `joblib`, `datasets` | BSD / Apache-2.0 (torch: a mix of permissive licences) | The `embedding`, `nli`, `mlm-choice` and `trained` backends, `docrooter train`, `docrooter models` |
 | `llm` | `httpx` | BSD | The `openai` backend (any OpenAI-compatible server, hosted or a local stand-in), the deployment path of `docrooter.classify` |
 | `jev` | `typesafe-sdk` | MIT client; the Jev API is a hosted service with its own terms | The `jev` backend (TypeSafe Jev, a hosted API) |
@@ -44,20 +44,17 @@ If you call something that needs an extra you have not installed, the error name
 run, in the GitHub form, for example
 `pip install "docrooter[models] @ git+https://github.com/LandoCole/docrooter"`.
 
-## Choosing a PDF engine
+## Reading PDFs
 
-PyMuPDF (extra `pdf`) is licensed under the **AGPL-3.0**, unlike docrooter. It is imported only
-when a PDF is loaded, but read the AGPL terms before you distribute software or run a network
-service that includes it. For a permissive stack install `pdf-mit` instead:
+PDFs are read with PyMuPDF4LLM (extra `pdf`), licensed under the **AGPL-3.0**, unlike
+docrooter. It is imported only when a PDF is loaded, but read the AGPL terms before you
+distribute software or run a network service that includes it. Its layout model finds the
+headings and their levels; docrooter builds the section tree from them. There is no MIT reader
+for the section tree; `pdf-mit` (pdfplumber) serves element mode only.
 
-- `load(path)` uses PyMuPDF when it is installed and pdfplumber otherwise (`engine="auto"`).
-- `load(path, engine="pdfplumber")` forces pdfplumber.
-- pdfplumber is about 6 times slower and scores about the same on the development corpus, but
-  failed silently on one very large PDF in the held-out set; see the
-  [FAQ](../faq.md#agpl-or-mit-which-pdf-engine).
-
-Neither engine does OCR: a scanned PDF without a text layer gives an empty document from
-`load()`. OCR belongs to element mode (see [OCR and layout models](../guides/ocr-and-layout.md)).
+`load()` does no OCR unless you pass `ocr="auto"`, which lets PyMuPDF4LLM OCR pages without a
+text layer. Element mode routes pages to OCR itself (see
+[OCR and layout models](../guides/ocr-and-layout.md)).
 
 ## Models and the first run
 

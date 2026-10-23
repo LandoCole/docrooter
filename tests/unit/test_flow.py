@@ -665,7 +665,8 @@ def test_default_level_is_measured_per_backend():
     assert default_level("openai:any-model") == "headings"  # one hosted LLM measured
     assert default_level("embedding:dmis-lab/UltraBERT-Embed-150M") == "lead"
     assert default_level("embedding:some/other-model") == FALLBACK_LEVEL == "terms"
-    assert default_level("keyword") == "terms"  # its pick lost 17.7 points to lead
+    assert default_level("keyword") == "headings"
+    assert default_level("nli:some/model") == "terms"
     assert default_level(Scripted(name="openai:m")) == "headings"  # a backend by its name
 
     result = classify(financial_doc(EXEC_COMP), backend=Scripted(name="openai:m"))

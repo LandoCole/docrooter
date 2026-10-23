@@ -1,6 +1,6 @@
 """PDF TOC extraction benchmark: predicted headings vs the PDF's own bookmarks.
 
-``uv run --extra pdf --extra pdf-mit python -m benchmarks.toc --engines pymupdf,pdfplumber,both``
+``PYTHONPATH=src python -m benchmarks.toc`` (the pymupdf4llm reader by default)
 
 With ``--elements`` every engine runs twice, as ``fast`` (the default ``load_pdf``) and in
 element mode (``load_pdf(elements=True)``, keyed ``<engine>+elements``), and the result file is
@@ -39,8 +39,10 @@ CACHE = Path(__file__).parent / ".cache"
 MIN_BOOKMARKS = 5
 HEADLINE_DEPTH = 2
 LLM_ENGINE = "pymupdf4llm"
-LLM_MAX_DOCS = 8
-DEFAULT_ENGINES = ("pymupdf", "pdfplumber", "both", LLM_ENGINE)
+LLM_MAX_DOCS = 10_000  # no cap: PyMuPDF4LLM reads every PDF's section tree now
+DEFAULT_ENGINES = (LLM_ENGINE,)
+REMOVED = " (removed heuristic)"
+"""Suffix of the engines whose results are kept from before the heuristic reader was removed."""
 
 
 # --- matching and scoring ---------------------------------------------------------------

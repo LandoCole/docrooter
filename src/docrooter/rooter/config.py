@@ -64,7 +64,7 @@ class RouterConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     profile: ProfileName = DEFAULT_PROFILE
-    text: Literal["auto", "pymupdf", "pdfplumber", "both"] = "auto"
+    text: Literal["auto", "pymupdf", "pdfplumber", "pymupdf4llm"] = "auto"
     ocr: str = Field("auto", min_length=1)
     layout: str = Field("heuristic", min_length=1)
     tables: Literal["lines", "none"] = "lines"

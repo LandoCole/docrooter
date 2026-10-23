@@ -65,7 +65,7 @@ classifies sections against any taxonomy you supply, as it did before 1.0.
 sections with that type's own section taxonomy.
 
 **The context ladder** (`level=`; by default the backend's measured level, `headings` for an LLM
-through the OpenAI-compatible backend, `lead` for UltraBERT, `terms` otherwise; `section_level=`
+through the OpenAI-compatible backend and for keyword, `lead` for UltraBERT, `terms` otherwise; `section_level=`
 and `doc_level=` set the two steps apart). Each rung shows everything below it and adds one field:
 
 | Level | A section shows | The document shows |
@@ -102,56 +102,59 @@ gold split and once on the frozen 40-document held-out set. Every number below i
 [docs/benchmarks-classification.md](docs/benchmarks-classification.md), which is generated from
 the committed results files.
 
+PDFs were read with the PyMuPDF4LLM reader (since 2026-10-21; the runs with the removed
+heuristic reader are kept in `benchmarks/results/2026-10-20/`).
+
 | Backend, calls, flow | Level | Doc-type accuracy | Prompt tokens per doc | Share of `full` |
 |---|---|---:|---:|---:|
-| Claude Haiku 5.5, batched, doc_first (gold, development) | `headings` | **96.5%** | 3,751 (exact) | 12.9% |
-| Claude Haiku 5.5, batched, doc_first (gold, development) | `terms` / `lead` | 96.5% / 95.6% | 4,608 / 7,046 (exact) | 15.9% / 24.3% |
-| Claude Haiku 5.5, batched, doc_first (gold, development) | `full` | 93.8% | 29,000 (exact) | 100% |
-| Claude Haiku 5.5, batched, sections_first (gold, development) | `headings` | 92.0% | 5,488 (exact) | 11.4% |
-| Claude Haiku 5.5, batched, doc_first (**held-out, clean**) | `headings` / `terms` | **87.5%** / 85.0% | 3,999 / 5,115 (exact) | — |
-| Claude Haiku 5.5, batched, sections_first (**held-out, clean**) | `headings` / `terms` | 82.5% / 80.0% | 6,216 / 8,465 (exact) | — |
-| UltraBERT, batched, doc_first (gold, development) | `headings` | 61.1% | 1,870 (est.) | 10.9% |
-| UltraBERT, batched, doc_first (gold, development) | `lead` | **81.4%** | 3,480 (est.) | 20.2% |
-| UltraBERT, batched, doc_first (gold, development) | `full` | 75.2% | 17,229 (est.) | 100% |
-| UltraBERT, batched, doc_first (**held-out, clean**) | `lead` | **82.5%** | 3,913 (est.) | — |
-| Qwen3-4B, local server, batched, doc_first (gold) | `headings` / `terms` / `lead` | 71.7% / 75.2% / 78.8% | 2,453 / 3,139 / 5,011 (exact) | — |
+| Claude Haiku 5.5, batched, doc_first (gold, development) | `headings` | **98.2%** | 3,629 (exact) | 15.4% |
+| Claude Haiku 5.5, batched, doc_first (gold, development) | `terms` / `lead` | 99.1% / 96.5% | 4,267 / 6,574 (exact) | 18.2% / 27.9% |
+| Claude Haiku 5.5, batched, doc_first (gold, development) | `full` | 94.7% | 23,503 (exact) | 100% |
+| Claude Haiku 5.5, batched, sections_first (gold, development) | `headings` | 92.9% | 5,334 (exact) | 15.3% |
+| Claude Haiku 5.5, batched, doc_first (**held-out, clean**) | `headings` / `terms` | **92.5%** / 87.5% | 3,694 / 4,585 (exact) | — |
+| Claude Haiku 5.5, batched, sections_first (**held-out, clean**) | `headings` / `terms` | 82.5% / 82.5% | 5,592 / 7,416 (exact) | — |
+| UltraBERT, batched, doc_first (gold, development) | `headings` / `lead` | 63.7% / **75.2%** | 1,823 / 3,111 (est.) | 13.2% / 22.6% |
+| UltraBERT, batched, doc_first (gold, development) | `full` | 77.0% | 13,767 (est.) | 100% |
+| UltraBERT, batched, doc_first (**held-out, clean**) | `lead` | **82.5%** | 3,351 (est.) | — |
 
 What it shows:
 - **A hosted LLM needs only the headings.** Claude Haiku 5.5 names the document type from the
-  title, counts and contents alone (`headings`) as well as from any richer rung: 96.5% on the
-  gold split at 13% of the `full` tokens, where `full` scored 93.8%. On the held-out set
-  `headings` (87.5%) beat `terms` (85.0%) at 22% fewer tokens. Every Haiku run together cost
-  $1.58.
-- **More context is not always better.** On UltraBERT, `lead` beats sending the whole document
-  (`full`) by about 6 points, at a fifth of the tokens; on Haiku, `full` is the worst rung.
+  title, counts and contents alone (`headings`) as well as from any richer rung: 98.2% on the
+  gold split at 15% of the `full` tokens, where `full` scored 94.7%. On the held-out set
+  `headings` (92.5%) beat `terms` (87.5%) at 19% fewer tokens.
+- **More context is not always better.** On Haiku, `full` is its worst rung on the gold split in
+  both flows. On UltraBERT, `lead` is within 2 points of `full` at a fifth of the tokens.
   Batched calls cut the option overhead roughly 4× against per-item calls.
 - **Sections first does not beat doc first on document type, even with an LLM tagger.** With
-  Haiku the rules fire (they decide 21–28% of documents alone), but `sections_first` scores 4.5
-  to 8 points below `doc_first` on the gold split and 5 points below on the held-out set, at 1.5
-  to 1.7× the tokens. With UltraBERT the tags are too unsure for the rules to fire at all, so the
-  two flows give the same answer.
-- **Sections first is how to get good section tags.** Haiku's section leaf macro-F1 is 55.7 to
-  58.9 in `sections_first` (47.3 at `full`) against 34 to 40 in `doc_first`, whose per-type
-  taxonomies reach only 61 of the 112 catalogue leaves. The keyword and UltraBERT backends stay
-  between about 8 and 29, against a 112-type catalogue.
+  Haiku the rules fire, but `sections_first` scores 5 to 10 points below `doc_first` on both the
+  gold split and the held-out set, at 1.5 to 1.7× the tokens. With UltraBERT the tags are too
+  unsure for the rules to fire at all, so the two flows give the same answer.
+- **Sections first is how to get good section tags.** Haiku's section leaf macro-F1 is 55 to 56
+  at `headings` and `terms` in `sections_first` against 34 to 37 in `doc_first`, whose per-type
+  taxonomies reach only 61 of the 112 catalogue leaves.
+- **The reader matters.** Moving from the heuristic reader to PyMuPDF4LLM raised Haiku's
+  held-out accuracy at `headings` from 87.5% to 92.5% (2 of 40 documents), at slightly fewer
+  tokens, although its tables of contents score lower against PDF bookmarks (held-out F1 at
+  depth ≤ 2: 0.534 against the heuristic's 0.576) and it reads about 13 times slower; see the
+  [PDF benchmarks](docs/benchmarks-pdf.md). Every Haiku run so far cost about $2.90 in total.
 
 **Caveats:**
 - Token counts for keyword and UltraBERT are estimates of what an LLM would be sent. The Haiku
-  and Qwen rows are exact (the API's `usage`).
+  rows are exact (the API's `usage`).
+- Section tags are scored on 612 of the 951 gold sections: the gold was labelled on the old
+  reader's sections, and the rest have no section with the same title in the new reading.
 - Haiku ran with thinking disabled (`DOCROOTER_LLM_EXTRA_BODY='{"thinking": {"type":
   "disabled"}}'`): with thinking on, it spent the small batched reply budget before answering.
   One model was measured; the `headings` default for the OpenAI-compatible backend generalises
   from it.
-- The local Qwen3-4B was run for three configurations only: it is too large for the 8 GB test
-  machine at the `lead` and `full` levels of a full grid.
 - The 951 section labels were written by Claude annotators, evaluation only. They were all the
   same underlying model, so κ (0.923) measures consistency, not correctness.
 - The doc-type rules were revised after looking at gold results, so the gold doc-type numbers
   are development numbers. The held-out run is the clean measure.
 
-The default level is now measured per backend (`docrooter.flow.default_level`): `headings` for
-the OpenAI-compatible backend and `lead` for UltraBERT, each the cheapest rung within 2 points of
-`full`. Other backends keep `terms`.
+The default level is measured per backend (`docrooter.flow.default_level`): `headings` for the
+OpenAI-compatible and keyword backends and `lead` for UltraBERT, each the cheapest rung within 2
+points of `full`. Other backends keep `terms`.
 
 ### Earlier results (TOC and document type, before v1)
 
@@ -166,7 +169,8 @@ publisher in common). The held-out column is the honest estimate.
 | | `ultrabert-view`: UltraBERT zero-shot, the local default | 0.765 | 0.825 |
 | | `ultrabert-hybrid`: UltraBERT on the view and the sections | 0.824 | 0.775 |
 | | `bge-view`: bge-small zero-shot | 0.608 | 0.700 |
-| TOC extraction (F1 at depth ≤ 2 against PDF bookmarks) | default engine (`pymupdf`) | 0.703 (dev-tuned) | 0.576 |
+| TOC extraction (F1 at depth ≤ 2 against PDF bookmarks) | heuristic reader (`pymupdf`, removed 2026-10-21) | 0.703 (dev-tuned) | 0.576 |
+| | PyMuPDF4LLM reader (the current one) | 0.435 | 0.534 |
 
 - *18 types*: both corpora were labelled with the 18 types that existed then. v0.5 adds `financial.fact_sheet`
   (19 types), so the document-type numbers predate it, and the held-out corpus has not been run
@@ -203,8 +207,8 @@ with the same extras until docrooter is on PyPI.
 | --- | --- | --- |
 | *(none)* | `pydantic`, `numpy`, `typer`, `rich` | Markdown/text loading, taxonomies, the `keyword` backend, the CLI |
 | `models` | `torch`, `transformers>=5`, `sentence-transformers>=6`, `scikit-learn`, `joblib`, `datasets` | `embedding`, `nli`, `mlm-choice` and `trained` backends; `docrooter train`; `docrooter models` |
-| `pdf` | `pymupdf4llm` (which installs PyMuPDF) | Loading `.pdf` files with PyMuPDF, the default engine (AGPL; see the licence note below) |
-| `pdf-mit` | `pdfplumber` | Loading `.pdf` files with the MIT-licensed pdfplumber engine |
+| `pdf` | `pymupdf4llm` (which installs PyMuPDF and its layout model) | Loading `.pdf` files: the section tree from PyMuPDF4LLM (AGPL; see the licence note below) |
+| `pdf-mit` | `pdfplumber` | Element mode's MIT-licensed line reader (`load(path, elements=True, engine="pdfplumber")`) |
 | `llm` | `httpx` | The `openai` backend (any OpenAI-compatible server) |
 | `jev` | `typesafe-sdk` | The `jev` backend (TypeSafe Jev) |
 | `ui` | `fastapi`, `uvicorn`, `python-multipart` | `docrooter serve`, the local [playground](#playground) |
@@ -219,13 +223,14 @@ Python 3.10 or newer. Asking for something an extra provides without installing 
 the exact command to run, in the GitHub form, e.g.
 `pip install "docrooter[models] @ git+https://github.com/LandoCole/docrooter"`.
 
-**PDF engines and the AGPL.** The default PDF engine is PyMuPDF, which is licensed under the
-AGPL-3.0, unlike docrooter itself (Apache-2.0). It comes with the `[pdf]` extra (and so with
-`[all]`) and is imported only when a `.pdf` file is loaded. Read the AGPL terms before you
-distribute software or run a network service that includes it. For a permissive stack, install
-`[pdf-mit]` instead: it adds `pdfplumber` (MIT), which `load(path)` uses automatically when
-PyMuPDF is not installed, or explicitly with `engine="pdfplumber"`. The `pymupdf4llm` engine is
-the legacy v0.1 Markdown path, kept for comparison (`engine="pymupdf4llm"`, AGPL).
+**PDFs and the AGPL.** PDFs are read with PyMuPDF4LLM, which, like PyMuPDF and its layout
+model, is licensed under the AGPL-3.0 (or a commercial licence from Artifex), unlike docrooter
+itself (Apache-2.0). It comes with the `[pdf]` extra (and so with `[all]`) and is imported only
+when a `.pdf` file is loaded; Markdown and text need nothing. Read the AGPL terms before you
+distribute software or run a network service that includes it. docrooter no longer has its own
+heading detector for PDFs: PyMuPDF4LLM's layout model finds the headings and their levels, and
+docrooter only cleans the titles, repairs level jumps and applies the PDF's bookmarks. The MIT
+`[pdf-mit]` extra (pdfplumber) now serves element mode only.
 
 **`trust_remote_code` and UltraBERT.** The default model, `dmis-lab/UltraBERT-Embed-150M`
 (and `UltraBERT-380M`, used by `mlm-choice`), ships its own modelling code, which
@@ -351,7 +356,7 @@ the `keyword` backend; it lives in [`examples/doc_types.py`](examples/doc_types.
 ```python
 from docrooter import DocumentView, builtin_taxonomy, classify_document, load, normalize_sections
 
-doc = load(path, engine="pdfplumber") if path else load(MARKDOWN)
+doc = load(path) if path else load(MARKDOWN)
 doc_types = builtin_taxonomy("doc_types")
 view = DocumentView(fields=("title", "toc", "lead"), max_tokens=512)
 result = classify_document(doc, doc_types, backend="keyword", view=view)
@@ -370,10 +375,11 @@ Results: results
 References: references
 ```
 
-- **PDF engines.** `load(path, engine=...)` (or `load_pdf`) reads PDFs natively, without OCR:
-  `"auto"` (the default: PyMuPDF if installed, else pdfplumber), `"pymupdf"` (extra `pdf`),
-  `"pdfplumber"` (extra `pdf-mit`), `"both"` (PyMuPDF headings that pdfplumber agrees with) or
-  `"pymupdf4llm"` (the legacy v0.1 path). `doc.meta` records the engine, page count and timings.
+- **Reading PDFs.** `load(path)` (or `load_pdf`) builds the section tree from PyMuPDF4LLM's
+  Markdown: its layout model finds the headings and their levels, page headers and footers are
+  left out, and `ocr="auto"` lets it OCR pages without text. `doc.meta` records the engine
+  (`pymupdf4llm`), page count, bookmarks and timings. `elements=True` reads native lines instead
+  (`engine="pymupdf"` or `"pdfplumber"`) and types every block; see element mode below.
 - **`classify_document`** uses `Flat()` and threshold 0 by default, so a document with text always
   gets a label; gate on `result.confidence`. For many documents, build one classifier and call
   `Classifier(taxonomy, backend).classify_documents(docs, threshold=0.0)`, which gives the same
@@ -945,4 +951,5 @@ memory-budget and benchmark rules and the pull request checklist. See also the
 ## Licence
 
 Apache-2.0 for docrooter. See [LICENSE](LICENSE). The optional `[pdf]` extra pulls in the
-AGPL-3.0 PyMuPDF, as noted above; `[pdf-mit]` (pdfplumber) is MIT.
+AGPL-3.0 PyMuPDF4LLM and PyMuPDF, as noted above; `[pdf-mit]` (pdfplumber, element mode only) is
+MIT.

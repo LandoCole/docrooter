@@ -7,8 +7,7 @@ downloaded; the last step swaps in a real model.
 ## 1. Install
 
 ```bash
-pip install 'docrooter[pdf]'       # PyMuPDF engine (AGPL-3.0)
-# or: pip install 'docrooter[pdf-mit]'   # pdfplumber engine (MIT)
+pip install 'docrooter[pdf]'       # PyMuPDF4LLM (AGPL-3.0)
 ```
 
 Any text-based PDF works: an annual report, a paper, a contract, a manual. Scanned PDFs
@@ -36,7 +35,7 @@ from docrooter import builtin_taxonomy, classify_document, load, normalize_secti
 
 
 def main(path: str) -> None:
-    doc = load(path)  # engine="auto": PyMuPDF if installed, else pdfplumber; no OCR
+    doc = load(path)  # the section tree from PyMuPDF4LLM (its layout model); no OCR
     print(f"{doc.meta['engine']}: {doc.meta['n_pages']} pages, {len(doc.toc())} headings")
     for entry in doc.toc():
         page = doc.sections[entry.id].page_start
@@ -59,7 +58,7 @@ def main(path: str) -> None:
 On the sample it prints:
 
 ```text
-pymupdf: 3 pages, 7 headings
+pymupdf4llm: 3 pages, 7 headings
 Annual Report 2025  (p. 1)
 Item 1. Business  (p. 1)
 Item 1A. Risk Factors  (p. 1)

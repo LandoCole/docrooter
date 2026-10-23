@@ -1,41 +1,38 @@
-"""``load_pdf``: assemble a :class:`~docrooter.document.models.Document` from native PDF lines
-(spec §2.4). Engines: ``auto``, ``pymupdf``, ``pdfplumber``, ``both`` and the legacy
-``pymupdf4llm`` path."""
+"""``load_pdf``: assemble a :class:`~docrooter.document.models.Document` from a PDF.
+
+The section tree comes from PyMuPDF4LLM's Markdown (:mod:`docrooter.document.pdf`): its layout
+model finds the headings and their levels, and docrooter only repairs level jumps and applies
+the PDF's bookmarks. Element mode (``elements=True``, :mod:`docrooter.pdf.element_mode`) reads
+the native text lines with the ``pymupdf`` or ``pdfplumber`` engine instead."""
 
 from __future__ import annotations
 
 import os
 import re
-import time
-from collections import Counter, defaultdict
+from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from docrooter import events
 from docrooter._extras import install_hint
-from docrooter.document.build import build_document
-from docrooter.document.headings import repair_levels
-from docrooter.document.models import Document, RawHeading
+from docrooter.document.models import Document
 from docrooter.errors import DocrooterError, MissingExtraError
 from docrooter.pdf import lines as _lines_module
-from docrooter.pdf.headings import HeadingCandidate, find_headings
-from docrooter.pdf.lines import Line, extract_lines
-from docrooter.pdf.signals import DocSignals, compute_signals, is_fuzzy_match, read_bookmarks
 
 if TYPE_CHECKING:
     from docrooter.layout.base import LayoutEngine
     from docrooter.ocr.base import OcrEngine
+    from docrooter.pdf.headings import HeadingCandidate
 
 __all__ = ["ENGINES", "load_pdf"]
 
-ENGINES = ("auto", "pymupdf", "pdfplumber", "both", "pymupdf4llm")
+ENGINES = ("auto", "pymupdf", "pdfplumber", "pymupdf4llm")
+"""``auto``, ``pymupdf`` and ``pymupdf4llm`` read the section tree with PyMuPDF4LLM; in element
+mode ``auto`` and ``pymupdf`` read native lines with PyMuPDF, and ``pdfplumber`` (element mode
+only) with pdfplumber."""
 
-_DEFAULT_SCORE = 0.55
-_END_SLACK = 2  # extra primary lines searched for the end of a multi-line title
-_KEEP_SCORE = 0.8  # `both`: a heading this confident in either engine survives alone
-_TIMING_KEYS = ("extract", "signals", "headings", "assemble")
+_DEFAULT_SCORE = 0.55  # element mode's heading cut
 # Metadata titles that are really file names ("Microsoft Word - draft.docx", "report.pdf").
 _FILENAME_TITLE = re.compile(
     r"\.(pdf|docx?|pptx?|xlsx?|indd|qxd|tex|rtf|odt|txt|ai|eps)\s*$|^microsoft (word|powerpoint)\b"
@@ -46,18 +43,6 @@ _FILENAME_TITLE = re.compile(
 
 # "A N N U A L  R E P O R T": a cover title set with letter-spacing, unusable as a title.
 _LETTER_SPACED = re.compile(r"(?<![A-Za-z])(?:[A-Za-z] ){3,}[A-Za-z](?![A-Za-z])")
-
-
-@dataclass
-class _Analysis:
-    """Everything one engine found: its lines, signals and scored headings."""
-
-    lines: list[Line]
-    n_pages: int  # the whole document
-    n_read: int  # the pages read: n_pages, or fewer with max_pages
-    signals: DocSignals
-    headings: list[HeadingCandidate]
-    timings: dict[str, float] = field(default_factory=dict)
 
 
 def load_pdf(
@@ -77,31 +62,28 @@ def load_pdf(
     tables: Literal["lines", "none"] = "lines",
     pages: Sequence[int] | None = None,
 ) -> Document:
-    """Load a PDF into a :class:`Document` using native text extraction (no OCR).
+    """Load a PDF into a :class:`Document`.
 
-    ``engine`` is ``auto`` (pymupdf if installed, else pdfplumber), ``pymupdf`` (extra ``pdf``),
-    ``pdfplumber`` (extra ``pdf-mit``), ``both`` (pymupdf headings kept when pdfplumber agrees or
-    either engine is at least 0.8 confident) or ``pymupdf4llm`` (the v0.1 Markdown path).
-    ``min_heading_score`` defaults to 0.55 (0.5 for ``pymupdf4llm``, as in v0.1).
-    Headings already carry repaired levels, so ``repair`` only affects the ``pymupdf4llm`` path.
+    **The section tree** (the default) is read with PyMuPDF4LLM (extra ``pdf``, AGPL-3.0):
+    ``pymupdf4llm.to_markdown`` with its layout model, page headers and footers left out. Its
+    Markdown headings and their levels are the sections; docrooter only cleans the titles
+    (emphasis, HTML tags, bullets), repairs level jumps (``repair``) and, with
+    ``use_bookmarks``, gives a heading that matches a PDF bookmark the bookmark's level.
+    ``engine`` is ``auto``, ``pymupdf`` or ``pymupdf4llm`` (all the same here); ``pdfplumber``
+    is for element mode only. ``ocr="auto"`` lets PyMuPDF4LLM OCR pages without a text layer
+    (with an OCR engine it can find, such as RapidOCR or Tesseract); by default it does not.
+    ``min_heading_score`` and ``use_printed_toc`` are element-mode options.
 
-    ``Document.meta`` holds ``engine``, ``n_pages``, ``timings`` (seconds for ``extract``,
-    ``signals``, ``headings``, ``assemble``), ``bookmarks``, ``printed_toc_entries``,
-    ``body_size`` and ``warnings`` (``"no_text_layer"`` when no text could be extracted).
-
-    ``max_pages`` caps the pages read, which bounds time and memory on very long files: the
-    rest are skipped and ``meta["warnings"]`` gets ``"truncated_pages"``. ``n_pages`` stays
-    the whole document's count; running headers and printed contents pages are then detected
-    within the pages read only, and bookmarks pointing past them are ignored.
+    ``Document.meta`` holds ``engine`` (``"pymupdf4llm"``), ``n_pages``, ``timings`` (seconds
+    for ``extract`` and ``assemble``), ``bookmarks`` and ``warnings`` (``"no_text_layer"`` when
+    no text could be extracted, ``"truncated_pages"`` when ``max_pages`` cut the reading).
+    ``max_pages`` caps the pages read, which bounds time and memory on very long files;
+    ``n_pages`` stays the whole document's count and bookmarks past the pages read are ignored.
 
     A PDF without text becomes one empty section ``s0``. Encrypted or unreadable files raise
-    :class:`~docrooter.errors.DocrooterError`.
-
-    ``on_event`` receives an :class:`~docrooter.events.Event` for each stage (``extract`` with
-    progress every 10 pages, ``signals``, ``headings``, ``assemble``) and a final ``done``, or
-    an ``error`` before the exception is re-raised. With ``engine="both"`` each engine reports
-    its own ``extract``/``signals``/``headings`` (``data["engine"]`` says which) and the merge
-    is a last ``headings`` stage with ``engine="both"``.
+    :class:`~docrooter.errors.DocrooterError`. ``on_event`` receives an
+    :class:`~docrooter.events.Event` for each stage (``extract``, ``headings``, ``assemble``)
+    and a final ``done``, or an ``error`` before the exception is re-raised.
 
     **Element mode** (``elements=True``, engines ``auto``, ``pymupdf`` and ``pdfplumber``) also
     types every block into ``Document.elements`` and builds the sections from them (see
@@ -125,15 +107,23 @@ def load_pdf(
     extra cost): ruled tables are not searched and their lines are typed by the other rules.
     ``pages`` (element mode only) reads just those 1-based pages, in page order, at most
     ``max_pages`` of them; ``n_pages`` stays the whole document's count.
-    ``repair`` does not apply. Without ``elements`` the result is exactly as before, and
-    ``ocr``, ``layout``, ``ocr_dpi``, ``tables`` and ``pages`` must keep their defaults.
+    ``repair`` does not apply. Without ``elements``, ``layout``, ``ocr_dpi``, ``tables`` and
+    ``pages`` must keep their defaults, and ``ocr`` is ``None`` or ``"auto"``.
     """
     if not elements and (
-        ocr is not None or not _is_heuristic(layout) or ocr_dpi != 200 or tables != "lines"
+        ocr not in (None, "auto")
+        or not _is_heuristic(layout)
+        or ocr_dpi != 200
+        or tables != "lines"
     ):
-        raise TypeError("ocr, layout, ocr_dpi and tables: only valid with elements=True")
+        raise TypeError(
+            "layout, ocr_dpi, tables and an OCR engine: only valid with elements=True "
+            "(the section tree takes ocr='auto' or None)"
+        )
     if not elements and pages is not None:
         raise TypeError("pages: only valid with elements=True")
+    if not elements and (min_heading_score is not None or not use_printed_toc):
+        raise TypeError("min_heading_score and use_printed_toc: only valid with elements=True")
     with events.pipeline_run(on_event):
         if elements:
             from docrooter.pdf.element_mode import load_elements
@@ -154,11 +144,10 @@ def load_pdf(
         return _load_pdf(
             path,
             engine=engine,
-            min_heading_score=min_heading_score,
             use_bookmarks=use_bookmarks,
-            use_printed_toc=use_printed_toc,
             repair=repair,
             max_pages=max_pages,
+            ocr=ocr == "auto",
         )
 
 
@@ -170,76 +159,25 @@ def _load_pdf(
     path: str | os.PathLike[str],
     *,
     engine: str,
-    min_heading_score: float | None,
     use_bookmarks: bool,
-    use_printed_toc: bool,
     repair: bool,
     max_pages: int | None,
+    ocr: bool,
 ) -> Document:
     if engine not in ENGINES:
         raise DocrooterError(f"unknown PDF engine {engine!r}; use one of {', '.join(ENGINES)}")
+    if engine == "pdfplumber":
+        raise DocrooterError(
+            "the pdfplumber engine reads native lines for element mode (elements=True); the "
+            "section tree is read with PyMuPDF4LLM (engine 'auto')"
+        )
     if max_pages is not None and max_pages < 1:
         raise ValueError(f"max_pages must be >= 1, got {max_pages}")
-    path = Path(path)
-    if engine == "pymupdf4llm":
-        score = 0.5 if min_heading_score is None else min_heading_score
-        from docrooter.document.pdf import _load_pdf_pymupdf4llm
+    from docrooter.document.pdf import load_pdf_markdown
 
-        stage = events.start("assemble", engine=engine)
-        legacy = _load_pdf_pymupdf4llm(
-            path, min_heading_score=score, repair=repair, max_pages=max_pages
-        )
-        stage.end(sections=len(legacy.sections))
-        return legacy
-    if engine == "auto":
-        engine = _auto_engine()
-
-    options: dict[str, Any] = {
-        "min_score": _DEFAULT_SCORE if min_heading_score is None else min_heading_score,
-        "use_bookmarks": use_bookmarks,
-        "use_printed_toc": use_printed_toc,
-        "max_pages": max_pages,
-    }
-    if engine == "both":
-        primary = _analyse(path, "pymupdf", None, **options)
-        other = _analyse(path, "pdfplumber", primary.signals.bookmarks, **options)
-        start = time.perf_counter()
-        stage = events.start("headings", engine=engine)
-        skip = primary.signals.excluded | primary.signals.toc_page_lines
-        headings = _merge_engines(
-            primary.headings, other.headings, primary.lines, other.lines, skip=skip
-        )
-        merge_seconds = time.perf_counter() - start
-        if stage.active:
-            stage.end(**_heading_counts(headings))
-        timings = {key: primary.timings[key] + other.timings[key] for key in _TIMING_KEYS}
-        timings["headings"] += merge_seconds
-    else:
-        primary = _analyse(path, engine, None, **options)
-        headings, timings = primary.headings, dict(primary.timings)
-
-    start = time.perf_counter()
-    stage = events.start("assemble")
-    raw = _assemble(primary.lines, primary.signals, headings, primary.n_read)
-    title = next(
-        (h.title for h in raw if h.level == 1 and not _LETTER_SPACED.search(h.title)), None
-    ) or _metadata_title(path)
-    doc = build_document(raw, source=str(path), title=title or path.stem)
-    timings["assemble"] = time.perf_counter() - start
-    stage.end(sections=len(doc.sections))
-
-    doc.meta = {
-        "engine": engine,
-        "n_pages": primary.n_pages,
-        "timings": {key: round(timings[key], 4) for key in _TIMING_KEYS},
-        "bookmarks": len(primary.signals.bookmarks),
-        "printed_toc_entries": len(primary.signals.printed_toc),
-        "body_size": primary.signals.body_size,
-        "warnings": [] if primary.lines else ["no_text_layer"],
-    }
-    if primary.n_read < primary.n_pages:
-        doc.meta["warnings"].append("truncated_pages")
-    return doc
+    return load_pdf_markdown(
+        Path(path), use_bookmarks=use_bookmarks, repair=repair, max_pages=max_pages, ocr=ocr
+    )
 
 
 def _auto_engine() -> str:
@@ -257,197 +195,10 @@ def _auto_engine() -> str:
         ) from exc
 
 
-def _analyse(
-    path: Path,
-    engine: str,
-    bookmarks: list[tuple[int, str, int]] | None,
-    *,
-    min_score: float,
-    use_bookmarks: bool,
-    use_printed_toc: bool,
-    max_pages: int | None = None,
-) -> _Analysis:
-    """Extract lines, compute signals and find headings with one engine. ``bookmarks`` skips
-    re-reading the outline when a previous engine already did."""
-    start = time.perf_counter()
-    stage = events.start("extract", engine=engine)
-    lines, n_pages = extract_lines(
-        path,
-        engine=engine,  # type: ignore[arg-type]
-        max_pages=max_pages,
-        progress=(lambda page, total: stage.progress(pages=total, page=page))
-        if stage.active
-        else None,
-    )
-    n_read = n_pages if max_pages is None else min(n_pages, max_pages)
-    extracted = time.perf_counter()
-    stage.end(lines=len(lines), pages=n_read)
-    stage = events.start("signals", engine=engine)
-    if bookmarks is None:
-        bookmarks = read_bookmarks(path)
-    if n_read < n_pages:
-        bookmarks = [b for b in bookmarks if b[2] <= n_read]
-    signals = compute_signals(lines, n_read, bookmarks=bookmarks)
-    signalled = time.perf_counter()
-    if stage.active:
-        stage.end(bookmarks=len(signals.bookmarks), printed_toc_entries=len(signals.printed_toc))
-    stage = events.start("headings", engine=engine)
-    headings = find_headings(
-        lines,
-        signals,
-        min_score=min_score,
-        use_bookmarks=use_bookmarks,
-        use_printed_toc=use_printed_toc,
-    )
-    done = time.perf_counter()
-    if stage.active:
-        stage.end(**_heading_counts(headings))
-    timings = {
-        "extract": extracted - start,
-        "signals": signalled - extracted,
-        "headings": done - signalled,
-        "assemble": 0.0,
-    }
-    return _Analysis(lines, n_pages, n_read, signals, headings, timings)
-
-
 def _heading_counts(headings: Sequence[HeadingCandidate]) -> dict[str, Any]:
     """``{"headings": n, "levels": {"1": n1, ...}}``, the data of a ``headings`` event."""
     levels = Counter(h.level or 1 for h in headings)
     return {"headings": len(headings), "levels": {str(k): levels[k] for k in sorted(levels)}}
-
-
-def _merge_engines(
-    primary: Sequence[HeadingCandidate],
-    other: Sequence[HeadingCandidate],
-    primary_lines: Sequence[Line],
-    other_lines: Sequence[Line],
-    *,
-    skip: set[int] | frozenset[int] = frozenset(),
-) -> list[HeadingCandidate]:
-    """Keep a primary heading when ``other`` has a fuzzy-matching heading on the same page or its
-    score is at least 0.8. An ``other`` heading with no match and a score of at least 0.8 is
-    added at the primary line it matches (same page, not in ``skip``), if any. The result is in
-    reading order with level gaps closed; inputs are not mutated."""
-    by_page: defaultdict[int, list[HeadingCandidate]] = defaultdict(list)
-    for heading in other:
-        by_page[heading.page].append(heading)
-
-    matched: set[int] = set()
-    kept: list[HeadingCandidate] = []
-    for heading in primary:
-        found = False
-        for candidate in by_page[heading.page]:
-            if is_fuzzy_match(heading.text, candidate.text):
-                matched.add(id(candidate))
-                found = True
-        if found or heading.score >= _KEEP_SCORE:
-            kept.append(heading.model_copy(deep=True))
-
-    taken = {h.line_index for h in primary}
-    for heading in other:
-        if id(heading) in matched or heading.score < _KEEP_SCORE:
-            continue
-        index = _locate(heading, primary_lines, other_lines, taken | set(skip))
-        if index is not None:
-            count = _locate_count(heading, index, primary_lines, other_lines)
-            taken.update(range(index, index + count))
-            kept.append(
-                heading.model_copy(update={"line_index": index, "line_count": count}, deep=True)
-            )
-
-    kept.sort(key=lambda h: h.line_index)
-    repaired = repair_levels(
-        [RawHeading(title="", level=h.level or 1, text="", line=h.line_index) for h in kept]
-    )
-    for heading, fixed in zip(kept, repaired, strict=True):
-        heading.level = fixed.level
-        heading.flags.extend(flag for flag in fixed.flags if flag not in heading.flags)
-    return kept
-
-
-def _locate(
-    heading: HeadingCandidate,
-    primary_lines: Sequence[Line],
-    other_lines: Sequence[Line],
-    taken: set[int],
-) -> int | None:
-    """Index of the first primary line on the heading's page whose text matches the heading's
-    first line in the other engine."""
-    if heading.line_index >= len(other_lines):
-        return None
-    first = other_lines[heading.line_index].text
-    for index, line in enumerate(primary_lines):
-        if line.page == heading.page and index not in taken and is_fuzzy_match(first, line.text):
-            return index
-    return None
-
-
-def _locate_count(
-    heading: HeadingCandidate,
-    start: int,
-    primary_lines: Sequence[Line],
-    other_lines: Sequence[Line],
-) -> int:
-    """Line count of ``heading`` in the primary lines: from ``start`` to the first primary line
-    on the same page matching the heading's last line in the other engine. 1 when unmatched."""
-    last = heading.line_index + heading.line_count - 1
-    if heading.line_count <= 1 or last >= len(other_lines):
-        return 1
-    final = other_lines[last].text
-    stop = min(len(primary_lines), start + heading.line_count + _END_SLACK)
-    for index in range(start + 1, stop):
-        if primary_lines[index].page != heading.page:
-            break
-        if is_fuzzy_match(final, primary_lines[index].text):
-            return index - start + 1
-    return 1
-
-
-def _assemble(
-    lines: Sequence[Line],
-    signals: DocSignals,
-    headings: Sequence[HeadingCandidate],
-    n_pages: int,
-) -> list[RawHeading]:
-    """Heading blocks with their body text, preceded by the preamble (level 0).
-
-    A heading's body is the lines after its title lines and before the next heading, minus
-    running headers/footers, page numbers and high-confidence printed TOC pages
-    (``toc_body_lines``), joined with newlines. The preamble holds the lines before the first
-    heading; it is omitted when empty unless the PDF has no headings at all (a text-less PDF
-    still yields one empty ``s0``)."""
-    skip = signals.excluded | signals.toc_body_lines
-
-    def body(start: int, stop: int) -> tuple[str, int | None]:
-        kept = [lines[k] for k in range(start, stop) if k not in skip]
-        return "\n".join(line.text for line in kept), (kept[0].page if kept else None)
-
-    ordered = sorted(headings, key=lambda h: h.line_index)
-    raw: list[RawHeading] = []
-    first = ordered[0].line_index if ordered else len(lines)
-    text, page = body(0, first)
-    if text or not ordered:
-        raw.append(
-            RawHeading(
-                title="Preamble", level=0, text=text, line=0, page=page or (1 if n_pages else None)
-            )
-        )
-    for position, heading in enumerate(ordered):
-        stop = ordered[position + 1].line_index if position + 1 < len(ordered) else len(lines)
-        begin = min(heading.line_index + heading.line_count, stop)
-        raw.append(
-            RawHeading(
-                title=heading.text,
-                level=heading.level or 1,
-                text=body(begin, stop)[0],
-                line=heading.line_index,
-                page=heading.page,
-                heading_score=heading.score,
-                flags=list(heading.flags),
-            )
-        )
-    return raw
 
 
 def _metadata_title(path: Path) -> str | None:

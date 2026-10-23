@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>doc-rooter · Landon Thornton</title>
-<meta name="description" content="doc-rooter sends a model the least it needs to name a document's type and tag every section. Pick a rung of the context ladder and see exactly what Jev saw, what it answered, and what it cost.">
+<meta name="description" content="doc-rooter sends a model only what it needs to name a document's type and tag its sections. See exactly what Jev read, what it answered and what it cost.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -89,7 +89,7 @@ select{box-sizing:border-box;width:100%;height:48px;padding:0 12px;border:0;bord
 .h4{margin:24px 0 0;font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite);line-height:24px}
 .h4 b{font-weight:500;color:var(--ink)}
 
-/* this document at each rung: one row per rung, clickable */
+/* how much Jev reads: one row per level, clickable */
 .rungs{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin-top:0}
 .rungs th{font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--graphite);text-align:right;line-height:24px;padding:0 0 0 12px;box-shadow:inset 0 -0.5px 0 0 var(--rule)}
 .rungs th:first-child{text-align:left;padding-left:0}
@@ -181,6 +181,8 @@ tr.pick td:first-child{font-style:italic}
 .chart .pt.a{fill:var(--ink)}
 .chart .pt.c{stroke:var(--graphite)}
 .chart figcaption{font-family:var(--mono);font-size:11px;line-height:24px;padding-block:12px;letter-spacing:.04em;color:var(--graphite)}
+.tablebox + .note{margin-top:48px}
+#vs th:nth-child(2),#vs td:nth-child(2){text-align:left}
 .note{margin:24px 0 0;line-height:24px;font-size:17px;color:var(--graphite);max-width:62ch}
 
 .foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0 24px;padding-block:24px;line-height:24px;box-shadow:var(--line-top);font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--graphite)}
@@ -222,8 +224,16 @@ tr.pick td:first-child{font-style:italic}
     <p class="label">Interactive tool</p>
     <div class="body">
       <h1 id="ttl">doc-rooter</h1>
-      <p class="lead">How little does a model need to read to know what a document is, and what each of its sections is? Climb the ladder and see exactly what it saw.</p>
-      <p class="meta"><span>Jev from TypeSafe</span><span>4-rung context ladder</span><span>Every heading tagged</span><span>Open source, MIT</span></p>
+      <p class="lead">How little of a document does a model need to read to know what it is?</p>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="l-why">
+    <h2 class="label" id="l-why">Why</h2>
+    <div class="body">
+      <p>Most tools send a model the whole document. A 200-page filing is about 100,000 tokens, paid for before the model even starts on the question. doc-rooter reads the document's outline first and sends only what the question needs.</p>
+      <p>To name a document's type, the headings were enough: Jev got it right 98% of the time for about a seventh of what the full text costs. To tag each section (balance sheet, risk factors, auditor's report), a few opening lines from the section help.</p>
+      <p>It's the next step after my <a href="https://landonthornton.com/classifier/">document classifier</a>, made into a package: it tags every section as well as the document, and works with a decision model like Jev or an LLM like Claude.</p>
     </div>
   </section>
 
@@ -232,30 +242,26 @@ tr.pick td:first-child{font-style:italic}
       <div class="group">
         <p class="label"><label for="sample">A sample</label></p>
         <select id="sample"><option value="">Loading samples…</option></select>
-        <p class="hint">Synthetic financial filings from my document classifier, and public documents from the benchmark. Their runs are saved, so they load instantly.</p>
+        <p class="hint">Synthetic financial filings from my document classifier, and public documents from the benchmark. Their results are saved, so they load instantly.</p>
       </div>
       <div class="group">
         <p class="label">Your document</p>
         <label class="btn file" id="fileBtn">Choose a file<input type="file" id="file" accept=".pdf,.md,.txt,application/pdf,text/markdown,text/plain"></label>
-        <p class="hint">A PDF (up to 4 MB, 30 pages read), Markdown or text file, or drop one on the figure. It's read on the server and classified at all four rungs; the file isn't kept.</p>
-      </div>
-      <div class="group">
-        <p class="label">What's sent</p>
-        <p class="readout" id="sent">Nothing yet.</p>
+        <p class="hint">A PDF (up to 4 MB, first 30 pages), Markdown or text file, or drop one on the figure. The file isn't kept.</p>
       </div>
     </aside>
 
     <figure class="fig">
       <div class="stage" id="stage">
         <p class="docline" id="docline">No document yet</p>
-        <p class="h4" id="rungsLabel">This document at each rung · choose one to see it</p>
+        <p class="h4" id="rungsLabel">How much Jev reads · choose a row to see it</p>
         <table class="rungs" aria-labelledby="rungsLabel">
-          <thead><tr><th scope="col">Rung</th><th scope="col">Type</th><th scope="col">Tags right</th><th scope="col" class="bar"><span hidden>Size</span></th><th scope="col">Tokens</th><th scope="col">Cost</th></tr></thead>
+          <thead><tr><th scope="col">Jev reads</th><th scope="col">Type</th><th scope="col">Tags right</th><th scope="col" class="bar"><span hidden>Size</span></th><th scope="col">Tokens</th><th scope="col">Cost</th></tr></thead>
           <tbody id="rungs"></tbody>
         </table>
         <p class="verdict" id="verdict" aria-live="polite">Choose a document</p>
         <p class="sub" id="sub">Pick a sample, or choose a file of your own.</p>
-        <p class="h4" id="probsLabel" hidden>Jev's answer · probability of each type it was offered</p>
+        <p class="h4" id="probsLabel" hidden>Jev's answer · how likely each type is</p>
         <ol class="probs" id="probs" hidden></ol>
         <p class="h4" id="sawLabel" hidden>What Jev saw</p>
         <div class="saw" id="saw" hidden>
@@ -263,7 +269,7 @@ tr.pick td:first-child{font-style:italic}
           <button type="button" class="expand" id="expand">Show all</button>
         </div>
         <div class="headrow" id="secsHead" hidden>
-          <p class="h4" id="secsLabel">Every section, as Jev saw it, and its tag</p>
+          <p class="h4" id="secsLabel">Each section, as Jev saw it, and its tag</p>
           <div class="filters" role="group" aria-label="Which sections">
             <button type="button" data-filter="all" aria-pressed="true">All</button>
             <button type="button" data-filter="tagged" aria-pressed="false">Tagged</button>
@@ -281,10 +287,10 @@ tr.pick td:first-child{font-style:italic}
     </figure>
 
     <dl class="stats" id="stats">
-      <div class="stat"><dt>Prompt tokens</dt><dd><div class="v" id="sTok">–</div><div class="s" id="sTokS">exact, from the API</div></dd></div>
-      <div class="stat"><dt>Share of full</dt><dd><div class="v" id="sShare">–</div><div class="s" id="sShareS">of sending the whole text</div></dd></div>
+      <div class="stat"><dt>Tokens sent</dt><dd><div class="v" id="sTok">–</div><div class="s" id="sTokS">exact, from the API</div></dd></div>
+      <div class="stat"><dt>Vs. full text</dt><dd><div class="v" id="sShare">–</div><div class="s" id="sShareS">of sending the whole text</div></dd></div>
       <div class="stat"><dt>Cost</dt><dd><div class="v" id="sCost">–</div><div class="s" id="sCostS">at Jev's list price</div></dd></div>
-      <div class="stat"><dt>Section tags</dt><dd><div class="v" id="sTags">–</div><div class="s" id="sTagsS">right, of the labelled ones</div></dd></div>
+      <div class="stat"><dt>Sections</dt><dd><div class="v" id="sTags">–</div><div class="s" id="sTagsS">tagged right</div></dd></div>
     </dl>
   </section>
 
@@ -295,42 +301,29 @@ tr.pick td:first-child{font-style:italic}
       <div class="tablebox">
         <table class="b" id="bench">
           <caption id="benchCap">Loading the benchmark…</caption>
-          <thead><tr><th scope="col">Rung</th><th scope="col">Doc type</th><th scope="col">Type question</th><th scope="col">Vs full</th><th scope="col">Tag precision</th><th scope="col">Tag recall</th><th scope="col">With tags</th></tr></thead>
+          <thead><tr><th scope="col">Jev reads</th><th scope="col">Type correct</th><th scope="col">Type cost</th><th scope="col">Sections correct</th><th scope="col">Total cost</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
       <div class="tablebox">
-        <table class="b" id="held">
-          <caption>Held-out: 40 documents nothing was tuned on, scored once. *Earlier setup: at most 40 headings tagged, in batches. UltraBERT runs locally, at no API cost.</caption>
-          <thead><tr><th scope="col">Rung</th><th scope="col">Doc type</th><th scope="col">Type question</th><th scope="col">With tags</th><th scope="col">Docs</th></tr></thead>
+        <table class="b" id="vs">
+          <caption id="vsCap">Jev against Claude Haiku 5.5: document type only, same documents</caption>
+          <thead><tr><th scope="col">Model</th><th scope="col">Reads</th><th scope="col">Type correct</th><th scope="col">Cost per document</th><th scope="col">Per 1,000 documents</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
-      <figure class="chart" id="chart" hidden>
-        <svg id="chartSvg" role="img" aria-label="Document-type accuracy against the cost of the type question per document, for each rung"></svg>
-        <figcaption>Fig. 2 · Document-type accuracy against what the type question costs per document at list prices (log scale), gold split. Left to right: headings, key terms, leads, full text.</figcaption>
-      </figure>
-      <p class="note"><b>The tags want more context than the type.</b> The type is as good from the headings as from the full text, but the section tags gain most from the opening sentences: recall rises from 61.5% at headings to 75.4% with leads, at about 62% precision throughout.</p>
-      <p class="note" id="benchNote"><b>What it costs.</b> Costs are per document at list prices: Jev $0.042 per million input tokens with output free, Claude Haiku 5.5 $0.10 in and $0.50 out. For the type alone, Jev is about a third of Haiku's price at every rung. Tagging costs more than naming the type: Jev answers one question per heading, each carrying its own list of options, and tags every heading (about 170 per document here); the Haiku run, from the earlier setup, tagged at most 40 top-level headings in batches that list the options once. Tokens matter against the full text: the headings rung sends the type question about a seventh of the full text's tokens.</p>
-      <p class="note"><b>A note on the numbers.</b> The 113 gold documents span 8 types (annual reports, fact sheets, prospectuses, government reports, contracts, court opinions, research papers, standards). The type definitions and section tags were refined after looking at them, so treat the gold columns as development numbers; the held-out set is the clean measure. The section labels (2,194 headings, every depth) were written by Claude annotators for evaluation only; a third are <i>none</i>, a heading with nothing to normalise.</p>
+      <p class="note"><b>Sections need more than the outline.</b> The headings alone are enough to classify a whole document. To tag its sections, the model also needs a little of each section: adding the opening lines raised correct tags from 62% to 75%.</p>
+      <p class="note"><b>A decision model or an LLM.</b> doc-rooter works with both. Jev, a decision model, costs less per token and nothing for its answers, but takes one question at a time, so tagging a long document means many calls. Claude, an LLM, costs more per token but answers many sections in one call, so it needs fewer calls.</p>
+      <p class="note"><b>About the numbers.</b> 113 public documents of 8 types. Each section's correct tag was labelled by Claude, for evaluation only.</p>
     </div>
   </section>
 
   <section class="sec" aria-labelledby="l-how">
     <h2 class="label" id="l-how">How it works</h2>
     <div class="body">
-      <p><b>A context ladder.</b> doc-rooter reads a PDF or Markdown file into its section tree, then renders it at four rungs, each adding one thing: the headings (title, counts, the contents), then key terms, then the opening sentences, then the whole text, within a 16,000-token prompt. Every section gets its own view at the same rung: its path, its title and, higher up, its key terms and lead.</p>
-      <p><b>Section tags that mean something.</b> A tag normalises what a heading means, so the same kind of section can be found across documents however each one words it: "Statement of financial position" and "Consolidated balance sheets" are both a balance sheet; "Audit opinion" and "Report of independent registered public accounting firm" are both the auditor's report. A heading with nothing to normalise (an introduction, a summary, Part II) is tagged <i>none</i>. Every heading is tagged, at any depth, so the statements nested under Item 8 are found too.</p>
-      <p><b>Read, then tag.</b> Jev reads the document view at the chosen rung and names the type, then tags every section from that section's own view. A heading past the 400th takes the tag of its nearest tagged parent, so the notes of a long annual report are still notes.</p>
-      <p><b>A decision model.</b> Jev answers each question with a probability for every option instead of generating text, so the answer is always one of the options, the confidence is usable, and every call's tokens are exact.</p>
-    </div>
-  </section>
-
-  <section class="sec" aria-labelledby="l-why">
-    <h2 class="label" id="l-why">Why</h2>
-    <div class="body">
-      <p>Sending a model the whole document is the easy default, and it's expensive at volume: a 200-page filing is 100,000 tokens before the model reads a word of the question. I built doc-rooter to find the least a model needs to see. For the document's type, the title and the contents were about as good as anything richer. More context mostly gave the model more to be distracted by.</p>
-      <p>doc-rooter is the next step after my <a href="https://landonthornton.com/classifier/">document classifier</a>, which names a financial document's type from a short overview in one question to Jev. doc-rooter takes the same idea further as a standalone package: it reads a PDF into its section tree, tags every section as well as the document, lets the sections decide the type, works with any model you plug in, and measures what each extra piece of context buys.</p>
+      <p><b>Outline first.</b> doc-rooter turns a PDF or Markdown file into its outline of headings and sections. It then sends the model only as much as you choose: the headings, then key terms, then each section's opening lines, then the full text.</p>
+      <p><b>Type, then tags.</b> The model names the document's type, then tags each section with a standard label, such as balance sheet or auditor's report, so the same sections can be found and checked across documents.</p>
+      <p><b>Long documents.</b> In a document with more than 400 headings, the deepest ones take their parent section's tag instead of being asked about: "Note 12. Leases" under "Notes to the financial statements" is tagged as a note.</p>
     </div>
   </section>
 
@@ -343,7 +336,7 @@ tr.pick td:first-child{font-style:italic}
 <script type="module">
 const $ = id => document.getElementById(id);
 const LEVELS = ['headings', 'terms', 'lead', 'full'];
-const RUNG = { headings: 'Headings', terms: '+ Key terms', lead: '+ Leads', full: 'Full text' };
+const RUNG = { headings: 'Headings', terms: '+ Key terms', lead: '+ Opening lines', full: 'Full text' };
 const PRICE = 0.042e-6;           // Jev, US$ per input token; output is free
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const PROMPT_CHARS = 2400;        // the document view shown before "Show all"
@@ -439,7 +432,7 @@ function renderProbs(s, run) {
   const show = probs.length > 0;
   $('probsLabel').hidden = ol.hidden = !show;
   if (!show) return;
-  $('probsLabel').textContent = "Jev's answer · probability of each type, the most likely first";
+  $('probsLabel').textContent = "Jev's answer · how likely each type is";
   probs.forEach(([id, p], i) => {
     const li = document.createElement('li');
     if (i === 0) li.className = 'top';
@@ -470,8 +463,8 @@ function renderPrompt(s) {
   $('expand').textContent = promptOpen ? 'Show less' : 'Show all';
 }
 
-// Every section's own view at this rung (what was sent beyond its path and title), with the
-// tag Jev gave, the source's label where there is one, and the tag one rung down if it differs.
+// Every section's own view at this level (what was sent beyond its path and title), with the
+// tag Jev gave, the source's label where there is one, and the tag one level down if it differs.
 function renderSections(s, run) {
   const ol = $('secs');
   ol.replaceChildren();
@@ -499,7 +492,7 @@ function renderSections(s, run) {
     const chip = pred ? `<span class="chip${pred === 'none' ? ' none' : ''}${wrong ? ' miss' : ''}">${esc(label(pred))}</span>` : '<span class="chip none">not tagged</span>';
     const conf = t && t[1] != null && pred && pred !== 'none' ? `<span class="cf">${Math.round(100 * t[1])}%</span>` : '';
     const gold = wrong ? `<span class="gold">source: ${esc(label(sec.gold))}</span>` : sec.gold ? '' : '';
-    const chg = changed ? `<span class="chg">was ${esc(label(was))} one rung down</span>` : '';
+    const chg = changed ? `<span class="chg">was ${esc(label(was))} with less to read</span>` : '';
     li.innerHTML = `<span class="t" style="padding-left:${pad}px">${esc(sec.title || '(untitled)')}${sec.gold && !wrong ? ' <span class="no" title="matches the source">✓</span>' : ''}${extra ? `<small>${esc(extra)}</small>` : ''}</span><span class="tag">${chip}${conf}${gold}${chg}</span>`;
     ol.append(li);
   }
@@ -509,7 +502,7 @@ function renderSections(s, run) {
     : 'Every section, as Jev saw it, and its tag';
   if (!shown) {
     $('secsEmpty').hidden = false;
-    $('secsEmpty').textContent = filter === 'changed' ? 'No tag changed from the rung below.' : filter === 'wrong' ? 'No misses against the source.' : 'No sections to show.';
+    $('secsEmpty').textContent = filter === 'changed' ? 'No tag changed from the row above.' : filter === 'wrong' ? 'No misses against the source.' : 'No sections to show.';
   }
   if (s.sections_total > s.sections.length) {
     const li = document.createElement('li');
@@ -521,7 +514,6 @@ function renderSections(s, run) {
 function showStats(run, full) {
   if (!run) {
     for (const id of ['sTok', 'sShare', 'sCost', 'sTags']) $(id).textContent = '–';
-    $('sent').textContent = 'Nothing yet.';
     return;
   }
   const t = run.tokens;
@@ -533,8 +525,7 @@ function showStats(run, full) {
   $('sCostS').textContent = `≈ $${fmt((run.cost_usd ?? t.prompt * PRICE) * 1000, 2)} per 1,000 docs`;
   const sc = run.score;
   $('sTags').textContent = sc ? `${sc.right} / ${sc.gold}` : `${Object.values(run.tags).filter(x => x[0] && x[0] !== 'none').length}`;
-  $('sTagsS').textContent = sc ? `right; ${sc.precision != null ? pct(sc.precision) : '–'} of the tags given` : 'sections tagged (no labels to check)';
-  $('sent').innerHTML = `<b>${fmt(t.prompt)}</b> input tokens in <b>${fmt(t.calls)}</b> questions to Jev at the <b>${RUNG[level].replace('+ ', '').toLowerCase()}</b> rung: <b>${fmt(t.sections ?? 0)}</b> for the sections, <b>${fmt(t.document ?? 0)}</b> for the type.`;
+  $('sTagsS').textContent = sc ? 'labelled sections tagged right' : 'sections tagged (no labels to check)';
 }
 
 // ---------- samples ----------
@@ -583,7 +574,7 @@ async function runLive(file) {
   $('docline').innerHTML = `<b>${esc(file.name)}</b> · ${fmt(file.size / 1024)} KB`;
   $('verdict').textContent = 'Reading…';
   $('verdict').className = 'verdict weighing';
-  $('sub').textContent = 'doc-rooter is reading it and asking Jev at all four rungs.';
+  $('sub').textContent = 'doc-rooter is reading it and asking Jev at all four levels.';
   const t0 = performance.now();
   try {
     const q = new URLSearchParams({ flow, name: file.name });
@@ -597,7 +588,7 @@ async function runLive(file) {
     busy = false;
     promptOpen = false;
     render();
-    $('sub').innerHTML += ` · ${fmt((performance.now() - t0) / 1000, 1)} s for all four rungs`;
+    $('sub').innerHTML += ` · ${fmt((performance.now() - t0) / 1000, 1)} s for all four levels`;
   } catch (err) {
     busy = false;
     fail(err.message);
@@ -622,67 +613,30 @@ async function loadBench() {
   let data;
   try { data = await (await fetch('data/bench.json')).json(); } catch { $('benchCap').textContent = 'Benchmark unavailable.'; return; }
   const rows = data.rows;
-  const get = (backend, docs, f, lv) => rows.find(r => r.backend === backend && r.docs === docs && r.flow === f && r.level === lv);
+  const get = (backend, lv) => rows.find(r => r.backend === backend && r.docs === 'gold' && r.flow === 'doc_first' && r.level === lv);
   const body = $('bench').tBodies[0];
-  const full = get('jev', 'gold', 'doc_first', 'full');
-  const typeCell = r => r?.cost_type != null ? usd(r.cost_type) : '–';
-  const vsFull = r => r?.cost_type != null && full?.cost_type ? `${Math.round(100 * r.cost_type / full.cost_type)}%` : '–';
   for (const lv of LEVELS) {
-    const d = get('jev', 'gold', 'doc_first', lv);
+    const d = get('jev', lv);
     if (!d) continue;
     const tr = document.createElement('tr');
     if (lv === 'headings') tr.className = 'pick';
-    const leaf = d.leaf || {};
-    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${pct(d.doc_acc)}</td><td>${typeCell(d)}</td><td>${vsFull(d)}</td><td>${leaf.precision != null ? pct(leaf.precision) : '–'}</td><td>${leaf.recall != null ? pct(leaf.recall) : '–'}</td><td>${d.cost_doc != null ? usd(d.cost_doc) : '–'}</td>`;
+    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${pct(d.doc_acc)}</td><td>${usd(d.cost_type)}</td><td>${pct(d.leaf.recall)}</td><td>${usd(d.cost_doc)}</td>`;
     body.append(tr);
   }
-  $('benchCap').textContent = 'Jev on 113 public documents (gold split). Costs per document: the type question alone, its share of the full-text cost, and with every heading tagged.';
-  const held = $('held').tBodies[0];
-  const heldRow = (name, d, pick) => {
-    const tr = document.createElement('tr');
-    if (pick) tr.className = 'pick';
-    tr.innerHTML = `<td>${name}</td><td>${pct(d.doc_acc)}</td><td>${d.cost_type != null ? usd(d.cost_type) : 'local'}</td><td>${d.cost_doc != null ? usd(d.cost_doc) : 'local'}</td><td>${d.documents}</td>`;
-    held.append(tr);
-  };
-  for (const lv of LEVELS) {
-    const d = get('jev', 'heldout', 'doc_first', lv);
-    if (d) heldRow(`Jev, ${RUNG[lv].replace('+ ', '').toLowerCase()}`, d, lv === 'headings');
+  $('benchCap').textContent = 'Jev on 113 public documents, average per document. Type cost: naming the type. Total cost: the type and every section\u2019s tag.';
+  const vs = $('vs').tBodies[0];
+  for (const lv of ['headings', 'full']) {
+    for (const [backend, name] of [['jev', 'Jev'], ['haiku-5.5', 'Claude Haiku 5.5']]) {
+      const d = get(backend, lv);
+      if (!d) continue;
+      const tr = document.createElement('tr');
+      if (backend === 'jev' && lv === 'headings') tr.className = 'pick';
+      tr.innerHTML = `<td>${name}</td><td>${RUNG[lv]}</td><td>${pct(d.doc_acc)}</td><td>${usd(d.cost_type)}</td><td>$${fmt(1000 * d.cost_type, 2)}</td>`;
+      vs.append(tr);
+    }
   }
-  const hh = get('haiku-5.5', 'heldout', 'doc_first', 'headings'), ub = get('ultrabert', 'heldout', 'doc_first', 'lead');
-  if (hh) heldRow('Claude Haiku 5.5, headings*', hh);
-  if (ub) heldRow('UltraBERT, leads', ub);
-  const head = get('jev', 'gold', 'doc_first', 'headings'), lead = get('jev', 'gold', 'doc_first', 'lead'), heldHead = get('jev', 'heldout', 'doc_first', 'headings'), haiku = get('haiku-5.5', 'gold', 'doc_first', 'headings');
-  if (head && heldHead && full) $('takeaway').textContent = `From the headings alone, Jev named the type ${pct(head.doc_acc)} of the time (${pct(heldHead.doc_acc)} held-out) for ${usd(head.cost_type)} a document${haiku ? ', a third of Claude Haiku 5.5’s price' : ''}.`;
-  drawChart(get);
-}
-
-function drawChart(get) {
-  const series = [
-    { name: 'Jev', cls: 'a', pts: LEVELS.map(lv => get('jev', 'gold', 'doc_first', lv)) },
-    { name: 'Claude Haiku 5.5', cls: 'c', pts: LEVELS.map(lv => get('haiku-5.5', 'gold', 'doc_first', lv)) },
-  ].map(s => ({ ...s, pts: s.pts.filter(p => p && p.cost_type) })).filter(s => s.pts.length);
-  if (!series.length) return;
-  const W = 640, H = 336, L = 48, R = 168, T = 12, B = 48;
-  const all = series.flatMap(s => s.pts);
-  const lo = Math.min(...all.map(p => p.cost_type)), hi = Math.max(...all.map(p => p.cost_type));
-  const x0 = Math.log10(lo / 1.4), x1 = Math.log10(hi * 1.3);
-  const y0 = Math.min(0.9, Math.floor(20 * Math.min(...all.map(p => p.doc_acc))) / 20), y1 = 1;
-  const X = v => L + (Math.log10(v) - x0) / (x1 - x0) * (W - L - R);
-  const Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
-  let svg = '';
-  for (let v = y0; v <= 1.0001; v += 0.025) svg += `<line class="gr" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="t" x="${L - 8}" y="${Y(v) + 3}" text-anchor="end">${fmt(v * 100, 1)}%</text>`;
-  for (const v of [5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3]) if (Math.log10(v) >= x0 && Math.log10(v) <= x1) svg += `<line class="gr" x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H - B}"/><text class="t" x="${X(v)}" y="${H - B + 18}" text-anchor="middle">$${v}</text>`;
-  svg += `<line class="ax" x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}"/><line class="ax" x1="${L}" x2="${L}" y1="${T}" y2="${H - B}"/>`;
-  svg += `<text class="t" x="${(L + W - R) / 2}" y="${H - 8}" text-anchor="middle">cost of the type question per document (US$)</text>`;
-  for (const s of series) {
-    svg += `<polyline class="ln ${s.cls}" points="${s.pts.map(p => `${X(p.cost_type)},${Y(p.doc_acc)}`).join(' ')}"/>`;
-    for (const p of s.pts) svg += `<circle class="pt ${s.cls}" cx="${X(p.cost_type)}" cy="${Y(p.doc_acc)}" r="4"><title>${s.name}, ${RUNG[p.level]}: ${pct(p.doc_acc)} for ${usd(p.cost_type)}</title></circle>`;
-    const last = s.pts[s.pts.length - 1];
-    svg += `<text class="n" x="${X(last.cost_type) + 10}" y="${Y(last.doc_acc) + 5}">${s.name}</text>`;
-  }
-  $('chartSvg').setAttribute('viewBox', `0 0 ${W} ${H}`);
-  $('chartSvg').innerHTML = svg;
-  $('chart').hidden = false;
+  const head = get('jev', 'headings'), full = get('jev', 'full');
+  if (head && full) $('takeaway').textContent = `From the headings alone, Jev named the document type correctly ${Math.round(100 * head.doc_acc)}% of the time, for about a seventh of what reading the full text costs.`;
 }
 
 render();

@@ -450,8 +450,27 @@ def test_get_section_found_missing_unknown():
             TaxonomyNode(id="custom.a", label="A", parent_id="custom"),
         ]
     )
-    assert result.get_section(BALANCE, catalogue=custom).status == "unknown_tag"
+    assert result.get_section("financial.balence_sheet", catalogue=custom).status == "unknown_tag"
+    assert result.get_section(BALANCE, catalogue=custom).status == "found"
     assert result.get_section("custom.a", catalogue=custom).status == "not_found"
+
+
+def test_get_section_finds_a_key_of_a_custom_catalogue_without_being_passed_it():
+    rows = [("Money notes", 1, "money.notes", "Cash is tight.", 0.9, 1)]
+    result = result_of(rows)
+    assert list(result.section_text) == ["money.notes"]
+    context = result.get_section("money.notes")
+    assert context.status == "found"
+    assert [m.heading for m in context.sections] == ["Money notes"]
+    assert [c.status for c in result.get_sections(["money.notes"])] == ["found"]
+
+
+def test_unknown_tag_message_names_the_catalogue_only_when_it_is_the_built_in_one():
+    result = result_of()
+    custom = Taxonomy([TaxonomyNode(id="custom", label="Custom")])
+    message = result.get_section("nope", catalogue=custom).message
+    assert "nope" in message and "section_catalogue" not in message
+    assert "section_catalogue" in result.get_section("nope").message
 
 
 def test_get_section_none_is_never_a_key():

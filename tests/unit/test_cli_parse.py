@@ -74,7 +74,7 @@ def test_parse_cli_out_writes_file(report, tmp_path):
 
 def test_parse_cli_rejects_bad_include(report):
     result = _parse(report, "--include", "everything")
-    assert result.exit_code != 0
+    assert result.exit_code == 2
     assert "everything" in result.output and "type, sections, text" in result.output
 
 
@@ -87,3 +87,15 @@ def test_parse_cli_type_with_sections_first_is_an_error(report):
 def test_parse_cli_rejects_bad_flow_and_level(report):
     assert _parse(report, "--flow", "sideways").exit_code == 2
     assert _parse(report, "--level", "everything").exit_code == 2
+
+
+def test_parse_cli_a_failure_inside_parse_exits_1(report, monkeypatch):
+    import docrooter
+
+    def boom(*args, **kwargs):
+        raise ValueError("classifier blew up")
+
+    monkeypatch.setattr(docrooter, "parse", boom)
+    result = _parse(report)
+    assert result.exit_code == 1
+    assert "classifier blew up" in result.output

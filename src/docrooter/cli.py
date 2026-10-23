@@ -262,8 +262,8 @@ def parse_(
     include: Annotated[
         str,
         typer.Option(
-            help="How much to return: type (the document type), sections (also every heading "
-            "with its tag) or text (also the text of each section)."
+            help="How much to return: type (the document type), sections (also every tagged "
+            "heading with its tag) or text (also the text of each section)."
         ),
     ] = "sections",
     backend: Annotated[
@@ -287,8 +287,8 @@ def parse_(
 ) -> None:
     """Read a document and return its type, sections and text as JSON.
 
-    --include picks how much comes back: the type alone, the type with every heading and its
-    tag (the default), or also the full text of each tagged section.
+    --include picks how much comes back: the type alone, the type with every tagged heading and
+    its tag (the default), or also the full text of each tagged section.
     """
     from docrooter import parse
     from docrooter.context import INCLUDES
@@ -303,21 +303,24 @@ def parse_(
         raise typer.BadParameter(
             f"unknown flow {flow!r}; use {' or '.join(FLOWS)}", param_hint="--flow"
         )
+    if include == "type" and flow != "doc_first":
+        raise typer.BadParameter(
+            'include="type" needs flow="doc_first": the other flow decides the type from the '
+            "section tags",
+            param_hint="--flow",
+        )
     options: dict[str, Any] = {}
     if level is not None:
         options["level"] = _check_level(level, "--level")
     with _errors_exit_1():
         doc = load(file)
-        try:
-            result = parse(
-                doc,
-                include=cast("Include", include),  # checked against INCLUDES above
-                flow=cast("Flow", flow),  # checked against FLOWS above
-                backend=backend,
-                **options,
-            )
-        except ValueError as error:  # an option combination parse() does not allow
-            raise typer.BadParameter(str(error)) from error
+        result = parse(
+            doc,
+            include=cast("Include", include),  # checked against INCLUDES above
+            flow=cast("Flow", flow),  # checked against FLOWS above
+            backend=backend,
+            **options,
+        )
         text = json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False)
         if out is not None:
             out.write_text(text + "\n", encoding="utf-8")

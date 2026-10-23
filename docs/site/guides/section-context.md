@@ -35,7 +35,7 @@ model. It does not need doc-rooter, only a JSON parser.
 ```python
 from docrooter import ParseResult, parse
 
-result = parse(MARKDOWN, include="text", backend="keyword")
+result = parse(MARKDOWN, include="text", backend="keyword")  # MARKDOWN: your text; see the example
 print(f"document type: {result.doc_type}")
 for tag, matches in result.section_text.items():
     for match in matches:
@@ -70,7 +70,7 @@ parse("q3.pdf", include="text", backend="jev")
 | `include` | What's in the response | Model calls |
 |---|---|---|
 | `"type"` | the document type | the document-type call only; no section tags (about 98% cheaper on Jev for a 10-K) |
-| `"sections"` | the document type, plus every heading with its section tag | the document type plus section tags |
+| `"sections"` | the document type, plus every tagged heading with its section tag | the document type plus section tags |
 | `"text"` | the document type and the tags, plus the full text of each tagged section, grouped by tag | same as `"sections"`; the text costs no calls |
 
 **What it costs.** Tagging the sections is most of the cost. On Jev, a 10-K's document type
@@ -80,6 +80,10 @@ for example to decide whether to keep a file, ask for `"type"`.
 `"type"` reads the document first and does not tag any section, so it works only with
 `flow="doc_first"`, the default. `flow="sections_first"` decides the document type from the tags, so it
 raises `ValueError` with `"type"`.
+
+**Long documents.** At most 400 headings are asked about. A deeper heading takes the tag of
+its nearest tagged parent, and its text counts under that tag in `section_text`. A heading
+under a parent tagged `none` is left out.
 
 ## The JSON
 

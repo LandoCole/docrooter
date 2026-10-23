@@ -15,7 +15,7 @@ tagged or published, and their entries are kept as history. The package version 
 
 - **`docrooter.parse` and `docrooter parse`: a document's type, sections and section text as
   one JSON response.** `include="type"` returns the document type from the document-type call
-  alone (no section tags); `"sections"` adds every heading with its tag; `"text"` adds the full
+  alone (no section tags); `"sections"` adds every tagged heading with its tag; `"text"` adds the full
   text of each tagged section, grouped by tag, at no extra model call. The application stores
   the JSON and its extraction step reads the text, with no call back to doc-rooter.
   `ParseResult.get_section` and `get_sections` look a tag up in a stored response and report

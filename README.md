@@ -297,14 +297,14 @@ back to doc-rooter. doc-rooter supplies the context; your application does the e
 ```python
 from docrooter import ParseResult, parse
 
-result = parse(MARKDOWN, include="text", backend="keyword")
+result = parse(MARKDOWN, include="text", backend="keyword")  # MARKDOWN: your text; see the example
 stored = result.model_dump_json()  # keep this in your database
 balance_sheet = ParseResult.model_validate_json(stored).get_section("financial.balance_sheet")
 print(balance_sheet.sections[0].text)
 ```
 
 `include` picks how much comes back: `"type"` (the document type only, which skips section
-tagging, most of the cost), `"sections"` (also every heading with its tag) or `"text"` (also
+tagging, most of the cost), `"sections"` (also every tagged heading with its tag) or `"text"` (also
 the text of each tagged section). On the shell: `docrooter parse q3.pdf --include text -b jev
 --out q3.json`. See [the guide](docs/site/guides/section-context.md).
 

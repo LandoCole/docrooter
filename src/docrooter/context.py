@@ -4,7 +4,7 @@
 application says up front how much it needs (``include``):
 
 - ``"type"``: the document type, from the doc-type call alone (no section tags);
-- ``"sections"``: the type, plus every heading with its section tag;
+- ``"sections"``: the type, plus every tagged heading with its section tag;
 - ``"text"``: the type and the tags, plus the full text of each tagged section, grouped by tag.
   The text costs no model calls.
 
@@ -160,7 +160,7 @@ class ParseResult(BaseModel):
         ``section_text``. A group tag such as ``"financial"`` matches every ``financial.*`` key;
         a match inside another match is dropped. ``catalogue`` (default: the built-in
         ``section_catalogue``) says which tags exist. ``ValueError`` below ``include="text"``."""
-        return self._context(tag, catalogue or builtin_taxonomy(CATALOGUE))
+        return self._context(tag, catalogue)
 
     def get_sections(
         self, tags: Sequence[str], *, catalogue: Taxonomy | None = None
@@ -168,23 +168,15 @@ class ParseResult(BaseModel):
         """One context per tag, in the order asked; a repeated tag is answered each time."""
         if isinstance(tags, str):
             raise TypeError("tags must be a sequence of tags, not a single string")
-        taxonomy = catalogue or builtin_taxonomy(CATALOGUE)
-        return [self._context(tag, taxonomy) for tag in tags]
+        return [self._context(tag, catalogue) for tag in tags]
 
-    def _context(self, asked: str, catalogue: Taxonomy) -> SectionContext:
+    def _context(self, asked: str, catalogue: Taxonomy | None) -> SectionContext:
         if self.section_text is None:
             raise ValueError(
                 f'section text was not requested (include="{self.include}"); '
                 'parse with include="text" to look up a section'
             )
         tag = asked.strip()
-        if tag not in catalogue:
-            return SectionContext(
-                tag=tag,
-                status="unknown_tag",
-                message=f"{tag} is not a tag in {CATALOGUE}.",
-                sections=[],
-            )
         hits = [
             match
             for key, matches in self.section_text.items()
@@ -198,6 +190,15 @@ class ParseResult(BaseModel):
             if not any(match.section_id.startswith(other + ".") for other in ids)
         ]
         if not hits:
+            known = builtin_taxonomy(CATALOGUE) if catalogue is None else catalogue
+            if tag not in known:
+                name = CATALOGUE if catalogue is None else "the catalogue"
+                return SectionContext(
+                    tag=tag,
+                    status="unknown_tag",
+                    message=f"{tag} is not a tag in {name}.",
+                    sections=[],
+                )
             return SectionContext(
                 tag=tag,
                 status="not_found",
@@ -219,7 +220,7 @@ def parse(
 ) -> ParseResult:
     """Read ``source`` (a :class:`~docrooter.document.Document`, a path or Markdown text) and
     return a :class:`ParseResult` at the ``include`` level: ``"type"`` (the document type, from
-    the doc-type call alone), ``"sections"`` (also every heading with its tag) or ``"text"``
+    the doc-type call alone), ``"sections"`` (also every tagged heading with its tag) or ``"text"``
     (also the full text of each tagged section). ``flow`` defaults to ``"doc_first"``; the
     other arguments go to :func:`~docrooter.flow.classify`.
 

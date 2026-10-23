@@ -1,0 +1,639 @@
+{
+ "id": "arxiv-2404_01334",
+ "title": "Augmenting NER Datasets with LLMs: Towards Automated and Refined Annotation",
+ "publisher": "arXiv",
+ "pages": 7,
+ "url": "https://arxiv.org/pdf/2404.01334",
+ "attribution": "arXiv preprint, CC BY 4.0; the authors hold the copyright.",
+ "gold": "research.research_paper",
+ "views": {
+  "headings": {
+   "text": "Title: Augmenting and Refining NER Datasets through LLMs\nStats: 7 pages, 17 sections\nContents: 1 Augmenting and Refining NER Datasets through LLMs; 2 Introduction; 3 Related Work; 4 Methodology; 4.1 LLM-based Annotation; 4.2 Hybrid: LLM-Based and Manual; 4.3 Label Mixing in LLM-Based Annotation; 5 Experiments; 6 Discussion and Conclusion; 7 Ethical Considerations; 8 Limitations; 9 A Details of Experiment Setup; 9.1 A.1 Hardware Configurations:; 10 C Statistics of Overlapped Entities; 10.1 A.2 BERT Configurations:; 10.2 A.3 Code Implementation; 11 B Datasets",
+   "chars": 563,
+   "truncated": false
+  },
+  "terms": {
+   "text": "Title: Augmenting and Refining NER Datasets through LLMs\nStats: 7 pages, 17 sections\nKey phrases: 0, target entity type, arxiv, named entity recognition, example, arxiv preprint arxiv, manual annotation, example k, preprint arxiv 2305, word, tag, computational linguistics\nContents: 1 Augmenting and Refining NER Datasets through LLMs; 2 Introduction; 3 Related Work; 4 Methodology; 4.1 LLM-based Annotation; 4.2 Hybrid: LLM-Based and Manual; 4.3 Label Mixing in LLM-Based Annotation; 5 Experiments; 6 Discussion and Conclusion; 7 Ethical Considerations; 8 Limitations; 9 A Details of Experiment Setup; 9.1 A.1 Hardware Configurations:; 10 C Statistics of Overlapped Entities; 10.1 A.2 BERT Configurations:; 10.2 A.3 Code Implementation; 11 B Datasets",
+   "chars": 751,
+   "truncated": false
+  },
+  "lead": {
+   "text": "Title: Augmenting and Refining NER Datasets through LLMs\nStats: 7 pages, 17 sections\nKey phrases: 0, target entity type, arxiv, named entity recognition, example, arxiv preprint arxiv, manual annotation, example k, preprint arxiv 2305, word, tag, computational linguistics\nLead: Ryosuke Yamaki∗ Yuji Naraki * Independent Researcher Ritsumeikan University / ProPlace Inc Kotaro Yoshida Yoshikazu Ikeda Osaka University / ProPlace Inc Takafumi Horie Ritsumeikan University Science Tokyo Ryotaro Shimizu ZOZO Research Hiroki Naganuma Mila, Université de Montréal / ProPlace Inc Abstract Alan left from Charles Ltd. person organization in London, relocated to France location missing and transitioned to Vanstone. Human annotation contains label missing missing Alan left from Charles Ltd. person organization in London, relocated to France location location and transitioned to Vanstone. LLM mitigates noises in annotation person? organization? Label mixing improves annotation person×0.1 + organization×0.9 Traditional named entity recognition (NER) dataset annotation methods often suffer from high costs and inconsistent quality. This study proposes a hybrid annotation approach\nContents: 1 Augmenting and Refining NER Datasets through LLMs; 2 Introduction; 3 Related Work; 4 Methodology; 4.1 LLM-based Annotation; 4.2 Hybrid: LLM-Based and Manual; 4.3 Label Mixing in LLM-Based Annotation; 5 Experiments; 6 Discussion and Conclusion; 7 Ethical Considerations; 8 Limitations; 9 A Details of Experiment Setup; 9.1 A.1 Hardware Configurations:; 10 C Statistics of Overlapped Entities; 10.1 A.2 BERT Configurations:; 10.2 A.3 Code Implementation; 11 B Datasets",
+   "chars": 1657,
+   "truncated": false
+  },
+  "full": {
+   "text": "Title: Augmenting and Refining NER Datasets through LLMs\nStats: 7 pages, 17 sections\nKey phrases: 0, target entity type, arxiv, named entity recognition, example, arxiv preprint arxiv, manual annotation, example k, preprint arxiv 2305, word, tag, computational linguistics\nContents: 1 Augmenting and Refining NER Datasets through LLMs; 2 Introduction; 3 Related Work; 4 Methodology; 4.1 LLM-based Annotation; 4.2 Hybrid: LLM-Based and Manual; 4.3 Label Mixing in LLM-Based Annotation; 5 Experiments; 6 Discussion and Conclusion; 7 Ethical Considerations; 8 Limitations; 9 A Details of Experiment Setup; 9.1 A.1 Hardware Configurations:; 10 C Statistics of Overlapped Entities; 10.1 A.2 BERT Configurations:; 10.2 A.3 Code Implementation; 11 B Datasets\nText: Ryosuke Yamaki∗ Yuji Naraki * Independent Researcher Ritsumeikan University / ProPlace Inc Kotaro Yoshida Yoshikazu Ikeda Osaka University / ProPlace Inc Takafumi Horie Ritsumeikan University Science Tokyo Ryotaro Shimizu ZOZO Research Hiroki Naganuma Mila, Université de Montréal / ProPlace Inc Abstract Alan left from Charles Ltd. person organization in London, relocated to France location missing and transitioned to Vanstone. Human annotation contains label missing missing Alan left from Charles Ltd. person organization in London, relocated to France location location and transitioned to Vanstone. LLM mitigates noises in annotation person? organization? Label mixing improves annotation person×0.1 + organization×0.9 Traditional named entity recognition (NER) dataset annotation methods often suffer from high costs and inconsistent quality. This study proposes a hybrid annotation approach that combines human effort with large language models (LLMs) to reduce noise due to the missing labels and improve NER model per- formance cost-effectively. A label-mixing strat- egy is also introduced to address class im- balance. Our experiments demonstrate that the proposed method outperforms traditional approaches, even under limited budget con- straints. Figure 1: LLM-based annotation and label mixing. the annotation process. Furthermore, while em- ploying LLMs as predictors leads to increasing costs with repeated predictions, employing them as annotators only requires a one-time cost during the annotation process. Afterward, training a predictor based on small models, such as BERT, with the im- proved dataset can provide adequ …",
+   "chars": 25355,
+   "truncated": false
+  }
+ },
+ "sections": [
+  {
+   "id": "s1",
+   "title": "Augmenting and Refining NER Datasets through LLMs",
+   "level": 1
+  },
+  {
+   "id": "s2",
+   "title": "1 Introduction",
+   "level": 1
+  },
+  {
+   "id": "s3",
+   "title": "2 Related Work",
+   "level": 1
+  },
+  {
+   "id": "s4",
+   "title": "3 Methodology",
+   "level": 1
+  },
+  {
+   "id": "s5",
+   "title": "4 Experiments",
+   "level": 1
+  },
+  {
+   "id": "s6",
+   "title": "5 Discussion and Conclusion",
+   "level": 1
+  },
+  {
+   "id": "s7",
+   "title": "6 Ethical Considerations",
+   "level": 1
+  },
+  {
+   "id": "s8",
+   "title": "7 Limitations",
+   "level": 1
+  },
+  {
+   "id": "s9",
+   "title": "A Details of Experiment Setup",
+   "level": 1
+  },
+  {
+   "id": "s10",
+   "title": "C Statistics of Overlapped Entities",
+   "level": 1
+  },
+  {
+   "id": "s11",
+   "title": "B Datasets",
+   "level": 1
+  },
+  {
+   "id": "s4.1",
+   "title": "3.1 LLM-based Annotation",
+   "level": 2
+  },
+  {
+   "id": "s4.2",
+   "title": "3.2 Hybrid: LLM-Based and Manual",
+   "level": 2
+  },
+  {
+   "id": "s4.3",
+   "title": "3.3 Label Mixing in LLM-Based Annotation",
+   "level": 2
+  },
+  {
+   "id": "s9.1",
+   "title": "A.1 Hardware Configurations:",
+   "level": 2
+  },
+  {
+   "id": "s10.1",
+   "title": "A.2 BERT Configurations:",
+   "level": 2
+  },
+  {
+   "id": "s10.2",
+   "title": "A.3 Code Implementation",
+   "level": 2
+  }
+ ],
+ "sections_total": 17,
+ "runs": {
+  "doc_first/headings": {
+   "pred": "research.research_paper",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 3568,
+    "completion": 153,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000433,
+   "tags": {
+    "s1": {
+     "pred": "research.abstract",
+     "gold": "general.front_matter"
+    },
+    "s2": {
+     "pred": "general.introduction",
+     "gold": "general.introduction"
+    },
+    "s4": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s7": {
+     "pred": "general.acknowledgements",
+     "gold": "research.other"
+    },
+    "s8": {
+     "pred": "research.limitations",
+     "gold": "research.limitations"
+    },
+    "s11": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s4.1": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.2": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.3": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s9.1": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s10.1": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s10.2": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    }
+   }
+  },
+  "doc_first/terms": {
+   "pred": "research.research_paper",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 4473,
+    "completion": 153,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000524,
+   "tags": {
+    "s1": {
+     "pred": "research.abstract",
+     "gold": "general.front_matter"
+    },
+    "s2": {
+     "pred": "general.introduction",
+     "gold": "general.introduction"
+    },
+    "s4": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s7": {
+     "pred": "general.acknowledgements",
+     "gold": "research.other"
+    },
+    "s8": {
+     "pred": "research.limitations",
+     "gold": "research.limitations"
+    },
+    "s11": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s4.1": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.2": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.3": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s9.1": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s10.1": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s10.2": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    }
+   }
+  },
+  "doc_first/lead": {
+   "pred": "research.research_paper",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 6458,
+    "completion": 152,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000722,
+   "tags": {
+    "s1": {
+     "pred": "research.abstract",
+     "gold": "general.front_matter"
+    },
+    "s2": {
+     "pred": "general.introduction",
+     "gold": "general.introduction"
+    },
+    "s4": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s7": {
+     "pred": "general.acknowledgements",
+     "gold": "research.other"
+    },
+    "s8": {
+     "pred": "general.references",
+     "gold": "research.limitations"
+    },
+    "s11": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s4.1": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.2": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.3": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s9.1": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s10.1": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s10.2": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    }
+   }
+  },
+  "doc_first/full": {
+   "pred": "research.research_paper",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 22929,
+    "completion": 146,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.002366,
+   "tags": {
+    "s1": {
+     "pred": "research.abstract",
+     "gold": "general.front_matter"
+    },
+    "s2": {
+     "pred": "general.introduction",
+     "gold": "general.introduction"
+    },
+    "s4": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s7": {
+     "pred": "research.limitations",
+     "gold": "research.other"
+    },
+    "s8": {
+     "pred": "general.references",
+     "gold": "research.limitations"
+    },
+    "s11": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s4.1": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.2": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.3": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s9.1": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s10.1": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s10.2": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    }
+   }
+  },
+  "sections_first/headings": {
+   "pred": "research.research_paper",
+   "correct": true,
+   "decided_by": "rules",
+   "flags": [
+    "unparsed"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 4505,
+    "completion": 350,
+    "calls": 4,
+    "exact": true
+   },
+   "cost_usd": 0.000625,
+   "tags": {
+    "s1": {
+     "pred": "research.abstract",
+     "gold": "general.front_matter"
+    },
+    "s2": {
+     "pred": "research.other",
+     "gold": "general.introduction"
+    },
+    "s4": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s7": {
+     "pred": "general.other",
+     "gold": "research.other"
+    },
+    "s8": {
+     "pred": "general.other",
+     "gold": "research.limitations"
+    },
+    "s11": {
+     "pred": "research.experiments",
+     "gold": "general.appendix"
+    },
+    "s4.1": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.2": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.3": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s9.1": {
+     "pred": "research.experiments",
+     "gold": "general.appendix"
+    },
+    "s10.1": {
+     "pred": "research.experiments",
+     "gold": "general.appendix"
+    },
+    "s10.2": {
+     "pred": "research.other",
+     "gold": "general.appendix"
+    }
+   }
+  },
+  "sections_first/terms": {
+   "pred": "research.research_paper",
+   "correct": true,
+   "decided_by": "rules",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 5136,
+    "completion": 267,
+    "calls": 3,
+    "exact": true
+   },
+   "cost_usd": 0.000647,
+   "tags": {
+    "s1": {
+     "pred": "general.front_matter",
+     "gold": "general.front_matter"
+    },
+    "s2": {
+     "pred": "research.other",
+     "gold": "general.introduction"
+    },
+    "s4": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s7": {
+     "pred": "general.other",
+     "gold": "research.other"
+    },
+    "s8": {
+     "pred": "general.other",
+     "gold": "research.limitations"
+    },
+    "s11": {
+     "pred": "research.experiments",
+     "gold": "general.appendix"
+    },
+    "s4.1": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.2": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.3": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s9.1": {
+     "pred": "research.experiments",
+     "gold": "general.appendix"
+    },
+    "s10.1": {
+     "pred": "research.experiments",
+     "gold": "general.appendix"
+    },
+    "s10.2": {
+     "pred": "research.other",
+     "gold": "general.appendix"
+    }
+   }
+  },
+  "sections_first/lead": {
+   "pred": "research.research_paper",
+   "correct": true,
+   "decided_by": "rules",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 8406,
+    "completion": 298,
+    "calls": 3,
+    "exact": true
+   },
+   "cost_usd": 0.00099,
+   "tags": {
+    "s1": {
+     "pred": "research.abstract",
+     "gold": "general.front_matter"
+    },
+    "s2": {
+     "pred": "research.related_work",
+     "gold": "general.introduction"
+    },
+    "s4": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s7": {
+     "pred": "general.references",
+     "gold": "research.other"
+    },
+    "s8": {
+     "pred": "general.references",
+     "gold": "research.limitations"
+    },
+    "s11": {
+     "pred": "research.other",
+     "gold": "general.appendix"
+    },
+    "s4.1": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.2": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.3": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s9.1": {
+     "pred": "research.other",
+     "gold": "general.appendix"
+    },
+    "s10.1": {
+     "pred": "research.other",
+     "gold": "general.appendix"
+    },
+    "s10.2": {
+     "pred": "research.other",
+     "gold": "general.appendix"
+    }
+   }
+  },
+  "sections_first/full": {
+   "pred": "research.white_paper",
+   "correct": false,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 40388,
+    "completion": 363,
+    "calls": 5,
+    "exact": true
+   },
+   "cost_usd": 0.00422,
+   "tags": {
+    "s1": {
+     "pred": "general.summary",
+     "gold": "general.front_matter"
+    },
+    "s2": {
+     "pred": "general.introduction",
+     "gold": "general.introduction"
+    },
+    "s4": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s7": {
+     "pred": "general.other",
+     "gold": "research.other"
+    },
+    "s8": {
+     "pred": "general.references",
+     "gold": "research.limitations"
+    },
+    "s11": {
+     "pred": "general.appendix",
+     "gold": "general.appendix"
+    },
+    "s4.1": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.2": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s4.3": {
+     "pred": "research.method",
+     "gold": "research.method"
+    },
+    "s9.1": {
+     "pred": "research.experiments",
+     "gold": "general.appendix"
+    },
+    "s10.1": {
+     "pred": "research.experiments",
+     "gold": "general.appendix"
+    },
+    "s10.2": {
+     "pred": "research.other",
+     "gold": "general.appendix"
+    }
+   }
+  }
+ }
+}

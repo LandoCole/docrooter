@@ -1,0 +1,672 @@
+{
+ "id": "rfc-8962",
+ "title": "RFC 8962 Establishing the Protocol Police",
+ "publisher": "RFC Editor",
+ "pages": 7,
+ "url": "https://www.rfc-editor.org/rfc/rfc8962.pdf",
+ "attribution": "IETF RFC, copyright IETF Trust and the authors; reproduced unmodified under the IETF Trust Legal Provisions.",
+ "gold": "research.technical_standard",
+ "views": {
+  "headings": {
+   "text": "Title: RFC 8962 Establishing the Protocol Police\nStats: 7 pages, 33 sections\nContents: 1 RFC 8962 Establishing the Protocol Police; 1.1 Abstract; 1.2 Status of This Memo; 1.3 Copyright Notice; 1.4 Table of Contents; 1.5 Introduction; 1.6 Definitions; 1.7 Composition of the Protocol Police; 2 Informative References; 2.1 Introduction; 2.2 Definitions; 2.3 Composition of the Protocol Police; 2.4 Support for the Protocol Police; 2.5 Punishable Offenses; 2.6 Reporting Offenses; 2.7 Punishment; 2.8 Morality Considerations; 2.9 IANA Considerations; 2.10 Security Considerations; 2.11 Privacy Considerations; 2.12 Human Rights Considerations; 2.13 Conclusion; 2.14 Informative References; 2.15 Acknowledgments; 2.16 Authors' Addresses",
+   "chars": 732,
+   "truncated": false
+  },
+  "terms": {
+   "text": "Title: RFC 8962 Establishing the Protocol Police\nStats: 7 pages, 33 sections\nKey phrases: https www rfc-editor, www rfc-editor org, doi 10 17487, rfc-editor org info, rfc, considerations, grover et al, et al informational, 5, protocol police contact, ed, email\nContents: 1 RFC 8962 Establishing the Protocol Police; 1.1 Abstract; 1.2 Status of This Memo; 1.3 Copyright Notice; 1.4 Table of Contents; 1.5 Introduction; 1.6 Definitions; 1.7 Composition of the Protocol Police; 2 Informative References; 2.1 Introduction; 2.2 Definitions; 2.3 Composition of the Protocol Police; 2.4 Support for the Protocol Police; 2.5 Punishable Offenses; 2.6 Reporting Offenses; 2.7 Punishment; 2.8 Morality Considerations; 2.9 IANA Considerations; 2.10 Security Considerations; 2.11 Privacy Considerations; 2.12 Human Rights Considerations; 2.13 Conclusion; 2.14 Informative References; 2.15 Acknowledgments; 2.16 Authors' Addresses",
+   "chars": 916,
+   "truncated": false
+  },
+  "lead": {
+   "text": "Title: RFC 8962 Establishing the Protocol Police\nStats: 7 pages, 33 sections\nKey phrases: https www rfc-editor, www rfc-editor org, doi 10 17487, rfc-editor org info, rfc, considerations, grover et al, et al informational, 5, protocol police contact, ed, email\nLead: Stream: Independent Submission RFC: Category: Informational Published: 1 April 2021 ISSN: 2070-1721 Authors: G. Grover N. ten Oever C. Cath S. Sahib One mantra of the IETF is, \"We are not the Protocol Police.\" However, to ensure that protocols are implemented and deployed in full compliance with the IETF's standards, it is important to set up a body that is responsible for assessing and enforcing correct protocol behavior. This document formally establishes the Protocol Police. It defines the body and sets out what aspects of IETF protocols they will police. This document acts as a point of reference for networking engineers, law enforcement officials, government representatives, and others. It also provides advice on how to report issues to the Protocol\nContents: 1 RFC 8962 Establishing the Protocol Police; 1.1 Abstract; 1.2 Status of This Memo; 1.3 Copyright Notice; 1.4 Table of Contents; 1.5 Introduction; 1.6 Definitions; 1.7 Composition of the Protocol Police; 2 Informative References; 2.1 Introduction; 2.2 Definitions; 2.3 Composition of the Protocol Police; 2.4 Support for the Protocol Police; 2.5 Punishable Offenses; 2.6 Reporting Offenses; 2.7 Punishment; 2.8 Morality Considerations; 2.9 IANA Considerations; 2.10 Security Considerations; 2.11 Privacy Considerations; 2.12 Human Rights Considerations; 2.13 Conclusion; 2.14 Informative References; 2.15 Acknowledgments; 2.16 Authors' Addresses",
+   "chars": 1687,
+   "truncated": false
+  },
+  "full": {
+   "text": "Title: RFC 8962 Establishing the Protocol Police\nStats: 7 pages, 33 sections\nKey phrases: https www rfc-editor, www rfc-editor org, doi 10 17487, rfc-editor org info, rfc, considerations, grover et al, et al informational, 5, protocol police contact, ed, email\nContents: 1 RFC 8962 Establishing the Protocol Police; 1.1 Abstract; 1.2 Status of This Memo; 1.3 Copyright Notice; 1.4 Table of Contents; 1.5 Introduction; 1.6 Definitions; 1.7 Composition of the Protocol Police; 2 Informative References; 2.1 Introduction; 2.2 Definitions; 2.3 Composition of the Protocol Police; 2.4 Support for the Protocol Police; 2.5 Punishable Offenses; 2.6 Reporting Offenses; 2.7 Punishment; 2.8 Morality Considerations; 2.9 IANA Considerations; 2.10 Security Considerations; 2.11 Privacy Considerations; 2.12 Human Rights Considerations; 2.13 Conclusion; 2.14 Informative References; 2.15 Acknowledgments; 2.16 Authors' Addresses\nText: Stream: Independent Submission RFC: Category: Informational Published: 1 April 2021 ISSN: 2070-1721 Authors: G. Grover N. ten Oever C. Cath S. Sahib One mantra of the IETF is, \"We are not the Protocol Police.\" However, to ensure that protocols are implemented and deployed in full compliance with the IETF's standards, it is important to set up a body that is responsible for assessing and enforcing correct protocol behavior. This document formally establishes the Protocol Police. It defines the body and sets out what aspects of IETF protocols they will police. This document acts as a point of reference for networking engineers, law enforcement officials, government representatives, and others. It also provides advice on how to report issues to the Protocol Police. This document is not an Internet Standards Track specification; it is published for informational purposes. This is a contribution to the RFC Series, independently of any other RFC stream. The RFC Editor has chosen to publish this document at its discretion and makes no statement about its value for implementation or deployment. Documents approved for publication by the RFC Editor are not candidates for any level of Internet Standard; see Section 2 of RFC 7841. Information about the current status of this document, any errata, and how to provide feedback on it may be obtained at https://www.rfc-editor.org/info/rfc8962 Copyright (c) 2021 IETF Trust and the persons identified as the document autho …",
+   "chars": 10793,
+   "truncated": false
+  }
+ },
+ "sections": [
+  {
+   "id": "s1",
+   "title": "RFC 8962 Establishing the Protocol Police",
+   "level": 1
+  },
+  {
+   "id": "s2",
+   "title": "14. Informative References",
+   "level": 1
+  },
+  {
+   "id": "s1.1",
+   "title": "Abstract",
+   "level": 2
+  },
+  {
+   "id": "s1.2",
+   "title": "Status of This Memo",
+   "level": 2
+  },
+  {
+   "id": "s1.3",
+   "title": "Copyright Notice",
+   "level": 2
+  },
+  {
+   "id": "s1.4",
+   "title": "Table of Contents",
+   "level": 2
+  },
+  {
+   "id": "s1.5",
+   "title": "1.  Introduction",
+   "level": 2
+  },
+  {
+   "id": "s1.6",
+   "title": "2.  Definitions",
+   "level": 2
+  },
+  {
+   "id": "s1.7",
+   "title": "3.  Composition of the Protocol Police",
+   "level": 2
+  },
+  {
+   "id": "s2.1",
+   "title": "1. Introduction",
+   "level": 2
+  },
+  {
+   "id": "s2.2",
+   "title": "2. Definitions",
+   "level": 2
+  },
+  {
+   "id": "s2.3",
+   "title": "3. Composition of the Protocol Police",
+   "level": 2
+  },
+  {
+   "id": "s2.4",
+   "title": "4. Support for the Protocol Police",
+   "level": 2
+  },
+  {
+   "id": "s2.5",
+   "title": "5. Punishable Offenses",
+   "level": 2
+  },
+  {
+   "id": "s2.6",
+   "title": "6. Reporting Offenses",
+   "level": 2
+  },
+  {
+   "id": "s2.7",
+   "title": "7. Punishment",
+   "level": 2
+  },
+  {
+   "id": "s2.8",
+   "title": "8. Morality Considerations",
+   "level": 2
+  },
+  {
+   "id": "s2.9",
+   "title": "9. IANA Considerations",
+   "level": 2
+  },
+  {
+   "id": "s2.10",
+   "title": "10. Security Considerations",
+   "level": 2
+  },
+  {
+   "id": "s2.11",
+   "title": "11. Privacy Considerations",
+   "level": 2
+  },
+  {
+   "id": "s2.12",
+   "title": "12. Human Rights Considerations",
+   "level": 2
+  },
+  {
+   "id": "s2.13",
+   "title": "13. Conclusion",
+   "level": 2
+  },
+  {
+   "id": "s2.14",
+   "title": "14. Informative References",
+   "level": 2
+  },
+  {
+   "id": "s2.15",
+   "title": "Acknowledgments",
+   "level": 2
+  }
+ ],
+ "sections_total": 25,
+ "runs": {
+  "doc_first/headings": {
+   "pred": "research.technical_standard",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 3702,
+    "completion": 199,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.00047,
+   "tags": {
+    "s1": {
+     "pred": "general.front_matter",
+     "gold": "general.body"
+    },
+    "s2": {
+     "pred": "general.references",
+     "gold": "standard.normative_references"
+    },
+    "s1.2": {
+     "pred": "general.front_matter",
+     "gold": "standard.other"
+    },
+    "s1.4": {
+     "pred": "general.front_matter",
+     "gold": "general.front_matter"
+    },
+    "s1.5": {
+     "pred": "general.introduction",
+     "gold": "general.introduction"
+    },
+    "s1.7": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.4": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.5": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.7": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.9": {
+     "pred": "general.body",
+     "gold": "standard.iana_considerations"
+    },
+    "s2.11": {
+     "pred": "general.body",
+     "gold": "standard.security_considerations"
+    },
+    "s2.13": {
+     "pred": "general.conclusion",
+     "gold": "general.conclusion"
+    }
+   }
+  },
+  "doc_first/terms": {
+   "pred": "technical.user_manual",
+   "correct": false,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 4719,
+    "completion": 208,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000576,
+   "tags": {
+    "s1": {
+     "pred": "technical.overview",
+     "gold": "general.body"
+    },
+    "s2": {
+     "pred": "technical.reference",
+     "gold": "standard.normative_references"
+    },
+    "s1.2": {
+     "pred": "technical.overview",
+     "gold": "standard.other"
+    },
+    "s1.4": {
+     "pred": "technical.overview",
+     "gold": "general.front_matter"
+    },
+    "s1.5": {
+     "pred": "technical.overview",
+     "gold": "general.introduction"
+    },
+    "s1.7": {
+     "pred": "technical.overview",
+     "gold": "standard.specification"
+    },
+    "s2.4": {
+     "pred": "technical.overview",
+     "gold": "standard.specification"
+    },
+    "s2.5": {
+     "pred": "technical.overview",
+     "gold": "standard.specification"
+    },
+    "s2.7": {
+     "pred": "technical.overview",
+     "gold": "standard.specification"
+    },
+    "s2.9": {
+     "pred": "technical.configuration",
+     "gold": "standard.iana_considerations"
+    },
+    "s2.11": {
+     "pred": "general.appendix",
+     "gold": "standard.security_considerations"
+    },
+    "s2.13": {
+     "pred": "technical.overview",
+     "gold": "general.conclusion"
+    }
+   }
+  },
+  "doc_first/lead": {
+   "pred": "technical.user_manual",
+   "correct": false,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 6416,
+    "completion": 207,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000745,
+   "tags": {
+    "s1": {
+     "pred": "technical.overview",
+     "gold": "general.body"
+    },
+    "s2": {
+     "pred": "general.appendix",
+     "gold": "standard.normative_references"
+    },
+    "s1.2": {
+     "pred": "technical.overview",
+     "gold": "standard.other"
+    },
+    "s1.4": {
+     "pred": "general.appendix",
+     "gold": "general.front_matter"
+    },
+    "s1.5": {
+     "pred": "technical.overview",
+     "gold": "general.introduction"
+    },
+    "s1.7": {
+     "pred": "technical.overview",
+     "gold": "standard.specification"
+    },
+    "s2.4": {
+     "pred": "technical.overview",
+     "gold": "standard.specification"
+    },
+    "s2.5": {
+     "pred": "technical.overview",
+     "gold": "standard.specification"
+    },
+    "s2.7": {
+     "pred": "technical.overview",
+     "gold": "standard.specification"
+    },
+    "s2.9": {
+     "pred": "technical.configuration",
+     "gold": "standard.iana_considerations"
+    },
+    "s2.11": {
+     "pred": "general.appendix",
+     "gold": "standard.security_considerations"
+    },
+    "s2.13": {
+     "pred": "technical.overview",
+     "gold": "general.conclusion"
+    }
+   }
+  },
+  "doc_first/full": {
+   "pred": "technical.user_manual",
+   "correct": false,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 10713,
+    "completion": 211,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.001177,
+   "tags": {
+    "s1": {
+     "pred": "technical.overview",
+     "gold": "general.body"
+    },
+    "s2": {
+     "pred": "technical.reference",
+     "gold": "standard.normative_references"
+    },
+    "s1.2": {
+     "pred": "technical.overview",
+     "gold": "standard.other"
+    },
+    "s1.4": {
+     "pred": "general.appendix",
+     "gold": "general.front_matter"
+    },
+    "s1.5": {
+     "pred": "technical.overview",
+     "gold": "general.introduction"
+    },
+    "s1.7": {
+     "pred": "technical.overview",
+     "gold": "standard.specification"
+    },
+    "s2.4": {
+     "pred": "technical.overview",
+     "gold": "standard.specification"
+    },
+    "s2.5": {
+     "pred": "technical.overview",
+     "gold": "standard.specification"
+    },
+    "s2.7": {
+     "pred": "technical.usage",
+     "gold": "standard.specification"
+    },
+    "s2.9": {
+     "pred": "technical.configuration",
+     "gold": "standard.iana_considerations"
+    },
+    "s2.11": {
+     "pred": "general.appendix",
+     "gold": "standard.security_considerations"
+    },
+    "s2.13": {
+     "pred": "technical.overview",
+     "gold": "general.conclusion"
+    }
+   }
+  },
+  "sections_first/headings": {
+   "pred": "research.technical_standard",
+   "correct": true,
+   "decided_by": "rules",
+   "flags": [
+    "unparsed"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 5189,
+    "completion": 478,
+    "calls": 4,
+    "exact": true
+   },
+   "cost_usd": 0.000758,
+   "tags": {
+    "s1": {
+     "pred": "general.front_matter",
+     "gold": "general.body"
+    },
+    "s2": {
+     "pred": "general.references",
+     "gold": "standard.normative_references"
+    },
+    "s1.2": {
+     "pred": "general.front_matter",
+     "gold": "standard.other"
+    },
+    "s1.4": {
+     "pred": "general.front_matter",
+     "gold": "general.front_matter"
+    },
+    "s1.5": {
+     "pred": "general.introduction",
+     "gold": "general.introduction"
+    },
+    "s1.7": {
+     "pred": "standard.other",
+     "gold": "standard.specification"
+    },
+    "s2.4": {
+     "pred": "standard.other",
+     "gold": "standard.specification"
+    },
+    "s2.5": {
+     "pred": "standard.specification",
+     "gold": "standard.specification"
+    },
+    "s2.7": {
+     "pred": "standard.specification",
+     "gold": "standard.specification"
+    },
+    "s2.9": {
+     "pred": "standard.iana_considerations",
+     "gold": "standard.iana_considerations"
+    },
+    "s2.11": {
+     "pred": "standard.security_considerations",
+     "gold": "standard.security_considerations"
+    },
+    "s2.13": {
+     "pred": "general.conclusion",
+     "gold": "general.conclusion"
+    }
+   }
+  },
+  "sections_first/terms": {
+   "pred": "research.technical_standard",
+   "correct": true,
+   "decided_by": "rules",
+   "flags": [
+    "unparsed"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 7086,
+    "completion": 462,
+    "calls": 4,
+    "exact": true
+   },
+   "cost_usd": 0.00094,
+   "tags": {
+    "s1": {
+     "pred": "general.front_matter",
+     "gold": "general.body"
+    },
+    "s2": {
+     "pred": "standard.normative_references",
+     "gold": "standard.normative_references"
+    },
+    "s1.2": {
+     "pred": "standard.other",
+     "gold": "standard.other"
+    },
+    "s1.4": {
+     "pred": "general.front_matter",
+     "gold": "general.front_matter"
+    },
+    "s1.5": {
+     "pred": "general.introduction",
+     "gold": "general.introduction"
+    },
+    "s1.7": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.4": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.5": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.7": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.9": {
+     "pred": "standard.iana_considerations",
+     "gold": "standard.iana_considerations"
+    },
+    "s2.11": {
+     "pred": "standard.security_considerations",
+     "gold": "standard.security_considerations"
+    },
+    "s2.13": {
+     "pred": "general.conclusion",
+     "gold": "general.conclusion"
+    }
+   }
+  },
+  "sections_first/lead": {
+   "pred": "research.technical_standard",
+   "correct": true,
+   "decided_by": "rules",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 8879,
+    "completion": 473,
+    "calls": 3,
+    "exact": true
+   },
+   "cost_usd": 0.001124,
+   "tags": {
+    "s1": {
+     "pred": "general.front_matter",
+     "gold": "general.body"
+    },
+    "s2": {
+     "pred": "general.references",
+     "gold": "standard.normative_references"
+    },
+    "s1.2": {
+     "pred": "general.front_matter",
+     "gold": "standard.other"
+    },
+    "s1.4": {
+     "pred": "general.front_matter",
+     "gold": "general.front_matter"
+    },
+    "s1.5": {
+     "pred": "general.introduction",
+     "gold": "general.introduction"
+    },
+    "s1.7": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.4": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.5": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.7": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.9": {
+     "pred": "standard.iana_considerations",
+     "gold": "standard.iana_considerations"
+    },
+    "s2.11": {
+     "pred": "standard.security_considerations",
+     "gold": "standard.security_considerations"
+    },
+    "s2.13": {
+     "pred": "general.conclusion",
+     "gold": "general.conclusion"
+    }
+   }
+  },
+  "sections_first/full": {
+   "pred": "research.white_paper",
+   "correct": false,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 14524,
+    "completion": 401,
+    "calls": 3,
+    "exact": true
+   },
+   "cost_usd": 0.001653,
+   "tags": {
+    "s1": {
+     "pred": "general.front_matter",
+     "gold": "general.body"
+    },
+    "s2": {
+     "pred": "general.references",
+     "gold": "standard.normative_references"
+    },
+    "s1.2": {
+     "pred": "general.front_matter",
+     "gold": "standard.other"
+    },
+    "s1.4": {
+     "pred": "general.front_matter",
+     "gold": "general.front_matter"
+    },
+    "s1.5": {
+     "pred": "general.introduction",
+     "gold": "general.introduction"
+    },
+    "s1.7": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.4": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.5": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.7": {
+     "pred": "general.body",
+     "gold": "standard.specification"
+    },
+    "s2.9": {
+     "pred": "general.body",
+     "gold": "standard.iana_considerations"
+    },
+    "s2.11": {
+     "pred": "general.body",
+     "gold": "standard.security_considerations"
+    },
+    "s2.13": {
+     "pred": "general.conclusion",
+     "gold": "general.conclusion"
+    }
+   }
+  }
+ }
+}

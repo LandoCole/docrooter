@@ -1,0 +1,392 @@
+{
+ "id": "cuad-arcgroupinc_20171211_8-k_ex-10_1_10976103_ex-10_1_sponsorship_agreement",
+ "title": "ArcGroupInc 10.1_Sponsorship Agreement",
+ "publisher": "ArcGroupInc",
+ "pages": 4,
+ "url": "https://zenodo.org/records/4595826/files/CUAD_v1.zip#CUAD_v1/full_contract_pdf/Part_I/Sponsorship/ArcGroupInc_20171211_8-K_EX-10.1_10976103_EX-10.1_Sponsorship Agreement.pdf",
+ "attribution": "From CUAD (Contract Understanding Atticus Dataset), The Atticus Project, CC BY 4.0.",
+ "gold": "legal.contract",
+ "views": {
+  "headings": {
+   "text": "Title: 3. Annual Fees; Playoff Payment.\nStats: 4 pages, 6 sections\nContents: 1 Annual Fees; Playoff Payment.; 2 STADIUM SIGNAGE; 3 RADIO; 4 DIGITAL; 5 HOSPITALITY; 6 CONCESSIONS",
+   "chars": 177,
+   "truncated": false
+  },
+  "terms": {
+   "text": "Title: 3. Annual Fees; Playoff Payment.\nStats: 4 pages, 6 sections\nKey phrases: contract year, agreement, annual trade value, playoff, concessionaire, playoff game, stand, radio, thirty second 30, broadcast, contract year sponsor, social media\nContents: 1 Annual Fees; Playoff Payment.; 2 STADIUM SIGNAGE; 3 RADIO; 4 DIGITAL; 5 HOSPITALITY; 6 CONCESSIONS",
+   "chars": 354,
+   "truncated": false
+  },
+  "lead": {
+   "text": "Title: 3. Annual Fees; Playoff Payment.\nStats: 4 pages, 6 sections\nKey phrases: contract year, agreement, annual trade value, playoff, concessionaire, playoff game, stand, radio, thirty second 30, broadcast, contract year sponsor, social media\nLead: Exhibit 10.1 JACKSONVILLE JAGUARS SPONSORSHIP AGREEMENT This Sponsorship Agreement (this “Agreement”) is entered into as of November 27, 2017 (the “Execution Date”) by and between Jacksonville Jaguars, LLC, a Delaware limited liability company (“Club”), and The ARC Group, Inc., a Florida corporation (owner and operator of Dick’s Wings and Grill) (“Sponsor”). This Agreement consists of this Sponsorship Agreement and Exhibits A and B hereto, each of which is incorporated into and forms a part of this Agreement by this reference. RECITALS A. Club owns and operates the National Football League (“NFL”) team known as the Jacksonville Jaguars (the “Team”) and has the right to grant sponsorship rights and to exploit certain commercial, advertising and related opportunities with respect to the\nContents: 1 Annual Fees; Playoff Payment.; 2 STADIUM SIGNAGE; 3 RADIO; 4 DIGITAL; 5 HOSPITALITY; 6 CONCESSIONS",
+   "chars": 1156,
+   "truncated": false
+  },
+  "full": {
+   "text": "Title: 3. Annual Fees; Playoff Payment.\nStats: 4 pages, 6 sections\nKey phrases: contract year, agreement, annual trade value, playoff, concessionaire, playoff game, stand, radio, thirty second 30, broadcast, contract year sponsor, social media\nContents: 1 Annual Fees; Playoff Payment.; 2 STADIUM SIGNAGE; 3 RADIO; 4 DIGITAL; 5 HOSPITALITY; 6 CONCESSIONS\nText: Exhibit 10.1 JACKSONVILLE JAGUARS SPONSORSHIP AGREEMENT This Sponsorship Agreement (this “Agreement”) is entered into as of November 27, 2017 (the “Execution Date”) by and between Jacksonville Jaguars, LLC, a Delaware limited liability company (“Club”), and The ARC Group, Inc., a Florida corporation (owner and operator of Dick’s Wings and Grill) (“Sponsor”). This Agreement consists of this Sponsorship Agreement and Exhibits A and B hereto, each of which is incorporated into and forms a part of this Agreement by this reference. RECITALS A. Club owns and operates the National Football League (“NFL”) team known as the Jacksonville Jaguars (the “Team”) and has the right to grant sponsorship rights and to exploit certain commercial, advertising and related opportunities with respect to the Team, including at the football- based stadium in Jacksonville, Florida currently named EverBank Field (the “Stadium”). B. Sponsor wishes to obtain certain sponsorship rights, benefits and opportunities with respect to the Team in connection with the advertising and promotion of the Sponsor Business (as defined below). In consideration of the mutual covenants contained herein, the parties agree as follows: 1. Term of Agreement. This Agreement shall be binding on the parties hereto as of the Execution Date. The term of this Agreement (the “Term”) shall commence as of April 1, 2018 (the “Effective Date”) and shall expire upon the later of: (a) the conclusion of the 2022/23 NFL season and (b) the last day in February, 2023 (such expiration date, the “Scheduled Expiration Date”), unless sooner terminated pursuant to the terms of this Agreement. 2. Sponsor Rights and Benefits. Subject to the terms and conditions of this Agreement, as part of the consideration of the full and timely payment of the Sponsor Fees, Club hereby grants to Sponsor, and Sponsor hereby accepts, solely in the Territory, and during the Term: (i) the right to use the Benefits set forth on Exhibit A and the license and right to use the Team Marks solely in co …",
+   "chars": 16540,
+   "truncated": false
+  }
+ },
+ "sections": [
+  {
+   "id": "s1",
+   "title": "3. Annual Fees; Playoff Payment.",
+   "level": 1
+  },
+  {
+   "id": "s2",
+   "title": "1. STADIUM SIGNAGE",
+   "level": 1
+  },
+  {
+   "id": "s3",
+   "title": "2. RADIO",
+   "level": 1
+  },
+  {
+   "id": "s4",
+   "title": "3. DIGITAL",
+   "level": 1
+  },
+  {
+   "id": "s5",
+   "title": "4. HOSPITALITY",
+   "level": 1
+  },
+  {
+   "id": "s6",
+   "title": "5. CONCESSIONS",
+   "level": 1
+  }
+ ],
+ "sections_total": 6,
+ "runs": {
+  "doc_first/headings": {
+   "pred": "legal.contract",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 3089,
+    "completion": 73,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000345,
+   "tags": {
+    "s1": {
+     "pred": "contract.payment",
+     "gold": "contract.payment"
+    },
+    "s2": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s3": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s4": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s5": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s6": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    }
+   }
+  },
+  "doc_first/terms": {
+   "pred": "legal.contract",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 3450,
+    "completion": 73,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000382,
+   "tags": {
+    "s1": {
+     "pred": "contract.payment",
+     "gold": "contract.payment"
+    },
+    "s2": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s3": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s4": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s5": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s6": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    }
+   }
+  },
+  "doc_first/lead": {
+   "pred": "legal.contract",
+   "correct": true,
+   "decided_by": "model",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 4673,
+    "completion": 73,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000504,
+   "tags": {
+    "s1": {
+     "pred": "contract.payment",
+     "gold": "contract.payment"
+    },
+    "s2": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s3": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s4": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s5": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s6": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    }
+   }
+  },
+  "doc_first/full": {
+   "pred": "financial.prospectus",
+   "correct": false,
+   "decided_by": "model",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 14048,
+    "completion": 59,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.001434,
+   "tags": {
+    "s1": {
+     "pred": "fund.other",
+     "gold": "contract.payment"
+    },
+    "s2": {
+     "pred": "fund.other",
+     "gold": "contract.scope_services"
+    },
+    "s3": {
+     "pred": "fund.other",
+     "gold": "contract.scope_services"
+    },
+    "s4": {
+     "pred": "fund.other",
+     "gold": "contract.scope_services"
+    },
+    "s5": {
+     "pred": "fund.other",
+     "gold": "contract.scope_services"
+    },
+    "s6": {
+     "pred": "fund.other",
+     "gold": "contract.scope_services"
+    }
+   }
+  },
+  "sections_first/headings": {
+   "pred": "legal.contract",
+   "correct": true,
+   "decided_by": "rules",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 2319,
+    "completion": 120,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000292,
+   "tags": {
+    "s1": {
+     "pred": "contract.payment",
+     "gold": "contract.payment"
+    },
+    "s2": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s3": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s4": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s5": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s6": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    }
+   }
+  },
+  "sections_first/terms": {
+   "pred": "legal.contract",
+   "correct": true,
+   "decided_by": "rules",
+   "flags": [],
+   "candidates": [],
+   "tokens": {
+    "prompt": 2913,
+    "completion": 120,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000351,
+   "tags": {
+    "s1": {
+     "pred": "contract.payment",
+     "gold": "contract.payment"
+    },
+    "s2": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s3": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s4": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s5": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s6": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    }
+   }
+  },
+  "sections_first/lead": {
+   "pred": "legal.contract",
+   "correct": true,
+   "decided_by": "rules",
+   "flags": [
+    "truncated"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 4725,
+    "completion": 120,
+    "calls": 2,
+    "exact": true
+   },
+   "cost_usd": 0.000532,
+   "tags": {
+    "s1": {
+     "pred": "contract.payment",
+     "gold": "contract.payment"
+    },
+    "s2": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s3": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s4": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s5": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s6": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    }
+   }
+  },
+  "sections_first/full": {
+   "pred": "legal.contract",
+   "correct": true,
+   "decided_by": "rules",
+   "flags": [
+    "unparsed"
+   ],
+   "candidates": [],
+   "tokens": {
+    "prompt": 15241,
+    "completion": 232,
+    "calls": 4,
+    "exact": true
+   },
+   "cost_usd": 0.00164,
+   "tags": {
+    "s1": {
+     "pred": "contract.payment",
+     "gold": "contract.payment"
+    },
+    "s2": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s3": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s4": {
+     "pred": "fund.other",
+     "gold": "contract.scope_services"
+    },
+    "s5": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    },
+    "s6": {
+     "pred": "contract.scope_services",
+     "gold": "contract.scope_services"
+    }
+   }
+  }
+ }
+}

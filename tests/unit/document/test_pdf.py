@@ -360,3 +360,34 @@ def test_no_bookmarks_reads_as_before(pymupdf, tmp_path, monkeypatch):
 def test_line_pages_needs_one_entry_per_heading():
     with pytest.raises(ValueError, match="one entry per heading"):
         apply_bookmarks([heading("A")], [[1, "B", 1]], line_pages=[])
+
+
+@pytest.mark.parametrize("separator", [" ", "\x0c", "\r", "\x85"])
+def test_insertion_counts_lines_as_splitlines_does(separator):
+    # str.splitlines (the reader's line scheme) also breaks on these; "\n" counting does not
+    text = f"alpha{separator}beta\nTitle Here\nafter text"
+    lines = pages_of(text, (1, 2), (2, 2))
+    out = apply_bookmarks([body("Start", text, page=1)], [[2, "Title Here", 2]], line_pages=[lines])
+    assert [(h.title, h.page, h.line) for h in out] == [("Start", 1, 1), ("Title Here", 2, 4)]
+    assert out[0].text == f"alpha{separator}beta" and out[1].text == "after text"
+    # on the page before, the title is not looked for
+    out = apply_bookmarks([body("Start", text, page=1)], [[2, "Title Here", 1]], line_pages=[lines])
+    assert [h.title for h in out] == ["Start"]
+    # all on one page: the title is not repeated in the new section's text
+    lines = pages_of(text, (1, 4))
+    out = apply_bookmarks([body("Start", text, page=1)], [[2, "Title Here", 1]], line_pages=[lines])
+    assert [h.text for h in out] == [f"alpha{separator}beta", "after text"]
+
+
+@pytest.mark.parametrize(
+    ("title", "bookmark"),
+    [
+        ("Part I", "Part II"),
+        ("Item 7", "Item 7A"),
+        ("Note 1 Revenue", "Note 2 Revenue"),
+        ("Exhibit 3.1", "Exhibit 3.2"),
+    ],
+)
+def test_fuzzy_match_keeps_numbering_apart(title, bookmark):
+    out = apply_bookmarks([heading(title, 4, page=30)], [[2, bookmark, 31]])
+    assert out[0].level == 4 and out[0].flags == []

@@ -29,6 +29,11 @@ _FROM_BOOKMARK_FLAG = "heading_from_bookmark"
 # A heading with no exact bookmark takes a leftover one this similar on a page this close.
 _FUZZY_RATIO = 0.9
 _FUZZY_PAGES = 1
+# Words that number what follows them ("Part II", "Item 7A", "Note 1", "Appendix B").
+_NUMBERED_WORDS = frozenset(
+    "part item note section article chapter appendix exhibit schedule table figure".split()
+)
+_ROMAN = re.compile(r"(?=[ivxl])l?x{0,3}(?:ix|iv|v?i{0,3})")
 # In a body, between a bookmark title's words: any run of non-word characters (spaces,
 # punctuation, Markdown emphasis) and single line breaks, but not a blank line.
 _TITLE_GAP = r"(?:[^\w\n]|_|\n(?![^\S\n]*(?:\n|$)))+"
@@ -68,7 +73,8 @@ def apply_bookmarks(
     normalisation (casefold, punctuation and whitespace collapsed), preferring a bookmark that
     points at the heading's own page when several share a title. Then a heading still without
     one takes a bookmark left over whose normalised title is at least 90% similar
-    (``difflib.SequenceMatcher`` ratio) and whose page is within one page of the heading's.
+    (``difflib.SequenceMatcher`` ratio), whose numbering is the same ("Item 7" never takes
+    "Item 7A", nor "Part I" "Part II") and whose page is within one page of the heading's.
     Each bookmark is used at most once, in document order. Matched headings get the
     ``level_from_bookmark`` flag.
 
@@ -147,13 +153,17 @@ def _fuzzy_pick(
     keys: list[str],
     used: list[bool],
 ) -> int | None:
-    """The unused bookmark most similar to ``key`` (ratio at least 0.9) within a page of it."""
+    """The unused bookmark most similar to ``key`` (ratio at least 0.9) within a page of it,
+    with the same numbering (:func:`_numbering`)."""
+    numbering = _numbering(key)
     best: tuple[float, int, int] | None = None  # (ratio, -page distance, -index)
     for index, (_, _, bookmark_page) in enumerate(bookmarks):
         if used[index] or not isinstance(bookmark_page, int):
             continue
         distance = abs(bookmark_page - page)
         if distance > _FUZZY_PAGES:
+            continue
+        if _numbering(keys[index]) != numbering:
             continue
         matcher = SequenceMatcher(None, key, keys[index])
         if matcher.real_quick_ratio() < _FUZZY_RATIO or matcher.quick_ratio() < _FUZZY_RATIO:
@@ -162,6 +172,22 @@ def _fuzzy_pick(
         if ratio >= _FUZZY_RATIO and (best is None or (ratio, -distance, -index) > best):
             best = (ratio, -distance, -index)
     return None if best is None else -best[2]
+
+
+def _numbering(key: str) -> list[str]:
+    """The numbering in a normalised title: every word with a digit, and a roman numeral or
+    single letter right after a numbering word ("part ii") or a number ("7 a")."""
+    out: list[str] = []
+    previous = ""
+    for word in key.split():
+        if any(c.isdigit() for c in word):
+            out.append(word)
+        elif (previous in _NUMBERED_WORDS or any(c.isdigit() for c in previous)) and (
+            len(word) == 1 or _ROMAN.fullmatch(word)
+        ):
+            out.append(word)
+        previous = word
+    return out
 
 
 def _title_pattern(title: str) -> re.Pattern[str] | None:
@@ -188,17 +214,20 @@ def _insert_heading(
         lines = pages[position]
         if not any(line_page == page for _, line_page in lines):
             continue
-        text = heading.text
-        for match in pattern.finditer(text):
-            first = text.count("\n", 0, match.start())
+        # Lines as str.splitlines counts them (as the reader and ``line_pages`` do); the
+        # pattern runs on them joined by "\n" so a match's line is its "\n" count.
+        kept = heading.text.splitlines(keepends=True)
+        plain = [line.rstrip("\r\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029") for line in kept]
+        joined = "\n".join(plain)
+        for match in pattern.finditer(joined):
+            first = joined.count("\n", 0, match.start())
             if first >= len(lines) or lines[first][1] != page:
                 continue
-            last = text.count("\n", 0, match.end())
-            before = text[: match.start()].rstrip()
-            rest = text.splitlines()[last + 1 :]
-            skip = next((k for k, line in enumerate(rest) if line.strip()), len(rest))
-            after = "\n".join(rest[skip:]).strip()
-            start = last + 1 + skip
+            start = joined.count("\n", 0, match.end()) + 1
+            while start < len(plain) and not plain[start].strip():
+                start += 1
+            before = "".join(kept[:first]).rstrip()
+            after = "".join(kept[start:]).strip()
             new = RawHeading(
                 title=" ".join(title.split()),
                 level=level,

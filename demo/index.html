@@ -247,12 +247,12 @@ tr.pick td:first-child{font-style:italic}
         <p class="docline" id="docline">No document yet</p>
         <p class="h4" id="rungsLabel">How much Jev reads · choose a row to see it</p>
         <table class="rungs" aria-labelledby="rungsLabel">
-          <thead><tr><th scope="col">Jev reads</th><th scope="col">Type</th><th scope="col">Tags right</th><th scope="col" class="bar"><span hidden>Size</span></th><th scope="col">Tokens</th><th scope="col">Cost</th></tr></thead>
+          <thead><tr><th scope="col">Jev reads</th><th scope="col">Doc type</th><th scope="col">Tags right</th><th scope="col" class="bar"><span hidden>Size</span></th><th scope="col">Tokens</th><th scope="col">Cost</th></tr></thead>
           <tbody id="rungs"></tbody>
         </table>
         <p class="verdict" id="verdict" aria-live="polite">Choose a document</p>
         <p class="sub" id="sub">Pick a sample, or choose a file of your own.</p>
-        <p class="h4" id="probsLabel" hidden>Jev's answer · how likely each type is</p>
+        <p class="h4" id="probsLabel" hidden>Jev's answer · how likely each document type is</p>
         <ol class="probs" id="probs" hidden></ol>
         <p class="h4" id="sawLabel" hidden>What Jev saw</p>
         <div class="saw" id="saw" hidden>
@@ -292,14 +292,14 @@ tr.pick td:first-child{font-style:italic}
       <div class="tablebox">
         <table class="b" id="bench">
           <caption id="benchCap">Loading the benchmark…</caption>
-          <thead><tr><th scope="col">Jev reads</th><th scope="col">Type correct</th><th scope="col">Type cost</th><th scope="col">Sections correct</th><th scope="col">Total cost</th></tr></thead>
+          <thead><tr><th scope="col">Jev reads</th><th scope="col">Doc type correct</th><th scope="col">Doc type cost</th><th scope="col">Sections correct</th><th scope="col">Total cost</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
       <div class="tablebox">
         <table class="b" id="vs">
           <caption id="vsCap">Jev against Claude Haiku 5.5: document type only, same documents</caption>
-          <thead><tr><th scope="col">Model</th><th scope="col">Reads</th><th scope="col">Type correct</th><th scope="col">Cost per document</th><th scope="col">Per 1,000 documents</th></tr></thead>
+          <thead><tr><th scope="col">Model</th><th scope="col">Reads</th><th scope="col">Doc type correct</th><th scope="col">Cost per document</th><th scope="col">Per 1,000 documents</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -391,7 +391,7 @@ function render() {
   } else {
     $('verdict').textContent = cap(label(run.pred));
     $('verdict').className = 'verdict';
-    const how = run.decided_by === 'fallback' ? 'nothing to send: no text' : 'Jev chose among every type';
+    const how = run.decided_by === 'fallback' ? 'nothing to send: no text' : 'Jev chose among every document type';
     const check = s.gold ? (run.correct ? ' · <b>✓ matches the source</b>' : ` · ✗ the source says <b>${esc(label(s.gold))}</b>`) : '';
     $('sub').innerHTML = `${how}${check}`;
     renderProbs(s, run);
@@ -432,7 +432,7 @@ function renderProbs(s, run) {
   const show = probs.length > 0;
   $('probsLabel').hidden = ol.hidden = !show;
   if (!show) return;
-  $('probsLabel').textContent = "Jev's answer · how likely each type is";
+  $('probsLabel').textContent = "Jev's answer · how likely each document type is";
   probs.forEach(([id, p], i) => {
     const li = document.createElement('li');
     if (i === 0) li.className = 'top';
@@ -446,7 +446,7 @@ function renderPrompt(s) {
   const v = s?.views?.[level];
   $('sawLabel').hidden = $('saw').hidden = !v;
   if (!v) return;
-  $('sawLabel').innerHTML = `What Jev saw for the type · <b>${RUNG[level].replace('+ ', '')}</b>${v.chars > 0 ? ` · ${fmt(v.chars)} characters` : ''}`;
+  $('sawLabel').innerHTML = `What Jev saw for the document type · <b>${RUNG[level].replace('+ ', '')}</b>${v.chars > 0 ? ` · ${fmt(v.chars)} characters` : ''}`;
   let html = '', used = 0;
   for (const [name, text] of v.fields) {
     let body = text;
@@ -623,7 +623,7 @@ async function loadBench() {
     tr.innerHTML = `<td>${RUNG[lv]}</td><td>${pct(d.doc_acc)}</td><td>${usd(d.cost_type)}</td><td>${pct(d.leaf.recall)}</td><td>${usd(d.cost_doc)}</td>`;
     body.append(tr);
   }
-  $('benchCap').textContent = 'Jev on 113 public documents, average per document. Type cost: naming the type. Total cost: the type and every section\u2019s tag.';
+  $('benchCap').textContent = 'Jev on 113 public documents, average per document. Doc type cost: naming the document type. Total cost: the document type and every section\u2019s tag.';
   const vs = $('vs').tBodies[0];
   for (const lv of ['headings', 'full']) {
     for (const [backend, name] of [['jev', 'Jev'], ['haiku-5.5', 'Claude Haiku 5.5']]) {

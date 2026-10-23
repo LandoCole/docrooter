@@ -79,13 +79,14 @@ class SectionView(BaseModel):
         not push its own title out of a small budget. The outermost ancestors go first, marked
         ``…``; when not even the nearest one fits, the path is left out."""
         at, title_at = self.fields.index("path"), self.fields.index("title")
-        if title_at < at or entries[at] is None:
+        path = entries[at]
+        if title_at < at or path is None:
             return entries
-        titles = entries[at][1].split(" > ")
+        titles = path[1].split(" > ")
         title_line = f"Title: {section.title}"
 
-        def fits(path: list[str]) -> bool:
-            return count(f"Path: {' > '.join(path)}\n{title_line}") <= self.max_tokens
+        def fits(ancestors: list[str]) -> bool:
+            return count(f"Path: {' > '.join(ancestors)}\n{title_line}") <= self.max_tokens
 
         if fits(titles) or count(title_line) > self.max_tokens:
             return entries
@@ -102,10 +103,10 @@ class SectionView(BaseModel):
     ) -> tuple[str, str] | None:
         text = section.text.strip()
         if name == "path":  # the ancestors; the section's own title too when no title line
-            titles = _path_titles(doc, section)
+            path = _path_titles(doc, section)
             if "title" in self.fields:
-                titles = titles[:-1]
-            return ("Path:", " > ".join(titles)) if titles else None
+                path = path[:-1]
+            return ("Path:", " > ".join(path)) if path else None
         if name == "title":
             return "Title:", section.title
         if name == "keyphrases":

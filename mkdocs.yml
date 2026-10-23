@@ -133,6 +133,7 @@ nav:
       - Custom taxonomies: guides/custom-taxonomies.md
       - Training and evaluation: guides/training-evaluation.md
       - Train your own element tagger (experimental): guides/train-your-tagger.md
+      - Parse a document for extraction: guides/section-context.md
       - Select what to send to an LLM (experimental): guides/select-for-extraction.md
       - OCR and layout models: guides/ocr-and-layout.md
       - Chunking for RAG: guides/chunking-for-rag.md

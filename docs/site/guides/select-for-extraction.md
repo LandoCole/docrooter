@@ -15,7 +15,9 @@ at a **completeness** you choose, and tells you how many tokens that is.
 ```
 
 **Who does what.** docrooter selects. Your application extracts: it writes the prompt, calls the
-model and reads the answer. docrooter never calls an LLM for this. Read
+model and reads the answer. docrooter never calls an LLM for this. For a simpler, tag-based
+route, [parse a document for extraction](section-context.md) returns the document type, the
+section tags and the text of each tagged section as one JSON response. Read
 [The completeness dial](../concepts/completeness-dial.md) first if you want to know exactly what
 the number `c` promises, because the answer is more careful than "90%".
 

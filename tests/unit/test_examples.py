@@ -378,3 +378,26 @@ def test_classify_sections_first_example_runs_without_a_model(capsys):
     readme = README.read_text(encoding="utf-8")
     assert "examples/classify_sections_first.py" in readme
     assert "docs/benchmarks-classification.md" in readme
+
+
+def test_parse_for_extraction_example_runs(capsys):
+    """The example parses a small filing with the keyword backend at the text level, prints the
+    document type and one line per tagged section, then reads a stored response back."""
+    runpy.run_path(str(EXAMPLES / "parse_for_extraction.py"), run_name="__main__")
+    lines = capsys.readouterr().out.splitlines()
+    guide = (DOCS / "site" / "guides" / "section-context.md").read_text(encoding="utf-8")
+    assert "\n".join(lines[:5]) in guide  # the guide shows this output
+    assert "\n".join(lines[5:]) in guide
+    assert lines == [
+        "document type: financial.earnings_release",
+        "financial.financial_highlights: Acme Corp Quarterly Report",
+        "financial.balance_sheet: Balance Sheet",
+        "financial.comprehensive_income: Income Statement",
+        "disclosure.risk_factors: Risk Factors",
+        "found",
+        "Total assets were 120 and total liabilities were 70.",
+        "",
+        "### Current assets",
+        "",
+        "Cash and receivables.",
+    ]

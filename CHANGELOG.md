@@ -13,6 +13,15 @@ tagged or published, and their entries are kept as history. The package version 
 
 ### Added
 
+- **`docrooter.parse` and `docrooter parse`: a document's type, sections and section text as
+  one JSON response.** `include="type"` returns the document type from the document-type call
+  alone (no section tags); `"sections"` adds every heading with its tag; `"text"` adds the full
+  text of each tagged section, grouped by tag, at no extra model call. The application stores
+  the JSON and its extraction step reads the text, with no call back to doc-rooter.
+  `ParseResult.get_section` and `get_sections` look a tag up in a stored response and report
+  `found`, `not_found` or `unknown_tag`. Exports `ParseResult`, `TaggedSection`,
+  `SectionMatch` and `SectionContext`. See the guide "Parse a document for extraction" and
+  `examples/parse_for_extraction.py`.
 - **`extra_body` for the OpenAI-compatible backend.** `OpenAIBackend(extra_body=...)`, or the
   JSON object in `DOCROOTER_LLM_EXTRA_BODY`, adds provider fields to every request without
   replacing the request's own, e.g. `{"thinking": {"type": "disabled"}}` for a Claude model that

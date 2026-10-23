@@ -286,6 +286,28 @@ The stand-in recipe (the pinned Qwen3-4B-Instruct-2507 4-bit snapshot served by 
 on port 18080) is in
 [the LLM guide](docs/site/guides/llm-backends.md#a-free-local-stand-in).
 
+### Parse a document for extraction
+
+If your application extracts data from documents, `parse` returns the context it needs as one
+JSON response: the document type, the section tags and the text of each tagged section. Read
+and classify once, store the JSON, and your extraction step reads `section_text` with no call
+back to doc-rooter. doc-rooter supplies the context; your application does the extraction.
+[`examples/parse_for_extraction.py`](examples/parse_for_extraction.py) runs offline:
+
+```python
+from docrooter import ParseResult, parse
+
+result = parse(MARKDOWN, include="text", backend="keyword")
+stored = result.model_dump_json()  # keep this in your database
+balance_sheet = ParseResult.model_validate_json(stored).get_section("financial.balance_sheet")
+print(balance_sheet.sections[0].text)
+```
+
+`include` picks how much comes back: `"type"` (the document type only, which skips section
+tagging, most of the cost), `"sections"` (also every heading with its tag) or `"text"` (also
+the text of each tagged section). On the shell: `docrooter parse q3.pdf --include text -b jev
+--out q3.json`. See [the guide](docs/site/guides/section-context.md).
+
 ### Your own taxonomy
 
 Sections can also be classified against a taxonomy you write. This example lives in
@@ -577,6 +599,8 @@ BUNDLE` does it from the shell, and `docrooter serve --selector` adds the dial t
 docrooter classify report.md -b keyword                  # type and section tags, sections first
 docrooter classify report.pdf --level headings --json    # the cheapest rung, as JSON
 docrooter classify report.pdf --flow doc_first --calls per_item --log decisions.jsonl
+
+docrooter parse report.pdf --include text -b jev -o report.json   # type, tags and section text
 
 docrooter toc report.md                                  # indented table of contents
 docrooter toc report.pdf --json                          # as JSON (needs docrooter[pdf])

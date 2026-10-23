@@ -304,7 +304,7 @@ tr.pick td:first-child{font-style:italic}
         </table>
       </div>
       <p class="note"><b>Sections need more than the outline.</b> The headings alone are enough to classify a whole document. To tag its sections, the model also needs a little of each section: adding the opening lines raised section accuracy from 62% to 75%.</p>
-      <p class="note"><b>A decision model or an LLM.</b> doc-rooter works with both. Jev, a decision model, costs less per token and nothing for its answers, but takes one question at a time, so tagging a long document means many calls. Claude, an LLM, costs more per token but answers many sections in one call, so it needs fewer calls.</p>
+      <p class="note"><b>A decision model or an LLM.</b> doc-rooter works with both. Jev, a decision model, costs less per token and nothing for its answers, but takes one question at a time, so tagging a long document means many calls. An LLM generally costs more per token but answers many sections in one call (a batch), so it needs fewer calls.</p>
       <p class="note"><b>About the numbers.</b> 113 public documents of 8 types. The sections' tags to score against were labelled by Claude, for evaluation only.</p>
     </div>
   </section>

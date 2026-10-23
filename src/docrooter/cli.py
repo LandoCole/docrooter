@@ -252,6 +252,104 @@ def classify(
     )
 
 
+@app.command("sections")
+def sections(
+    source: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="A document (classified now, which costs model calls) or a saved .json "
+            "tagged document (no calls).",
+        ),
+    ],
+    tag: Annotated[
+        list[str] | None,
+        typer.Option("--tag", help="Print the text of this section tag (repeatable)."),
+    ] = None,
+    all_tags: Annotated[
+        bool, typer.Option("--all", help="Print the text of every tag the document has.")
+    ] = False,
+    list_tags: Annotated[
+        bool, typer.Option("--list", help="Print the tags the document has (the default).")
+    ] = False,
+    save: Annotated[
+        Path | None,
+        typer.Option("--save", dir_okay=False, help="Write the tagged document here as JSON."),
+    ] = None,
+    min_confidence: Annotated[
+        float | None,
+        typer.Option(help="Leave out sections tagged with a lower confidence."),
+    ] = None,
+    backend: Annotated[
+        str,
+        typer.Option(
+            "--backend", "-b", help="Backend spec for a document source, e.g. keyword or jev."
+        ),
+    ] = DEFAULT_BACKEND,
+    flow: Annotated[
+        str | None,
+        typer.Option(help="With a document: sections_first (default) or doc_first."),
+    ] = None,
+    level: Annotated[
+        str | None,
+        typer.Option(
+            help="With a document: context level headings, terms, lead or full (default: the "
+            "backend's measured level)."
+        ),
+    ] = None,
+) -> None:
+    """Print a document's sections by tag, as JSON: the exact text to hand an LLM.
+
+    The tags are the section catalogue's; --tag takes a leaf or a group such as financial.
+    SOURCE is classified once; --save keeps the result so later runs on the .json need no model
+    calls. With none of --tag, --all and --list, --list is the default.
+    """
+    from docrooter.context import TaggedDocument
+    from docrooter.flow import FLOWS
+
+    chosen = sum((bool(tag), all_tags, list_tags))
+    if chosen > 1:
+        given = [n for n, v in (("--tag", tag), ("--all", all_tags), ("--list", list_tags)) if v]
+        raise typer.BadParameter(
+            f"{' and '.join(given)} cannot be used together", param_hint=given[0]
+        )
+    saved = source.suffix.lower() == ".json"
+    if saved:
+        given = [n for n, v in (("--save", save), ("--flow", flow), ("--level", level)) if v]
+        if given:
+            raise typer.BadParameter(
+                f"{', '.join(given)} only apply to a document, not a saved .json",
+                param_hint=given[0],
+            )
+    if flow is not None and flow not in FLOWS:
+        raise typer.BadParameter(
+            f"unknown flow {flow!r}; use {' or '.join(FLOWS)}", param_hint="--flow"
+        )
+    _check_level(level, "--level")
+    with _errors_exit_1():
+        if saved:
+            tagged = TaggedDocument.load(source)
+        else:
+            options: dict[str, Any] = {"backend": backend}
+            options |= {k: v for k, v in (("flow", flow), ("level", level)) if v is not None}
+            tagged = TaggedDocument.from_source(source, **options)
+        if save is not None:
+            tagged.save(save)
+        out: dict[str, Any] = {"source": tagged.classification.source, "doc_type": tagged.doc_type}
+        if tag:
+            contexts = tagged.get_sections(tag, min_confidence=min_confidence)
+        elif all_tags:
+            contexts = tagged.get_all_sections(min_confidence=min_confidence)
+        else:
+            out["tags"] = tagged.available_tags()
+            contexts = None
+        if contexts is not None:
+            out["results"] = [c.model_dump(mode="json") for c in contexts]
+    typer.echo(json.dumps(out, indent=2, ensure_ascii=False))
+
+
 def _check_level(value: str | None, hint: str) -> str | None:
     from docrooter.ladder import LEVELS
 

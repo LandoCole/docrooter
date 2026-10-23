@@ -232,3 +232,63 @@ first. D1–D7 are the requirements, and this plan does not repeat them.
 
 - [ ] **Step 5: Commit** with the message
   `docs: parse for extraction guide, example, README and changelog`.
+
+---
+
+# Revision 3: Tasks 7–9 (spec D8–D10)
+
+Global Constraints above still apply. Spec: the "Revision 3" section of the same spec file.
+
+## Review Focus (revision 3)
+
+1. **Fuzzy matching must not steal.** Exact matches are made first for all headings; fuzzy matching only considers bookmarks left over, so two "Basis for Opinion" headings or a near-duplicate title never take each other's bookmark (Task 8 test).
+2. **Inserting from a bookmark must not split a table of contents.** Only the text covering the bookmark's own page is searched, and only at a line start; a title listed on a "Contents" page or mentioned mid-sentence is not split (Task 8 test).
+3. **A run breaks on `none` but not on an untagged section** (Task 7 test).
+4. **Markdown input and PDFs without bookmarks read exactly as before** (Task 8 test: `load_pdf_markdown` output unchanged when `toc` is empty; `load()` of Markdown untouched).
+5. **The benchmark's default reading is the pinned one** and `--fresh-reading` switches to `reading_key()` (Task 9 test).
+
+### Task 7: Merge runs in `section_text`
+
+**Files:** Modify `src/docrooter/context.py`, `tests/unit/test_context.py`, `docs/site/guides/section-context.md` (the D4 paragraph and the JSON example gain `section_ids`), `CHANGELOG.md`.
+
+**Interfaces:** Produces `SectionMatch.section_ids: list[str]` (after `section_id`) and merged entries per D8. `section_text(document, classification)` signature unchanged.
+
+- [ ] Step 1: failing tests:
+  - `test_consecutive_same_tag_siblings_merge`: two sibling notes with nothing between → one entry, `section_ids == [a, b]`, text contains the second's `"#" * level + " " + title` line, `page_end` from the second.
+  - `test_run_breaks_on_a_different_tag_and_on_none`.
+  - `test_untagged_section_does_not_break_a_run`.
+  - `test_merged_confidence_is_lowest_known`: confidences 0.9 and 0.4 → 0.4 with the 0.4 match's source; 0.9 and None → 0.9; None and None → None.
+  - `test_group_query_collapse_uses_section_ids`: a group query drops an entry inside any id of another entry's `section_ids`.
+  - Update existing tests that asserted same-tag siblings stay separate (they now merge, per D8).
+- [ ] Step 2: run, see them fail. `PYTHONPATH=src .venv/bin/python -m pytest tests/unit/test_context.py -q`
+- [ ] Step 3: implement per D8. "Between" means every section in reading order after the end of the earlier match's subtree and before the later match.
+- [ ] Step 4: run; full `tests/unit`, ruff, mypy clean.
+- [ ] Step 5: commit `feat: merge consecutive same-tag sections in section_text`
+
+### Task 8: PDF reader — fuzzy bookmarks, missing headings, no level jumps
+
+**Files:** Modify `src/docrooter/document/pdf.py` (`apply_bookmarks` and `load_pdf_markdown`), maybe `src/docrooter/document/headings.py` (reuse the level cap from `repair_levels`; do not duplicate it), tests in `tests/unit/document/test_pdf.py`, `CHANGELOG.md`.
+
+**Interfaces:** `apply_bookmarks(headings, toc) -> list[RawHeading]` keeps its signature; it now also fuzzy-matches (D9.1) and inserts missing headings (D9.2). The level cap re-runs after it (D9.3). New flag string `"heading_from_bookmark"`.
+
+- [ ] Step 1: failing unit tests on hand-built `RawHeading` lists and `toc` lists (no PDF needed):
+  - `test_bookmark_typo_still_matches`: heading "Item 10. Directors, Executive Officers and Corporate Governance" p56, toc `[2, "Item 10. Directors, Executive Officers and Corporate Goverance", 56]` → level 2, flag `level_from_bookmark`. Also the plural case ("Reports of Independent Registered Public Accounting Firm" toc against "Report of …" heading) and joined words ("STOCKHOLDERMATTERS").
+  - `test_fuzzy_match_needs_nearby_page`: same typo but toc page 70 vs heading page 56 → no match.
+  - `test_exact_matches_win_before_fuzzy` (Review Focus 1).
+  - `test_missing_bookmark_heading_is_inserted`: a heading on p9 whose text contains, at a line start on p10's part, "Comparisons of the Tax Liabilities of FCCs and USCCs\nDepend on the Measure Used" with toc `[2, "Comparisons of the Tax Liabilities of FCCs and USCCs Depend on the Measure Used", 10]` → split into two headings, the new one level 2, flag `heading_from_bookmark`, text after the title. Pages: the raw headings carry `page`; the body text's page boundaries come from the line → page mapping `load_pdf_markdown` already has (`starts`/`pages`); give `apply_bookmarks` what it needs to know which part of a body lies on which page (e.g. an optional `line_pages` argument), choosing the smallest clean way.
+  - `test_insertion_skips_contents_and_mid_sentence` (Review Focus 2).
+  - `test_no_level_jump_after_bookmarks`: PART III (bookmark level 1) then an unmatched level-4 heading → level 2.
+  - `test_no_bookmarks_reads_as_before` (Review Focus 4).
+- [ ] Step 2: run, see them fail. `PYTHONPATH=src .venv/bin/python -m pytest tests/unit/document -q`
+- [ ] Step 3: implement per D9.
+- [ ] Step 4: run; full `tests/unit`, ruff, mypy clean. Then a real-PDF smoke check (no model): `load()` the 10-K (`tests/_10-K-2025-As-Filed.pdf`) and GAO (`benchmarks/.cache.nosync/training_corpus/pdfs/gao-gao-04-358.pdf`) and print the levels: in the 10-K, "Reports/Report of Independent Registered Public Accounting Firm" (p52) is level 3 and a sibling of "Notes to Consolidated Financial Statements", and Items 10 and 12 are level 2; in GAO, the p10 and p14 findings chapters are level 2 and "Scope and Methodology" has no children. Record the output in the report.
+- [ ] Step 5: commit `fix: PDF headings take fuzzy-matched bookmark levels and missing bookmarked headings`
+
+### Task 9: Pin the benchmark's reading
+
+**Files:** Modify `benchmarks/classification_bench.py`, its test (`tests/unit/test_bench_classification.py`), and the benchmark doc that explains how to run it if one names the readings cache.
+
+**Interfaces:** `GOLD_READING_KEY = "pymupdf4llm-1.28.2-7560c2e7a05a"`; the gold-grid and held-out runs use it unless `--fresh-reading`.
+
+- [ ] Step 1: failing tests: the run path builds loaders against `READINGS / GOLD_READING_KEY` by default and against `reading_key()` with `--fresh-reading` (test the function that picks the key; no PDF reading).
+- [ ] Step 2: run, see fail. Step 3: implement. Step 4: run the bench tests + full `tests/unit`, ruff, mypy. Step 5: commit `bench: keep the gold's reading unless --fresh-reading`

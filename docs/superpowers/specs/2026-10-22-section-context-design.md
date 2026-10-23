@@ -207,3 +207,74 @@ docrooter parse q3.pdf --include type
   - a CHANGELOG entry.
 - **Tests:** unit tests only. Use the `keyword` backend or a hand-built classification; no
   network and no torch.
+
+## Revision 3 (2026-10-23): merged runs, and PDF heading levels
+
+A live check (`parse --include text`, Jev) on four real PDFs (Apple 10-K, AT&T 2025 annual
+report, iShares AGG prospectus, GAO-04-358) found boundaries exact wherever the reader's heading
+tree was right, and two failure kinds where it wasn't. The user asked to fix both.
+
+### What was found
+
+- **Pieces.** Where a PDF's headings are flat, one logical section is several sibling headings.
+  The AT&T notes came back as 42 entries (the "Notes to Consolidated Financial Statements" heading
+  itself holds 7 tokens); the 10-K auditor's report as 8.
+- **Over-runs**, from the PDF reader:
+  - 10-K: bookmarks with typos ("Goverance", "Beceficial") or a plural ("Reports of Independent
+    Registered Public Accounting Firm" against the heading "Report of …") fail the exact title
+    match, so those headings keep their font-size level (4). Item 12 sits inside Item 11 and
+    both auditor's reports inside the notes.
+  - GAO: PyMuPDF4LLM missed six multi-line margin headings, including the level-2 findings
+    chapters the bookmarks list ("Comparisons of the Tax Liabilities … Depend on the Measure
+    Used", p. 10). Their level-3 subsections fall inside "Scope and Methodology".
+  - AT&T: bookmarks have joined words ("STOCKHOLDERMATTERS", "ACCOUNTINGAND").
+
+### D8. Merge runs of the same tag in `section_text`
+
+- After nested matches collapse (D4), **consecutive matches of one tag merge into one entry**
+  when no section between them in reading order carries a different label. `none` counts as a
+  different label; an untagged section (`None`) does not break a run.
+- A merged entry takes the first match's `section_id`, `heading`, `path`, `level` and
+  `page_start`, and the last match's `page_end`. Its `text` is the first match's text, then each
+  later match as a Markdown heading (`"#" * min(level, 6)`, then the title) followed by its
+  text, joined by blank lines.
+- `confidence` is the lowest known confidence of the merged matches (`None` only when all are
+  `None`), and `confidence_source` is that match's. `tokens` is recomputed.
+- **New field** `SectionMatch.section_ids: list[str]`: the ids of every match merged into the
+  entry, in reading order (one id for an unmerged entry). The `get_section` collapse across keys
+  treats an entry as covering all of its `section_ids`.
+- This replaces D4's "same-tag siblings stay separate": "Note 1" and "Note 4" with nothing
+  between them are now one entry.
+
+### D9. PDF reader: fuzzy bookmarks, missing headings, no level jumps
+
+In `load_pdf_markdown` (`src/docrooter/document/pdf.py`), with `use_bookmarks`:
+
+1. **Fuzzy bookmark match.** A heading with no exact (normalised) bookmark match takes a
+   bookmark whose normalised title has a `difflib.SequenceMatcher` ratio of at least 0.9 with
+   the heading's, and whose page is within one page of the heading's. Each bookmark is used at
+   most once, in document order. The heading gets the `level_from_bookmark` flag, as for an
+   exact match.
+2. **Missing headings from bookmarks.** A bookmark (level ≥ 1, page ≥ 1) that no heading used is
+   looked for in the body text of the heading whose text covers its page. The title's words are
+   matched in order, case-insensitively, allowing any whitespace, Markdown emphasis or line
+   breaks between them. When found at the start of a line, the body is split there: the text
+   before stays, and a new heading follows with the bookmark's title and level, the page, the
+   rest of the text, and the flag `heading_from_bookmark`. A bookmark that can't be found is
+   skipped.
+3. **No level jumps after bookmarks.** The level cap (each level at most one deeper than the
+   heading before it) runs again after the bookmark levels are applied, so a heading under
+   a bookmarked "PART III" (level 1) cannot sit at level 4.
+
+Everything else in the reader is unchanged. Without bookmarks, nothing changes.
+
+### D10. The benchmark keeps its reading
+
+The section gold (v2) is keyed by `section_id` and title hash on the reading it was annotated on,
+`pymupdf4llm-1.28.2-7560c2e7a05a` in the readings cache. D9 changes the reader's source, which
+changes `reading_key()`, so the benchmark would re-read every PDF and the gold would drift.
+
+- `benchmarks/classification_bench.py` gets `GOLD_READING_KEY = "pymupdf4llm-1.28.2-7560c2e7a05a"`.
+  Gold-grid and held-out runs read from that key's readings by default.
+- `--fresh-reading` reads with the current reader under `reading_key()`, as before.
+- Published numbers stay reproducible; measuring the new reader is a separate run.

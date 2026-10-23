@@ -139,7 +139,7 @@ select{box-sizing:border-box;width:100%;height:48px;padding:0 12px;border:0;bord
 .secs .tag{font-family:var(--mono);font-size:11px;line-height:24px;text-align:right;white-space:nowrap}
 .secs .tag .chip{display:inline-block;padding:0 8px;outline:1px solid var(--ink);outline-offset:-0.5px}
 .secs .tag .chip.none{outline-color:var(--rule);color:var(--graphite)}
-.secs .tag .miss{text-decoration:line-through;text-decoration-thickness:1px;color:var(--graphite)}
+.secs .tag .chip.miss{outline-style:dashed;outline-color:var(--graphite);color:var(--graphite)}
 .secs .tag .gold{display:block;color:var(--graphite);font-size:10px;line-height:16px}
 .secs .tag .cf{color:var(--graphite);padding-left:6px}
 .secs .tag .chg{display:block;color:var(--graphite);font-size:10px;line-height:16px}
@@ -225,15 +225,6 @@ tr.pick td:first-child{font-style:italic}
     <div class="body">
       <h1 id="ttl">doc-rooter</h1>
       <p class="lead">How little of a document does a model need to read to know what it is?</p>
-    </div>
-  </section>
-
-  <section class="sec" aria-labelledby="l-why">
-    <h2 class="label" id="l-why">Why</h2>
-    <div class="body">
-      <p>Most tools send a model the whole document. A 200-page filing is about 100,000 tokens, paid for before the model even starts on the question. doc-rooter reads the document's outline first and sends only what the question needs.</p>
-      <p>To name a document's type, the headings were enough: Jev got it right 98% of the time for about a seventh of what the full text costs. To tag each section (balance sheet, risk factors, auditor's report), a few opening lines from the section help.</p>
-      <p>It's the next step after my <a href="https://landonthornton.com/classifier/">document classifier</a>, made into a package: it tags every section as well as the document, and works with a decision model like Jev or an LLM like Claude.</p>
     </div>
   </section>
 
@@ -324,6 +315,15 @@ tr.pick td:first-child{font-style:italic}
       <p><b>Outline first.</b> doc-rooter turns a PDF or Markdown file into its outline of headings and sections. It then sends the model only as much as you choose: the headings, then key terms, then each section's opening lines, then the full text.</p>
       <p><b>Type, then tags.</b> The model names the document's type, then tags each section with a standard label, such as balance sheet or auditor's report, so the same sections can be found and checked across documents.</p>
       <p><b>Long documents.</b> In a document with more than 400 headings, the deepest ones take their parent section's tag instead of being asked about: "Note 12. Leases" under "Notes to the financial statements" is tagged as a note.</p>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="l-why">
+    <h2 class="label" id="l-why">Why</h2>
+    <div class="body">
+      <p>Most tools send a model the whole document. A 200-page filing is about 100,000 tokens, paid for before the model even starts on the question. doc-rooter reads the document's outline first and sends only what the question needs.</p>
+      <p>To name a document's type, the headings were enough: Jev got it right 98% of the time for about a seventh of what the full text costs. To tag each section (balance sheet, risk factors, auditor's report), a few opening lines from the section help.</p>
+      <p>It's the next step after my <a href="https://landonthornton.com/classifier/">document classifier</a>, made into a package: it tags every section as well as the document, and works with a decision model like Jev or an LLM like Claude.</p>
     </div>
   </section>
 
@@ -491,7 +491,7 @@ function renderSections(s, run) {
     const pad = Math.min(sec.level - 1, 4) * 16;
     const chip = pred ? `<span class="chip${pred === 'none' ? ' none' : ''}${wrong ? ' miss' : ''}">${esc(label(pred))}</span>` : '<span class="chip none">not tagged</span>';
     const conf = t && t[1] != null && pred && pred !== 'none' ? `<span class="cf">${Math.round(100 * t[1])}%</span>` : '';
-    const gold = wrong ? `<span class="gold">source: ${esc(label(sec.gold))}</span>` : sec.gold ? '' : '';
+    const gold = wrong ? `<span class="gold">source: ${esc(label(sec.gold))}</span>` : '';
     const chg = changed ? `<span class="chg">was ${esc(label(was))} with less to read</span>` : '';
     li.innerHTML = `<span class="t" style="padding-left:${pad}px">${esc(sec.title || '(untitled)')}${sec.gold && !wrong ? ' <span class="no" title="matches the source">✓</span>' : ''}${extra ? `<small>${esc(extra)}</small>` : ''}</span><span class="tag">${chip}${conf}${gold}${chg}</span>`;
     ol.append(li);

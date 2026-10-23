@@ -756,6 +756,50 @@ def test_readings_are_saved_once_and_reused(tmp_path, monkeypatch):
     assert len(calls) == 2
 
 
+def test_the_pinned_reading_is_the_default_and_fresh_reading_uses_the_current_reader(monkeypatch):
+    monkeypatch.setattr(bench, "reading_key", lambda: "reader-2")
+    assert bench.GOLD_READING_KEY == "pymupdf4llm-1.28.2-7560c2e7a05a"
+    assert bench.readings_key(fresh=False) == bench.GOLD_READING_KEY
+    assert bench.readings_key(fresh=True) == "reader-2"
+
+
+def test_a_pinned_loader_reads_the_pinned_reading_and_never_makes_one(tmp_path, monkeypatch):
+    from docrooter import load
+
+    def read(path):
+        raise AssertionError(f"read {path}")
+
+    monkeypatch.setattr(bench.section_sample, "read_document", read)
+    monkeypatch.setattr(bench, "reading_key", lambda: "reader-2")
+    monkeypatch.setattr(bench, "GOLD_READING_KEY", "reader-1")
+    pinned = tmp_path / "readings" / "reader-1"
+    pinned.mkdir(parents=True)
+    saved = load("# Title\n\nBody.\n")
+    (pinned / "doc_a.json").write_text(saved.model_dump_json(), encoding="utf-8")
+    loader = bench._loader(tmp_path / "doc_a.pdf", readings=tmp_path / "readings", pinned=True)
+    assert loader().model_dump() == saved.model_dump()
+    missing = bench._loader(tmp_path / "doc_b.pdf", readings=tmp_path / "readings", pinned=True)
+    with pytest.raises(FileNotFoundError, match=r"doc_b.*reader-1.*--fresh-reading"):
+        missing()
+    assert not (tmp_path / "readings" / "reader-2").exists()  # nothing was read or saved
+
+
+def test_gold_and_heldout_inputs_pass_the_pinned_choice_to_their_loaders(tmp_path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(
+        bench, "_loader", lambda path, **kw: seen.append(kw["pinned"]) or (lambda: None)
+    )
+    (tmp_path / "doc_a.pdf").write_bytes(b"")
+    bench.gold_inputs({"doc_a": "x"}, tmp_path, readings=tmp_path, pinned=True)
+    bench.gold_inputs({"doc_a": "x"}, tmp_path, readings=tmp_path)
+    monkeypatch.setattr(
+        "benchmarks.corpora.read_manifest", lambda corpus: [{"id": "h", "label": "x", "file": "h"}]
+    )
+    bench.heldout_inputs(tmp_path, readings=tmp_path, pinned=True)
+    bench.heldout_inputs(tmp_path, readings=tmp_path)
+    assert seen == [True, False, True, False]
+
+
 def test_domain_scores_treat_none_as_abstaining():
     pairs = [
         ("financial.balance_sheet", "financial.balance_sheet"),  # right

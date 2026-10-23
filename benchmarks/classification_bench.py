@@ -4,7 +4,7 @@ context ladder buys, and at what token cost, against sending the whole document.
     PYTHONPATH=src python -m benchmarks.classification_bench gold
     PYTHONPATH=src python -m benchmarks.classification_bench run --backend SPEC [--label NAME] \
         --flow F[,F] (--level L[,L] | --section-level L[,L] --doc-level L[,L]) \
-        [--calls C[,C]] [--docs gold|heldout] [--out DIR] [--limit N] [--no-cache]
+        [--calls C[,C]] [--docs gold|heldout] [--out DIR] [--limit N] [--no-cache] [--fresh-reading]
     PYTHONPATH=src python -m benchmarks.classification_bench report --results DIR [--out PATH]
 
 ``gold`` writes ``classification/doc_type_gold.json`` from the manifest: the source-assigned
@@ -19,7 +19,10 @@ with ``--doc-level`` crosses them (the cross-grid). ``--calls`` defaults to all 
 ``batched`` for the others, which classify per item either way (their ``batched`` run is the
 token estimate of what an LLM would be sent). Documents are read once per process with the
 reading the section gold was made with (profile ``fast``; a different reading raises) and the
-Document is reused across configurations (``--no-cache`` re-reads it instead). Each
+Document is reused across configurations (``--no-cache`` re-reads it instead). The readings come
+from the cache under ``GOLD_READING_KEY``, the reading the section gold was annotated on, so a
+change to the reader leaves the gold in place; a missing one raises, and ``--fresh-reading``
+reads the PDFs with the current reader instead (under ``reading_key()``). Each
 configuration writes one JSON file into ``--out`` (default
 ``benchmarks/results/<date>/classification/``) with the code identity (git sha and a dirty
 flag); a configuration whose file exists with the same settings hash (which includes a
@@ -81,6 +84,8 @@ SAMPLE_SUMMARY_PATH = section_sample.SUMMARY_PATH
 HELDOUT_DIR = BENCHMARKS / "heldout"
 RESULTS_ROOT = BENCHMARKS / "results"
 READINGS = BENCHMARKS / ".cache.nosync" / "readings"
+# The reading the section gold was annotated on; runs load it unless --fresh-reading.
+GOLD_READING_KEY = "pymupdf4llm-1.28.2-7560c2e7a05a"
 """Each document's reading (``Document`` JSON), kept per reader version so a run reads a PDF
 once however many backends follow; never committed."""
 DOCS_PATH = REPO_ROOT / "docs" / "benchmarks-classification.md"
@@ -914,20 +919,34 @@ def reading_key() -> str:
     return f"pymupdf4llm-{version('pymupdf4llm')}-{hashlib.sha256(source).hexdigest()[:12]}"
 
 
-def _loader(path: Path, *, cache: bool = True, readings: Path | None = None) -> Callable[[], Any]:
+def readings_key(*, fresh: bool) -> str:
+    """The readings the run loads: the gold's own (:data:`GOLD_READING_KEY`) unless ``fresh``,
+    which reads with the current reader."""
+    return reading_key() if fresh else GOLD_READING_KEY
+
+
+def _loader(
+    path: Path, *, cache: bool = True, readings: Path | None = None, pinned: bool = False
+) -> Callable[[], Any]:
     """Reads the document on first use and keeps it (one reading per process), or, without
     ``cache``, reads it again on every use (less memory, one reading per configuration). With
     ``readings``, a reading is also saved there (under :func:`reading_key`) and reused by later
-    runs."""
+    runs. With ``pinned`` it is only loaded, from :data:`GOLD_READING_KEY`: a missing one
+    raises, so the current reader never stands in for the gold's."""
 
     def read() -> Any:
         if readings is None:
             return section_sample.read_document(path)
         from docrooter.document.models import Document
 
-        saved = readings / reading_key() / f"{path.stem}.json"
+        saved = readings / readings_key(fresh=not pinned) / f"{path.stem}.json"
         if saved.is_file():
             return Document.model_validate_json(saved.read_text(encoding="utf-8"))
+        if pinned:
+            raise FileNotFoundError(
+                f"no reading of {path.name} under {GOLD_READING_KEY} in {readings}; "
+                "pass --fresh-reading to read the PDFs with the current reader"
+            )
         doc = section_sample.read_document(path)
         saved.parent.mkdir(parents=True, exist_ok=True)
         write_atomic(saved, doc.model_dump_json())
@@ -942,24 +961,37 @@ def gold_inputs(
     *,
     cache: bool = True,
     readings: Path | None = None,
+    pinned: bool = False,
 ) -> list[DocInput]:
     missing = [d for d in gold if not (pdf_dir / f"{d}.pdf").is_file()]
     if missing:
         raise FileNotFoundError(f"{len(missing)} gold PDF(s) not in {pdf_dir}: {missing[:5]}")
     return [
-        DocInput(d, gold[d], _loader(pdf_dir / f"{d}.pdf", cache=cache, readings=readings))
+        DocInput(
+            d,
+            gold[d],
+            _loader(pdf_dir / f"{d}.pdf", cache=cache, readings=readings, pinned=pinned),
+        )
         for d in sorted(gold)
     ]
 
 
 def heldout_inputs(
-    corpus: Path = HELDOUT_DIR, *, cache: bool = True, readings: Path | None = None
+    corpus: Path = HELDOUT_DIR,
+    *,
+    cache: bool = True,
+    readings: Path | None = None,
+    pinned: bool = False,
 ) -> list[DocInput]:
     """The frozen held-out corpus: gold is each record's ``label``."""
     from benchmarks.corpora import read_manifest
 
     return [
-        DocInput(r["id"], r["label"], _loader(corpus / r["file"], cache=cache, readings=readings))
+        DocInput(
+            r["id"],
+            r["label"],
+            _loader(corpus / r["file"], cache=cache, readings=readings, pinned=pinned),
+        )
         for r in read_manifest(corpus)
     ]
 
@@ -1552,16 +1584,19 @@ def _run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             ignore=_guard.LLM_SERVER if kind == "openai" else None,
         )
     reading = check_reading()
+    pinned = not args.fresh_reading
     if args.docs == "gold":
         doc_type_gold = load_doc_type_gold()
-        docs_in = gold_inputs(doc_type_gold, cache=not args.no_cache, readings=READINGS)
+        docs_in = gold_inputs(
+            doc_type_gold, cache=not args.no_cache, readings=READINGS, pinned=pinned
+        )
         section_gold: dict[str, list[dict[str, Any]]] | None = load_section_gold()
         gold_hashes = {
             "doc_type_gold_sha1": _sha1(DOC_TYPE_GOLD_PATH),
             "section_gold_sha1": _sha1(SECTION_GOLD_PATH),
         }
     else:
-        docs_in = heldout_inputs(cache=not args.no_cache, readings=READINGS)
+        docs_in = heldout_inputs(cache=not args.no_cache, readings=READINGS, pinned=pinned)
         section_gold = None
         gold_hashes = {"heldout_manifest_sha1": _sha1(HELDOUT_DIR / "manifest.jsonl")}
     if args.limit:
@@ -1572,6 +1607,7 @@ def _run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         "docrooter_version": __version__,
         "limit": args.limit,
         "code_fingerprint": code_fingerprint(code_paths()),
+        **({"fresh_reading": reading_key()} if args.fresh_reading else {}),
         **gold_hashes,
     }
     code = code_identity()
@@ -1630,6 +1666,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--no-cache",
         action="store_true",
         help="read each document again per configuration instead of keeping it in memory",
+    )
+    run.add_argument(
+        "--fresh-reading",
+        action="store_true",
+        help="read the PDFs with the current reader instead of the reading the section gold "
+        "was annotated on",
     )
     run.add_argument("--max-errors", type=int, default=MAX_ERRORS)
     run.add_argument("--allow-jev", action="store_true", help="allow a jev backend")

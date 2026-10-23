@@ -6,8 +6,11 @@ by hand, one ``SectionTag`` per heading.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
+import docrooter.context as context_module
 from docrooter import Classification, SectionTag
 from docrooter.context import SectionContext, SectionMatch, TaggedDocument
 from docrooter.document import Document
@@ -329,3 +332,90 @@ def test_results_are_json_ready(tagged):
         "confidence_source",
         "tokens",
     ]
+
+
+def test_none_is_a_real_leaf(tagged):
+    context = tagged.get_section("none")
+    assert context.status == "found"
+    assert [m.heading for m in context.sections] == ["PART II"]
+
+
+def test_non_dict_validation_context_is_ignored(tagged):
+    tagged.model_post_init("not a dict")
+    assert tagged.get_section(BALANCE).status == "found"
+    assert tagged.get_section("financial.balence_sheet").status == "unknown_tag"
+
+
+def test_json_round_trip(tagged):
+    raw = tagged.to_json()
+    envelope = json.loads(raw)
+    assert set(envelope) == {"format", "version", "document", "classification"}
+    assert envelope["format"] == "docrooter.tagged_document"
+    assert envelope["version"] == 1
+    again = TaggedDocument.from_json(raw)
+    assert again.get_all_sections() == tagged.get_all_sections()
+    assert TaggedDocument.from_json(raw.encode("utf-8")).doc_type == tagged.doc_type
+    # the taxonomy comes back from the classification, so an unknown tag is still told apart
+    assert again.get_section("financial.balence_sheet").status == "unknown_tag"
+
+
+def test_from_json_takes_a_taxonomy():
+    rows = [("Item 8", 1, "custom.statements", "Body.", 0.9, 1)]
+    document, classification = build(rows, section_taxonomy="my_custom")
+    raw = TaggedDocument(document=document, classification=classification).to_json()
+    plain = TaggedDocument.from_json(raw)
+    assert plain.get_section("financial.balence_sheet").status == "not_found"
+    given = TaggedDocument.from_json(raw, taxonomy=builtin_taxonomy("section_catalogue"))
+    assert given.get_section("financial.balence_sheet").status == "unknown_tag"
+
+
+def test_save_load_round_trip_unicode(tmp_path):
+    rows = [("Bilan consolidé", 1, BALANCE, "Trésorerie : 10 €.", 0.9, 1)]
+    document, classification = build(rows)
+    path = tmp_path / "doc.tagged.json"
+    TaggedDocument(document=document, classification=classification).save(path)
+    assert "Bilan consolidé" in path.read_text(encoding="utf-8")
+    loaded = TaggedDocument.load(path)
+    [match] = loaded.get_section(BALANCE).sections
+    assert match.heading == "Bilan consolidé"
+    assert "Trésorerie : 10 €." in match.text
+    assert TaggedDocument.load(str(path)).doc_type == loaded.doc_type
+
+
+@pytest.mark.parametrize(
+    "change", [{"format": "other"}, {"version": 2}, {"version": "1"}, {"format": None}]
+)
+def test_from_json_rejects_wrong_format(tagged, change):
+    envelope = json.loads(tagged.to_json()) | change
+    with pytest.raises(ValueError, match="tagged document"):
+        TaggedDocument.from_json(json.dumps(envelope))
+
+
+@pytest.mark.parametrize("raw", ["[]", "{}", "not json"])
+def test_from_json_rejects_a_non_envelope(raw):
+    with pytest.raises(ValueError):
+        TaggedDocument.from_json(raw)
+
+
+def test_from_source_loads_and_classifies(monkeypatch, tagged):
+    seen = {}
+
+    def fake_classify(document, **kwargs):
+        seen["document"], seen["kwargs"] = document, kwargs
+        return build([("Overview", 1, "narrative.business_overview", "Strong.", 0.9, 1)])[1]
+
+    monkeypatch.setattr(context_module, "classify", fake_classify)
+    result = TaggedDocument.from_source("# Overview\n\nStrong.\n", backend="jev", flow="doc_first")
+    assert seen["kwargs"] == {"backend": "jev", "flow": "doc_first"}
+    assert isinstance(seen["document"], Document)
+    assert result.document is seen["document"]
+    assert result.get_section("narrative.business_overview").status == "found"
+
+    def no_load(source):
+        raise AssertionError("a Document must not be loaded again")
+
+    monkeypatch.setattr(context_module, "load", no_load)
+    monkeypatch.setattr(context_module, "classify", lambda document, **kw: tagged.classification)
+    again = TaggedDocument.from_source(tagged.document, taxonomy="section_catalogue")
+    assert again.document is tagged.document
+    assert again.get_section("financial.balence_sheet").status == "unknown_tag"

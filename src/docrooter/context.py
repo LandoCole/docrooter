@@ -16,20 +16,30 @@ again, and no model is called.
 
 from __future__ import annotations
 
+import json
+import os
 from collections.abc import Iterator, Sequence
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 from docrooter.document import Document, Section
+from docrooter.document.load import load
 from docrooter.errors import UnknownTaxonomyError
-from docrooter.flow import NO_TAG, Classification, ConfidenceSource, SectionTag
+from docrooter.flow import NO_TAG, Classification, ConfidenceSource, SectionTag, classify
 from docrooter.taxonomies import builtin_taxonomy
 from docrooter.taxonomy import Taxonomy
 from docrooter.views import estimate_tokens
 
 MAX_HEADING_HASHES = 6
 """Markdown has six heading levels; a deeper section is written with six."""
+
+FORMAT = "docrooter.tagged_document"
+"""The ``format`` of a saved :class:`TaggedDocument`."""
+
+FORMAT_VERSION = 1
+"""The ``version`` of a saved :class:`TaggedDocument`."""
 
 
 class SectionMatch(BaseModel):
@@ -109,7 +119,7 @@ class TaggedDocument(BaseModel):
             raise ValueError(
                 f"the classification tags sections the document does not have: {', '.join(missing)}"
             )
-        given = (context or {}).get("taxonomy")
+        given = context.get("taxonomy") if isinstance(context, dict) else None
         name = given if isinstance(given, str) else self.classification.section_taxonomy
         self._taxonomy_name = name
         if isinstance(given, Taxonomy):
@@ -119,6 +129,62 @@ class TaggedDocument(BaseModel):
                 self._taxonomy = builtin_taxonomy(name)
             except UnknownTaxonomyError:
                 self._taxonomy = None
+
+    @classmethod
+    def from_source(
+        cls,
+        source: Document | str | os.PathLike[str],
+        *,
+        taxonomy: Taxonomy | str | None = None,
+        **classify_kwargs: Any,
+    ) -> TaggedDocument:
+        """Load ``source`` (a :class:`~docrooter.document.Document` is used as it is) and
+        classify it once; ``classify_kwargs`` (``backend``, ``flow``, ``level``…) go to
+        :func:`~docrooter.flow.classify`."""
+        document = source if isinstance(source, Document) else load(source)
+        classification = classify(document, **classify_kwargs)
+        return cls(document=document, classification=classification, taxonomy=taxonomy)
+
+    def to_json(self) -> str:
+        """The document and classification as JSON, in a versioned envelope."""
+        envelope = {
+            "format": FORMAT,
+            "version": FORMAT_VERSION,
+            **self.model_dump(mode="json"),
+        }
+        return json.dumps(envelope, ensure_ascii=False)
+
+    @classmethod
+    def from_json(
+        cls, data: str | bytes, *, taxonomy: Taxonomy | str | None = None
+    ) -> TaggedDocument:
+        """Rebuild from :meth:`to_json`. ``ValueError`` when the JSON is not a tagged document
+        of this format and version. ``taxonomy`` is as in the constructor."""
+        envelope = json.loads(data)
+        version = envelope.get("version") if isinstance(envelope, dict) else None
+        if (
+            not isinstance(envelope, dict)
+            or envelope.get("format") != FORMAT
+            or type(version) is not int
+            or version != FORMAT_VERSION
+        ):
+            raise ValueError(f"not a tagged document: expected format {FORMAT} version 1")
+        return cls(
+            document=Document.model_validate(envelope.get("document")),
+            classification=Classification.model_validate(envelope.get("classification")),
+            taxonomy=taxonomy,
+        )
+
+    def save(self, path: str | os.PathLike[str]) -> None:
+        """Write :meth:`to_json` to ``path`` as UTF-8."""
+        Path(path).write_text(self.to_json(), encoding="utf-8")
+
+    @classmethod
+    def load(
+        cls, path: str | os.PathLike[str], *, taxonomy: Taxonomy | str | None = None
+    ) -> TaggedDocument:
+        """Read a file written by :meth:`save`."""
+        return cls.from_json(Path(path).read_text(encoding="utf-8"), taxonomy=taxonomy)
 
     @property
     def doc_type(self) -> str | None:

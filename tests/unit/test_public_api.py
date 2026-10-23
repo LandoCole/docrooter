@@ -73,6 +73,10 @@ PUBLIC_NAMES = [
     "Classification",
     "SectionTag",
     "LEVELS",
+    # section context
+    "TaggedDocument",
+    "SectionContext",
+    "SectionMatch",
 ]
 
 

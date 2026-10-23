@@ -11,6 +11,7 @@ from docrooter.classify import (
     classify_document,
     normalize_sections,
 )
+from docrooter.context import SectionContext, SectionMatch, TaggedDocument
 from docrooter.doc_view import DocumentView
 from docrooter.document import Document, Section
 from docrooter.document.load import load
@@ -70,11 +71,14 @@ __all__ = [
     "NormalizationResult",
     "RouterConfig",
     "Section",
+    "SectionContext",
+    "SectionMatch",
     "SectionTag",
     "SectionView",
     "Selection",
     "Selector",
     "Summary",
+    "TaggedDocument",
     "Taxonomy",
     "TaxonomyError",
     "TableData",

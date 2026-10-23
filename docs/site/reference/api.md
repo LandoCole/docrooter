@@ -94,6 +94,12 @@ import them from `docrooter`.)
 
 ::: docrooter.SectionTag
 
+::: docrooter.TaggedDocument
+
+::: docrooter.SectionContext
+
+::: docrooter.SectionMatch
+
 ::: docrooter.ladder.LEVELS
 
 ::: docrooter.Classifier

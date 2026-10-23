@@ -95,13 +95,9 @@ select{box-sizing:border-box;width:100%;height:48px;padding:0 12px;border:0;bord
 .rungs th:first-child{text-align:left;padding-left:0}
 .rungs td{font-family:var(--mono);font-size:12px;line-height:40px;text-align:right;padding:0 0 0 12px;box-shadow:inset 0 -0.5px 0 0 var(--rule);white-space:nowrap}
 .rungs td:first-child{text-align:left;padding-left:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--graphite)}
-.rungs td.bar{width:30%;padding-left:12px}
-.rungs td.bar i{display:block;height:10px;background:var(--graphite);opacity:.35;min-width:1px}
 .rungs tbody tr{cursor:pointer}
-.rungs tbody tr:hover td.bar i{opacity:.6}
 .rungs tr[aria-selected="true"] td{color:var(--ink);font-weight:500}
 .rungs tr[aria-selected="true"] td:first-child{color:var(--ink)}
-.rungs tr[aria-selected="true"] td.bar i{background:var(--ink);opacity:1}
 .rungs tr:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
 .no{color:var(--graphite)}
 
@@ -205,8 +201,7 @@ tr.pick td:first-child{font-style:italic}
   .stats{grid-template-columns:minmax(0,1fr)}
   .stat + .stat, .stat:nth-child(4){box-shadow:inset 0 0.5px 0 0 var(--rule)}
   .stage{padding:12px}
-  .rungs td.bar{display:none}
-  .rungs th.bar{display:none}
+  .rungs .tk{display:none}  /* the token split is in the stats below */
   .probs li{grid-template-columns:minmax(0,1fr) 72px 48px}
   .secs li{grid-template-columns:minmax(0,1fr)}
   .secs .tag{text-align:left}
@@ -247,7 +242,7 @@ tr.pick td:first-child{font-style:italic}
         <p class="docline" id="docline">No document yet</p>
         <p class="h4" id="rungsLabel">How much Jev reads · choose a row to see it</p>
         <table class="rungs" aria-labelledby="rungsLabel">
-          <thead><tr><th scope="col">Jev reads</th><th scope="col">Doc type</th><th scope="col">Section accuracy</th><th scope="col" class="bar"><span hidden>Size</span></th><th scope="col">Tokens</th><th scope="col">Cost</th></tr></thead>
+          <thead><tr><th scope="col">Jev reads</th><th scope="col">Doc type</th><th scope="col">Section accuracy</th><th scope="col" class="tk">Doc type tokens</th><th scope="col" class="tk">Section tokens</th><th scope="col">Cost</th></tr></thead>
           <tbody id="rungs"></tbody>
         </table>
         <p class="verdict" id="verdict" aria-live="polite">Choose a document</p>
@@ -278,10 +273,10 @@ tr.pick td:first-child{font-style:italic}
     </figure>
 
     <dl class="stats" id="stats">
-      <div class="stat"><dt>Tokens sent</dt><dd><div class="v" id="sTok">–</div><div class="s" id="sTokS">exact, from the API</div></dd></div>
-      <div class="stat"><dt>Vs. full text</dt><dd><div class="v" id="sShare">–</div><div class="s" id="sShareS">of sending the whole text</div></dd></div>
-      <div class="stat"><dt>Cost</dt><dd><div class="v" id="sCost">–</div><div class="s" id="sCostS">at Jev's list price</div></dd></div>
-      <div class="stat"><dt>Sections</dt><dd><div class="v" id="sTags">–</div><div class="s" id="sTagsS">section accuracy</div></dd></div>
+      <div class="stat"><dt>Doc type tokens</dt><dd><div class="v" id="sDoc">–</div><div class="s" id="sDocS">naming the document type</div></dd></div>
+      <div class="stat"><dt>Section tag tokens</dt><dd><div class="v" id="sSec">–</div><div class="s" id="sSecS">tagging every section</div></dd></div>
+      <div class="stat"><dt>Total cost</dt><dd><div class="v" id="sCost">–</div><div class="s" id="sCostS">at Jev's list price</div></dd></div>
+      <div class="stat"><dt>Section accuracy</dt><dd><div class="v" id="sTags">–</div><div class="s" id="sTagsS">labelled sections</div></dd></div>
     </dl>
   </section>
 
@@ -405,9 +400,7 @@ function render() {
 function renderRungs(s) {
   const body = $('rungs');
   body.replaceChildren();
-  const sizes = LEVELS.map(lv => runOf(s, flow, lv)?.tokens.prompt ?? 0);
-  const max = Math.max(...sizes, 1);
-  LEVELS.forEach((lv, i) => {
+  LEVELS.forEach(lv => {
     const r = runOf(s, flow, lv);
     const tr = document.createElement('tr');
     tr.dataset.level = lv;
@@ -415,7 +408,7 @@ function renderRungs(s) {
     tr.setAttribute('aria-selected', lv === level);
     const type = !r ? '–' : s.gold ? (r.correct ? '✓' : `<span class="no" title="${esc(label(r.pred))}">✗</span>`) : esc(label(r.pred));
     const tags = r?.score ? `${r.score.right} / ${r.score.gold}` : r ? `${Object.values(r.tags).filter(t => t[0] && t[0] !== 'none').length} tagged` : '–';
-    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${type}</td><td>${tags}</td><td class="bar"><i style="width:${Math.max(0.5, 100 * sizes[i] / max)}%"></i></td><td>${r ? fmt(r.tokens.prompt) : '–'}</td><td>${r ? usd(r.cost_usd) : '–'}</td>`;
+    tr.innerHTML = `<td>${RUNG[lv]}</td><td>${type}</td><td>${tags}</td><td class="tk">${r ? fmt(r.tokens.document ?? 0) : '–'}</td><td class="tk">${r ? fmt(r.tokens.sections ?? 0) : '–'}</td><td>${r ? usd(r.cost_usd) : '–'}</td>`;
     tr.addEventListener('click', () => pick(lv));
     tr.addEventListener('keydown', e => {
       const k = LEVELS.indexOf(level);
@@ -514,19 +507,22 @@ function renderSections(s, run) {
 
 function showStats(run, full) {
   if (!run) {
-    for (const id of ['sTok', 'sShare', 'sCost', 'sTags']) $(id).textContent = '–';
+    for (const id of ['sDoc', 'sSec', 'sCost', 'sTags']) $(id).textContent = '–';
     return;
   }
-  const t = run.tokens;
-  $('sTok').textContent = fmt(t.prompt);
-  $('sTokS').textContent = `${t.exact ? 'exact' : 'estimated'}, over ${fmt(t.calls)} call${t.calls === 1 ? '' : 's'}`;
-  $('sShare').textContent = full ? pct(t.prompt / full.tokens.prompt) : '–';
-  $('sShareS').textContent = full ? `of ${fmt(full.tokens.prompt)} at full text` : 'full text not run';
-  $('sCost').textContent = usd(run.cost_usd ?? t.prompt * PRICE);
-  $('sCostS').textContent = `≈ $${fmt((run.cost_usd ?? t.prompt * PRICE) * 1000, 2)} per 1,000 docs`;
+  // the tokens of each step, with each one's share of the same step at full text
+  const t = run.tokens, f = full?.tokens;
+  const share = (n, of) => of ? `${Math.round(100 * n / of)}% of full text` : 'full text not run';
+  $('sDoc').textContent = fmt(t.document ?? 0);
+  $('sDocS').textContent = `${share(t.document ?? 0, f?.document)} · ${usd((t.document ?? 0) * PRICE)}`;
+  $('sSec').textContent = fmt(t.sections ?? 0);
+  $('sSecS').textContent = `${share(t.sections ?? 0, f?.sections)} · ${usd((t.sections ?? 0) * PRICE)}`;
+  const cost = run.cost_usd ?? t.prompt * PRICE;
+  $('sCost').textContent = usd(cost);
+  $('sCostS').textContent = `≈ $${fmt(cost * 1000, 2)} per 1,000 docs`;
   const sc = run.score;
   $('sTags').textContent = sc ? `${sc.right} / ${sc.gold}` : `${Object.values(run.tags).filter(x => x[0] && x[0] !== 'none').length}`;
-  $('sTagsS').textContent = sc ? 'section accuracy' : 'sections tagged (no labels to check)';
+  $('sTagsS').textContent = sc ? 'of labelled sections' : 'sections tagged (no labels to check)';
 }
 
 // ---------- samples ----------

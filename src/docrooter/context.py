@@ -193,10 +193,15 @@ class ParseResult(BaseModel):
             for match in matches
         ]
         ids = {section_id for match in hits for section_id in match.section_ids}
+        # An entry's text is already in another entry only when every section it holds lies
+        # inside a section of another entry; one section outside keeps the entry (some text
+        # may then repeat, as it does across tags).
         hits = [
             match
             for match in hits
-            if not any(match.section_id.startswith(other + ".") for other in ids)
+            if not all(
+                any(inner.startswith(other + ".") for other in ids) for inner in match.section_ids
+            )
         ]
         if not hits:
             known = builtin_taxonomy(CATALOGUE) if catalogue is None else catalogue
@@ -315,8 +320,9 @@ def section_text(
         label = tag.label or ""
         if any(a.id in ids_by_tag[label] for a in _ancestors(document, section)):
             continue
-        match = _match(document, section, tag, order, position)
-        end = position[section.id] + len(list(_subtree(document, section)))
+        subtree = list(_subtree(document, section))
+        match = _match(document, section, tag, order, position, subtree)
+        end = position[section.id] + len(subtree)
         entries = result.setdefault(label, [])
         if entries and _unbroken(order, labels, label, ends[label], position[section.id]):
             entries[-1] = _merge(entries[-1], match)
@@ -381,8 +387,8 @@ def _match(
     tag: SectionTag,
     order: list[Section],
     position: dict[str, int],
+    subtree: list[Section],
 ) -> SectionMatch:
-    subtree = list(_subtree(document, section))
     body = [section.text] + [
         part
         for child in subtree[1:]

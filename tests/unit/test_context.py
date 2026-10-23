@@ -257,6 +257,24 @@ def test_group_query_collapse_uses_section_ids():
     assert "cash" in context.sections[0].text
 
 
+def test_group_query_keeps_a_merged_entry_that_reaches_outside_the_other_match():
+    rows = [
+        ("Item 8", 1, STATEMENTS, "Statements.", 0.9, 1),
+        ("BS", 2, BALANCE, "Cash.", 0.9, 1),
+        ("IS", 1, BALANCE, "Income.", 0.9, 2),
+    ]
+    result = result_of(rows)
+    [merged] = result.section_text[BALANCE]
+    assert merged.section_ids == ["s1.1", "s2"]  # nothing sits between BS and IS
+    context = result.get_section("financial")
+    # BS alone is inside Item 8, but IS is not, so the merged entry stays
+    assert [m.heading for m in context.sections] == ["Item 8", "BS"]
+    assert "Income." in context.sections[1].text
+    # an entry wholly inside another is still dropped
+    only_inside = result_of(rows[:2]).get_section("financial")
+    assert [m.heading for m in only_inside.sections] == ["Item 8"]
+
+
 def test_section_text_keys(tenk):
     texts = section_text(*tenk)
     # reading order of each tag's first section; the "none" heading is not a key

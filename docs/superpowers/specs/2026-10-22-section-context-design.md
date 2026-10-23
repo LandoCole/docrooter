@@ -1,207 +1,209 @@
-# doc-rooter section context: hand an application a section's text by its tag
+# doc-rooter parse: one call, three response levels, section text included
 
-2026-10-22. Asked for by the user, building on the demo's "Why" point that section tags make data
-extraction more accurate.
+2026-10-22, revision 2. Asked for by the user, building on the demo's "Why" point that section
+tags make data extraction more accurate. Revision 1 (in git history) stored the whole document
+and had the application call doc-rooter again to cut out a section. The user replaced that with
+this design: the application says up front what it needs, and doc-rooter puts it all in one
+JSON response.
 
 ## Why
 
 An extraction platform has doc-rooter built in. A PDF is uploaded, doc-rooter reads it, builds
-the section tree and classifies it (the document type and a tag on every heading), and the
-application gets the classification back. The application's rules engine then decides what to
-extract: "this is a quarterly report and it has a schedule of investments, so pull every
-company and its fair value from the schedule of investments."
+the section tree and classifies it, and sends the result back. The application stores that JSON
+in its database. Later its rules engine reads it:
 
-Today the application has to hand-roll the next step: find the headings tagged
-`financial.schedule_of_investments`, work out where each one ends, and stitch the text together.
-This feature packages that step. The application says "give me the schedule of investments" and
-gets back the tag, the heading and the full text of that section, ready to put in a prompt.
-The application (or another package) does the extraction and question answering; doc-rooter
-only supplies the context, exactly what is needed and nothing more.
+1. "This is a quarterly report."
+2. "It has a schedule of investments."
+3. "Pull every company and its fair value from the schedule of investments."
+
+The extraction engine takes the schedule of investments text straight from the stored JSON and
+sends it to its model. There is no call back to doc-rooter, no re-feeding the document, and
+nothing to hand-roll. doc-rooter supplies the context; the application (or another package)
+does the extraction and question answering.
+
+## The three response levels (the user's decision)
+
+`include` says how much comes back:
+
+| `include` | What's in the response | Model calls |
+|---|---|---|
+| `"type"` | the document type | the doc-type call only; no section tags (about 98% cheaper on Jev for a 10-K) |
+| `"sections"` | the type, plus every heading with its section tag | type plus section tags |
+| `"text"` | the type and the tags, plus the full text of each tagged section, grouped by tag | same as `"sections"`; the text costs no calls |
 
 ## Goals
 
-- Get one section's context by tag, several tags at once, or every tagged section.
-- Each result carries the tag, the heading and the section's full text, from its heading up to
-  the next heading at the same or a higher level, subsections included.
-- A tag that is in the catalogue but not in the document returns an explicit "not found" result
-  (no exception), with a message. A tag that is not in the catalogue at all returns "unknown
-  tag", with a message.
-- No re-reading and no model calls when asking for context. Reading and classifying happen once;
-  the result can be saved (to a file or a database column) and asked later, from another process.
-- JSON-ready results (pydantic models), so an HTTP service can return them as they are.
+- One function, `docrooter.parse(source, include=...)`, and one CLI command, `docrooter parse`,
+  return a clean, self-contained JSON response at the chosen level.
+- At `"text"`, the response has everything the extraction engine needs. A reader needs only a
+  JSON parser, not doc-rooter.
+- A tagged section's text runs from its heading to the next heading at the same or a higher
+  level, with its subsections and tables included.
+- A small Python helper on the result answers "give me tag X" with an explicit `found`,
+  `not_found` or `unknown_tag`.
 
 ## Non-goals
 
 - Extraction or question answering. doc-rooter never calls a model to answer anything here.
-- An HTTP server. The package is a library and a CLI; the guide shows how an app stores the
-  saved JSON and serves it.
-- Changing `classify`, the catalogue, the views or the benchmark.
-- LLM tool-calling schemas for these functions (a possible follow-up).
-- The demo site (a possible follow-up: "show me the balance sheet text" on the demo).
-- Replacing the experimental `select()` (element-level selection with a completeness dial).
-  Section context is the simple, tag-based counterpart and needs no tagger or selector.
+- An HTTP server, LLM tool schemas, or the demo site (possible follow-ups).
+- Changing `classify`, `Classification`, the catalogue, the views or the benchmark.
+- Asking doc-rooter later for text it didn't return. The application chooses `include` up
+  front; text for an untagged or `none` section is not returned.
+- Replacing the experimental `select()`.
 
 ## Anti-goals
 
 - Returning a heading's own text only and missing its subsections or tables.
-- Returning the same text twice in one answer because a section and its subsection share a tag.
-- Raising for a tag that simply isn't in this document: an app asks for tags speculatively.
+- Repeating text inside one tag's list, because a section and its subsection share a tag.
+- A response full of internals (call records, token splits) that the application has to dig
+  through.
 
-## Decisions (all the builder's call, made in this design; the user handed them over)
+## Decisions
 
-### D1. One object: `TaggedDocument`
-
-A pydantic model holding the `document` (`Document`) and its `classification`
-(`Classification`). It is the thing an application keeps.
+### D1. `parse()`
 
 ```python
-from docrooter import TaggedDocument
+from docrooter import parse
 
-tagged = TaggedDocument.from_source("10k.pdf", backend="jev")  # load() + classify(), once
-tagged.doc_type                       # "financial.annual_report"
-tagged.available_tags()               # tags found, in reading order of first appearance
-tagged.get_section("financial.balance_sheet")                  # one SectionContext
-tagged.get_sections(["financial.balance_sheet", "financial.income_statement"])
-tagged.get_all_sections()                                       # every tag found
-tagged.save("10k.tagged.json")        # later, anywhere: TaggedDocument.load("10k.tagged.json")
+result = parse("q3.pdf", include="text", backend="jev")
+result.doc_type                                   # "financial.quarterly_report"
+result.section_text["financial.schedule_of_investments"][0].text
+result.model_dump_json()                          # store this; ParseResult.model_validate_json reads it back
 ```
 
-- `TaggedDocument(document=doc, classification=result)` wraps a classification the app already
-  has. It checks that every section id in the classification exists in the document and raises
-  `ValueError` if not (the classification belongs to another reading).
-- `from_source(source, **classify_kwargs)` calls `load(source)` then `classify(doc, ...)` and
-  passes keyword arguments through to `classify` (backend, flow, level, calls…).
-- Persistence: `to_json() -> str`, `from_json(str | bytes)`, `save(path)`, `load(path)`. The JSON
-  is `{"format": "docrooter.tagged_document", "version": 1, "document": {...},
-  "classification": {...}}`. A wrong format or version raises `ValueError`.
-- `doc_type` is a property: `classification.doc_type`.
-- An optional `taxonomy` argument (a `Taxonomy` or built-in name) says which catalogue the tags
-  come from. By default it is `classification.section_taxonomy` loaded with `builtin_taxonomy`.
-  If that can't be resolved (a custom catalogue that wasn't passed), unknown tags can't be told
-  from missing ones and both report `not_found`. The taxonomy is not saved in the JSON; a custom
-  one is passed again on `load`/`from_json`.
+- Signature: `parse(source, *, include="sections", flow="doc_first", backend=DEFAULT_BACKEND,
+  level=None, **classify_kwargs) -> ParseResult`.
+  - `source` is anything `classify` takes: a `Document`, a path, or Markdown text.
+  - `classify_kwargs` pass straight through to `classify` (for example `calls`, `catalogue`,
+    `doc_types`, `section_level`, `doc_level`).
+  - An unknown `include` raises `ValueError`.
+- `flow` defaults to `"doc_first"` (read the document, then tag). That is what the demo and the
+  benchmark use; `classify` itself keeps its own default.
+- `include="type"` calls `classify(..., flow="doc_first", max_sections=0)`: the doc-type call
+  only, with no section tags. Passing `flow="sections_first"` with `include="type"` raises
+  `ValueError`, because that flow decides the type from the tags. Passing `max_sections` with
+  `include="type"` also raises.
+- `"sections"` and `"text"` call `classify` once, with the given flow. `"text"` then builds the
+  section text from the document and the classification, with no further calls.
+- `parse` loads the source itself (`load`) when it isn't a `Document`, so that it has the
+  document for the text.
 
-### D2. Results: `SectionContext` and `SectionMatch`
+### D2. `ParseResult`, the response
 
 ```json
 {
-  "tag": "financial.balance_sheet",
-  "status": "found",
-  "message": null,
+  "version": 1,
+  "source": "q3.pdf",
+  "include": "text",
+  "backend": "jev",
+  "doc_type": "financial.quarterly_report",
+  "doc_type_confidence": 0.94,
+  "tokens": {"document": 1771, "sections": 88310},
   "sections": [
-    {
-      "section_id": "s4.3.2",
-      "tag": "financial.balance_sheet",
-      "heading": "CONSOLIDATED BALANCE SHEETS",
-      "path": ["PART II", "Item 8. Financial Statements and Supplementary Data"],
-      "level": 3,
-      "text": "| | 2025 | 2024 |\n|---|---|---|\n...",
-      "page_start": 45,
-      "page_end": 46,
-      "confidence": 0.97,
-      "confidence_source": "probability",
-      "tokens": 812
-    }
-  ]
+    {"section_id": "s3", "heading": "Schedule of Investments", "level": 1, "path": [],
+     "tag": "financial.schedule_of_investments", "confidence": 0.97, "page_start": 12}
+  ],
+  "section_text": {
+    "financial.schedule_of_investments": [
+      {"section_id": "s3", "tag": "financial.schedule_of_investments",
+       "heading": "Schedule of Investments", "path": [], "level": 1,
+       "text": "| Company | Shares | Fair value |\n|---|---|---|\n...",
+       "page_start": 12, "page_end": 15, "confidence": 0.97,
+       "confidence_source": "probability", "tokens": 2210}
+    ]
+  }
 }
 ```
 
-- `SectionContext`: `tag` (as asked), `status` (`"found" | "not_found" | "unknown_tag"`),
-  `message` (`None` when found; otherwise a plain sentence such as "No section is tagged
-  financial.balance_sheet in this document." or "financial.balence_sheet is not a tag in
-  section_catalogue."), `sections` (a list of `SectionMatch`, empty unless found).
-- `SectionMatch`:
-  - `section_id`, `level`, and `heading` (the section's title);
-  - `tag`, the section's own leaf label, which can differ from the asked tag on a group query;
-  - `path`, the ancestor titles from the outermost down, without the section itself, and
-    without the preamble;
-  - `text`, the full context (D3);
-  - `page_start` (the section's page) and `page_end`, an upper bound: the page where the next
-    section after it starts, else the last page start within it. Both are `None` without pages
-    (Markdown input);
-  - `confidence` and `confidence_source`, copied from the `SectionTag`;
-  - `tokens`: `estimate_tokens(heading + "\n\n" + text)` from `docrooter.views`. It is an
-    estimate, for budgeting a prompt.
-- Both models use `extra="forbid"`, like the rest of the package.
+- `ParseResult` fields:
+  - `version` (always `1`), `source`, `include`, `backend`;
+  - `doc_type` and `doc_type_confidence`, from the classification;
+  - `tokens`: the tokens spent per stage (prompt plus completion), `{"document": int,
+    "sections": int}`, from `classification.stage_tokens`. `sections` is `0` at `"type"`. A
+    stage missing from `stage_tokens` counts as `0`.
+  - `sections`: a list of `TaggedSection`, one per tagged heading in reading order, `none`
+    included, so the application also gets the table of contents. It is `None` at `"type"`.
+  - `section_text`: a `dict[str, list[SectionMatch]]`, keyed by leaf tag in reading order of
+    each tag's first section, `none` excluded. It is `None` below `"text"`.
+- In the JSON, a field that is `None` because the level doesn't include it (`sections`,
+  `section_text`) is left out; `doc_type_confidence: null` stays. `model_dump_json()` and
+  `model_validate_json()` round-trip.
+- `TaggedSection`: `section_id`, `heading`, `level`, `path` (ancestor titles, outermost first,
+  no preamble), `tag`, `confidence`, `page_start`.
+- `SectionMatch`: as built in Task 1 (already in `context.py`). The fields are `section_id`,
+  `tag`, `heading`, `path`, `level`, `text`, `page_start`, `page_end`, `confidence`,
+  `confidence_source` and `tokens`.
+- All models use `extra="forbid"`.
 
-### D3. What a section's text is
+### D3. What a section's text is (unchanged from revision 1)
 
-- A section's `text` is its own body (`Section.text`) followed by every descendant in reading
-  order. Each descendant contributes its heading as a Markdown heading (`"#" * min(level, 6) +
-  " " + title`) and then its body. Parts are joined by a blank line and the result is stripped.
-- The section's own heading is not in `text`; it is in `heading`. An app that wants one string
-  puts the heading first.
-- This is the text from the heading up to the next heading at the same or a higher level, which
-  is the tree that `build_document` already builds. Tables come through as they are in the
-  section bodies (PyMuPDF4LLM writes them as Markdown tables).
+- `text` is the section's own body followed by every descendant in reading order. Each
+  descendant is written as a Markdown heading (`"#" * min(level, 6)`, then the title) followed
+  by its body. Parts are joined by a blank line.
+- The section's own heading is in `heading`, not in `text`.
+- `page_end` is an upper bound: the page where the next section after it starts, else the last
+  page start within it.
+- `tokens` is `estimate_tokens(heading + "\n\n" + text)`.
 
-### D4. Which sections match a tag
+### D4. Which sections go under a tag in `section_text`
 
-- A section matches a query tag when its label equals the tag **or the label is under that tag
-  in the catalogue** (a group query: `"financial"` matches every `financial.*` leaf).
-- Sections with no label (`None`) never match. `none` is a real leaf: asking for `"none"` works,
-  but `get_all_sections` leaves it out.
-- Inherited tags (headings past the cap) match like any other.
-- **Nested matches collapse.** If a match is a descendant of another match for the same query,
-  it is dropped: its text is already inside the outer one. Item 1 Business and its subsections
-  Overview, Segments, Strategy… all tagged `narrative.business_overview` give one match.
-- Siblings with the same tag stay separate matches, in reading order ("Note 1" and "Note 4"
-  under the notes are two matches).
-- `min_confidence: float | None = None` on `get_section`, `get_sections` and
-  `get_all_sections` drops matches whose confidence is below it. A `None` confidence (a per-item
-  answer read from a letter) is unknown, not low, and is kept.
+- Each leaf tag present (not `none`, not `None`) gets the sections carrying it, in reading
+  order. Inherited tags count.
+- **Nested matches collapse within a tag.** A section inside another section with the same tag
+  is dropped, since its text is already there. Same-tag siblings ("Note 1" and "Note 4" as
+  separate headings) stay separate entries.
+- Across tags, text can repeat: "Item 8" (`financial.financial_statements`) contains the
+  balance sheet, which is also under `financial.balance_sheet`. Each tag's entry is complete
+  on its own.
 
-### D5. The three calls
+### D5. The lookup helper on `ParseResult`
 
-- `get_section(tag, *, min_confidence=None) -> SectionContext`.
-- `get_sections(tags, *, min_confidence=None) -> list[SectionContext]`, one per tag in the
-  order asked. Duplicated tags are answered once each time they are asked (no dedupe).
-- `get_all_sections(*, min_confidence=None) -> list[SectionContext]`, one per distinct leaf tag
-  present (excluding `none`), in reading order of each tag's first section. Text can repeat
-  across contexts here when a tagged section sits inside another tagged section (Item 8 and its
-  balance sheet), since each tag's context is complete on its own.
-- `available_tags() -> list[str]`: the distinct leaf labels present, excluding `none` and
-  `None`, in reading order of first appearance.
-- Reading order is `Document.walk()` order, not the order of `classification.sections`
-  (tagging order is level 1 first).
+- `get_section(tag, *, catalogue=None) -> SectionContext`, and
+  `get_sections(tags, *, catalogue=None) -> list[SectionContext]`, one per tag asked, in order.
+  Both read only `section_text`; at a lower level they raise `ValueError` that says to use
+  `include="text"`.
+- A tag matches its own key, and a group tag (`"financial"`) matches every key under it
+  (`"financial."` prefix). Across the keys, a match inside another match is dropped. Section
+  ids are hierarchical (`s4.3` is under `s4`), so "inside" means the id starts with the other
+  id plus `"."`. Matches come in reading order.
+- `SectionContext` (already in `context.py`): `tag`, `status` (`"found"`, `"not_found"` or
+  `"unknown_tag"`), `message`, `sections`. A tag is `unknown_tag` when it isn't in the
+  catalogue, which is `catalogue` if given, else the built-in `section_catalogue`.
+- Tags are stripped of surrounding spaces; case is exact. Neither call raises for a missing or
+  unknown tag.
 
-### D6. CLI: `docrooter sections`
+### D6. CLI: `docrooter parse`
 
 ```bash
-docrooter sections 10k.pdf --backend jev --save 10k.tagged.json --list
-docrooter sections 10k.tagged.json --tag financial.balance_sheet --tag financial.income_statement
-docrooter sections 10k.tagged.json --all --min-confidence 0.5
+docrooter parse q3.pdf --include text -b jev --out q3.json
+docrooter parse q3.pdf --include type
 ```
 
-- `SOURCE` is a document (classified now, which costs model calls) or a saved `.json`
-  tagged document (no calls).
-- `--tag` (repeatable), `--all` or `--list`. `--list` prints the available tags as JSON. With
-  none of them, `--list` is the default.
-- `--save PATH` writes the tagged document (only meaningful for a document source).
-- `--backend`, `--flow` and `--level` pass through to `classify` for a document source, with the
-  same defaults as `docrooter classify`.
-- Output is JSON on stdout: `{"source", "doc_type", "results": [SectionContext, ...]}` for
-  `--tag`/`--all`, `{"source", "doc_type", "tags": [...]}` for `--list`. Exit 0 even when a
-  tag is not found; the status is in the JSON.
+- Options: `--include type|sections|text` (default `sections`), `--backend/-b` (default as for
+  `classify`), `--flow` (default `doc_first`), `--level`, and `--out PATH`.
+- It prints the `ParseResult` JSON (indented, `ensure_ascii=False`) to stdout, or writes it to
+  `--out`.
+- A wrong `--include` is a usage error.
+- This replaces revision 1's `docrooter sections` command.
 
-### D7. Where it lives
+### D7. What changes from revision 1's code
 
-- A new module `src/docrooter/context.py` with `TaggedDocument`, `SectionContext` and
-  `SectionMatch`, exported from `docrooter` (and added to `__all__` and the public API test).
-- Reuse `Document.walk`, `views.estimate_tokens`, `builtin_taxonomy` and the `Taxonomy` node
-  lookups; do not copy them.
-- Docs:
-  - a guide, `docs/site/guides/section-context.md` ("Get a section's text"), in the
-    `mkdocs.yml` nav;
+- **Remove:**
+  - `TaggedDocument`, with its save/load, `from_source` and JSON envelope;
+  - the `docrooter sections` command;
+  - their tests and the public names.
+- **Keep:**
+  - `SectionMatch` and `SectionContext`;
+  - the text, path, page and collapse logic, refactored into module-level functions that take
+    a `Document` and a `Classification`.
+- **Add:** `parse`, `ParseResult` and `TaggedSection` in `src/docrooter/context.py`, exported
+  from `docrooter` (and added to `__all__`, `PUBLIC_NAMES` and `docs/site/reference/api.md`).
+- **Docs:**
+  - a guide, `docs/site/guides/section-context.md` ("Parse a document for extraction"), in
+    the nav;
   - a short README section;
-  - `examples/section_context.py`, which runs offline on a hand-built classification, with a
-    test that runs it;
-  - a CHANGELOG entry under Unreleased.
-- Tests are unit tests with a document built by `Document.from_sections` and a hand-built
-  `Classification`. There are no model calls, no network and no torch.
-
-## Left to the builder
-
-- Helper names inside `context.py`, the exact message wording, and how the CLI command is laid
-  out in `cli.py`, following the existing commands' style.
-- Whether `TaggedDocument` caches the reading-order index (it should be cheap either way).
+  - `examples/parse_for_extraction.py`, which runs offline with the `keyword` backend on
+    Markdown, plus a test that runs it;
+  - a CHANGELOG entry.
+- **Tests:** unit tests only. Use the `keyword` backend or a hand-built classification; no
+  network and no torch.

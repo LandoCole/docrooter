@@ -11,7 +11,7 @@ from docrooter.classify import (
     classify_document,
     normalize_sections,
 )
-from docrooter.context import SectionContext, SectionMatch, TaggedDocument
+from docrooter.context import ParseResult, SectionContext, SectionMatch, TaggedSection, parse
 from docrooter.doc_view import DocumentView
 from docrooter.document import Document, Section
 from docrooter.document.load import load
@@ -69,6 +69,7 @@ __all__ = [
     "LEVELS",
     "MissingExtraError",
     "NormalizationResult",
+    "ParseResult",
     "RouterConfig",
     "Section",
     "SectionContext",
@@ -78,7 +79,7 @@ __all__ = [
     "Selection",
     "Selector",
     "Summary",
-    "TaggedDocument",
+    "TaggedSection",
     "Taxonomy",
     "TaxonomyError",
     "TableData",
@@ -102,6 +103,7 @@ __all__ = [
     "load_fields",
     "load_pdf",
     "normalize_sections",
+    "parse",
     "process",
     "process_many",
     "register_layout_engine",

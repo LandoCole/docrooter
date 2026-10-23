@@ -1,7 +1,7 @@
-"""TaggedDocument: a section's text by tag, from a hand-built document and classification.
+"""parse(): section text and the ParseResult, from a hand-built document and classification.
 
 Model-free: the document comes from ``Document.from_sections`` and the classification is built
-by hand, one ``SectionTag`` per heading.
+by hand, one ``SectionTag`` per heading; the end-to-end tests use the offline keyword backend.
 """
 
 from __future__ import annotations
@@ -11,10 +11,20 @@ import json
 import pytest
 
 import docrooter.context as context_module
-from docrooter import Classification, SectionTag
-from docrooter.context import SectionContext, SectionMatch, TaggedDocument
+from docrooter import Classification, SectionTag, load
+from docrooter.backends.base import TokenUsage
+from docrooter.context import (
+    INCLUDES,
+    ParseResult,
+    SectionContext,
+    SectionMatch,
+    TaggedSection,
+    parse,
+    section_text,
+    tagged_sections,
+)
 from docrooter.document import Document
-from docrooter.taxonomies import builtin_taxonomy
+from docrooter.taxonomy import Taxonomy, TaxonomyNode
 from docrooter.views import estimate_tokens
 
 BALANCE = "financial.balance_sheet"
@@ -78,17 +88,32 @@ def build(rows, *, paged=True, **classification):
 
 
 @pytest.fixture
-def tagged():
-    document, classification = build(TENK)
-    return TaggedDocument(document=document, classification=classification)
+def tenk():
+    return build(TENK)
 
 
-def test_get_section_returns_heading_and_full_text(tagged):
-    context = tagged.get_section(BALANCE)
-    assert isinstance(context, SectionContext)
-    assert context.status == "found"
-    assert context.message is None
-    [match] = context.sections
+def text_of(rows, **classification):
+    document, cls = build(rows, **classification)
+    return section_text(document, cls)
+
+
+def result_of(rows=TENK, include="text", **classification):
+    document, cls = build(rows, **classification)
+    return ParseResult(
+        source=cls.source,
+        include=include,
+        backend=cls.backend,
+        doc_type=cls.doc_type,
+        doc_type_confidence=cls.doc_type_confidence,
+        tokens={"document": 0, "sections": 0},
+        sections=None if include == "type" else tagged_sections(document, cls),
+        section_text=section_text(document, cls) if include == "text" else None,
+    )
+
+
+def test_section_heading_and_full_text(tenk):
+    texts = section_text(*tenk)
+    [match] = texts[BALANCE]
     assert isinstance(match, SectionMatch)
     assert match.heading == "CONSOLIDATED BALANCE SHEETS"
     assert match.text.startswith(TABLE)
@@ -101,114 +126,57 @@ def test_get_section_returns_heading_and_full_text(tagged):
     assert match.tokens == estimate_tokens(match.heading + "\n\n" + match.text)
 
 
-def test_nested_matches_collapse(tagged):
-    context = tagged.get_section(NOTES)
-    notes = context.sections[0]
-    assert notes.heading == "Notes"
-    assert "### Note 1" in notes.text and "Basis of presentation." in notes.text
-    assert "### Note 4" in notes.text and "Revenue." in notes.text
-    assert [m.heading for m in context.sections].count("Note 1") == 0
+def test_nested_matches_collapse(tenk):
+    matches = section_text(*tenk)[NOTES]
+    assert matches[0].heading == "Notes"
+    assert "### Note 1" in matches[0].text and "Basis of presentation." in matches[0].text
+    assert "### Note 4" in matches[0].text and "Revenue." in matches[0].text
+    assert "Note 1" not in [m.heading for m in matches]
 
 
-def test_same_tag_siblings_stay_separate(tagged):
-    headings = [m.heading for m in tagged.get_section(NOTES).sections]
-    assert headings == ["Notes", "Note A", "Note B"]
+def test_same_tag_siblings_stay_separate(tenk):
+    assert [m.heading for m in section_text(*tenk)[NOTES]] == ["Notes", "Note A", "Note B"]
 
 
-def test_group_tag_matches_leaves_under_it(tagged):
-    context = tagged.get_section("financial")
-    assert context.status == "found"
-    assert [(m.heading, m.tag) for m in context.sections] == [
-        ("Item 8. Financial Statements", STATEMENTS),
-        ("Notes", NOTES),
-        ("Note A", NOTES),
-        ("Note B", NOTES),
+def test_section_text_keys(tenk):
+    texts = section_text(*tenk)
+    # reading order of each tag's first section; the "none" heading is not a key
+    assert list(texts) == [STATEMENTS, BALANCE, NOTES, RISKS]
+    # Item 8 holds the balance sheet, which is also under its own key (D4)
+    assert "CONSOLIDATED BALANCE SHEETS" in texts[STATEMENTS][0].text
+    assert texts[BALANCE][0].text.startswith(TABLE)
+
+
+def test_tagged_sections_lists_every_tag(tenk):
+    rows = tagged_sections(*tenk)
+    assert all(isinstance(row, TaggedSection) for row in rows)
+    assert [(r.heading, r.tag) for r in rows] == [(t, label) for t, _, label, *_ in TENK]
+    part, item8, balance, current = rows[:4]
+    assert (part.section_id, part.path, part.confidence, part.page_start) == ("s1", [], 0.99, 40)
+    assert item8.path == ["PART II"]
+    assert (balance.section_id, balance.level) == ("s1.1.1", 3)
+    assert current.path == [
+        "PART II",
+        "Item 8. Financial Statements",
+        "CONSOLIDATED BALANCE SHEETS",
     ]
-    assert "CONSOLIDATED BALANCE SHEETS" in context.sections[0].text  # inside Item 8, not repeated
+    assert rows[-1].confidence is None
 
 
-def test_missing_tag_is_not_found(tagged):
-    context = tagged.get_section("financial.schedule_of_investments")
-    assert context.status == "not_found"
-    assert context.sections == []
-    assert "financial.schedule_of_investments" in context.message
+def test_tagged_sections_skip_untagged_labels():
+    rows = [("A", 1, None, "a", 0.5, 1), ("B", 1, "narrative.business_overview", "b", 0.5, 2)]
+    document, cls = build(rows)
+    assert [r.heading for r in tagged_sections(document, cls)] == ["B"]
+    assert list(section_text(document, cls)) == ["narrative.business_overview"]
 
 
-def test_unknown_tag(tagged):
-    context = tagged.get_section("financial.balence_sheet")
-    assert context.status == "unknown_tag"
-    assert context.sections == []
-    assert "financial.balence_sheet" in context.message
-    assert "section_catalogue" in context.message
-
-
-def test_tag_is_stripped_but_case_exact(tagged):
-    stripped = tagged.get_section(f"  {BALANCE}\n")
-    assert stripped.status == "found"
-    assert stripped.tag == BALANCE
-    wrong_case = tagged.get_section("Financial.Balance_Sheet")
-    assert wrong_case.status == "unknown_tag"
-
-
-def test_get_sections_keeps_order_and_duplicates(tagged):
-    contexts = tagged.get_sections([RISKS, BALANCE, RISKS])
-    assert [c.tag for c in contexts] == [RISKS, BALANCE, RISKS]
-    assert all(c.status == "found" for c in contexts)
-
-
-def test_get_sections_rejects_a_bare_string(tagged):
-    with pytest.raises(TypeError):
-        tagged.get_sections(BALANCE)
-
-
-def test_get_all_sections_excludes_none(tagged):
-    contexts = tagged.get_all_sections()
-    assert [c.tag for c in contexts] == [STATEMENTS, BALANCE, NOTES, RISKS]
-    assert "none" not in [c.tag for c in contexts]
-    assert tagged.available_tags() == [c.tag for c in contexts]
-    # each context is complete on its own, so Item 8's text is repeated inside it
-    assert "CONSOLIDATED BALANCE SHEETS" in contexts[0].sections[0].text
-
-
-def test_min_confidence_drops_low_keeps_unknown():
-    rows = [
-        ("Overview", 1, "narrative.business_overview", "Strong.", 0.2, 1),
-        ("Risks", 1, RISKS, "Many.", None, 2),
-    ]
-    document, classification = build(rows)
-    tagged = TaggedDocument(document=document, classification=classification)
-    assert tagged.get_section("narrative.business_overview").status == "found"
-    dropped = tagged.get_section("narrative.business_overview", min_confidence=0.5)
-    assert dropped.status == "not_found"
-    assert dropped.sections == []
-    assert "0.5" in dropped.message
-    kept = tagged.get_section(RISKS, min_confidence=0.5)
-    assert kept.status == "found"
-    assert kept.sections[0].confidence is None
-    assert [c.status for c in tagged.get_all_sections(min_confidence=0.5)] == [
-        "not_found",
-        "found",
-    ]
-
-
-def test_min_confidence_filters_before_collapsing(tagged):
-    # The outer balance sheet is below the bar, so the inner section is not hidden by it.
-    rows = [
-        (*row[:4], 0.1 if row[0] == "CONSOLIDATED BALANCE SHEETS" else row[4], row[5])
-        for row in TENK
-    ]
-    document, classification = build(rows)
-    low = TaggedDocument(document=document, classification=classification)
-    [match] = low.get_section(BALANCE, min_confidence=0.5).sections
-    assert match.heading == "Current assets"
-
-
-def test_page_end_is_next_section_start(tagged):
-    [balance] = tagged.get_section(BALANCE).sections
+def test_page_end_is_next_section_start(tenk):
+    texts = section_text(*tenk)
+    [balance] = texts[BALANCE]
     assert (balance.page_start, balance.page_end) == (45, 48)  # next section: Notes
-    [risks] = tagged.get_section(RISKS).sections
+    [risks] = texts[RISKS]
     assert (risks.page_start, risks.page_end) == (60, 60)  # last section: its own subtree
-    [statements] = tagged.get_section(STATEMENTS).sections
+    [statements] = texts[STATEMENTS]
     assert (statements.page_start, statements.page_end) == (44, 48)
 
 
@@ -217,18 +185,16 @@ def test_page_end_without_a_following_section_is_the_last_page_in_the_subtree():
         ("Item 8", 1, STATEMENTS, "Body.", 0.9, 10),
         ("Balance", 2, BALANCE, "Cash.", 0.9, 12),
     ]
-    document, classification = build(rows)
-    tagged = TaggedDocument(document=document, classification=classification)
-    [match] = tagged.get_section(STATEMENTS).sections
+    [match] = text_of(rows)[STATEMENTS]
     assert (match.page_start, match.page_end) == (10, 12)
 
 
 def test_pages_are_none_without_pages():
-    document, classification = build(TENK, paged=False)
-    tagged = TaggedDocument(document=document, classification=classification)
-    for context in tagged.get_all_sections():
-        for match in context.sections:
+    document, cls = build(TENK, paged=False)
+    for matches in section_text(document, cls).values():
+        for match in matches:
             assert (match.page_start, match.page_end) == (None, None)
+    assert {r.page_start for r in tagged_sections(document, cls)} == {None}
 
 
 def test_deep_levels_cap_at_six_hashes():
@@ -236,9 +202,7 @@ def test_deep_levels_cap_at_six_hashes():
         ("Item 8", 1, STATEMENTS, "Body.", 0.9, 1),
         ("Deep", 8, "none", "Deep body.", 0.9, 1),
     ]
-    document, classification = build(rows)
-    tagged = TaggedDocument(document=document, classification=classification)
-    [match] = tagged.get_section(STATEMENTS).sections
+    [match] = text_of(rows)[STATEMENTS]
     assert "\n###### Deep\n" in f"\n{match.text}\n"
     assert "####### Deep" not in match.text
 
@@ -249,24 +213,23 @@ def test_text_skips_empty_bodies_and_is_stripped():
         ("Empty", 2, "none", "", 0.9, 1),
         ("Full", 2, "none", "Words.\n", 0.9, 1),
     ]
-    document, classification = build(rows)
-    tagged = TaggedDocument(document=document, classification=classification)
-    [match] = tagged.get_section(STATEMENTS).sections
+    [match] = text_of(rows)[STATEMENTS]
     assert match.text == "## Empty\n\n## Full\n\nWords."
 
 
-def test_mismatched_classification_raises(tagged):
+def test_mismatched_classification_raises(tenk):
+    document, cls = tenk
     stray = SectionTag(id="s99", title="x", level=1, label=BALANCE, level_used="headings")
-    classification = tagged.classification.model_copy(
-        update={"sections": [*tagged.classification.sections, stray]}
-    )
+    cls = cls.model_copy(update={"sections": [*cls.sections, stray]})
     with pytest.raises(ValueError, match="s99"):
-        TaggedDocument(document=tagged.document, classification=classification)
+        section_text(document, cls)
+    with pytest.raises(ValueError, match="s99"):
+        tagged_sections(document, cls)
 
 
 def test_empty_document():
     document = Document(source="empty.md")
-    classification = Classification(
+    cls = Classification(
         source="empty.md",
         flow="doc_first",
         doc_type=None,
@@ -274,52 +237,179 @@ def test_empty_document():
         backend="test",
         section_taxonomy="section_catalogue",
     )
-    tagged = TaggedDocument(document=document, classification=classification)
-    assert tagged.doc_type is None
-    assert tagged.available_tags() == []
-    assert tagged.get_all_sections() == []
-    assert tagged.get_section(BALANCE).status == "not_found"
+    assert section_text(document, cls) == {}
+    assert tagged_sections(document, cls) == []
 
 
-@pytest.mark.parametrize("name", [None, "my_custom"])
-def test_unresolvable_taxonomy_reports_not_found(name):
-    rows = [
-        ("Item 8", 1, "custom.statements", "Body.", 0.9, 1),
-        ("Balance", 2, "custom.statements.balance", "Cash.", 0.9, 2),
+# --- parse() ---------------------------------------------------------------------------------
+
+REPORT = """# Notes to the financial statements
+
+Note one sets out the accounting policies and revenue recognition.
+
+# Management discussion
+
+Results of operations improved as revenue grew.
+
+## Liquidity
+
+Cash flows from operations funded capital expenditure.
+"""
+
+
+@pytest.fixture
+def spy(monkeypatch):
+    calls = []
+    real = context_module.classify
+
+    def spied(document, **kwargs):
+        calls.append(kwargs)
+        return real(document, **kwargs)
+
+    monkeypatch.setattr(context_module, "classify", spied)
+    return calls
+
+
+def test_parse_type_only_skips_sections(spy):
+    result = parse(REPORT, include="type", backend="keyword", level="headings")
+    assert len(spy) == 1
+    assert spy[0]["flow"] == "doc_first" and spy[0]["max_sections"] == 0
+    assert result.include == "type"
+    assert result.sections is None and result.section_text is None
+    raw = json.loads(result.model_dump_json())
+    assert "sections" not in raw and "section_text" not in raw
+    assert "doc_type_confidence" in raw
+
+
+def test_parse_levels_end_to_end_keyword():
+    results = {
+        level: parse(REPORT, include=level, backend="keyword", level="headings")
+        for level in INCLUDES
+    }
+    assert len({r.doc_type for r in results.values()}) == 1
+    assert results["type"].tokens["sections"] == 0
+    assert results["type"].tokens["document"] > 0
+    assert results["sections"].tokens["sections"] > 0
+    assert [s.heading for s in results["sections"].sections] == [
+        "Notes to the financial statements",
+        "Management discussion",
+        "Liquidity",
     ]
-    document, classification = build(rows, section_taxonomy=name)
-    tagged = TaggedDocument(document=document, classification=classification)
-    assert tagged.get_section("whatever.nothing").status == "not_found"
-    assert tagged.get_section("custom.statements.balance").status == "found"
-    group = tagged.get_section("custom")  # a prefix still reaches the leaves under it
-    assert [m.heading for m in group.sections] == ["Item 8"]
+    assert results["sections"].section_text is None
+    full = results["text"]
+    assert full.sections == results["sections"].sections
+    assert full.section_text
+    texts = [m.text for matches in full.section_text.values() for m in matches]
+    assert any("accounting policies" in t for t in texts)
+    assert any("Cash flows from operations" in t for t in texts)
+    assert (full.version, full.backend, full.include) == (1, "keyword", "text")
 
 
-def test_passed_taxonomy_enables_unknown_tag():
-    rows = [("Item 8", 1, "custom.statements", "Body.", 0.9, 1)]
-    document, classification = build(rows, section_taxonomy="my_custom")
-    catalogue = builtin_taxonomy("section_catalogue")
-    tagged = TaggedDocument(document=document, classification=classification, taxonomy=catalogue)
-    assert tagged.get_section("financial.balence_sheet").status == "unknown_tag"
-    assert tagged.get_section(BALANCE).status == "not_found"
-    by_name = TaggedDocument(
-        document=document, classification=classification, taxonomy="section_catalogue"
+def test_parse_takes_a_document_and_a_path(tmp_path, spy):
+    path = tmp_path / "report.md"
+    path.write_text(REPORT, encoding="utf-8")
+    from_path = parse(path, backend="keyword", level="headings")
+    from_doc = parse(load(path), backend="keyword", level="headings")
+    assert from_path.sections == from_doc.sections
+    assert from_path.source == from_doc.source
+    assert spy[0]["flow"] == "doc_first"  # the default flow
+
+
+def test_parse_passes_classify_kwargs(spy):
+    parse(REPORT, backend="keyword", level="headings", calls="per_item", flow="sections_first")
+    assert spy[0]["calls"] == "per_item"
+    assert spy[0]["flow"] == "sections_first"
+    assert spy[0]["backend"] == "keyword" and spy[0]["level"] == "headings"
+    assert "max_sections" not in spy[0]
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"include": "everything"}, "include"),
+        ({"include": "type", "flow": "sections_first"}, "doc_first"),
+        ({"include": "type", "max_sections": 5}, "max_sections"),
+    ],
+)
+def test_parse_rejects_conflicts(spy, kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        parse(REPORT, backend="keyword", **kwargs)
+    assert spy == []  # refused before any call
+
+
+def test_parse_allows_max_sections_above_type():
+    result = parse(REPORT, include="sections", backend="keyword", level="headings", max_sections=1)
+    assert [s.section_id for s in result.sections] == ["s1"]  # max_sections reached classify
+
+
+def test_stage_tokens_are_prompt_plus_completion(monkeypatch):
+    document, cls = build(TENK)
+    cls = cls.model_copy(update={"stage_tokens": {"document": TokenUsage(prompt=10, completion=2)}})
+    monkeypatch.setattr(context_module, "classify", lambda doc, **kw: cls)
+    result = parse(document, include="sections")
+    assert result.tokens == {"document": 12, "sections": 0}
+
+
+@pytest.mark.parametrize("include", INCLUDES)
+def test_parse_result_round_trip(include):
+    rows = [
+        ("Bilan consolidé", 1, BALANCE, "Trésorerie : 10 €.", 0.9, 1),
+        ("Annexe", 1, NOTES, "Détail.", None, 2),
+    ]
+    result = result_of(rows, include=include)
+    raw = result.model_dump_json()
+    assert "Bilan consolidé" in raw or include == "type"  # not escaped
+    again = ParseResult.model_validate_json(raw)
+    assert again == result
+    assert (
+        set(json.loads(raw))
+        == {
+            "type": {
+                "version",
+                "source",
+                "include",
+                "backend",
+                "doc_type",
+                "doc_type_confidence",
+                "tokens",
+            },
+            "sections": {
+                "version",
+                "source",
+                "include",
+                "backend",
+                "doc_type",
+                "doc_type_confidence",
+                "tokens",
+                "sections",
+            },
+            "text": {
+                "version",
+                "source",
+                "include",
+                "backend",
+                "doc_type",
+                "doc_type_confidence",
+                "tokens",
+                "sections",
+                "section_text",
+            },
+        }[include]
     )
-    assert by_name.get_section("financial.balence_sheet").status == "unknown_tag"
 
 
-def test_taxonomy_is_not_a_serialised_field(tagged):
-    assert set(tagged.model_dump()) == {"document", "classification"}
-
-
-def test_doc_type_property(tagged):
-    assert tagged.doc_type == "financial.annual_report"
-
-
-def test_results_are_json_ready(tagged):
-    dumped = tagged.get_section(BALANCE).model_dump(mode="json")
-    assert dumped["status"] == "found"
+def test_parse_result_json_has_the_documented_shape():
+    dumped = json.loads(result_of().model_dump_json())
     assert list(dumped["sections"][0]) == [
+        "section_id",
+        "heading",
+        "level",
+        "path",
+        "tag",
+        "confidence",
+        "page_start",
+    ]
+    assert list(dumped["section_text"][BALANCE][0]) == [
         "section_id",
         "tag",
         "heading",
@@ -334,88 +424,96 @@ def test_results_are_json_ready(tagged):
     ]
 
 
-def test_none_is_a_real_leaf(tagged):
-    context = tagged.get_section("none")
+def test_get_section_found_missing_unknown():
+    result = result_of()
+    context = result.get_section(BALANCE)
+    assert isinstance(context, SectionContext)
+    assert context.status == "found" and context.message is None
+    assert [m.heading for m in context.sections] == ["CONSOLIDATED BALANCE SHEETS"]
+
+    missing = result.get_section("financial.schedule_of_investments")
+    assert missing.status == "not_found" and missing.sections == []
+    assert "financial.schedule_of_investments" in missing.message
+
+    unknown = result.get_section("financial.balence_sheet")
+    assert unknown.status == "unknown_tag" and unknown.sections == []
+    assert "financial.balence_sheet" in unknown.message
+    assert "section_catalogue" in unknown.message
+
+    stripped = result.get_section(" financial.balance_sheet \n")
+    assert stripped.status == "found" and stripped.tag == BALANCE
+    assert result.get_section("Financial.Balance_Sheet").status == "unknown_tag"
+
+    custom = Taxonomy(
+        [
+            TaxonomyNode(id="custom", label="Custom"),
+            TaxonomyNode(id="custom.a", label="A", parent_id="custom"),
+        ]
+    )
+    assert result.get_section(BALANCE, catalogue=custom).status == "unknown_tag"
+    assert result.get_section("custom.a", catalogue=custom).status == "not_found"
+
+
+def test_get_section_none_is_never_a_key():
+    result = result_of()
+    assert "none" not in result.section_text
+    assert result.get_section("none").status == "not_found"
+
+
+def test_get_section_group_collapses_across_keys():
+    result = result_of()
+    context = result.get_section("financial")
     assert context.status == "found"
-    assert [m.heading for m in context.sections] == ["PART II"]
+    # the balance sheet sits inside Item 8, whose text already holds it
+    assert [(m.heading, m.tag) for m in context.sections] == [
+        ("Item 8. Financial Statements", STATEMENTS),
+        ("Notes", NOTES),
+        ("Note A", NOTES),
+        ("Note B", NOTES),
+    ]
+    assert "CONSOLIDATED BALANCE SHEETS" in context.sections[0].text
 
 
-def test_non_dict_validation_context_is_ignored(tagged):
-    tagged.model_post_init("not a dict")
-    assert tagged.get_section(BALANCE).status == "found"
-    assert tagged.get_section("financial.balence_sheet").status == "unknown_tag"
+def test_group_matches_in_reading_order_not_key_order():
+    rows = [
+        ("Overview", 1, "narrative.business_overview", "o", 0.9, 1),
+        ("A", 1, NOTES, "a", 0.9, 2),
+        ("B", 1, STATEMENTS, "b", 0.9, 3),
+        ("C", 1, NOTES, "c", 0.9, 4),
+    ]
+    context = result_of(rows).get_section("financial")
+    assert [m.heading for m in context.sections] == ["A", "B", "C"]  # not A, C, B
 
 
-def test_json_round_trip(tagged):
-    raw = tagged.to_json()
-    envelope = json.loads(raw)
-    assert set(envelope) == {"format", "version", "document", "classification"}
-    assert envelope["format"] == "docrooter.tagged_document"
-    assert envelope["version"] == 1
-    again = TaggedDocument.from_json(raw)
-    assert again.get_all_sections() == tagged.get_all_sections()
-    assert TaggedDocument.from_json(raw.encode("utf-8")).doc_type == tagged.doc_type
-    # the taxonomy comes back from the classification, so an unknown tag is still told apart
-    assert again.get_section("financial.balence_sheet").status == "unknown_tag"
+def test_reading_order_compares_ids_numerically():
+    rows = [("Top", 1, "narrative.business_overview", "t", 0.9, 1)]
+    rows += [(f"Sub {i}", 2, NOTES if i % 2 else STATEMENTS, str(i), 0.9, 1) for i in range(1, 12)]
+    context = result_of(rows).get_section("financial")
+    assert [m.heading for m in context.sections] == [f"Sub {i}" for i in range(1, 12)]
 
 
-def test_from_json_takes_a_taxonomy():
-    rows = [("Item 8", 1, "custom.statements", "Body.", 0.9, 1)]
-    document, classification = build(rows, section_taxonomy="my_custom")
-    raw = TaggedDocument(document=document, classification=classification).to_json()
-    plain = TaggedDocument.from_json(raw)
-    assert plain.get_section("financial.balence_sheet").status == "not_found"
-    given = TaggedDocument.from_json(raw, taxonomy=builtin_taxonomy("section_catalogue"))
-    assert given.get_section("financial.balence_sheet").status == "unknown_tag"
+def test_get_sections_order_and_duplicates():
+    contexts = result_of().get_sections([RISKS, BALANCE, RISKS])
+    assert [c.tag for c in contexts] == [RISKS, BALANCE, RISKS]
+    assert all(c.status == "found" for c in contexts)
 
 
-def test_save_load_round_trip_unicode(tmp_path):
-    rows = [("Bilan consolidé", 1, BALANCE, "Trésorerie : 10 €.", 0.9, 1)]
-    document, classification = build(rows)
-    path = tmp_path / "doc.tagged.json"
-    TaggedDocument(document=document, classification=classification).save(path)
-    assert "Bilan consolidé" in path.read_text(encoding="utf-8")
-    loaded = TaggedDocument.load(path)
-    [match] = loaded.get_section(BALANCE).sections
-    assert match.heading == "Bilan consolidé"
-    assert "Trésorerie : 10 €." in match.text
-    assert TaggedDocument.load(str(path)).doc_type == loaded.doc_type
+def test_get_sections_rejects_a_bare_string():
+    with pytest.raises(TypeError):
+        result_of().get_sections(BALANCE)
 
 
-@pytest.mark.parametrize(
-    "change", [{"format": "other"}, {"version": 2}, {"version": "1"}, {"format": None}]
-)
-def test_from_json_rejects_wrong_format(tagged, change):
-    envelope = json.loads(tagged.to_json()) | change
-    with pytest.raises(ValueError, match="tagged document"):
-        TaggedDocument.from_json(json.dumps(envelope))
+@pytest.mark.parametrize("include", ["type", "sections"])
+def test_get_section_needs_text_level(include):
+    result = result_of(include=include)
+    with pytest.raises(ValueError, match='include="text"'):
+        result.get_section(BALANCE)
+    with pytest.raises(ValueError, match='include="text"'):
+        result.get_sections([BALANCE])
 
 
-@pytest.mark.parametrize("raw", ["[]", "{}", "not json"])
-def test_from_json_rejects_a_non_envelope(raw):
-    with pytest.raises(ValueError):
-        TaggedDocument.from_json(raw)
-
-
-def test_from_source_loads_and_classifies(monkeypatch, tagged):
-    seen = {}
-
-    def fake_classify(document, **kwargs):
-        seen["document"], seen["kwargs"] = document, kwargs
-        return build([("Overview", 1, "narrative.business_overview", "Strong.", 0.9, 1)])[1]
-
-    monkeypatch.setattr(context_module, "classify", fake_classify)
-    result = TaggedDocument.from_source("# Overview\n\nStrong.\n", backend="jev", flow="doc_first")
-    assert seen["kwargs"] == {"backend": "jev", "flow": "doc_first"}
-    assert isinstance(seen["document"], Document)
-    assert result.document is seen["document"]
-    assert result.get_section("narrative.business_overview").status == "found"
-
-    def no_load(source):
-        raise AssertionError("a Document must not be loaded again")
-
-    monkeypatch.setattr(context_module, "load", no_load)
-    monkeypatch.setattr(context_module, "classify", lambda document, **kw: tagged.classification)
-    again = TaggedDocument.from_source(tagged.document, taxonomy="section_catalogue")
-    assert again.document is tagged.document
-    assert again.get_section("financial.balence_sheet").status == "unknown_tag"
+def test_a_stored_response_answers_after_a_round_trip():
+    stored = result_of().model_dump_json()
+    again = ParseResult.model_validate_json(stored)
+    [match] = again.get_section(RISKS).sections
+    assert (match.heading, match.text) == ("Item 1A Risk Factors", "Risks.")

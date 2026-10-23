@@ -94,7 +94,11 @@ import them from `docrooter`.)
 
 ::: docrooter.SectionTag
 
-::: docrooter.TaggedDocument
+::: docrooter.parse
+
+::: docrooter.ParseResult
+
+::: docrooter.TaggedSection
 
 ::: docrooter.SectionContext
 

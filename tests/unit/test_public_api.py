@@ -74,7 +74,9 @@ PUBLIC_NAMES = [
     "SectionTag",
     "LEVELS",
     # section context
-    "TaggedDocument",
+    "parse",
+    "ParseResult",
+    "TaggedSection",
     "SectionContext",
     "SectionMatch",
 ]

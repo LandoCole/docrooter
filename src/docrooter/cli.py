@@ -27,6 +27,8 @@ from docrooter.taxonomy import Taxonomy, TaxonomyIssue, validate_nodes
 if TYPE_CHECKING:
     from docrooter.classify.classifier import Classifier
     from docrooter.classify.results import DocTypeResult
+    from docrooter.context import Include
+    from docrooter.flow import Flow
 
 PITCH = (
     "The minimum context a hosted LLM needs to classify a document: sections first, on a "
@@ -252,6 +254,79 @@ def classify(
     )
 
 
+@app.command("parse")
+def parse_(
+    file: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Document to read.")
+    ],
+    include: Annotated[
+        str,
+        typer.Option(
+            help="How much to return: type (the document type), sections (also every heading "
+            "with its tag) or text (also the text of each section)."
+        ),
+    ] = "sections",
+    backend: Annotated[
+        str, typer.Option("--backend", "-b", help="Backend spec, e.g. keyword or embedding:MODEL.")
+    ] = DEFAULT_BACKEND,
+    flow: Annotated[
+        str,
+        typer.Option(help="doc_first (default) or sections_first; type needs doc_first."),
+    ] = "doc_first",
+    level: Annotated[
+        str | None,
+        typer.Option(
+            help="Context level: headings, terms, lead or full (default: the backend's "
+            "measured level)."
+        ),
+    ] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", "-o", dir_okay=False, help="Write the JSON here instead of stdout."),
+    ] = None,
+) -> None:
+    """Read a document and return its type, sections and text as JSON.
+
+    --include picks how much comes back: the type alone, the type with every heading and its
+    tag (the default), or also the full text of each tagged section.
+    """
+    from docrooter import parse
+    from docrooter.context import INCLUDES
+    from docrooter.document.load import load
+    from docrooter.flow import FLOWS
+
+    if include not in INCLUDES:
+        raise typer.BadParameter(
+            f"unknown include {include!r}; use {', '.join(INCLUDES)}", param_hint="--include"
+        )
+    if flow not in FLOWS:
+        raise typer.BadParameter(
+            f"unknown flow {flow!r}; use {' or '.join(FLOWS)}", param_hint="--flow"
+        )
+    options: dict[str, Any] = {}
+    if level is not None:
+        options["level"] = _check_level(level, "--level")
+    with _errors_exit_1():
+        doc = load(file)
+        try:
+            result = parse(
+                doc,
+                include=cast("Include", include),  # checked against INCLUDES above
+                flow=cast("Flow", flow),  # checked against FLOWS above
+                backend=backend,
+                **options,
+            )
+        except ValueError as error:  # an option combination parse() does not allow
+            raise typer.BadParameter(str(error)) from error
+        text = json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False)
+        if out is not None:
+            out.write_text(text + "\n", encoding="utf-8")
+    if out is None:
+        typer.echo(text)
+        return
+    typer.echo(f"wrote {out}")
+
+
 def _check_level(value: str | None, hint: str) -> str | None:
     from docrooter.ladder import LEVELS
 
@@ -275,7 +350,7 @@ def _classify_flow(
 ) -> None:
     """``docrooter classify FILE``: :func:`docrooter.classify` and its result."""
     from docrooter.document.load import load
-    from docrooter.flow import CALLS, FLOWS, Calls, Flow, classify
+    from docrooter.flow import CALLS, FLOWS, Calls, classify
 
     if calls is not None and calls not in CALLS:
         raise typer.BadParameter(

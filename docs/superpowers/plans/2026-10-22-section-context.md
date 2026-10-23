@@ -127,7 +127,7 @@ file.
       Notes…), each match's `tag` being its own leaf;
     - the balance sheet is not repeated, because it sits inside Item 8.
   - `test_missing_tag_is_not_found`:
-    - `fund.schedule_of_investments` has `status == "not_found"`, `sections == []`, and a
+    - `financial.schedule_of_investments` has `status == "not_found"`, `sections == []`, and a
       message containing the tag;
     - no exception is raised.
   - `test_unknown_tag`: `"financial.balence_sheet"` has `status == "unknown_tag"` and a message
@@ -247,7 +247,7 @@ file.
   `test_cli_*.py` files do.
   - `test_sections_from_saved_json_tag`:
     - save the fixture with `TaggedDocument.save`, then run `sections saved.json --tag
-      financial.balance_sheet --tag fund.schedule_of_investments`;
+      financial.balance_sheet --tag financial.schedule_of_investments`;
     - exit 0;
     - the JSON has `doc_type`, `source`, and `results` with statuses `["found", "not_found"]`.
   - `test_sections_list_is_default`:
@@ -293,7 +293,7 @@ file.
   - It runs `examples/section_context.py` with `runpy`, and asserts the exact printed lines
     the example produces. The first line is
     `financial.balance_sheet: found (CONSOLIDATED BALANCE SHEETS)`; one line is
-    `fund.schedule_of_investments: not_found`.
+    `financial.schedule_of_investments: not_found`.
   - The example builds its document with `Document.from_sections` and a hand-built
     `Classification`, so it runs offline. Its docstring shows the real call
     (`TaggedDocument.from_source("10k.pdf", backend="jev")`).

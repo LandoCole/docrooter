@@ -12,7 +12,7 @@ extract: "this is a quarterly report and it has a schedule of investments, so pu
 company and its fair value from the schedule of investments."
 
 Today the application has to hand-roll the next step: find the headings tagged
-`fund.schedule_of_investments`, work out where each one ends, and stitch the text together.
+`financial.schedule_of_investments`, work out where each one ends, and stitch the text together.
 This feature packages that step. The application says "give me the schedule of investments" and
 gets back the tag, the heading and the full text of that section, ready to put in a prompt.
 The application (or another package) does the extraction and question answering; doc-rooter

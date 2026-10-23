@@ -142,11 +142,15 @@ The benchmark and the demo use `doc_first` (read the document, then tag). `secti
 which lets rules over the section tags decide the type, scored lower on the held-out set
 (82.5–90% against 95%) and is not reported.
 
-Earlier runs (catalogue v1, levels 1 and 2 tagged, batched calls) are kept in
-`benchmarks/results/2026-10-21/`: Claude Haiku 5.5 named the type from the headings 98.2% of the
-time on the gold split and 92.5% on the held-out set at about 3,700 prompt tokens, and UltraBERT
-82.5% held-out at `lead` (estimated tokens). Those section scores are not comparable: they used
-the v1 tags and gold.
+**Against Claude Haiku 5.5.** For the type question both models see the same document view, so
+their input is about the same (1,771 tokens for Jev and 2,344 for Haiku at `headings`; 12,110 and
+11,064 at `full`); the difference is the price. Jev's type question costs $0.00007 a document at
+`headings` against Haiku's $0.00024, about a third, and Jev's output is free. Haiku named the type
+98.2% of the time on the gold split and 92.5% on the held-out set at `headings`. The Haiku run is
+from the earlier setup (catalogue v1, at most 40 level-1 and level-2 headings tagged in batched
+calls; `benchmarks/results/2026-10-21/`), so its tag cost and scores are not comparable: Jev tags
+every heading, one question each, which is where most of its $0.009 per document goes. UltraBERT
+runs locally and scored 82.5% held-out at `lead`.
 
 **Caveats:**
 - The 2,194 section labels were written by Claude annotators, evaluation only. They were all

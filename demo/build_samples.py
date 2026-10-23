@@ -94,23 +94,46 @@ def build(doc, meta: dict, gold: str, gold_tags: dict[str, str], backend) -> dic
     return sample
 
 
+PRICES = {  # US$ per (input, output) token, list prices
+    "jev": (0.042e-6, 0.0),  # output is free
+    "haiku-5.5": (0.10e-6, 0.50e-6),
+}
+
+
+def _mean(values: list[float]) -> float | None:
+    return sum(values) / len(values) if values else None
+
+
 def bench_summary() -> dict:
-    """The benchmark rows the demo's tables and chart show."""
+    """The benchmark rows the demo's tables and chart show: read, then tag (doc_first) only,
+    with the cost per document at list prices, split into the type question and the section
+    tags (UltraBERT runs locally, so it has no cost), and the prompt tokens as a share of the
+    same backend's full-text run."""
     rows = []
     for directory, wanted in ((JEV, {"jev"}), (HAIKU, {"haiku-5.5", "ultrabert"})):
         for path in sorted(directory.glob("*.json")):
             data = json.loads(path.read_text())
             c, m = data["config"], data["metrics"]
-            if c["section_level"] != c["doc_level"] or data["backend"]["label"] not in wanted:
+            label = data["backend"]["label"]
+            if c["section_level"] != c["doc_level"] or label not in wanted:
                 continue
             if c["flow"] != "doc_first":  # read, then tag only
                 continue
             if (data.get("settings") or {}).get("limit"):  # a smoke run
                 continue
+            docs = [d for d in data["documents"] if not d.get("error")]
+            price = PRICES.get(label)
+
+            def cost(tokens: dict, price: tuple[float, float] | None = price) -> float | None:
+                if price is None:
+                    return None
+                return tokens["prompt"] * price[0] + tokens["completion"] * price[1]
+
+            stage = lambda d, k: d.get("stage_tokens", {}).get(k)  # noqa: E731
             sec = m.get("sections") or {}
             rows.append(
                 {
-                    "backend": data["backend"]["label"],
+                    "backend": label,
                     "docs": data["docs"],
                     "flow": c["flow"],
                     "level": c["doc_level"],
@@ -120,10 +143,31 @@ def bench_summary() -> dict:
                     "prompt_tokens": m["prompt_tokens_mean"],
                     "exact": m["tokens_exact"],
                     "documents": m["documents"],
-                    "decided_by_rules": m.get("decided_by_rules"),
+                    "sections_tagged": _mean([d.get("sections_tagged", 0) for d in docs]),
+                    "cost_doc": _mean([x for d in docs if (x := cost(d["tokens"])) is not None]),
+                    "cost_type": _mean(
+                        [
+                            x
+                            for d in docs
+                            if stage(d, "document")
+                            and (x := cost(stage(d, "document"))) is not None
+                        ]
+                    ),
                 }
             )
-    return {"rows": rows, "price": demo.PRICE, "model": demo.MODEL}
+    for row in rows:  # tokens against the same backend's full-text run on the same documents
+        full = next(
+            (
+                r
+                for r in rows
+                if r["level"] == "full"
+                and r["backend"] == row["backend"]
+                and r["docs"] == row["docs"]
+            ),
+            None,
+        )
+        row["share_of_full"] = row["prompt_tokens"] / full["prompt_tokens"] if full else None
+    return {"rows": rows, "prices": PRICES, "model": demo.MODEL}
 
 
 def main() -> None:

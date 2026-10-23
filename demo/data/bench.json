@@ -16,7 +16,10 @@
    "prompt_tokens": 321367.58035714284,
    "exact": true,
    "documents": 113,
-   "decided_by_rules": 0.0
+   "sections_tagged": 175.38392857142858,
+   "cost_doc": 0.013497438375,
+   "cost_type": 0.000508630875,
+   "share_of_full": 1.0
   },
   {
    "backend": "jev",
@@ -34,7 +37,10 @@
    "prompt_tokens": 215638.72566371682,
    "exact": true,
    "documents": 113,
-   "decided_by_rules": 0.0
+   "sections_tagged": 167.57522123893804,
+   "cost_doc": 0.009056826477876105,
+   "cost_type": 7.439761061946902e-05,
+   "share_of_full": 0.6710033582854648
   },
   {
    "backend": "jev",
@@ -52,7 +58,10 @@
    "prompt_tokens": 258743.8761061947,
    "exact": true,
    "documents": 113,
-   "decided_by_rules": 0.0
+   "sections_tagged": 171.16814159292036,
+   "cost_doc": 0.010867242796460177,
+   "cost_type": 8.665603539823009e-05,
+   "share_of_full": 0.8051337220096904
   },
   {
    "backend": "jev",
@@ -70,7 +79,10 @@
    "prompt_tokens": 230252.32743362832,
    "exact": true,
    "documents": 113,
-   "decided_by_rules": 0.0
+   "sections_tagged": 172.36283185840708,
+   "cost_doc": 0.009670597752212389,
+   "cost_type": 7.646638938053097e-05,
+   "share_of_full": 0.7164765256586986
   },
   {
    "backend": "jev",
@@ -83,7 +95,10 @@
    "prompt_tokens": 282892.875,
    "exact": true,
    "documents": 40,
-   "decided_by_rules": 0.0
+   "sections_tagged": 141.1,
+   "cost_doc": 0.01188150075,
+   "cost_type": 7.509389999999999e-05,
+   "share_of_full": null
   },
   {
    "backend": "jev",
@@ -96,7 +111,10 @@
    "prompt_tokens": 333076.225,
    "exact": true,
    "documents": 40,
-   "decided_by_rules": 0.0
+   "sections_tagged": 141.1,
+   "cost_doc": 0.013989201449999999,
+   "cost_type": 8.738625e-05,
+   "share_of_full": null
   },
   {
    "backend": "jev",
@@ -109,7 +127,10 @@
    "prompt_tokens": 302327.825,
    "exact": true,
    "documents": 40,
-   "decided_by_rules": 0.0
+   "sections_tagged": 141.1,
+   "cost_doc": 0.01269776865,
+   "cost_type": 7.720439999999999e-05,
+   "share_of_full": null
   },
   {
    "backend": "haiku-5.5",
@@ -122,7 +143,10 @@
    "prompt_tokens": 23502.796460176993,
    "exact": true,
    "documents": 113,
-   "decided_by_rules": 0.0
+   "sections_tagged": 14.141592920353983,
+   "cost_doc": 0.0024374522123893805,
+   "cost_type": 0.0011158681415929202,
+   "share_of_full": 1.0
   },
   {
    "backend": "haiku-5.5",
@@ -135,7 +159,10 @@
    "prompt_tokens": 3628.734513274336,
    "exact": true,
    "documents": 113,
-   "decided_by_rules": 0.0
+   "sections_tagged": 14.141592920353983,
+   "cost_doc": 0.00043775398230088493,
+   "cost_type": 0.00024410353982300885,
+   "share_of_full": 0.15439586176150757
   },
   {
    "backend": "haiku-5.5",
@@ -148,7 +175,10 @@
    "prompt_tokens": 6574.357142857143,
    "exact": true,
    "documents": 113,
-   "decided_by_rules": 0.0
+   "sections_tagged": 14.232142857142858,
+   "cost_doc": 0.0007292883928571428,
+   "cost_type": 0.0002820035714285714,
+   "share_of_full": 0.2797265914290964
   },
   {
    "backend": "haiku-5.5",
@@ -161,7 +191,10 @@
    "prompt_tokens": 4267.274336283186,
    "exact": true,
    "documents": 113,
-   "decided_by_rules": 0.0
+   "sections_tagged": 14.141592920353983,
+   "cost_doc": 0.0004995858407079646,
+   "cost_type": 0.0002464176991150442,
+   "share_of_full": 0.18156453609738024
   },
   {
    "backend": "haiku-5.5",
@@ -174,7 +207,10 @@
    "prompt_tokens": 3694.15,
    "exact": true,
    "documents": 40,
-   "decided_by_rules": 0.0
+   "sections_tagged": 21.175,
+   "cost_doc": 0.000466515,
+   "cost_type": 0.00024286999999999998,
+   "share_of_full": null
   },
   {
    "backend": "haiku-5.5",
@@ -187,7 +223,10 @@
    "prompt_tokens": 4584.575,
    "exact": true,
    "documents": 40,
-   "decided_by_rules": 0.0
+   "sections_tagged": 21.175,
+   "cost_doc": 0.000553495,
+   "cost_type": 0.0002499,
+   "share_of_full": null
   },
   {
    "backend": "ultrabert",
@@ -200,7 +239,10 @@
    "prompt_tokens": 13767.442477876106,
    "exact": false,
    "documents": 113,
-   "decided_by_rules": 0.0
+   "sections_tagged": 14.141592920353983,
+   "cost_doc": null,
+   "cost_type": null,
+   "share_of_full": 1.0
   },
   {
    "backend": "ultrabert",
@@ -213,7 +255,10 @@
    "prompt_tokens": 1822.513274336283,
    "exact": false,
    "documents": 113,
-   "decided_by_rules": 0.0
+   "sections_tagged": 14.141592920353983,
+   "cost_doc": null,
+   "cost_type": null,
+   "share_of_full": 0.13237849203038335
   },
   {
    "backend": "ultrabert",
@@ -226,7 +271,10 @@
    "prompt_tokens": 3110.7433628318586,
    "exact": false,
    "documents": 113,
-   "decided_by_rules": 0.0
+   "sections_tagged": 14.141592920353983,
+   "cost_doc": null,
+   "cost_type": null,
+   "share_of_full": 0.22594925439715735
   },
   {
    "backend": "ultrabert",
@@ -239,7 +287,10 @@
    "prompt_tokens": 2128.929203539823,
    "exact": false,
    "documents": 113,
-   "decided_by_rules": 0.0
+   "sections_tagged": 14.141592920353983,
+   "cost_doc": null,
+   "cost_type": null,
+   "share_of_full": 0.1546350534575287
   },
   {
    "backend": "ultrabert",
@@ -252,12 +303,21 @@
    "prompt_tokens": 3351.0,
    "exact": false,
    "documents": 40,
-   "decided_by_rules": 0.0
+   "sections_tagged": 21.175,
+   "cost_doc": null,
+   "cost_type": null,
+   "share_of_full": null
   }
  ],
- "price": {
-  "prompt": 4.2e-08,
-  "completion": 0.0
+ "prices": {
+  "jev": [
+   4.2e-08,
+   0.0
+  ],
+  "haiku-5.5": [
+   1e-07,
+   5e-07
+  ]
  },
  "model": "jev-1.13.0"
 }

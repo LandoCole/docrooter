@@ -323,6 +323,7 @@ tr.pick td:first-child{font-style:italic}
     <div class="body">
       <p>Most tools send a model the whole document. A 200-page filing is about 100,000 tokens, paid for before the model even starts on the question. doc-rooter reads the document's outline first and sends only what the question needs.</p>
       <p>To name a document's type, the headings were enough: Jev's doc type accuracy was 98%, for about a seventh of what the full text costs. To tag each section (balance sheet, risk factors, auditor's report), a few opening lines from the section help.</p>
+      <p>The section tags also make data extraction more accurate and cheaper. To pull figures from a balance sheet, an extraction tool sends the model just the section tagged balance sheet, not the whole document, and doesn't have to search the document again for every field. Extraction can be set up once per section type, which keeps prompts small and every call cheap.</p>
       <p>It's the next step after my <a href="https://landonthornton.com/classifier/">document classifier</a>, made into a package: it tags every section as well as the document, and works with a decision model like Jev or an LLM like Claude.</p>
     </div>
   </section>
